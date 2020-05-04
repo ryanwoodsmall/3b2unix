@@ -5,11 +5,11 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)dupasswd:dupasswd.mk	1.7"
+#ident	"@(#)rfpasswd:rfpasswd.mk	1.8"
 ROOT =
 TESTDIR = .
 INSDIR = $(ROOT)/usr/bin
-INCRT = $(ROOT)/usr/include
+INC = $(ROOT)/usr/include
 INS = :
 CFLAGS = -O -s
 LDFLAGS = -lns -lcrypt $(LDLIBS)
@@ -18,7 +18,7 @@ FRC =
 all: rfpasswd
 
 rfpasswd: rfpasswd.c 
-	$(CC) -I$(INCRT) $(CFLAGS) -o $(TESTDIR)/rfpasswd rfpasswd.c $(LDFLAGS)
+	$(CC) -I$(INC) $(CFLAGS) -o $(TESTDIR)/rfpasswd rfpasswd.c $(LDFLAGS)
 
 install: all
 	install -n $(INSDIR) $(TESTDIR)/rfpasswd

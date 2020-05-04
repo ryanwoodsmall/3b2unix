@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:admin/menu/usermgmt/deluser	2.2"
+#ident	"@(#)sadmin:admin/menu/usermgmt/deluser	2.4"
 #menu# delete a user from the system
 #help# 
 #help#	Deluser allows you to remove users from the computer.  The
@@ -49,6 +49,16 @@ This procedure will not delete that login ID."
 				admerr $0 'Failure attempting to delete user password entry'
 				exit 1
 			fi
+# remove newgrp entries in /etc/group for loginid
+			ed - /etc/group <<- !
+				H
+				,g/:${loginid}$/s//:/
+				,g/:${loginid},/s//:/
+				,g/,${loginid}$/s///
+				,g/,${loginid},/s//,/
+				w
+				q
+			!
 			if [ ! -d ${home} ]
 			then
 				echo "\\t${home} does not exist."

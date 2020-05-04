@@ -5,13 +5,12 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/vsprintf.c	1.4"
+#ident	"@(#)curses:screen/vsprintf.c	1.6"
 /*LINTLIBRARY*/
-#include "curses.ext"
+#include "curses_inc.h"
 #include <varargs.h>
-#define MAXINT 32767
 
-extern int _doprnt();
+extern	int	_doprnt();
 
 int
 vsprintf(string, format, ap)
@@ -34,7 +33,7 @@ va_list ap;
 #endif
 	count = _doprnt(format, ap, &siop);
 	*siop._ptr = '\0'; /* plant terminating null character */
-	return(count);
+	return (count);
 }
 
 int
@@ -47,6 +46,6 @@ va_list ap;
 	char spbuf[512];
 
 	n = vsprintf(spbuf, format, ap);
-	fputs(spbuf, fp);
-	return n;
+	(void) fputs(spbuf, fp);
+	return (n);
 }

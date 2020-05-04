@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)kern-port:debug/debug.mk	10.11"
+#ident	"@(#)kern-port:debug/debug.mk	10.11.1.1"
 #
 # makefile for libc/m32
 #
@@ -16,7 +16,7 @@ CC=cc
 CFLAGS=-O $(MORECPP)
 PROF=
 DEFLIST=
-INCRT=..
+INC=$(ROOT)/usr/include
 MKBOOT = mkboot
 MASTERD = ../master.d
 
@@ -41,11 +41,11 @@ debug.o: $(OBJECTS)
 
 
 .c.o:
-	$(CC) $(DEFLIST) -I$(INCRT) $(CFLAGS) -c $*.c 
+	$(CC) $(DEFLIST) -I$(INC) $(CFLAGS) -c $*.c 
 
 .s.o:
 	$(M4) -DMCOUNT=#  $*.s   > $*.m.s
-	$(CC) $(DEFLIST) -I$(INCRT) $(CFLAGS) -c $*.m.s
+	$(CC) $(DEFLIST) -I$(INC) $(CFLAGS) -c $*.m.s
 	mv $*.m.o $*.o
 	rm $*.m.s
 clean:
@@ -55,74 +55,74 @@ clobber: clean
 	-rm -f debug DEBUG
 
 ctype.o: ctype.c \
-	$(INCRT)/sys/ctype.h \
+	$(INC)/sys/ctype.h \
 	$(FRC)
 
 data.o: data.c \
-	$(INCRT)/sys/stdio.h \
+	$(INC)/sys/stdio.h \
 	$(FRC)
 
 disasm.o: disasm.c \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/inline.h \
-	$(INCRT)/sys/cmn_err.h \
-	$(INCRT)/sys/sys3b.h \
-	$(INCRT)/sys/disasm.h \
-	$(INCRT)/sys/sgs.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/inline.h \
+	$(INC)/sys/cmn_err.h \
+	$(INC)/sys/sys3b.h \
+	$(INC)/sys/disasm.h \
+	$(INC)/sys/sgs.h \
 	$(FRC)
 
 doprnt.o: doprnt.s \
 	$(FRC)
 
 prtabs.o: prtabs.c \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/param.h \
-	$(INCRT)/sys/fs/s5param.h \
-	$(INCRT)/sys/immu.h \
-	$(INCRT)/sys/region.h \
-	$(INCRT)/sys/proc.h \
-	$(INCRT)/sys/signal.h \
-	$(INCRT)/sys/fs/s5dir.h \
-	$(INCRT)/sys/psw.h \
-	$(INCRT)/sys/pcb.h \
-	$(INCRT)/sys/user.h \
-	$(INCRT)/sys/var.h \
-	$(INCRT)/sys/cmn_err.h \
-	$(INCRT)/sys/inline.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/param.h \
+	$(INC)/sys/fs/s5param.h \
+	$(INC)/sys/immu.h \
+	$(INC)/sys/region.h \
+	$(INC)/sys/proc.h \
+	$(INC)/sys/signal.h \
+	$(INC)/sys/fs/s5dir.h \
+	$(INC)/sys/psw.h \
+	$(INC)/sys/pcb.h \
+	$(INC)/sys/user.h \
+	$(INC)/sys/var.h \
+	$(INC)/sys/cmn_err.h \
+	$(INC)/sys/inline.h \
 	$(FRC)
 
 trace.o: trace.c \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/param.h \
-	$(INCRT)/sys/fs/s5param.h \
-	$(INCRT)/sys/fs/s5dir.h \
-	$(INCRT)/sys/immu.h \
-	$(INCRT)/sys/region.h \
-	$(INCRT)/sys/proc.h \
-	$(INCRT)/sys/signal.h \
-	$(INCRT)/sys/psw.h \
-	$(INCRT)/sys/pcb.h \
-	$(INCRT)/sys/user.h \
-	$(INCRT)/sys/cmn_err.h \
-	$(INCRT)/sys/sys3b.h \
-	$(INCRT)/sys/inline.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/param.h \
+	$(INC)/sys/fs/s5param.h \
+	$(INC)/sys/fs/s5dir.h \
+	$(INC)/sys/immu.h \
+	$(INC)/sys/region.h \
+	$(INC)/sys/proc.h \
+	$(INC)/sys/signal.h \
+	$(INC)/sys/psw.h \
+	$(INC)/sys/pcb.h \
+	$(INC)/sys/user.h \
+	$(INC)/sys/cmn_err.h \
+	$(INC)/sys/sys3b.h \
+	$(INC)/sys/inline.h \
 	$(FRC)
 
 sprintf.o: sprintf.s \
 	$(FRC)
 
 tables.o: tables.c \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/disasm.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/disasm.h \
 	$(FRC)
 
 utils.o: utils.c \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/inline.h \
-	$(INCRT)/sys/param.h \
-	$(INCRT)/sys/fs/s5param.h \
-	$(INCRT)/sys/sysmacros.h \
-	$(INCRT)/sys/sys3b.h \
-	$(INCRT)/sys/disasm.h \
-	$(INCRT)/sys/sgs.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/inline.h \
+	$(INC)/sys/param.h \
+	$(INC)/sys/fs/s5param.h \
+	$(INC)/sys/sysmacros.h \
+	$(INC)/sys/sys3b.h \
+	$(INC)/sys/disasm.h \
+	$(INC)/sys/sgs.h \
 	$(FRC)

@@ -5,12 +5,12 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:boot/lboot/basicio.c	10.3"
+#ident	"@(#)kern-port:boot/lboot/basicio.c	10.4.1.1"
 
 /*
  * Notes on this file.
  *
- * This file is the UNIX 5.0 file system code for the 3B5.  It has been
+ * This file is the UNIX 5.0 file system code for the 3B15.  It has been
  * extensively modified, BUT it has been done in a systematic manner.  This
  * note is an attempt to give an overview of the modifications.  Hopefully,
  * if it is desired to re-create this file by again copying the file system
@@ -133,13 +133,13 @@ struct	buf	bfreelist;	/* head of the free list of buffers */
 
 #ifndef INCORE
 struct	buf	buf[NBUF];	/* buffer headers */
-#ifdef u3b5
+#ifdef u3b15
 char	buffers	[NBUF][SBUFSIZE];	/* buffer cache */
 #endif
 #ifdef u3b2
 char	buffers	[NBUF+1][SBUFSIZE];	/* buffer cache */
 #endif
-#else ! INCORE
+#else
 struct	buf	*buf;		/* acquired buffer headers */
 #endif
 
@@ -1453,7 +1453,7 @@ binit()
 	    dp->av_forw = dp->av_back = dp;
 
 #ifndef INCORE
-#ifdef u3b5
+#ifdef u3b15
 	pbuffer = (caddr_t)buffers;
 #endif
 #ifdef u3b2
@@ -1463,9 +1463,9 @@ binit()
 	 */
 	pbuffer = (caddr_t)(((int)buffers + BSIZE-1) & ~BMASK);
 #endif
-#else ! INCORE
+#else
 	buf = (struct buf*)end;
-#ifdef u3b5
+#ifdef u3b15
 	pbuffer = (caddr_t)(buf+NBUF);
 #endif
 #ifdef u3b2

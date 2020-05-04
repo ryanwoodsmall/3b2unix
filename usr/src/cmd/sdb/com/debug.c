@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:com/debug.c	1.12"
+#ident	"@(#)sdb:com/debug.c	1.13"
 
 #include "head.h"
 #include "coff.h"
@@ -41,7 +41,7 @@ char *name;
 
 prprstk()	/* debug */
 {
-	register int n, i;
+	register int i;
 #if vax || u3b
 	fprintf(FPRT2, "((struct user *)uu)->u.ar0 = %#o\n",
 		((struct user *)uu)->u_ar0);

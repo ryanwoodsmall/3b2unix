@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1979 Regents of the University of California */
-#ident	"@(#)vi:port/ex_unix.c	1.12"
+#ident	"@(#)vi:port/ex_unix.c	1.15"
 
 #include "ex.h"
 #include "ex_temp.h"
@@ -279,7 +279,7 @@ unixwt(c, f)
  * the filter, then a child editor is created to write it.
  * If output is catch it from io which is created by unixex.
  */
-filter(mode)
+vi_filter(mode)
 	register int mode;
 {
 	static int pvec[2];
@@ -348,12 +348,20 @@ recover()
 		error(" Can't fork to execute recovery");
 	}
 	if (pid == 0) {
+		char cryptkey[19];
 		close(2);
 		dup(1);
 		close(1);
 		dup(pvec[1]);
 	        close(pvec[1]);
-		execlp(EXRECOVER, "exrecover", svalue(vi_DIRECTORY), file, (char *) 0);
+		if(xflag) {
+			strcpy(cryptkey, "CrYpTkEy=XXXXXXXXX");
+			strcpy(cryptkey + 9, key);
+			if(putenv(cryptkey) != 0)
+				smerror(" Cannot copy key to environment");
+			execlp(EXRECOVER, "exrecover", "-x", svalue(vi_DIRECTORY), file, (char *) 0);
+		} else
+			execlp(EXRECOVER, "exrecover", svalue(vi_DIRECTORY), file, (char *) 0);
 		close(1);
 		dup(2);
 		error(" No recovery routine");

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)pcc2:m32/local.c	10.5"
+#ident	"@(#)pcc2:m32/local.c	10.9"
 /*	local.c - machine dependent stuff for front end
  *
  *		WE 32000
@@ -15,6 +15,13 @@
 #include <signal.h>
 #include "paths.h"		/* to get TMPDIR, directory for temp files */
 #include "mfile1.h"
+#ifndef	REGSET			/* C-FP+ release still built in */
+#include "sgs.h"		/* to get RELEASE, name of release */
+#endif
+
+/* implementation defined front-end flag */
+
+#define	FF_RANAME FF_MDP1
 
 #ifdef REGSET
 /* register numbers in the compiler and their external numbers:
@@ -182,11 +189,10 @@ char **argv;
 
 		case 'V':	/* print version info */
 #ifdef REGSET
-			fputs("WE 32106 rcc compiler: C-FP+ Issue 0.1\n",
+			fputs("WE 32106 rcc compiler: C-FP+ Issue 1.0\n", stderr);
 #else
-                        fputs("WE32000 qcc compiler: SVR3.0\n",
+                        fprintf(stderr, "%s\n", RELEASE);
 #endif
-			    stderr);
 			n = 1;
 			break;
 
@@ -201,12 +207,23 @@ char **argv;
 			break;
 
 #ifdef IMPREGAL
-		case 'K':
-			if (argv[m+1][0] == 's' && argv[m+1][1] == 'z')
-				/* weight optimizer info for size optims. */
+		/* Accept two cases:  "-Ksz" and "-K" "sz" to
+		** turn on optimization for size.
+		*/
+		case 'K': {
+			char * thisarg = &argv[m][2];
+
+			n = 1;
+			if (thisarg[0] == '\0') {
+			    /* "-K" "sz" case */
+			    if (argv[m+1][0] == 's' && argv[m+1][1] == 'z')
 				++sizeopt;
-			n = 2;
+			    n = 2;
+			}
+			else if (thisarg[0] == 's' && thisarg[1] == 'z')
+			    ++sizeopt;
 			break;
+		}
 #endif
 
 		default:
@@ -315,10 +332,12 @@ register NODE *p;
 	register NODE *l, *r;
 
 #if defined(M32B) && defined(IMPREGAL)
-	if ((p->in.op == VAUTO || p->in.op == VPARAM) && p->in.pad[0] == '@')
+	if (   (p->in.op == VAUTO || p->in.op == VPARAM)
+	    && (p->fn.flags & FF_RANAME) == 0
+	    )
 	{
 		raname(p);
-		p->in.pad[0] = '~';	/*has been raname()'d*/
+		p->fn.flags |= FF_RANAME; /* name has been raname()'ed */
 	}
 #endif
 	if (!asgbinop(p->in.op) && p->in.op != ASSIGN)
@@ -852,8 +871,6 @@ register int n;
 	inoff += n * SZINT;
 }
 
-struct sw heapsw[SWITSZ];	/* heap for switches */
-
 genswitch(p, n)
 register struct sw *p;
 int n;
@@ -910,8 +927,9 @@ int n;
 	}
 	else if ( n > 8 )
 	{
-		heapsw[0].slab = dlab = p->slab >= 0 ? p->slab : getlab();
-		makeheap( p, n, 1 );	/* build heap */
+		makeheap( p, n );	/* build heap */
+		dlab = heapsw[0].slab;
+
 		walkheap( 1, n );	/* produce code */
 		if( p->slab >= 0 )
 			branch( dlab );
@@ -931,31 +949,6 @@ int n;
 		if (p->slab >= 0)
 			branch(p->slab);
 	}
-}
-
-makeheap( p, m, n )
-	register struct sw *p;
-{
-	register int q;
-
-	if( n >= SWITSZ )
-		cerror( "heap switch size exceeded" );
-	q = select( m );
-	heapsw[n] = p[q];
-	if( q > 1 )
-		makeheap( p, q-1, 2*n );
-	if( q < m )
-		makeheap( p+q, m-q, 2*n+1 );
-}
-
-select( m )
-{
-	register int l, i, k;
-
-	for( i=1; ; i*=2 )
-		if( (i-1) > m ) break;
-	l = ((k = i/2 - 1) + 1)/2;
-	return( l + (m-k < l ? m-k : l) );
 }
 
 walkheap( start, limit )

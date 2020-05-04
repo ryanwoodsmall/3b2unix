@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)nserve:nserve.c	1.26"
+#ident	"@(#)nserve:nserve.c	1.26.1.1"
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
@@ -546,7 +546,7 @@ struct request	*oreq;	/* request, if non-NULL, contains undo info	*/
 			nsrclose(pd);
 		}
 
-		if (oreq->rq_head->h_opcode == NS_INIT) {
+		if (oreq && (oreq->rq_head->h_opcode == NS_INIT)) {
 			exit(setmaster(nreq)); /* NS_INIT does not signal parent */
 		}
 	}

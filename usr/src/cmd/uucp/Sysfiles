@@ -1,4 +1,4 @@
-#ident	"@(#)uucp:Sysfiles	1.1"
+#ident	"@(#)uucp:Sysfiles	1.2"
 #
 #	Sysfiles provides a means of specifying different Systems,
 #	Devices and Dialers files for uucico and cu.  This is useful
@@ -27,7 +27,7 @@
 #	/usr/lib/uucp/Devices and /usr/lib/uucp/Dialers.
 #
 #	EXAMPLE 1:  
-#	This example uses different systems and dialers file to separate
+#	This example uses different systems and dialers files to separate
 #	the uucico- and cu-specific info, with information that they
 #	use in common still in the "usual" Systems and Dialers files.
 #

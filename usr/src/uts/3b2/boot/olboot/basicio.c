@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:boot/olboot/basicio.c	10.2"
+#ident	"@(#)kern-port:boot/olboot/basicio.c	10.3"
 
 #include	"sys/param.h"
 #include	"sys/types.h"
@@ -214,14 +214,17 @@ ndisk_acs(nblock,addr)
 	case HARDDISK1:
 
 	HD_ACS(P_CMDQ->b_dev - HARDDISK0, nblock, addr, DISKRD);
+	break;
 
 	case FLOPDISK:
 	
 	FD_ACS(nblock, addr, DISKRD, NOCHANGE);
+	break;
 
 	default:
 
 	IOBLK_ACS(P_CMDQ->b_dev, nblock, addr, DISKRD);
+	break;
 
 	}
 }

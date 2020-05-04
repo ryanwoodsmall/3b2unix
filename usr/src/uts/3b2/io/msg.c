@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/msg.c	10.5"
+#ident	"@(#)kern-port:io/msg.c	10.6"
 /*
 **	Inter-Process Communication Message Facility.
 */
@@ -23,7 +23,7 @@
 #include	"sys/psw.h"
 #include	"sys/pcb.h"
 #include	"sys/user.h"
-#if !defined(u3b5) && !defined(u3b2)
+#if !defined(u3b15) && !defined(u3b2)
 #include	"sys/seg.h"
 #endif
 #include	"sys/proc.h"
@@ -240,7 +240,7 @@ msginit()
 {
 	register int		i;	/* loop control */
 	register struct msg	*mp;	/* ptr to msg begin linked */
-#if u3b5 || u3b2
+#if u3b15 || u3b2
 	extern char msgsegment[];
 #endif
 #ifdef	pdp11
@@ -248,7 +248,7 @@ msginit()
 #endif
 
 	/* Allocate physical memory for message buffer. */
-#if u3b5
+#if u3b15
 	if ((msg = (paddr_t)msgsegment) == NULL) {
 #endif
 #ifdef pdp11

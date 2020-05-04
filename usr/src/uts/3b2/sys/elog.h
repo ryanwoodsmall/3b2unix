@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/elog.h	10.2"
+#ident	"@(#)kern-port:sys/elog.h	10.3"
 /*
  * "True" major device numbers. These correspond
  * to standard positions in the configuration
@@ -40,6 +40,7 @@ struct iotime {
 	long	io_bcnt;	/* total blocks transferred */
 	time_t	io_resp;	/* total block response time */
 	time_t	io_act;		/* total drive active time (cumulative utilization) */
+	int	io_pad;		/* round size to 2^n */
 };
 #define	io_cnt	ios.io_ops
 #define io_qc ios.io_qcnt

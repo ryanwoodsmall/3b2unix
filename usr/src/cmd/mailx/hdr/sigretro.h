@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:hdr/sigretro.h	1.4"
+#ident	"@(#)mailx:hdr/sigretro.h	1.5"
 #
 
 /*
@@ -15,10 +15,6 @@
  * Define extra stuff not found in signal.h
  */
 
-#ifndef SIGRETRO
-
-#define	SIGRETRO				/* Can use this for cond code */
-
 #ifndef SIG_HOLD
 
 #define	SIG_HOLD	(int (*)()) 3		/* Phony action to hold sig */
@@ -27,5 +23,3 @@
 #ifndef BADSIG
 #define	BADSIG		(int (*)()) -1		/* Return value on error */
 #endif /* BADSIG */
-
-#endif /* SIGRETRO */

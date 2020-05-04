@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)listen:nlsname.c	1.2"
+#ident	"@(#)listen:nlsname.c	1.3"
 
 /*
  * nlsname:	given a nodename in a null terminated string,
@@ -57,7 +57,7 @@ extern	int _nlslog;
 
 static void
 logmessage(s)
-	char *s;
+char *s;
 {
 	if (_nlslog)
 		fprintf(stderr,s);
@@ -92,7 +92,7 @@ static char netname[NAMEBUFSZ + 1];
 
 char *
 nlsname(p)
-	register char *p;
+register char *p;
 {
 	register char *np = netname;
 	extern char *nlsn2addr();
@@ -112,4 +112,3 @@ nlsname(p)
 
 	return(np);
 }
-

@@ -5,28 +5,13 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)tools:editval.c	1.26"
+#ident	"@(#)tools:editval.c	1.27"
 
 #include "../forms/muse.h"
 #include "vdefs.h"
 
-/*
- *  editval is called by vedit, and has as argument:
- *    v_pt: assigned vfunc pointer, with num defined.
- *    mess: header to instruct user about meaning of pre- (post)fixes.
- *  prompt: prompt given on each line, serving as placeholder/anchor
- *    f_pt: current field pointer
- *
- *  editval is called only when a validation function has pre- and/or
- *    post-fixes.  It is called by vedit().
- *
- *  editval lists any pre-existing fixes in a form, and allows the
- *    user to edit or delete these fixes and add new ones.
- *
- *  the linked fix list originating at v_pt is updated.
- */
 
-
+/* Array used for making chars visible */
 char *vvisible[] = {
    "<empty>",
    "^A",
@@ -64,6 +49,24 @@ char *vvisible[] = {
    NULL
 };
 
+
+
+/*
+ *  editval() displays screen for valfuncs that have arguments.
+ *    It reads current arguments into a segments[] array, calls
+ *    fedit(), and stores new arguments in data structure.
+
+ *    v_pt: assigned vfunc pointer, with num defined.
+ *    mess: header to instruct user about meaning of pre- (post)fixes.
+ *  prompt: prompt given on each line, serving as placeholder/anchor
+ *    f_pt: current field pointer
+ *    hnum: help message number.
+ *   hfile: help file.
+ *    prpo: prefix (v_pt->pr_pt) vs. suffix (v_pt->po_pt) flag.
+ *   numfs: max number of strings.
+ *       r: string used for bottom of screen information.
+ */
+
 int editval(f_pt,v_pt,mess,prompt,prpo,numfs,hnum,hfile,r)
 struct field *f_pt;
 struct vfunc *v_pt;
@@ -76,6 +79,7 @@ int hnum;
    struct segment *s_pt;
    int i, enumfs, flag;
 
+/* Initialize segments array */
    if (ss!=(struct segment*)0) {
       free(ss);
       ss = (struct segment*)0;
@@ -90,6 +94,9 @@ int hnum;
    enumfs = (numfs==0) ? LINES-8 : numfs;
    if (enumfs>12) enumfs=12;
    
+/*
+ * Initialize pre- or suffix.
+ */
    switch(prpo) {
    case 0:
       if (v_pt->pr_pt==(struct fix *)0)  {
@@ -114,6 +121,9 @@ int hnum;
 
    s_pt = ss;
 
+/*
+ * Load arguments into ss[].
+ */
    for (fi0_pt=fi_pt, i=5; i<5+enumfs; i++) {
       if (fi0_pt!=(struct fix *)0 &&fi0_pt->name!=NULL) s_pt->word = fi0_pt->name;
       else s_pt->word = NULL;
@@ -125,6 +135,9 @@ int hnum;
 
    refresh();
 
+/*
+ * Call fedit() -- table editor.
+ */
    flag = fedit(f_pt,ss,(struct segment *)0,prompt,NULL,mess,enumfs,
          hfile,hnum,r);
 
@@ -151,6 +164,9 @@ int hnum;
 }
 
 
+/*
+ * Make characters in string visible.
+ */
 char *dctrlstr(s)
 char *s;
 {  register char *c_pt;
@@ -177,6 +193,10 @@ char *s;
 }
 
 
+/*
+ * Display "visibilized" string (s) in location i,j;
+ * n is max screen column.
+ */
 int dctrlshow(i,j,n,s)
 register int i, j, n;
 char *s;
@@ -185,7 +205,7 @@ char *s;
    int flag=0;   /* 0: no editor needed; 1: editor needed */
    char *line;
 
-   maxx = n-j-1;
+   maxx = n-j-1;  /* Max string length */
    if (maxx<0 || s==NULL) return(0);
 
    line = (char*)calloc((unsigned)(dctrll(s)+2),sizeof(char));
@@ -214,6 +234,10 @@ char *s;
 }
 
 
+/*
+ * Blank all locations used by visibilized display of string s.
+ * row, col is i, j; n is max screen col.
+ */
 dctrlblank(i,j,n,s)
 char *s;
 {  register int i0, ll;
@@ -225,6 +249,9 @@ char *s;
    for (i0=0; i0<n && i0<=ll; i0++) addch(' ');
 }
 
+/*
+ * Compute length of visibilized string s.
+ */
 int dctrll(s)
 char *s;
 {  register char *c_pt;
@@ -239,6 +266,9 @@ char *s;
    return(count);
 }
 
+/*
+ * Return visibilized character.
+ */
 char *dctrlch(ch)
 char ch;
 {  static char *chst;
@@ -256,6 +286,20 @@ char ch;
 }
 
 
+/*
+ * Routine used by editval(), field_type(), and edit_exit() to edit one or
+ * two columns of strings.
+ *      s0: first segments array (first column)
+ *      s1: second segments array (second column)
+ *       m: header to instruct user about meaning of pre- (post)fixes.
+ *      p0: prompt given on each line in first col
+ *      p1: prompt given on each line in second col
+ *    f_pt: current field pointer
+ *      hn: help message number.
+ *      hf: help file.
+ *   numfs: max number of strings.
+ *       R: string used for bottom of screen information.
+ */
 fedit(f_pt,s0,s1,p0,p1,m,numfs,hf,hn,R)
 struct field *f_pt;
 char *hf, *R;
@@ -273,12 +317,16 @@ int numfs;
    fnumfs = (numfs==0) ? LINES-8 : numfs;
    if (fnumfs>12) fnumfs=12;
 
+/* Display screen */
    showscr(f_pt,s0,s1,p0,p1,m,fnumfs);
 
    limit0 = (p1==NULL) ? 80 : 40;
    limit1 = 80;
 
 
+/*
+ * Initialize char *scratch -- temp storage for current string being edited.
+ */
    s_pt = s0;
    limit = limit0;
    emode = 0;
@@ -297,7 +345,7 @@ int numfs;
 
    err_rpt(0,FALSE);
 
-   for (;;) {
+   for (;;) {  /* Main loop.  emode is flag for insert vs. neutral mode */
 
       bottom_stuff(emode,R);
       if (emode==0) move(s_pt->row,s_pt->col);
@@ -309,28 +357,31 @@ int numfs;
       if (literal) goto insert;
 
       switch(c)  {
-      case KEY_F(6):
+      case KEY_F(6):   /* Help */
       case CTRL(Y):
          store(stdscr,0,LINES,COLS);
          fhelp(hf,hn,2,2);
          store(stdscr,1,LINES,COLS);
          refresh();
          break;
-      case KEY_F(4):
+      case KEY_F(4):   /* return when in non-insert mode */
       case CTRL(R):
          if (emode==0) return(1);
          else beep();
          break;
-      case KEY_F(5):
+      case KEY_F(5):   /* return to TOP menu when in non-insert mode */
       case CTRL(T):
          if (emode==0) return(0);
          else beep();
          break;
-      case KEY_F(3):
+      case KEY_F(3):  /* Redraw screen */
       case CTRL(L):
          REDRAW;
          break;
-      case CTRL(J):
+      case CTRL(J):   /* Terminate string; go to next string [note
+                         that cursor goes from left to right, right to
+                         next left, etc..  Also note that string termination
+                         involves copying scratch[] into current segment */
       case CTRL(M):
          if (s1==(struct segment *)0) goto DOWN;   /* 1-col displays: move down */
          else if (s1!=(struct segment *)0 && s==s0) goto RIGHT; /*2-col: right */
@@ -380,7 +431,7 @@ int numfs;
          if (!err_flag) emode = 0;
          err_flag=0;
          break;
-      case KEY_DOWN:
+      case KEY_DOWN:  /* Similar to ^M. ^J, except for movement straight down */
       case CTRL(N):
 DOWN:    if (emode==1) {
             if ((err_flag=sscpy(s_pt,scratch,limit))==0) {
@@ -416,7 +467,7 @@ DOWN:    if (emode==1) {
          if (!err_flag) emode = 0;
          err_flag = 0;
          break;
-      case KEY_UP:
+      case KEY_UP:  /* Similar to ^M, ^J, except for movement straight up */
       case CTRL(P):
          if (emode==1) {
             if ((err_flag=sscpy(s_pt,scratch,limit))==0) {
@@ -430,7 +481,7 @@ DOWN:    if (emode==1) {
          if (!err_flag) emode = 0;
          err_flag = 0;
          break;
-      case KEY_LEFT:
+      case KEY_LEFT: /* Similar to ^M, ^J, except for movement straight left */
       case CTRL(B):
          if (emode==1) {
             if ((err_flag=sscpy(s_pt,scratch,limit))==0) {
@@ -448,7 +499,7 @@ DOWN:    if (emode==1) {
          if (!err_flag) emode = 0;
          err_flag = 0;
          break;
-      case KEY_RIGHT:
+      case KEY_RIGHT: /* Similar to ^M, ^J, except for movement straight right */
       case CTRL(W):
 RIGHT:   if (emode==1) {
             if ((err_flag=sscpy(s_pt,scratch,limit))==0) {
@@ -466,7 +517,7 @@ RIGHT:   if (emode==1) {
          if (!err_flag) emode = 0;
          err_flag = 0;
          break;
-      case CTRL(O):
+      case CTRL(O):  /* Delete strings in current row; adjust display */
       case KEY_F(8):
          if (emode==0 && s_pt->word!=NULL) {
 
@@ -500,7 +551,7 @@ RIGHT:   if (emode==1) {
          }
          else beep();
          break;
-      case CTRL(E):
+      case CTRL(E):  /* Invoke editor */
       case KEY_F(7):
          if (emode==0) {
             dctrlblank(s_pt->row,s_pt->col,limit-s_pt->col,s_pt->word);
@@ -516,7 +567,7 @@ RIGHT:   if (emode==1) {
          }
          else beep();
          break;
-      case CTRL(G):
+      case CTRL(G):  /* Edit mode toggle.  Blank screen when entering insert mode */
       case KEY_F(1):
          if (emode==0) {
             if (s_pt->word!=NULL) 
@@ -542,7 +593,7 @@ RIGHT:   if (emode==1) {
          }
          else beep();
          break;
-      case CTRL(C):
+      case CTRL(C):  /* Character quote mode */
          if (emode==0) beep();
          else {
             if (literal==0) literal=1;
@@ -552,7 +603,7 @@ RIGHT:   if (emode==1) {
             }
          }
          break;
-      case '\010':
+      case '\010':   /* Back space */
          if (emode==0) beep();
          else {
             if (c_pt>scratch) {
@@ -564,7 +615,7 @@ RIGHT:   if (emode==1) {
             else beep();
          }
          break;
-      default:
+      default:  /* Text insertion */
 insert:  if (emode!=1) beep();
          else {
             if (errnum=chckchar((char)c)) err_rpt(errnum,1);
@@ -572,6 +623,7 @@ insert:  if (emode!=1) beep();
                if (literal) literal=0;
                dctrlblank(s_pt->row,s_pt->col,limit-s_pt->col,scratch);
                *c_pt++ = c;
+               /* Automatically invoke ditor is string does not fit */
                if (dctrlshow(s_pt->row,s_pt->col,limit,scratch)) {
                   emode=0;
                   show_cmd("",27);
@@ -600,6 +652,10 @@ insert:  if (emode!=1) beep();
    }
 }
 
+/*
+ * Check temporary user string input (scratch[]) and copy into
+ * segment pointer.
+ */
 int sscpy(s_pt,z,limit)
 struct segment *s_pt;
 char *z;
@@ -627,6 +683,9 @@ char *z;
 }
 
 
+/*
+ * Display fedit() screen.
+ */
 showscr(f_pt,s0,s1,p0,p1,m,numfs)
 struct field *f_pt;
 struct segment *s0, *s1;
@@ -665,9 +724,13 @@ int numfs;
 
 
 
+/*
+ * Routine that calls fedit() to specify exit strings for
+ * conditional exit message.
+ */
 int edit_exit(hfile,hnum,r)
-char *hfile, *r;
-int hnum;
+char *hfile, *r;   /* Help file, bottom line information string */
+int hnum;    /* Help message number */
 {  char **e_pt;
    struct segment ss[7], *s_pt;
    char *prompt, *m;
@@ -678,6 +741,7 @@ int hnum;
 
    s_pt = ss;
 
+/* Load exit stringsinto temporary segments[] array */
    for (e_pt = exit_strs, i=5; i<5+xnumfs; e_pt++, i++) {
       s_pt->word = *e_pt;  /* Can be NULL */
       s_pt->row  = i;
@@ -687,6 +751,7 @@ int hnum;
 
    refresh();
 
+/* Run fedit() */
    flag = fedit((struct field*)0,ss,(struct segment *)0,prompt,NULL,m,xnumfs,
          hfile,hnum,r);
 
@@ -704,6 +769,10 @@ int hnum;
    return(flag);
 }
 
+
+/* 
+ * Display bottom-of-screen info.
+ */
 bottom_stuff(m,rlab)
 char *rlab;
 {

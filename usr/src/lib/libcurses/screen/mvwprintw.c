@@ -5,8 +5,8 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/mvwprintw.c	1.3.1.1"
-# include	"curses.ext"
+#ident	"@(#)curses:screen/mvwprintw.c	1.3.1.5"
+# include	"curses_inc.h"
 # include	<varargs.h>
 
 /*
@@ -15,14 +15,14 @@
  *
  */
 
-/* VARARGS */
+/*VARARGS*/
 mvwprintw(va_alist)
 va_dcl
 {
-	va_list ap;
 	register WINDOW	*win;
 	register int	y, x;
-	register char * fmt;
+	register char	*fmt;
+	va_list ap;
 
 	va_start(ap);
 	win = va_arg(ap, WINDOW *);

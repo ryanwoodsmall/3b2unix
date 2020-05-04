@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:shell/diskumount	2.2"
+#ident	"@(#)sadmin:shell/diskumount	2.3"
 #	perform a umount, complain if it doesn't work
 
 #!	chmod +x ${file}
@@ -18,10 +18,6 @@ esac
 msg=`/etc/umount ${1:?} 2>&1`
 case "${msg}" in
 '' )
-	if [ -d "$2" ]
-	then
-		chmod 0 $2
-	fi
 	echo >&2 $2 ${2:+'unmounted. '} \
 		"You may now remove the medium from the ${ndrive}.\n"
 	;;

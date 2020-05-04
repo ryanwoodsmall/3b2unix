@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)crash-3b2:lck.c	1.9"
+#ident	"@(#)crash-3b2:lck.c	1.9.1.1"
 /*
  * This file contains code for the crash function lck.
  */
@@ -264,9 +264,11 @@ long addr;
 	readbuf(addr,(long)(Flox->n_value+slot*sizeof fibuf),phys,-1,
 		(char *)&fibuf,sizeof fibuf,"lock table");
 	if(addr > -1)
-		slot = getslot(addr,(long)Flox->n_value,sizeof fibuf,phys);
-	fprintf(fp,"%4d %c%c%c",
-		slot,
+		slot = getslot(addr,(long)Flox->n_value,sizeof fibuf,phys,size);
+	if(slot == -1)
+		fprintf(fp,"  - ");
+	else fprintf(fp,"%4d",slot);
+	fprintf(fp," %c%c%c",
 	(fibuf.set.l_type == F_RDLCK) ? 'r' : ' ',
 	(fibuf.set.l_type == F_WRLCK) ? 'w' : ' ',
 	(fibuf.set.l_type == F_UNLCK) ? 'u' : ' ');

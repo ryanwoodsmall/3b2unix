@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)pcc2:common/trees.c	1.37"
+#ident	"@(#)pcc2:common/trees.c	1.48"
 
 # include "mfile1.h"
 
@@ -38,6 +38,8 @@
 ** REG:	rval is reg. number
 **
 */
+
+extern int watchdog;			/* watchdog for too many nodes alloc. */
 extern int maxarg;
 
 /* Flag to allow single precision floating point arithmetic.
@@ -85,9 +87,12 @@ register o;
 	register NODE *lr, *ll;
 	int	i;
 
+	watchdog = 0;			/* no table overrun when building tree */
+
 # ifndef NODBG
 	if( bdebug )
-		printf( "buildtree( %s, %d, %d )\n", opst[o], l-node, r-node );
+		printf( "buildtree( %s, %d, %d )\n",
+				opst[o], node_no(l), node_no(r) );
 # endif
 
 	/* special case to recognize subscripting explicitly */
@@ -188,9 +193,20 @@ ccwarn:
 	if( actions&LVAL )
 	{
 		 /* check left descendent */
-		if( notlval(p->in.left) )
+		if( notlval(p->in.left, 0) )	/* struct ref not allowed */
 		{
+		    /* produce a reasonable error message */
+		    switch( p->in.op ) {
+		    case CAST:
+			uerror( "illegal cast" );
+			break;
+		    case INCR:
+		    case DECR:
+			uerror( "illegal lhs of ++ or --" );
+			break;
+		    default:
 			uerror( "illegal lhs of assignment operator" );
+		    }
 		}
 	}
 
@@ -255,9 +271,6 @@ ccwarn:
 				defid( p, SNULL );
 				break;
 			}
-#if defined(M32B) && defined(IMPREGAL)
-			p->in.pad[0] = '@';	/*mark as un-raname()'d*/
-#endif
 			p->in.type = sp->stype;
 			p->fn.cdim = sp->dimoff;
 			p->fn.csiz = sp->sizoff;
@@ -442,8 +455,6 @@ ccwarn:
 			case VAUTO:
 			case VPARAM:
 			case TEMP:
-			case STCALL:
-			case UNARY STCALL:
 refinc:
 				p->in.type = INCREF( l->in.type );
 				p->fn.cdim = l->fn.cdim;
@@ -652,6 +663,23 @@ refinc:
 
 			break;
 
+		case INCR:
+		case DECR:
+			/* The only thing we care about here is fixing up the
+			** types on INCR and DECR of type float.  Normally they
+			** get built as (++[f] (CONV[d] obj[f]) FCON[d]).
+			** Make the type of the ++/-- into [d] (since its operands
+			** are) and put conversion above.
+			*/
+			if (p->in.type == FLOAT) {
+			    p->in.type = DOUBLE;
+			    p->fn.csiz = DOUBLE;
+			    p->fn.cdim = 0;
+			    p = makety(p, FLOAT, 0, FLOAT);
+			}
+		case ASG PLUS:
+		case ASG MINUS:
+			break;
 		case CM:			/* must have a value */
 			if (   l->in.type == VOID || l->in.type == UNDEF
 			    || r->in.type == VOID || r->in.type == UNDEF )
@@ -784,10 +812,8 @@ conval( p )
 register NODE *p;
 {
 	register NODE *l, *r;
-	register o, i, f, u;
-	register CONSZ val;
+	int o, u;
 
-	f = (p->tn.type==FLOAT || p->tn.type == DOUBLE);
 	u = ISUNSIGNED(p->tn.type);
 
 	switch( optype(o = p->tn.op) )
@@ -805,155 +831,121 @@ register NODE *p;
 		return( p );
 	}
 
-	if( l->tn.op != ( f ? FCON : ICON ) ) return( p );
-	if( r->tn.op != ( f ? FCON : ICON ) ) return( p );
+	/* float/double cases */
+	if ( l->tn.op == FCON && r->tn.op == FCON ) {
 
-	if( !f )
-	{
-		/* weed out unprofitable cases */
-		val = r->tn.lval;
-		if( l->tn.rval != NONAME && r->tn.rval != NONAME ) return(p);
-		if( r->tn.rval != NONAME && o!=PLUS ) return(p);
-		if( l->tn.rval != NONAME && o!=PLUS && o!=MINUS ) return(p);
-	}
-	else if( logop(o) ) return( p );
+	    double lval = l->fpn.dval;
+	    double rval = r->fpn.dval;
 
-	errno = 0;			/* check float/double range error */
-	switch( o )
-	{
+	    errno = 0;			/* check float/double range error */
 
-	case PLUS:
-		if( f )
-		{
-			l->fpn.dval = FP_PLUS(l->fpn.dval,r->fpn.dval);
+	    switch( o ) {
+	    case PLUS:	l->fpn.dval = FP_PLUS(lval, rval); break;
+	    case MINUS:	l->fpn.dval = FP_MINUS(lval, rval); break;
+	    case MUL:	l->fpn.dval = FP_TIMES(lval, rval); break;
+	    case DIV:
+		    if( FP_ISZERO(rval) )
+			uerror( "division by 0" );
+		    else
+			l->fpn.dval = FP_DIVIDE(lval, rval);
+		    break;
+
+	    case UNARY MINUS:
+			l->fpn.dval = FP_NEG(lval); break;
+	    case NOT:	l->tn.lval = FP_ISZERO(lval); break;
+
+	    case LT:	l->tn.lval = FP_CMPD(lval, rval) < 0; break;
+	    case LE:	l->tn.lval = FP_CMPD(lval, rval) <= 0; break;
+	    case GT:	l->tn.lval = FP_CMPD(lval, rval) > 0; break;
+	    case GE:	l->tn.lval = FP_CMPD(lval, rval) >= 0; break;
+	    case EQ:	l->tn.lval = FP_CMPD(lval, rval) == 0; break;
+	    case NE:	l->tn.lval = FP_CMPD(lval, rval) != 0; break;
+	    case ANDAND:l->tn.lval = !FP_ISZERO(lval) && !FP_ISZERO(rval); break;
+	    case OROR:	l->tn.lval = !FP_ISZERO(lval) || !FP_ISZERO(rval); break;
+	    default:
+		    return(p);
+	    }
+	    if (logop(o)) {
+		l->tn.op = ICON;	/* left side now INT constant */
+		l->tn.type = INT;
+		l->tn.rval = NONAME;	/* clean out FCON debris */
+	    }
+	    else if (p->in.type == FLOAT)
+		l->fpn.dval = FP_DTOFP(l->tn.lval); /* truncate to FLOAT result */
+
+	    /* FP_* routines may set errno on range error */
+	    if (errno)
+		werror("float/double constant folding out of range");
+
+	} /* end float/double case */
+	else if ( l->tn.op == ICON && r->tn.op == ICON ) {
+	    CONSZ rval = r->tn.lval;
+
+	    /* weed out unprofitable integer cases */
+	    if( l->tn.rval != NONAME && r->tn.rval != NONAME ) return(p);
+	    if( r->tn.rval != NONAME && o!=PLUS ) return(p);
+	    if( l->tn.rval != NONAME && o!=PLUS && o!=MINUS ) return(p);
+
+
+	    switch( o )
+	    {
+	    case PLUS:
+			l->tn.lval += rval;
+			if( l->tn.rval == NONAME )
+			{
+				l->tn.rval = r->tn.rval;
+				l->in.type = r->in.type;
+			}
 			break;
-		}
-		l->tn.lval += val;
-		if( l->tn.rval == NONAME )
-		{
-			l->tn.rval = r->tn.rval;
-			l->in.type = r->in.type;
-		}
-		break;
 
-	case MINUS:
-		if( f ) l->fpn.dval = FP_MINUS(l->fpn.dval,r->fpn.dval);
-		else l->tn.lval -= val;
-		break;
-
-	case MUL:
-		if( f ) l->fpn.dval = FP_TIMES(l->fpn.dval,r->fpn.dval);
-		else l->tn.lval *= val;
-		break;
-
-	case DIV:
-		if( f )
-		{
-			if( FP_ISZERO(r->fpn.dval) ) uerror( "division by 0" );
-			else l->fpn.dval = FP_DIVIDE(l->fpn.dval,r->fpn.dval);
-		}
-		else
-		{
-			if( val == 0 ) uerror( "division by 0" );
+	    case MINUS:	l->tn.lval -= rval; break;
+	    case MUL:	l->tn.lval *= rval; break;
+	    case DIV:
+			if( rval == 0 )
+			    uerror( "division by 0" );
 			else if( u )
-				l->tn.lval = (unsigned long)l->tn.lval / val;
-			else l->tn.lval /= val;
-		}
-		break;
+			    l->tn.lval = (unsigned long)l->tn.lval / rval;
+			else
+			    l->tn.lval /= rval;
+			break;
 
-	case MOD:
-		if( val == 0 ) uerror( "division by 0" );
-		else if( u ) l->tn.lval = (unsigned long)l->tn.lval % val;
-		else l->tn.lval %= val;
-		break;
+	    case MOD:
+			if( rval == 0 )
+			    uerror( "division by 0" );
+			else if( u )
+			    l->tn.lval = (unsigned long)l->tn.lval % rval;
+			else
+			    l->tn.lval %= rval;
+			break;
 
-	case AND:
-		l->tn.lval &= val;
-		break;
+	    case AND:	l->tn.lval &= rval; break;
+	    case OR:	l->tn.lval |= rval; break;
+	    case ER:	l->tn.lval ^=  rval; break;
+	    case LS:	l->tn.lval <<= (int) rval; break;
+	    case RS:	l->tn.lval >>= (int) rval; break;
+	    case UNARY MINUS:
+			l->tn.lval = - l->tn.lval; break;
+	    case COMPL: l->tn.lval = ~l->tn.lval; break;
+	    case NOT:	l->tn.lval = !l->tn.lval; break;
+	    case LT:	l->tn.lval = l->tn.lval < rval; break;
+	    case LE:	l->tn.lval = l->tn.lval <= rval; break;
+	    case GT:	l->tn.lval = l->tn.lval > rval; break;
+	    case GE:	l->tn.lval = l->tn.lval >= rval; break;
+	    case ULT:	l->tn.lval = (l->tn.lval-rval)<0; break;
+	    case ULE:	l->tn.lval = (l->tn.lval-rval)<=0; break;
+	    case UGE:	l->tn.lval = (l->tn.lval-rval)>=0; break;
+	    case UGT:	l->tn.lval = (l->tn.lval-rval)>0; break;
+	    case EQ:	l->tn.lval = l->tn.lval == rval; break;
+	    case NE:	l->tn.lval = l->tn.lval != rval; break;
+	    case ANDAND:l->tn.lval = l->tn.lval && rval; break;
+	    case OROR:	l->tn.lval = l->tn.lval || rval; break;
 
-	case OR:
-		l->tn.lval |= val;
-		break;
-
-	case ER:
-		l->tn.lval ^=  val;
-		break;
-
-	case LS:
-		i = val;
-		l->tn.lval = l->tn.lval << i;
-		break;
-
-	case RS:
-		i = val;
-		if( u ) l->tn.lval = (unsigned long)l->tn.lval >> i;
-		else l->tn.lval = l->tn.lval >> i;
-		break;
-
-	case UNARY MINUS:
-		if( f ) l->fpn.dval = FP_NEG(l->fpn.dval);
-		else l->tn.lval = - l->tn.lval;
-		break;
-
-	case COMPL:
-		l->tn.lval = ~l->tn.lval;
-		break;
-
-	case NOT:
-		if( l->tn.type == FLOAT || l->tn.type == DOUBLE )
-		{
-			l->tn.op = ICON;
-			l->tn.lval = FP_ISZERO(l->fpn.dval);
-		}
-		else l->tn.lval = !l->tn.lval;
-		break;
-
-	case LT:
-		l->tn.lval = l->tn.lval < val;
-		break;
-
-	case LE:
-		l->tn.lval = l->tn.lval <= val;
-		break;
-
-	case GT:
-		l->tn.lval = l->tn.lval > val;
-		break;
-
-	case GE:
-		l->tn.lval = l->tn.lval >= val;
-		break;
-
-	case ULT:
-		l->tn.lval = (l->tn.lval-val)<0;
-		break;
-
-	case ULE:
-		l->tn.lval = (l->tn.lval-val)<=0;
-		break;
-
-	case UGE:
-		l->tn.lval = (l->tn.lval-val)>=0;
-		break;
-
-	case UGT:
-		l->tn.lval = (l->tn.lval-val)>0;
-		break;
-
-	case EQ:
-		l->tn.lval = l->tn.lval == val;
-		break;
-
-	case NE:
-		l->tn.lval = l->tn.lval != val;
-		break;
-
-	default:
-		return(p);
-	}
-	/* FP_* routines may set errno on range error */
-	if (errno)
-	    werror("float/double constant folding out of range");
+	    default:
+		    return(p);
+	    }
+	} /* end of int case */
+	else
+	    return( p );		/* can't change others */
 
 	if( l != r ) r->tn.op = FREE; /* don't clobber unary answer */
 	l = makety( l, p->tn.type, p->fn.cdim, p->fn.csiz );
@@ -1082,6 +1074,7 @@ register NODE *p;
 	register struct symtab *q;
 	register NODE *qq;	/* for holding symtab info if conversion from */
 				/* ENUMTY needed */
+	int newtype = 0;	/* for changing field references */
 
 	/* make p->x */
 	/* this is also used to reference automatic variables */
@@ -1118,7 +1111,6 @@ register NODE *p;
 	*/
 
 	if ( dsc & FIELD ) {
-	    int newtype = 0;		/* for changing field references */
 	    int size = dsc&FLDSIZ;	/* size of bitfield */
 
 	    if (size == SZCHAR && off % ALCHAR == 0)
@@ -1206,6 +1198,8 @@ register NODE *p;
 		p = clocal( block( PLUS, p, offcon( off, t, d, s ), t, d, s ) );
 
 	p = buildtree( STAR, p, NIL );
+	if (newtype)
+	    p->fn.flags |= FF_ISFLD;	/* note this node started as a field */
 
 	/* if field, build field info */
 
@@ -1220,8 +1214,11 @@ register NODE *p;
 	return( clocal(p) );
 }
 
-notlval(p)
+notlval(p, structok)
 register NODE *p;
+int structok;				/* non-zero if struct reference is
+					** okay as lvalue
+					*/
 {
 
 	/* return 0 if p an lvalue, 1 otherwise */
@@ -1235,8 +1232,16 @@ again:
 		goto again;
 
 	case STAR:
-		/* fix the &(a=b) bug, given that a and b are structures */
-		if( p->in.left->in.op == STASG ) return( 1 );
+		if (!structok) {
+		    int o = p->in.left->in.op;
+		    TWORD ty = BTYPE(p->in.left->in.type);
+
+		    /* fix the &(a=b) bug, given that a and b are structures */
+		    /* also, fix stcall() = *p bug */
+		    if(   (o == STASG || o == STCALL || o == UNARY STCALL)
+		       && (ty == STRTY || ty == UNIONTY)
+		       )  return( 1 );
+		}
 	case NAME:
 	case VAUTO:
 	case VPARAM:
@@ -1246,6 +1251,22 @@ again:
 		if( ISARY(p->in.type) || ISFTN(p->in.type) ) return(1);
 	case REG:
 		return(0);
+
+	case COMOP:
+		if (structok) {
+		    p = p->in.right;	/* is lval if right side is */
+		    goto again;
+		}
+		else
+		    return(1);
+	
+	case QUEST:
+		if (structok) {
+		    p = p->in.right;	/* is lval if both sides of : are */
+		    return( notlval(p->in.left, 1) || notlval(p->in.right,1) );
+		}
+		else
+		    return(1);
 
 	default:
 		return(1);
@@ -1502,6 +1523,7 @@ register NODE *p;
 
 	register TWORD t1, t2, t;
 	register o, d2, d, s2, s;
+	NODE * r;
 
 	o = p->in.op;
 	t = t1 = p->in.left->in.type;
@@ -1515,8 +1537,15 @@ register NODE *p;
 	{
 
 	case ASSIGN:
-	case RETURN:
 	case CAST:
+		r = p->in.right;
+		if (   (BTYPE(r->in.type) == STRTY || BTYPE(r->in.type) == UNIONTY)
+		    && (r->in.op == STCALL || r->in.op == UNARY STCALL)
+		    )
+		    uerror("can't take address of return value");
+	case RETURN:			/* same check when return changed to
+					** assign to RNODE
+					*/
 		break;
 
 	case MINUS:
@@ -1801,10 +1830,11 @@ register o,d,s;
 	p->in.type = t;
 	p->fn.cdim = d;
 	p->fn.csiz = s;
+	p->fn.flags = 0;
 
 /*	for really heavy debugging
 	printf( "block( %s, %d, %d, 0%o, %d, %d ) yields %d\n",
-		opst[o], l-node, r-node, t, d, s, p-node );
+		opst[o], node_no(l), node_no(r), t, d, s, node_no(p) );
 */
 
 	return(p);
@@ -1990,7 +2020,7 @@ register NODE *p;
 	case ASG MINUS:
 	case INCR:
 	case DECR:
-		if( mt12 & MDBI ) return( TYMATCH+LVAL );
+		if( mt12 & MDBI ) return( TYMATCH+LVAL+OTHER );
 		else if( (mt1&MPTR) && (mt2&MINT) ) return( TYPL+LVAL+CVTR );
 		break;
 
@@ -2155,7 +2185,7 @@ char *s;
 	for( d=down; d>1; d -= 2 ) printf( "\t" );
 	if( d ) printf( "    " );
 
-	printf("%s=%d) %s, ", s, (int) (p-node), opst[p->in.op] );
+	printf("%s=%d) %s, ", s, (int) node_no(p), opst[p->in.op] );
 	if( ty == LTYPE )
 	{
 		printf( "lval=%ld", p->tn.lval );
@@ -2163,6 +2193,8 @@ char *s;
 	}
 	printf("type=");
 	tprint( p->in.type );
+	if (p->in.op == FLD)
+	    printf(", foff=%d, fsiz=%d", UPKFOFF(p->tn.rval), UPKFSZ(p->tn.rval));
 	printf( ", dim=%d, siz=%d\n", p->fn.cdim, p->fn.csiz );
 	if( ty != LTYPE )
 	{
@@ -2296,6 +2328,8 @@ register NODE *p;
 # ifdef SDB
 	sdbline();
 # endif
+	watchdog = 0;			/* start panic countdown */
+
 	p2tree( p );
 	p2compile( p );
 }
@@ -2313,6 +2347,7 @@ register NODE *p;
 	register ty;
 	register o;
 	char temp[32];			/* place to dump label stuff */
+	TWORD oldbtype = BTYPE(p->in.type); /* old basic type of node */
 
 # ifdef MYP2TREE
 	MYP2TREE(p);  /* local action can be taken here; then return... */
@@ -2358,11 +2393,15 @@ register NODE *p;
 	case UNARY STCALL:
 		/* set up size parameters */
 		{
-		    /* information about structure size, align is in this node
-		    ** for assign and arg, left side for others
+		    /* Get information from node that is still struct/union
+		    ** type.  In some cases an STASG or (U)STCALL node gets
+		    ** a different type when dereferenced, trashing the
+		    ** struct/union size.
 		    */
-		    NODE * stinfo = (o == STASG || o == STARG ? p : p->in.left);
+		    NODE * stinfo = p;
 
+		    if (oldbtype != STRTY && oldbtype != UNIONTY)
+			stinfo = p->in.left;
 		    p->stn.stsize = tsize(STRTY,stinfo->fn.cdim,stinfo->fn.csiz);
 		    p->stn.stalign = talign(STRTY,stinfo->fn.csiz);
 		}

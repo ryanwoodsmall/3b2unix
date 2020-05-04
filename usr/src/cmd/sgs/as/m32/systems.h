@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:m32/systems.h	1.13"
+#ident	"@(#)as:m32/systems.h	1.13.1.1"
 /*
  */
 
@@ -19,6 +19,8 @@
 #define M4ON	1
 #define FLOAT	1
 #define MACRO	0
+#define STATS	0
+#define STATPATH "as_stats.out"
 
 #if ABWRMAC
 

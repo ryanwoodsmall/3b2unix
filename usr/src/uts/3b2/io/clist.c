@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/clist.c	10.6"
+#ident	"@(#)kern-port:io/clist.c	10.6.2.1"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/sysmacros.h"
@@ -153,17 +153,38 @@ cinit()
 	register		n;
 	register struct cblock *cp;
 	register int		addr;
+	register 		ncpseg;
+	register		i;
+	int 			r, j;
+	int			m;
 
+	/*
+	 * n - the number of pages needed for the cblocks 
+	 * m - the number of segs needed for the cblocks 
+	 * (For the 3b2 this should never be more than 2) 
+	 * r - the number of pages needed in the last seg (if r > 0)
+	 * j - the number of pages in the segment being initialized
+	 * ncpseg - the number of cblocks in the seg being initialized
+	 */
 	n = btoc(v.v_clist * sizeof(struct cblock));
-	if ((cfree = (struct cblock *)kseg(n)) == NULL)
-		panic("cannot allocate character buffers");
+	m = ctos(n);
+	r = n % NCPS;
+	for (i = 0; i < m; i++) {
+		if (i == m - 1 && r > 0)
+			j = r;
+		else 
+			j =  NCPS;
+		ncpseg = ctob(j) / sizeof(struct cblock);
+		if ((cfree = (struct cblock *)kseg(j)) == NULL)
+			panic("cannot allocate character buffers");
 
-	for (n = 0, cp = &cfree[0]; n < v.v_clist; n++, cp++) {
-		addr = svirtophys(cp->c_data);
-		if (addr + CLSIZE <= nextbound(addr)) {
-			cp->c_next = cfreelist.c_next;
-			cfreelist.c_next = cp;
-			cfreecnt++;
+		for (n = 0, cp = &cfree[0]; n < ncpseg; n++, cp++) {
+			addr = svirtophys(cp->c_data);
+			if (addr + CLSIZE <= nextbound(addr)) {
+				cp->c_next = cfreelist.c_next;
+				cfreelist.c_next = cp;
+				cfreecnt++;
+			}
 		}
 	}
 	cfreelist.c_size = CLSIZE;

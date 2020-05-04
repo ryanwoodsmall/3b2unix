@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)crash-3b2:proc.c	1.15"
+#ident	"@(#)crash-3b2:proc.c	1.15.6.3"
 /*
  * This file contains code for the crash functions:  proc, defproc.
  */
@@ -27,9 +27,11 @@
 #include "sys/region.h"
 #include "sys/proc.h"
 #include "crash.h"
+#include "sys/sys3b.h"
 
-#define min(a,b) ((a) > (b) ? (b) : (a))
+#define min(a,b) (a>b? b:a)
 
+extern int active;
 extern struct user *ubp;		/* pointer to the ublock */
 extern struct syment *Proc,*Curproc,*Region;	/* namelist symbol pointers */
 static struct syment *Pregpp;
@@ -49,7 +51,7 @@ getproc()
 	long arg2 = -1;
 	int id = -1;
 	int c;
-	char *heading = "SLOT ST PID   PPID  PGRP   UID PRI CPU   EVENT  NAME     FLAGS\n";
+	char *heading = "SLOT ST PID   PPID  PGRP   UID PRI CPU   EVENT     NAME        FLAGS\n";
 
 	if(!Pregpp)
 		if(!(Pregpp = symsrch("pregpp")))
@@ -59,8 +61,10 @@ getproc()
 			error("region not found in symbol table\n");
 
 	optind = 1;
-	while((c = getopt(argcnt,args,"fprw:")) !=EOF) {
+	while((c = getopt(argcnt,args,"efprw:")) !=EOF) {
 		switch(c) {
+			case 'e' :	all = 1;
+					break;
 			case 'f' :	full = 1;
 					break;
 			case 'w' :	redirect();
@@ -115,11 +119,11 @@ long addr;
 char *heading;
 {
 	char ch,*typ;
-	char *cp = "";
+	char cp[DIRSIZ+1];
+	long pslot_va;
 	struct proc procbuf;
 	struct pregion pregbuf;
 	int i,j,cnt,pregpp,regslot;
-	long pslot_va;
 	extern long lseek();
 
 	if(id != -1) {
@@ -139,10 +143,6 @@ char *heading;
 		(char *)&procbuf,sizeof procbuf,"proc table");
 	if(!procbuf.p_stat && !all)
 		return;
-	if(!procbuf.p_stat) {
-		fprintf(fp,"%d is not a valid process\n",slot);
-		return;	
-	}
 	if(run)
 		if(!(procbuf.p_stat == SRUN || procbuf.p_stat == SONPROC))
 			return;
@@ -161,8 +161,10 @@ char *heading;
 	case SXBRK:  ch = 'x'; break;
 	default:     ch = '?'; break;
 	}
-	fprintf(fp,"%4d %c %5u %5u %5u %5u  %2u %3u",
-		slot,
+	if(slot == -1)
+		fprintf(fp,"  - ");
+	else fprintf(fp,"%4d",slot);
+	fprintf(fp," %c %5u %5u %5u %5u  %2u %3u",
 		ch,
 		procbuf.p_pid,
 		procbuf.p_ppid,
@@ -173,11 +175,20 @@ char *heading;
 	if(procbuf.p_stat == SONPROC)
 		fprintf(fp,"          ");
 	else fprintf(fp," %08lx ",procbuf.p_wchan);
+	for(i = 0; i < DIRSIZ+2; i++)
+		cp[i] = '\0';
+	pslot_va = (long)(Proc->n_value+slot*sizeof(struct proc));
 	if(procbuf.p_stat == SZOMB)
-		cp = "zombie";
-	else {
-		/* get ublock */
-		pslot_va = (long)(Proc->n_value+slot*sizeof(struct proc));
+		strcpy(cp,"zombie");
+	else
+	if(active){
+		if(sys3b(RDUBLK, procbuf.p_pid, (char *)ubp,sizeof(struct user)))
+			strcpy(cp, ubp->u_comm);
+	}	
+	else if(!(procbuf.p_flag & SULOAD))
+		strcpy(cp, "swapped");
+	else
+	{
 		i=((char*)ubptbl((proc_t*)pslot_va) - (char*)pslot_va -
 			((char*)procbuf.p_ubptbl - (char*)&procbuf)) >> 2;
 		for(cnt=0; cnt < sizeof(*ubp) + sizeof(int) * vbuf.v_nofiles;
@@ -190,23 +201,24 @@ char *heading;
 			}
 			if(read(mem,(char *)ubp+cnt,min(NBPP,(sizeof(*ubp)+
 				sizeof(int)*vbuf.v_nofiles)-cnt)) !=
-				min(NBPP,(sizeof(*ubp)+sizeof(int)*
-					vbuf.v_nofiles)-cnt)){
+				min(NBPP, (sizeof(*ubp)+sizeof(int)*
+					vbuf.v_nofiles)-cnt)) {
 				prerrmes("read error on ublock\n");
 				return;
 			}
 		}
-		cp = ubp->u_comm;
+		strcpy(cp,ubp->u_comm);
 	}
 	for(i = 0; i < 8 && cp[i]; i++) {
 		if(cp[i] < 040 || cp[i] > 0176) {
-			cp = "unprint";
+			strcpy(cp,"unprint");
 			break;
 		}
 	}
-	fprintf(fp,"%-8s", cp);
-	fprintf(fp,"%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
+	fprintf(fp,"%-14s", cp);
+	fprintf(fp,"%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
 		procbuf.p_flag & SLOAD ? " load" : "",
+		(procbuf.p_flag & (SLOAD|SULOAD)) == SULOAD ? " uload" : "",
 		procbuf.p_flag & SSYS ? " sys" : "",
 		procbuf.p_flag & SLOCK ? " lock" : "",
 		procbuf.p_flag & STRC ? " trc" : "",
@@ -218,7 +230,13 @@ char *heading;
  		procbuf.p_flag & SPROCTR ? " prtr" : "",
  		procbuf.p_flag & SPROCIO ? " prio" : "",
  		procbuf.p_flag & SSEXEC ? " sx" : "",
- 		procbuf.p_flag & SPROPEN ? " prop" : "");
+ 		procbuf.p_flag & SPROPEN ? " prop" : "",
+		procbuf.p_flag & SRUNLCL ? " rlcl" : "",
+		procbuf.p_flag & SNOSTOP ? " nstp" : "",
+		procbuf.p_flag & SPTRX ? " ptrx" : "",
+		procbuf.p_flag & SASLEEP ? " aslp" : "",
+		procbuf.p_flag & SUSWAP ? " uswp" : "",
+		procbuf.p_flag & SUWANT ? " uwnt" : "");
 	if(!full)
 		return;
  	fprintf(fp,"\tsrama[0]: %-8x, sramb[0]: %-3d, srama[1]: %-8x, sramb[1]: %-3d\n",
@@ -230,12 +248,16 @@ char *heading;
 		procbuf.p_time,
 		procbuf.p_nice,  
 		procbuf.p_xstat);  
-	fprintf(fp,"\tsig: %x, clktim: %d, suid: %d, sgid: %d, psize: %d\n",
+	fprintf(fp,"\tsig: %x, cursig: %d, clktim: %d, suid: %d, sgid: %d, size: %d\n",
 		procbuf.p_sig,
+		procbuf.p_cursig,
 		procbuf.p_clktim,
 		procbuf.p_suid,
 		procbuf.p_sgid,
 		procbuf.p_size);
+	fprintf(fp,"\tflink: %x\tblink: %x\n",
+		procbuf.p_flink,
+		procbuf.p_blink);
 	fprintf(fp,"\tparent: %x\tchild: %x\tsibling: %x\n",
 		procbuf.p_parent,
 		procbuf.p_child,
@@ -271,6 +293,9 @@ char *heading;
 	fprintf(fp,"\thold: %x, chold: %x\n",
 		procbuf.p_hold,
 		procbuf.p_chold);
+	fprintf(fp, "\twhystop: %d, whatstop: %d\n",
+		procbuf.p_whystop,
+		procbuf.p_whatstop);
 
 	/* locate and print per process region table */
 

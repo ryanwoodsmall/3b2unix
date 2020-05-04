@@ -5,35 +5,25 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)fltboot:fltboot.mk	1.5"
+#ident	"@(#)fltboot:fltboot.mk	1.5.1.1"
 ROOT =
-INCRT = $(ROOT)/usr/include
-CFLAGS = -I$(INCRT)
-SIZE = $(SGS)size
-DIS = $(SGS)dis
-NM = $(SGS)nm
-STRIP = $(SGS)strip
-CONV = $(SGS)conv
+INC = $(ROOT)/usr/include
+CFLAGS = -I$(INC)
 INS = install
+INSDIR = $(ROOT)/etc
 
-LDFLAG =
+LDFLAGS = -s
 FRC =
 
 all: fltboot
 
 install: fltboot
-	 cp fltboot $(ROOT)/etc/fltboot
-	 $(STRIP) $(ROOT)/etc/fltboot
+	 $(INS) -f $(INSDIR) fltboot 
 
-fltboot:		fltboot.c
-			$(CC) $(CFLAGS) -o fltboot fltboot.c $(LDLIBS)
+fltboot:	fltboot.c
+		$(CC) $(CFLAGS) -o fltboot fltboot.c $(LDFLAGS) $(LDLIBS)
 clean:
-	rm -f fltboot
 
 clobber: clean
-
-debug: fltboot
-	$(SIZE) fltboot > boot.size
-	$(NM) -nef fltboot > fltboot.name
-	$(STRIP) fltboot
+	rm -f fltboot
 

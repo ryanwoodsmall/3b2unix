@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)acct:acctcom.c	1.25"
+#ident	"@(#)acct:acctcom.c	1.27"
 
 #include	<time.h>
 #include	<string.h>
@@ -86,7 +86,6 @@ struct passwd *getpwnam(), *pw;
 struct group *getgrnam(),*grp;
 long	ftell(),
 	convtime(),
-	time(),
 	tmsecs(),
 	expand();
 char	*ctime(),
@@ -94,6 +93,7 @@ char	*ctime(),
 	*devtolin(),
 	*uidtonam();
 dev_t	lintodev();
+extern	time_t time();
 FILE	*ostrm;
 
 main(argc, argv)
@@ -485,7 +485,8 @@ convtime(str)
 char *str;
 {
 	long	hr, min, sec;
-	long	clock, time();
+	extern	time_t	time();
+	time_t	clock;
 
 	min = sec = 0;
 

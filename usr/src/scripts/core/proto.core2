@@ -32,7 +32,6 @@ d--775 0 3
 		time		---555 2 2	../bin/time
 	$
 	etc	d--775 0 3
-		TIMEZONE	---444 0 3	../etc/TIMEZONE
 		bcheckrc	---744 0 3	../etc/bcheckrc
 		brc		---744 0 3	../etc/brc
 		bupsched	---644 0 3	../etc/bupsched
@@ -54,7 +53,6 @@ d--775 0 3
 		log		d--775 0 3
 		$
 		mknod		---555 2 2	../etc/mknod
-		mnttab		---644 0 2	/dev/null
 		motd		---644 0 3	/dev/null
 		mountall	---555 0 3	../etc/mountall
 		profile		---444 0 3	../etc/profile
@@ -101,11 +99,16 @@ d--775 0 3
 		wall		---555 2 2	../etc/wall
 		wtmp		---664 4 4	/dev/null
 	$
-	lib	d--775 0 2
+	lib	d--775 0 3
 		libp		d--775 2 2
+		$
+		chrclass	d--775 2 2
+		$
+		cftime		d--775 2 2
 		$
 		pump		d--775 2 2
 			ports		---555 0 0	../lib/pump/ports
+			ports.hpp	---555 0 0	../lib/pump/ports.hpp
 		$
 	$
 	shlib	d--775 0 3
@@ -114,4 +117,4 @@ d--775 0 3
 	mnt	d--775 0 3
 	$
 $
-:#ident	"@(#)core:proto.core2	1.16"
+:#ident	"@(#)core:proto.core2	1.16.1.6"

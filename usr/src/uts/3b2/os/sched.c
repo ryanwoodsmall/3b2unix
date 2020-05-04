@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/sched.c	10.5"
+#ident	"@(#)kern-port:os/sched.c	10.5.1.2"
 
 #include "sys/param.h"
 #include "sys/types.h"
@@ -22,6 +22,8 @@
 #include "sys/getpages.h"
 #include "sys/debug.h"
 #include "sys/inline.h"
+#include "sys/cmn_err.h"
+#include "sys/buf.h"
 
 extern unsigned int	sxbrkcnt;
 
@@ -34,6 +36,14 @@ extern unsigned int	sxbrkcnt;
 char	runout;
 char	runin;
 
+/*	We allocate a single page table, dbd pair at system
+**	startup and use this in swapin and swapout to swap
+**	the u-block.  The following points to this area.
+*/
+
+pde_t	*sched_ptp;
+pglst_t	sched_pgl[USIZE];
+
 /*
  * Memory scheduler
  */
@@ -42,20 +52,26 @@ sched()
 {
 	register struct proc *rp, *p;
 	register outage, inage;
+	register int	ii;
 	int maxbad;
 	int tmp;
 	int runable;
 	proc_t	*justloaded;
 
-	/*
-	 * find user to swap in;
-	 * of users ready, select one out longest
-	 */
+	/*	Allocate a page table and dbd to use for swapping
+	**	the u-block in and out.
+	*/
+
+	if((sched_ptp = (pde_t *)uptalloc(2)) == NULL)
+		cmn_err(CE_PANIC,
+			"sched - couldn't get ptbl and dbd for u-block");
+	for(ii = 0  ;  ii < USIZE  ;  ii++)
+		sched_pgl[ii].gp_ptptr = &sched_ptp[ii];
 
 loop:
 	/*
-	 * Otherwise, find user to reactivate
-	 * Of users ready, select one out longest
+	 * find user to swap in;
+	 * of users ready, select one out longest
 	 */
 
 	spl6();
@@ -89,6 +105,8 @@ loop:
 	 * let things settle
 	 */
 
+	justloaded = NULL;
+
 	if (!runable  ||  freemem > tune.t_gpgslo) {
 		if (p->p_stat == SXBRK) {
 			ASSERT(p->p_wchan == 0);
@@ -96,14 +114,18 @@ loop:
 			--sxbrkcnt;
 			setrq(p);
 		}
+		if (!(p->p_flag & SLOAD)){
+			if(!swapinub(p, 1)) 
+				goto unload;
+		}
+		
 		p->p_flag |= SLOAD;
 		p->p_time = 0;
+
 		if (freemem > tune.t_gpgslo)
 			goto delay;
 		justloaded = p;
-	} else {
-		justloaded = NULL;
-	}
+	} 
 
 	/*
 	 * none found.
@@ -112,6 +134,8 @@ loop:
 	 * at bad priority; if none, select the oldest.
 	 */
 
+
+   unload:
 
 	p = NULL;
 	maxbad = 0;
@@ -140,6 +164,7 @@ loop:
 		}
 	}
 	spl0();
+
 	/*
 	 * Swap out and deactivate process if
 	 * sleeping at bad priority, or if it has spent at least
@@ -180,16 +205,20 @@ delay:
 }
 
 
-/*	Swap out process p
+/*
+ * Swap out process p.
  */
 
+int
 swapout(p)
 register struct proc *p;
 {
-	register preg_t *prp;
+	register preg_t	*prp;
 	register reg_t *rp;
 	register int flg;
 	register int rtn; 
+	register pde_t *pt;
+	register dbd_t *dp;
 
 
 	/*	Walk through process regions
@@ -241,5 +270,150 @@ register struct proc *p;
 
 	pglstunlk();
 
-	return(rtn);
+	/*
+	 * If process is not completely swapped-out, don't swap out
+	 * the u-Block.
+	 */
+
+	if (!rtn)
+		return(rtn);
+	
+	if (p->p_flag & SPROCIO)
+		return(1);
+
+	/*	Copy the u-block.  First get a pointer to the
+	**	page table for the u-block and copy it and the
+	**	dbd into our temporary area.
+	*/
+
+	pt = ubptbl(p);
+	dp = (dbd_t *)&sched_ptp[NPGPT];
+	bcopy(pt, sched_ptp, USIZE*NBPW);
+	dp->dbd_type = DBD_NONE;
+
+	/*	Allocate swap space for the u-block and swap
+	**	it out.
+	*/
+
+	if(swalloc(sched_pgl, USIZE, 0) < 0)
+		return(0);
+	ubslock(p);
+	swap(sched_pgl, USIZE, B_WRITE);
+
+	/*	Free up the memory being used by the u-block.
+	*/
+
+	reglock(&sysreg);
+	memlock();
+	pfree(&sysreg, sched_ptp, NULL, USIZE);
+	memunlock();
+	regrele(&sysreg);
+
+	/*	Copy back the page table and dbd.
+	*/
+
+	bcopy(sched_ptp, pt, USIZE*NBPW);
+	bcopy(dp, p->p_ubdbd, USIZE*NBPW);
+	p->p_flag &= ~SULOAD;
+	ubsrele(p);
+	return(1);
+}
+
+
+/*
+ * Swap in a process's u-block.
+ */
+
+int
+swapinub(pp, nosleep)
+register proc_t	*pp;
+register nosleep;
+{
+	register pde_t	*pt;
+	register dbd_t	*dp;
+
+	
+	/*	Swap in  the u-block.  First get a pointer to the
+	**	page table for the u-block and copy it and the
+	**	dbd into our temporary area.
+	*/
+
+	ubslock(pp);
+
+	/* If U-Block is already in-core, return */
+	if (pp->p_flag & SULOAD) {
+		ubsrele(pp);
+		return(1);
+	}
+	pt = ubptbl(pp);
+	dp = (dbd_t *)&sched_ptp[NPGPT];
+	bcopy(pt, sched_ptp, USIZE*NBPW);
+	bcopy(pp->p_ubdbd, dp, USIZE*NBPW);
+	ASSERT(dp->dbd_type == DBD_SWAP);
+
+	/*	Allocate memory for the u-block.
+	*/
+
+	reglock(&sysreg);
+	memlock();
+	if(ptmemall(&sysreg, sched_ptp, USIZE, 1, nosleep) < 0){
+		memunlock();
+		regrele(&sysreg);
+		ubsrele(pp);
+		return(0);
+	}
+	memunlock();
+	regrele(&sysreg);
+
+	/*	Swap in the u-block and free up the swap space.
+	**	We could keep the swap space allocated here and
+	**	check for it in swapout.  Then just free it
+	**	in exit.  The problem is that the process could
+	**	then have to use both swap and real memory at
+	**	the same time which would break the deadlock
+	**	prevention code.
+	*/
+
+	swap(sched_pgl, USIZE, B_READ);
+	{
+		register i;
+		for (i=0; i< USIZE; i++)
+		{
+			swfree1(&dp[i]);
+			(&dp[i])->dbd_type = DBD_NONE;
+		}
+	}
+
+	/*	Copy back the page table and dbd.
+	*/
+
+	bcopy(sched_ptp, pt, USIZE*NBPW);
+	bcopy(dp, pp->p_ubdbd, USIZE*NBPW);
+	pp->p_flag |= SULOAD;
+	ubsrele(pp);
+	return(1);
+}
+
+/*
+ * Lock arbitration to ensure that we don't try to swap out
+ * the u-block at the same time as it's being swapped in.
+ */
+ubslock(p)
+register proc_t *p;
+{
+	while (p->p_flag & SUSWAP) {
+		p->p_flag |= SUWANT;
+		sleep(((caddr_t)&p->p_flag)+1, PSWP);
+	}
+	p->p_flag |= SUSWAP;
+}
+
+ubsrele(p)
+register proc_t *p;
+{
+	p->p_flag &= ~SUSWAP;
+	if (p->p_flag & SUWANT) {
+		p->p_flag &= ~SUWANT;
+		wakeup(((caddr_t)&p->p_flag)+1);
+	}
 }

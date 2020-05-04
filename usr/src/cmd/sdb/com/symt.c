@@ -5,7 +5,8 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:com/symt.c	1.25"
+
+#ident	"@(#)sdb:com/symt.c	1.29"
 
 /*
  *  MACHINE DEPENDENT and OPERATING SYSTEM DEPENDENT
@@ -13,15 +14,15 @@
 
 #include "head.h"
 #include "coff.h"
-#define ISISP(X)	(txtmap.b1 <= X && X < txtmap.e1)
+#define ISISP(X)	( isisp(X))
 
 /* set to FIXIT when know it is not right but do not know what is */
 #define FIXIT	(-2)
 /* set to NEEDVAL to signal value to be filled in later */
 #define NEEDVAL	(-3)
 
-extern SCNHDR *scnhdrp;
-extern FILHDR filhdr;
+extern SCNHDR *scnhdrp[];
+extern FILHDR filhdr[];
 extern int magic;		/* ISMAGIC(magic) ==> a ".o" file */
 extern MSG		NOPCS;
 
@@ -29,12 +30,13 @@ long rdsym(), rdlntry();
 SYMENT syment;			/* rdsym() stores symbol table entry */
 AUXENT auxent[MAXAUXENT];	/* rdsym() stores auxiliary entry(s) */
 LINENO linent;			/* rdlntry() stores lineno entry */
-static char	*strtab;	/* Character string for storing string table. */
+static char	*strtab[MAXNLIB];	/* Character string for storing string table. */
 struct	sh_name {		/* SHort_Name string for symbol table entries */
 	char	name[ 9 ];
 };
-static struct sh_name *shstrtab; /* table of SHort_Name entries.	*/
-static long	strtablen;	/* Length of string table */
+static struct sh_name *shstrtab[MAXNLIB]; /* table of SHort_Name entries. */
+static long	strtablen[MAXNLIB];	/* Length of string table */
+static int	firstcur;		/* first call to setcur() */
 
 int gflag = 0;
 long docomm();		/* made return offset, but not using ! */
@@ -42,26 +44,65 @@ long docomm();		/* made return offset, but not using ! */
 /* initialize file and procedure tables */
 initfp()
 {
+	static struct proct *procp;
+	register struct proct *tmprocp;
+	static struct filet *filep;
 	int compar();
+
+	filep = files = badfile = (struct filet *) sbrk(sizeof filep[0]);
+	procp = procs = badproc = (struct proct *) sbrk(sizeof procp[0]);
+	for (libn = 0; libn <= nshlib; libn++)
+		doinitfp(&filep, &procp);
+	for (tmprocp = procs; tmprocp < procp; tmprocp++) {
+		if (tmprocp->notstab)
+			tmprocp->sfptr = badfile;
+	}
+
+	qsort((char *)procs, (int)(procp-procs), sizeof procs[0], compar); 
+	badproc->sfptr = procp->sfptr = badfile;
+	badproc->pname = procp->pname = "";
+	badfile->sfilename[0] = filep->sfilename[0] = '\0';
+	/*
+	 * initialize adsubn, adsubc, and adargs to the addresses
+	 * of dbsubn, dbsubc, and dbargs respectively (use ERROR
+	 * if not found).
+	 */
+	libn = 0;
+	adargs = extlookup("__dbargs", extstart[libn]) == ERROR ? ERROR :
+			sl_addr;
+	adsubc = extaddr("__dbsubc");
+	adsubn = extaddr("__dbsubn");
+	firstcur = 1;	/* used in setcur() - first time around */
+	setcur(1);
+	firstcur = 0;
+}
+doinitfp(afilep,aprocp)
+struct proct **aprocp;
+struct filet **afilep;
+{
 	SYMENT *syp = &syment;
 	AUXENT *axp = &auxent[0];
 	struct proct *procpbf;
-	register struct proct *procp;
-	register struct filet *filep;
 	struct stat stbuf;
 
+	register struct proct *procp;
+	register struct filet *filep;
 	long soffset, noffset;
 	int i, notstb;
 	short class, numaux;
 	unsigned short type;
 	register char *p, *q;
 	int nbf = 0;
+	int spclfile = 0; 
+	int fileinc = 0;
+	extern ADDR dpstart;
+	extern ADDR dpsize;
 	
+	procp = *aprocp;
+	filep = *afilep;
 	firstdata = MAXPOS;
-	sbuf.fd = txtmap.ufd;	binit(&sbuf);
-	soffset = ststart;
-	filep = files = badfile = (struct filet *) sbrk(sizeof filep[0]);
-	procp = procs = badproc = (struct proct *) sbrk(sizeof procp[0]);
+	sbuf[libn].fd = txtmap[libn].ufd;	binit(&sbuf[libn]);
+	soffset = ststart[libn];
 	
 #if DEBUG
 		if (debugflag ==1)
@@ -100,6 +141,7 @@ initfp()
 					exit(4);
 				}
 				q = p + FILEINCR*sizeof filep[0];
+	
 				while (p > (char *) procs)
 					*--q = *--p;
 				badfile += FILEINCR;
@@ -126,7 +168,7 @@ initfp()
 				symbol table index for next .file; or
 				symbol table entry of first global (last)
 			*/
-			extstart = filhdr.f_symptr + syp->n_value * SYMESZ;
+			extstart[libn] = filhdr[libn].f_symptr + syp->n_value * SYMESZ;
 			p = filep->sfilename;
 
 			for(i = 0; i < AUXESZ; i++)
@@ -143,26 +185,52 @@ initfp()
 			}
 
 			q = filep->sfilename;
+			if (eqstr(q,"doprnt.s"))   /* set flag for special files */
+				spclfile = 1;
+			else if (eqstr(q,"branchtab"))
+				spclfile = 2;
 			for (p=fwp; *q; *p++ = *q++)
 				;	/* initializes filework[] */
 			*p = '\0';
 			/*  now stat file and test when get .bf */
 			nbf = 0;
 			filep++;
+			fileinc = 1;
 		}
 
 		/*  assembly language global text symbols */
+
 		if (syp->n_scnum > 0) {
-			q = scnhdrp[syp->n_scnum -1].s_name;
+			q = scnhdrp[libn][syp->n_scnum -1].s_name;
 			if((class == C_EXT || class == C_STAT) &&
 			    numaux == 0 && eqstr(q,_TEXT) &&
 			    /* kludge for prof.h MARK macro */
 			    (syp->n_nptr[1] != '.' || syp->n_nptr[0] != 'M'))
 				notstb++;
+			if (spclfile > 0) {
+				if ((class == C_STAT) && eqstr(q,_TEXT))
+				{
+					if (spclfile == 1) {
+						dpstart = syp->n_value;
+						dpsize = axp->x_scn.x_scnlen;
+					}
+					else if (spclfile == 2) {
+						brtbl[libn].start = syp->n_value;
+						brtbl[libn].size = 
+							axp->x_scn.x_scnlen;
+					}
+					spclfile = 0;
+				}
+			}
 		}
-
-		if (ISFCN(type) || notstb)
-		{
+		else if (nshlib && (class == C_STAT)) { /* multiple entry */
+			if (fileinc && eqstr(syp->n_nptr,_TEXT) && 
+				(syp->n_value == 0) && (syp->n_scnum == N_DEBUG)) {
+				filep--;
+				fileinc = 0;
+			}
+		}
+		if (ISFCN(type) || notstb) {
 			if (procp == badproc)
 			{
 				if (sbrk(PROCINCR*sizeof procp[0]) < 0)
@@ -182,6 +250,8 @@ initfp()
 			procp->lineno = 0;	/*  will set if get .bf */
 			procp->entrypt = 0;	/*  alternate entry ?? */
 			procp->notstab = notstb;
+			procp->lib = libn;	/* library number */
+			procp->ef_line = 0;
 			if(numaux < 1 && notstb == 0) {
 				error("Proc Aux entry missing;\n");
 			}
@@ -190,8 +260,8 @@ initfp()
 
 		if ( eqstr( syp->n_nptr, ".bf" ) )
 		{
-			gflag++;	/*  "cc -g ..." ==> .bf entries */
-			/* first proc in file and warnings not disabled */
+			gflag++;	  /*"cc -g ..." ==> .bf entries  */
+			 /*first proc in file and warnings not disabled  */
 			if ( nbf++ == 0 && !Wflag )
 			{
 				if ( ( q = findfl( filework ) ) == NULL ||
@@ -203,56 +273,50 @@ initfp()
 				else if ( stbuf.st_mtime > symtime )
 					fprintf( FPRT1,
 					      "Warning: `%s' newer than `%s'\n",
-						q, symfil );
+						q, symfil[libn] );
 				if( q )
 				{
 					strcpy( filework, q );
 				}
 			}
-			procpbf->lineno = axp->x_sym.x_misc.x_lnsz.x_lnno;
-			procpbf->sfptr->f_statics = noffset;
-			curstmt.lnno = curstmt.stno = 0;
-			procpbf->notstab = 0;
+			if ( procpbf->lineno == 0) {
+			      procpbf->lineno = axp->x_sym.x_misc.x_lnsz.x_lnno;
+				procpbf->sfptr->f_statics = noffset;
+				curstmt.lnno = curstmt.stno = 0;
+				procpbf->notstab = 0;
+			}
 		}
 
 		if (eqstr(syp->n_nptr, ".ef")) {	/* only 3B needs */
+			if ( procpbf->ef_line == 0) {
 			procpbf->ef_line = axp->x_sym.x_misc.x_lnsz.x_lnno +
 						procpbf->lineno -1;
 			procpbf->inline = axp->x_sym.x_misc.x_lnsz.x_size & 0x1;
+			}
 		}
 
 		if (class == C_EXT && syp->n_scnum > 0) {
-/*   ?			if (!extstart)	extstart = soffset;*/
-			q = scnhdrp[syp->n_scnum -1].s_name;
+/*   ?			if (!extstart[libn])	extstart[libn] = soffset;*/
+			q = scnhdrp[libn][syp->n_scnum -1].s_name;
 			if((eqstr(q,_DATA) || eqstr(q,_BSS)) &&	/* ?? */
 					syp->n_value < firstdata) {
 				firstdata = syp->n_value;
 			}
 		}
 	}
-	qsort((char *)procs, (int)(procp-procs), sizeof procs[0], compar);
-	badproc->st_offset = soffset;
-	badproc->sfptr = procp->sfptr = badfile;
-	badproc->pname = procp->pname = "";
-	badfile->sfilename[0] = filep->sfilename[0] = '\0';
+	if (libn == 0)
+		badproc->st_offset = soffset; 
+	*afilep = filep;
+	*aprocp = procp;
 
 	if (!gflag) {
-		if(filhdr.f_nsyms == 0)
-			fprintf(FPRT1, "Warning: '%s` has no symbols\n",symfil);
+		if(filhdr[libn].f_nsyms == 0)
+			fprintf(FPRT1, "Warning: `%s' has no symbols\n",symfil[libn]);
 		else
 			fprintf(FPRT1, "Warning: `%s' not compiled with -g\n",
-							symfil);
+							symfil[libn]);
 	}
 
-	/* initialize adsubn, adsubc, and adargs to the addresses
-	 * of dbsubn, dbsubc, and dbargs respectively (use ERROR
-	 * if not found).
-	 */
-	adargs = extlookup("__dbargs", extstart) == ERROR ? ERROR :
-			sl_addr;
-	adsubc = extaddr("__dbsubc");
-	adsubn = extaddr("__dbsubn");
-	setcur(1);
 #if DEBUG
 	if (debugflag == 1)
 	{
@@ -561,7 +625,6 @@ struct blklist {
 /* zeroth level element in list of block numbers for local varaible search */
 static struct blklist zeroblk = {0, (struct blklist *)0, (struct blklist *)0};
 static int level;	/* block level for given address; adtostoffset sets */
-static long offstatics;	/* offset for statics; slooknext set for staticlookup*/
 
 long
 slooknext(pat, poffset, procp)
@@ -569,7 +632,6 @@ long poffset;
 char *pat;
 struct proct *procp;
 {
-	register int i;
 	register long offset, found;
 	register int class;
 	register int curlevel = 0;	/* block level of current symbol */
@@ -577,6 +639,9 @@ struct proct *procp;
 	register struct blklist *curptr
 			= &zeroblk;	/* pointer to blklist entry
 					 * for current level */
+	long noffs;
+	long soffs;
+	long offs;
 	long noffset;
 	SYMENT *syp = &syment;
 	AUXENT *axp = &auxent[0];
@@ -723,15 +788,39 @@ struct proct *procp;
 			/* kludge for common storage.  Must look for
 			 * global (external) symbol that actually
 			 * allocates storage, since that has correct
-			 * value (address).  However, this local
-			 * symbol has correct tag index.
+			 * value (address). This local symbol's tag
+			 * is actually the index from the bginning
+			 * of the file it was declared in.
 			 */
-			if ((sl_type = syp->n_type) == (ushort)-1) {
+			if ((sl_type = syp->n_type) == (ushort)-1) 
+			{
 				sl_type = T_STRUCT;
 				if (syp->n_numaux <=0) return(ERROR);
-				tagoff = ststart +
+			/*
+			** find the previous '.file'  entry by linking
+			** through the linked '.file' list. the tag index
+			** is the index of the structure tag relative to
+			** to the beginning  file it was declared in.
+			**/
+				offs = ststart[libn];
+				while (offs <= offset)
+				{
+					soffs = offs;
+					if ((noffs = rdsym(offs)) == ERROR)
+						break;
+					offs = ststart[libn] + syp->n_value * SYMESZ;
+				}
+
+			/* restore information */
+
+				noffset = rdsym(offset);
+
+			/* offset to the right .file entry in soffs */
+
+				tagoff = soffs +
 				    axp->x_sym.x_tagndx*SYMESZ;
-				if ((sl_addr = rdcom(sl_name)) <= 0)
+
+				if ((sl_addr = rdcom(sl_name)) == ERROR)
 				{
 #if DEBUG
 					if (debugflag == 1)
@@ -748,7 +837,8 @@ struct proct *procp;
 				    return(ERROR);
 				}
 			}
-			else {
+			else 
+			{
 			/* fill in sl_size, sl_dimen[], tagoff.
 			 * arrays and structs are complex, all else
 			 * simply get sl_dimen[0] = 0, and remember old tagoff.
@@ -771,6 +861,59 @@ struct proct *procp;
 	}
 #endif
 	return(found);
+}
+
+/*
+ * common block member - look for the next EOS entry and get the offset
+ * of the global symbol associated with this common block.
+ */
+ADDR cmblkmem(offset)
+ADDR offset;
+{
+	ADDR noffset;
+	ADDR offs, soffs,noffs;
+	SYMENT *syp = &syment;
+	AUXENT *axp = &auxent[0];
+
+	while( (noffset = rdsym(offset)) != ERROR) {
+		sl_size = 0;
+		sl_class = syp->n_sclass;
+		sl_addr = syp->n_value;
+		strcpy( sl_name, syp->n_nptr );
+		if ((sl_type = syp->n_type) == (ushort)-1) 
+		{
+				sl_type = T_STRUCT;
+				if (syp->n_numaux <=0) return(ERROR);
+			/*
+			** find the previous '.file'  entry by linking
+			** through the linked '.file' list. the tag index
+			** is the index of the structure tag relative to
+			** to the beginning  file it was declared in.
+			**/
+				offs = ststart[libn];
+				while (offs <= offset)
+				{
+					soffs = offs;
+					if ((noffs = rdsym(offs)) == ERROR)
+						break;
+					offs = ststart[libn] + syp->n_value * SYMESZ;
+				}
+
+			/* restore information */
+
+				noffset = rdsym(offset);
+
+			/* offset to the right .file entry in soffs */
+
+				tagoff = soffs +
+				    axp->x_sym.x_tagndx*SYMESZ;
+
+				if ((sl_addr = rdcom(sl_name)) == ERROR)
+				    return(ERROR);
+				return(offset);
+		}
+		offset = noffset;
+	}
 }
 
 /* globallookup and staticlookup (which hasn't been copied into this
@@ -817,17 +960,17 @@ char *pat; long filestart; {
 /*	/* on 3B, globals at end of symbol table; do not know in which file */
 /*	/*	except external structure member definitions !! */
 /*	if (stelt) {	/* a structure member */
-/*		if (ststart < filestart && filestart < extstart)
+/*		if (ststart[libn] < filestart && filestart < extstart[libn])
 /*			offset = filestart;	/* use prev return value */
 /*		else				/* abs number structures */
 /*			/* if 2 struct's have same member name,  will get 1st */
-/*			offset = ststart;
+/*			offset = ststart[libn];
 /*	}
 /*	else {		/* a real external */
-/*		if (filestart == extstart)
-/*			offset = extstart;
+/*		if (filestart == extstart[libn])
+/*			offset = extstart[libn];
 /*		else
-/*			offset = nextoff > 0 ? nextoff : extstart;
+/*			offset = nextoff > 0 ? nextoff : extstart[libn];
 /*	}
 /*	clevel = 0;
 /*	while( (offset = rdsym(offset)) != ERROR) {
@@ -854,7 +997,7 @@ char *pat; long filestart; {
 /*	/* this routine only to get .data and .bss symbols ??
 /*					structure members have scnum = -1 !! */
 /*			if(!stelt && (syp->n_scnum <= 0 ||
-/*				eqstr(scnhdrp[syp->n_scnum -1].s_name, _TEXT)) )
+/*				eqstr(scnhdrp[libn][syp->n_scnum -1].s_name, _TEXT)) )
 /*				continue;
 /*	
 /* /* ??		sl_size = 0; */
@@ -886,8 +1029,8 @@ char *pat; long filestart; {
 /*	i = BTYPE(syp->n_type);
 /*	/* for external structure, elements not at end with externs */
 /*	if (i == T_STRUCT || i == T_UNION || i == T_ENUM)
-/*		return(ststart + axp->x_sym.x_tagndx * SYMESZ);
-/*	return(offset);		/*  > extstart ==> extern for next call */
+/*		return(ststart[libn] + axp->x_sym.x_tagndx * SYMESZ);
+/*	return(offset);		/*  > extstart[libn] ==> extern for next call */
 /*}
 */
 
@@ -903,9 +1046,8 @@ sglookup(pat, offset)
 char *pat;
 register long offset;
 {
-	register int i, class;
+	register int  class;
 	SYMENT *syp = &syment;
-	AUXENT *axp = &auxent[0];
 
 #if DEBUG
 	if (debugflag ==1)
@@ -926,7 +1068,7 @@ register long offset;
 	while( (offset = rdsym(offset)) != ERROR) {
 		class = syp->n_sclass;
 
-		if (class == C_FILE || offset == extstart)	/* statics */
+		if (class == C_FILE || offset == extstart[libn])	/* statics */
 			return(ERROR);
 
 		if( eqpatu( pat, syp->n_nptr ) && syp->n_nptr[ 0 ] )
@@ -955,7 +1097,7 @@ register long offset;
 			 *	 section numbers)
 			 */
 			if ((sl_scnum = syp->n_scnum) <= 0 ||
-				eqstr(scnhdrp[syp->n_scnum -1].s_name, _TEXT))
+				eqstr(scnhdrp[libn][syp->n_scnum -1].s_name, _TEXT))
 					continue;
 
 			sl_class = class;
@@ -1032,7 +1174,6 @@ register long offset;
 {
 	SYMENT *syp = &syment;
 	AUXENT *axp = &auxent[0];
-	register int i;
 
 #if DEBUG
 	if (debugflag ==1)
@@ -1237,7 +1378,7 @@ arystrdata()
 	i = BTYPE(sl_type);
 	if (ISTRTYP(i))
 	{
-		tagoff = rdsym(ststart + axp->x_sym.x_tagndx * SYMESZ);
+		tagoff = rdsym(ststart[libn] + axp->x_sym.x_tagndx * SYMESZ);
 		if (tagoff <= 0) 	/* error */
 		{
 			sl_size = 0;
@@ -1286,12 +1427,17 @@ char *name;
 		closeparen();
 	}
 #endif
-	offset = extstart;
+	offset = extstart[libn];
 	while((offset = rdsym(offset)) != ERROR) {
+		ptr = syp->n_nptr;
+#ifdef vax
 		if ((ptr = syp->n_nptr)[0] != '_')
 		{
 			continue;
 		}
+#else
+		ptr--;
+#endif
 		i = 0;
 
 		/* match as many as seven extra characters */
@@ -1458,7 +1604,6 @@ int *lbnd;
 int *ubnd;
 int subflag;
 {
-	AUXENT *axp = &auxent[0];
 	
 	/* lbnd will be 0 until symbol table has true lower bound;
 	 * outvar, where it calls getbnd, will adjust lbnd and ubnd
@@ -1647,6 +1792,7 @@ register struct proct *procp;
 	register long offset; 
 	register long lna;
 	register LINENO *lnp = &linent;
+	struct proct *isentpt();
 	AUXENT *axp = &auxent[0];
 	struct stmt stmt;
 	
@@ -1670,6 +1816,11 @@ register struct proct *procp;
 	stmt.lnno = -1;
 	stmt.stno = 0;
 	if (procp == badproc) return(stmt);
+/*
+ * make sure procp has an entry in the symbol table
+ */
+	if (procp->notstab)
+		procp = isentpt(procp);
 	if(procp->lineno <= 0)
 	{
 #if DEBUG
@@ -1712,6 +1863,7 @@ register struct proct *procp;
 	 *	so the line number of that instruction is meaningful.
 	 *	On the VAX, the first short is not an instruction,
 	 *	so don't return a line number for it.
+----------------------------------------------
 	 */
 	if(addr == syment.n_value) {
 		if(gflag > 0)	/* in coff, lnno relative to function { */
@@ -1854,7 +2006,7 @@ ADDR addr;
 struct proct *procp;
 {
 	SYMENT *syp = &syment;
-	AUXENT *axp = &auxent[0];
+	struct proct *isentpt();
 	register int class;
 	register char *name;
 	register long offset, lastoffs;
@@ -1877,6 +2029,11 @@ struct proct *procp;
 		closeparen();
 	}
 #endif
+/*
+ * make sure procp has an entry in the symbol table
+ */
+	if (procp->notstab)
+		procp = isentpt(procp);
 	level = 0;
 	block = 0;
 	lastoffs = offset = procp->st_offset;
@@ -1979,6 +2136,7 @@ struct proct *procp;
  */
 setcur(verbose) {
 	register struct proct *procp;
+	struct proct *isentpt();
 	int blort;
 
 	
@@ -2007,7 +2165,21 @@ setcur(verbose) {
 	}
 	dot = USERPC;
 	procp = adrtoprocp(dot-(signo ? NOBACKUP : 0));
-	if ((procp->sfptr != badfile) && !procp->notstab) {
+	if ((procp == badproc) || (firstcur && (procp->sfptr == badfile)))
+			goto verb;
+	/*
+	 * if ((procp->sfptr != badfile) && !procp->notstab) { 
+	 *
+	 *	if procp is not a symbol table entry, look for the nearest one.
+	 *	do not default to MAIN.
+	 */
+	if (procp->notstab) {
+		if ( (procp = isentpt(procp))->notstab )
+			goto verb;
+	}
+
+	if ((procp != badproc) && (procp->sfptr != badfile))
+	{
 		struct stmt stmt;
 #ifdef mc68000sdb
 /* temporary kludge to correct for compiler bug */
@@ -2024,7 +2196,10 @@ setcur(verbose) {
 			if (!blort && exactaddr != -1)
 				printf("%#lx in ", exactaddr);
 #if u3b || u3b5 || u3b15 || u3b2
-			printf("%s:", procp->pname);
+			if (nshlib)
+				prpname(procp,":");
+			else
+				printf("%s:", procp->pname); 
 #else
 #if vax
 			if (procp->pname[0] == '_')
@@ -2053,9 +2228,14 @@ setcur(verbose) {
 #endif
 		return(1);
 	}
-	if (verbose) {
+verb:	if (verbose) {
 #if u3b || u3b5 || u3b15 || u3b2
-		printf("%s: address %#lx\n", procp->pname, dot);
+			if (nshlib) {
+				prpname(procp,":");
+				printf(" address %#lx\n", dot);
+			}
+			else
+				printf("%s: address %#lx\n", procp->pname, dot);
 #else
 #if vax
 		if (procp->pname[0] == '_') 
@@ -2071,10 +2251,10 @@ setmain:
 	if (procp->sfptr == badfile) {
 		procp = findproc("main");
 		if (procp->sfptr == badfile) {
-		    if(!ISMAGIC(magic)) {	/* not a .o file */
+/*
+		    if(!ISMAGIC(magic)) {
 			nolines = 1;
-			/* printf("main not compiled with debug flag\n"); */
-			dot = 0;	/* 0?? - is dot needed? */
+			dot = 0;	
 #if DEBUG
 			if (debugflag == 1)
 			{
@@ -2090,6 +2270,7 @@ setmain:
 			return(0);
 		    }
 		    else
+*/
 			procp = procs;	/*  for .o files, just first proc */
 		}
 	}
@@ -2313,8 +2494,8 @@ struct stmt stmt; char *filename; {
 		/* note: the proct's are sorted by address in core, not by lineno */
 		for (pp=procs; pp->pname[0]; pp++) {
 			if(pp->sfptr != sfptr || pp->lineno == 0)
-				continue;	/* wrong source file or no lineno */
-			if (ll <= pp->lineno && pp->lineno <= ln) {
+				continue;   /* wrong source file or no lineno */
+			if (ll <= pp->lineno && pp->lineno <= ln && pp->ef_line >= ln) {
 				ll = pp->lineno;
 				pps = pp;
 			}
@@ -2393,6 +2574,7 @@ struct stmt stmt; long offset; char *file; {
 #endif
 		return( ERROR );
 	}
+	libn =  procp->lib;		/* set libn to the right executable */
 
 	if(stmt.lnno < procp->lineno)		/* line with function name */
 	{
@@ -2446,7 +2628,7 @@ struct stmt stmt; long offset; char *file; {
 	}
 	offl = axp->x_sym.x_fcnary.x_fcn.x_lnnoptr;
 
-	offn = filhdr.f_symptr + axp->x_sym.x_fcnary.x_fcn.x_endndx *SYMESZ;
+	offn = filhdr[libn].f_symptr + axp->x_sym.x_fcnary.x_fcn.x_endndx *SYMESZ;
 	if(offl == 0)		/*  sgs bug ? */
 		offl = getlnnoptr(procp);	/* for SGS .o files */
 	if( rdsym(offn) == ERROR)
@@ -2471,7 +2653,7 @@ struct stmt stmt; long offset; char *file; {
 			offn = getlnnoptr(procp +1);	/* for SGS .o files */
 	}
 	else		/* in case last function */
-		offn = filhdr.f_symptr;		/* symbol table follows */
+		offn = filhdr[libn].f_symptr;		/* symbol table follows */
 
 	ll = stmt.lnno - procp->lineno +1;	/* in coff, rel. to proc { */
 	if( (offl = rdlntry(offl)) == ERROR)
@@ -2491,7 +2673,7 @@ struct stmt stmt; long offset; char *file; {
 		return(ERROR);
 	}
 	if( lnp->l_addr.l_symndx !=
-	    ( procp->st_offset-filhdr.f_symptr ) / SYMESZ )
+	    ( procp->st_offset-filhdr[libn].f_symptr ) / SYMESZ )
 	{
 		fprintf(FPRT1, "sttmttoaddr: Bad lineno for %s;\n",
 							procp->pname);
@@ -2686,6 +2868,11 @@ char *pnam; struct stmt stmt; {
 	else {
 		addr = findproc(pnam)->paddress + PROCOFFSET;
 	}
+	if (nshlib) { 		
+		(void) isisp(addr);	/* set libn */
+		if (inbrtbl(addr))	/* if addr in branchtable */
+			addr = brtoproc(addr);	/* get addr of  .bt */
+	}
 #if DEBUG
 	if (debugflag == 1)
 	{
@@ -2798,7 +2985,7 @@ char *d;
 long
 extlookup(pat, filestart)
 char *pat; long filestart; {
-	register int i, class, n;
+	register int  class;
 	register long offset;
 	register char *q;
 	SYMENT *syp = &syment;
@@ -2824,7 +3011,7 @@ char *pat; long filestart; {
 	while( (offset = rdsym(offset)) != ERROR) {
 		class = syp->n_sclass;
 		if (syp->n_scnum <= 0) continue;
-		q = scnhdrp[syp->n_scnum -1].s_name;
+		q = scnhdrp[libn][syp->n_scnum -1].s_name;
 		if ((class == C_EXT) &&
 		    (eqstr(q,_DATA) || eqstr(q,_BSS)) &&
 		    eqpatu(pat, syp->n_nptr)) {
@@ -2891,7 +3078,7 @@ long offset; {
 /*		sl_class = C_EXT;
 /*		if(syp->n_sclass==C_BLOCK && eqstr(syp->n_name,".eb")) {
 /*			sl_addr += extaddr(syp->n_name);
-/* /* 				blseek(&sbuf, offset, 0);*/
+/*  				blseek(&sbuf, offset, 0);
 /*			return(offset);
 /*		}
 /*	}
@@ -2983,9 +3170,8 @@ adrtoext(addr)
 ADDR addr; {
 	SYMENT *syp = &syment;
 	struct proct *procp;
-	register int i, nq;
 	register long prevdiff = MAXPOS, diff;
-	register long offs = extstart;
+	register long offs = extstart[libn];
 	register char *q;
 
 #if DEBUG
@@ -3068,7 +3254,7 @@ ADDR addr; {
 adrtolocal(addr, procp) 
 ADDR addr; struct proct *procp; {
 	SYMENT *syp = &syment;
-	register int i, prevdiff = MAXPOS, diff;
+	register int prevdiff = MAXPOS, diff;
 	register long offl;
 
 #if DEBUG
@@ -3208,7 +3394,6 @@ adrtoregvar(regno, procp)
 ADDR regno; struct proct *procp;
 {
 	SYMENT *syp = &syment;
-	register int i;
 	register long offl;
 
 	offl = rdsym(procp->st_offset);
@@ -3278,7 +3463,7 @@ char *s; {
 			amap.m = &datmap;
 			break;
 		case '?':
-			amap.m = &txtmap;
+			amap.m = &txtmap[libn];
 			break;
 		case '*':
 			starflag++;
@@ -3307,7 +3492,7 @@ sout:	if (amap.mp == 0) {
 	}
 	if (starflag)
 		amap.mp = amap.m == &datmap ?	(L_INT *)&datmap.b2 :
-						(L_INT *)&txtmap.b2;
+						(L_INT *)&txtmap[libn].b2;
 	for (; *s; s++) {
 		if (*s >= '0' && *s <= '9')
 			*(amap.mp)++ = readint(&s);
@@ -3357,10 +3542,12 @@ long offset;
 	}
 	else if (debugflag == 2)
 	{
+/*
 		enter2("rdsym");
 		arg("offset");
 		printf("0x%x",offset);
 		closeparen();
+*/
 	}
 #endif
 	symep = &syment;
@@ -3374,14 +3561,16 @@ long offset;
 		}
 		else if (debugflag == 2)
 		{
+/*
 			exit2("rdsym");
 			printf("0x%x",ERROR);
 			endofline();
+*/
 		}
 #endif
 		return(ERROR);
 	}
-	if( offset >= ( filhdr.f_symptr + filhdr.f_nsyms * SYMESZ ) )
+	if( offset >= ( filhdr[libn].f_symptr + filhdr[libn].f_nsyms * SYMESZ ) )
 	{
 #if DEBUG
 		if (debugflag == 1)
@@ -3390,16 +3579,18 @@ long offset;
 		}
 		else if (debugflag == 2)
 		{
+/*
 			exit2("rdsym");
 			printf("0x%x",ERROR);
 			endofline();
+*/
 		}
 #endif
 		return( ERROR );
 	}
 	if(offset != curoffs)
 	{
-		if(filhdr.f_nsyms == 0)		/* in case "strip" file */
+		if(filhdr[libn].f_nsyms == 0)		/* in case "strip" file */
 		{
 #if DEBUG
 			if (debugflag == 1)
@@ -3408,17 +3599,19 @@ long offset;
 			}
 			else if (debugflag == 2)
 			{
+/*
 				exit2("rdsym");
 				printf("0x%x",ERROR);
 				endofline();
+*/
 			}
 #endif
 			return(ERROR);
 		}
-		blseek(&sbuf, offset, 0);
+		blseek(&sbuf[libn], offset, 0);
 		curoffs = offset;
 	}
-	if (bread(&sbuf, (char *)symep, SYMESZ) < SYMESZ)
+	if (bread(&sbuf[libn], (char *)symep, SYMESZ) < SYMESZ)
 	{
 		curoffs = ERROR -1;
 #if DEBUG
@@ -3428,9 +3621,11 @@ long offset;
 		}
 		else if (debugflag == 2)
 		{
+/*
 			exit2("rdsym");
 			printf("0x%x",ERROR);
 			endofline();
+*/
 		}
 #endif
 		return(ERROR);
@@ -3438,7 +3633,7 @@ long offset;
 #ifdef FLEXNAMES
 	if( symep->n_zeroes == 0 )
 	{
-		if (symep->n_offset < 4 || symep->n_offset > strtablen)
+		if (symep->n_offset < 4 || symep->n_offset > strtablen[libn])
 		{
 			printf("Bad string table offset @ 0x%lx\n",
 				curoffs - SYMESZ);
@@ -3449,29 +3644,33 @@ long offset;
 			}
 			else if (debugflag == 2)
 			{
+/*
 				exit2("rdsym");
 				printf("0x%x",ERROR);
 				endofline();
+*/
 			}
 #endif
 			return (ERROR);
 		}
-		symep->n_nptr = &strtab[ symep->n_offset ];
+		symep->n_nptr = &strtab[libn][ symep->n_offset ];
 	}
 	else
 #endif
 	{
-		long	i = offset - filhdr.f_symptr;
+		long	i = offset - filhdr[libn].f_symptr;
 		i /= SYMESZ;
-		strncpy( shstrtab[ i ].name, symep->n_name, SYMNMLEN );
-		shstrtab[ i ].name[ 8 ] = '\0';
+		strncpy( shstrtab[libn][ i ].name, symep->n_name, SYMNMLEN );
+		shstrtab[libn][ i ].name[ 8 ] = '\0';
 		symep->n_zeroes = 0;
 		symep->n_offset = 0;
-		symep->n_nptr = shstrtab[ i ].name;
+		symep->n_nptr = shstrtab[libn][ i ].name;
 	}
+
 /*
-**	printf("Found name `%s'\n", symep->n_nptr);
+	printf("Found name `%s' libn = %d\n", symep->n_nptr,libn); 
 */
+
 	curoffs += SYMESZ;
 	if( ( numaux = symep->n_numaux ) > MAXAUXENT )
 	{
@@ -3480,7 +3679,7 @@ long offset;
 		numaux = MAXAUXENT;
 	}
 	while(numaux-- > 0)
-		if( bread( &sbuf, ( char * ) auxep++, AUXESZ ) < AUXESZ )
+		if( bread( &sbuf[libn], ( char * ) auxep++, AUXESZ ) < AUXESZ )
 		{
 			curoffs = ERROR -1;
 #if DEBUG
@@ -3490,9 +3689,11 @@ long offset;
 			}
 			else if (debugflag == 2)
 			{
+/*
 				exit2("rdsym");
 				printf("0x%x",ERROR);
 				endofline();
+*/
 			}
 #endif
 			return(ERROR);
@@ -3505,9 +3706,11 @@ long offset;
 		}
 		else if (debugflag == 2)
 		{
+/*
 			exit2("rdsym");
 			printf("0x%x",curoffs);
 			endofline();
+*/
 		}
 #endif
 	return(curoffs);
@@ -3554,7 +3757,7 @@ long offset;
 		return(ERROR);
 	}
 	/* LINENO entries followed by symbol table */
-	if(offset >= filhdr.f_symptr)
+	if(offset >= filhdr[libn].f_symptr)
 	{
 #if DEBUG
 		if (debugflag == 1)
@@ -3571,10 +3774,10 @@ long offset;
 		return(ERROR);
 	}
 	if(offset != curoffs) {
-		blseek(&sbuf, offset, 0);
+		blseek(&sbuf[libn], offset, 0);
 		curoffs = offset;
 	}
-	if (bread(&sbuf, (char *)&linent, LINESZ) < LINESZ) {
+	if (bread(&sbuf[libn], (char *)&linent, LINESZ) < LINESZ) {
 		curoffs = ERROR -1;
 #if DEBUG
 		if (debugflag == 1)
@@ -3618,8 +3821,10 @@ struct proct *procp;
 	register long offl;
 	register LINENO *lnp = &linent;
 	int n, nz = 0;
-	extern int txt;
+	extern int gtxt[];
+	int txt;
 
+	txt = gtxt[libn];
 #if DEBUG
 	if (debugflag ==1)
 	{
@@ -3650,7 +3855,9 @@ struct proct *procp;
 		return(ERROR);
 	}
 	n = procp - procs;	/* function number; assume proct order */
-	offl = scnhdrp[txt].s_lnnoptr;
+
+	offl = scnhdrp[libn][txt].s_lnnoptr;
+
 	/* count through line number entries til get function wanted */
 	while( (offl = rdlntry(offl)) != ERROR) {
 		if (lnp->l_lnno == 0)
@@ -3692,7 +3899,6 @@ int  fd;
 {
 	extern char *sbrk();
 	long home;
-	register int i;
 
 #if DEBUG
 	if (debugflag ==1)
@@ -3708,7 +3914,7 @@ int  fd;
 	}
 #endif
 	home = lseek( fd, 0L, 1 );
-	if (filhdr.f_symptr == 0)
+	if (filhdr[libn].f_symptr == 0)
 	{
 #if DEBUG
 		if (debugflag == 1)
@@ -3723,7 +3929,7 @@ int  fd;
 #endif
 		return;
 	}
-	if ( lseek( fd, filhdr.f_symptr, 0 ) == -1 )
+	if ( lseek( fd, filhdr[libn].f_symptr, 0 ) == -1 )
 	{
 		(void) lseek( fd, home, 0 );
 #if DEBUG
@@ -3739,14 +3945,14 @@ int  fd;
 #endif
 		return;
 	}
-	if ( ( shstrtab = (struct sh_name *)sbrk( ( ( filhdr.f_nsyms *
+	if ( ( shstrtab[libn] = (struct sh_name *)sbrk( ( ( filhdr[libn].f_nsyms *
 		sizeof( struct sh_name) ) + 3 ) & ~3 ) ) ==
 		( struct sh_name * )( -1 ) )
 	{
 		fprintf(FPRT2,"Cannot allocate space for internal symbol table; Goodbye\n");
 		exit(2);
 	}
-	if ( lseek( fd, filhdr.f_nsyms * SYMESZ + filhdr.f_symptr, 0 ) == -1 )
+	if ( lseek( fd, filhdr[libn].f_nsyms * SYMESZ + filhdr[libn].f_symptr, 0 ) == -1 )
 	{
 		(void) lseek( fd, home, 0 );
 #if DEBUG
@@ -3762,7 +3968,7 @@ int  fd;
 #endif
 		return;
 	}
-	if( read( fd, (char *) &strtablen, sizeof( long ) ) != sizeof( long ) )
+	if( read( fd, (char *) &strtablen[libn], sizeof( long ) ) != sizeof( long ) )
 	{
 		(void) lseek( fd, home, 0 );
 #if DEBUG
@@ -3778,7 +3984,7 @@ int  fd;
 #endif
 		return;
 	}
-	if (strtablen <= 4L)
+	if (strtablen[libn] <= 4L)
 	{
 		(void) lseek(fd,home,0);
 #if DEBUG
@@ -3794,19 +4000,19 @@ int  fd;
 #endif
 		return;
 	}
-	if ( ( strtab = sbrk( ( ( strtablen ) + 3 ) & ~3 ) ) ==
+	if ( ( strtab[libn] = sbrk( ( ( strtablen[libn] ) + 3 ) & ~3 ) ) ==
 		( char * )( -1 ) )
 	{
 		fprintf(FPRT2,"Cannot allocate space for string table; Goodbye\n");
 		exit(2);
 	}
-	if ( read( fd, &strtab[ sizeof( long ) ], strtablen - sizeof( long ) )
-		!= strtablen - sizeof( long ) )
+	if ( read( fd, &strtab[libn][ sizeof( long ) ], strtablen[libn] - sizeof( long ) )
+		!= strtablen[libn] - sizeof( long ) )
 	{
 		fprintf(FPRT2,"Cannot read string table; Goodbye\n");
 		exit(2);
 	}
-	if ( strtab[ strtablen - 1 ] != '\0' )
+	if ( strtab[libn][ strtablen[libn] - 1 ] != '\0' )
 	{
 		(void) lseek( fd, home, 0 );
 #if DEBUG
@@ -3826,7 +4032,7 @@ int  fd;
 	/*
 	**	Used for debugging the reading in of string table for FLEXNAMES.
 	**	printf("STRING TABLE\n");
-	**	for (i = 4; i < strtablen; i++)
+	**	for (i = 4; i < strtablen[libn]; i++)
 	**	{
 	**		if (strtab[i] == '\0')
 	**			printf("^@\n");

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libc-m32:gen/ptod.c	1.5"
+#ident	"@(#)libc-m32:gen/ptod.c	1.7"
 /*
  *	Simulated extended precision floating point conversion functions
  *      ----------------------------------------------------------------
@@ -145,9 +145,11 @@ int dec_exp, lowlen, sign;
 	/* make sure it doesn't run of the bigpow table */
 	if (dec_exp > 310) {
 		errno = ERANGE;
-		return (HUGE);
-	} else if (dec_exp < -350)
+		return (sign ? -HUGE : HUGE);
+	} else if (dec_exp < -350) {
+		errno = ERANGE;
 		return(0.0);
+	}
 
 	if (w1 == 0)
 		return(0.0);
@@ -327,7 +329,7 @@ int dec_exp, lowlen, sign;
 				unsigned long upper, lower;
 			} longs;
 			struct {
-				unsigned short s1, s2, s3, s4
+				unsigned short s1, s2, s3, s4;
 			} shorts;
 		} result;
 
@@ -350,7 +352,7 @@ int dec_exp, lowlen, sign;
 		}
 		if (t > 2045) {
 			errno = ERANGE;
-			return(HUGE);
+			return (sign ? -HUGE : HUGE);
 		}
 		/* The following code does the jamming.  Note that
 		   we only need worry about rounding overflow if
@@ -370,7 +372,7 @@ int dec_exp, lowlen, sign;
 		if ((t == 0) && (w2 != 0) &&
 		    ((++result.longs.upper >> 20) & LOW(11)) < 0) {
 			errno = ERANGE;
-			return(HUGE); 
+			return (sign ? -HUGE : HUGE);
 		}
 #endif
 #if (vax)
@@ -393,7 +395,7 @@ int dec_exp, lowlen, sign;
 		    (w4 == 127)) {
 			/* if overflow */
 			errno = ERANGE;
-			return(HUGE); 
+			return (sign ? -HUGE : HUGE);
 		}
 #endif
 		if (denormexp == 0)  {

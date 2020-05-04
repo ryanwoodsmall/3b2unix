@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libns:ind_data.c	1.7"
+#ident	"@(#)libns:ind_data.c	1.7.1.1"
 #include <stdio.h>
 #include <nserve.h>
 #include <sys/tiuser.h>
@@ -90,7 +90,8 @@ int	size;
 	LOG5(L_CONV,"(%5d) getstr(pp=%s,str=%x,size=%d)\n",
 		Logstamp,prplace(pp),(str)?str:"NULL",size);
 
-	bump(pp);
+	if (!bump(pp))
+		return NULL;
 	fcanon("c0",pp->p_ptr,buffer);
 	pp->p_ptr += c_sizeof(buffer);
 	if ((rsize = strlen(buffer)) == 0) {

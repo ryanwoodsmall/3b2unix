@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)unadv:unadv.c	1.12"
+#ident	"@(#)unadv:unadv.c	1.13"
 #include  <stdio.h>
 #include  <ctype.h>
 #include  <string.h>
@@ -25,6 +25,7 @@ static	char	*resource;
 static	char	*cmd;
 
 extern	int	errno;
+extern	int	ns_errno;
 extern	char	*dompart();
 extern	char	*namepart();
 
@@ -50,6 +51,21 @@ char	*argv[];
 	}
 	verify_name(argv[1]);
 
+	if (geteuid() != 0) {
+		fprintf(stderr,"%s: must be super-user\n",cmd);
+		exit(1);
+	}
+
+	/*
+	 *	Lock a temporary file to prevent many advertises, or
+	 *	unadvertises from updating "/etc/advtab" at the same time.
+	 */
+
+	if ((temprec = creat(ADVLOCK, 0600)) == -1 ||
+	     lockf(temprec, F_LOCK, 0L) < 0) {
+		fprintf(stderr,"%s: warning: cannot lock temp file <%s>\n",cmd,ADVLOCK);
+	}
+
 	/*
 	 *	Unadvertise the resource by invoking the unadvfs() 
 	 *	system call, and send resource name to the 
@@ -64,22 +80,14 @@ char	*argv[];
 			sys_err = 1;
 	}
 
-	/*
-	 *	Lock a temporary file to prevent many advertises, or
-	 *	unadvertises from updating "/etc/advtab" at the same time.
-	 */
-
-	if ((temprec = creat(ADVLOCK, 0600)) == -1 ||
-	     lockf(temprec, F_LOCK, 0L) < 0) {
-		fprintf(stderr,"%s: warning: cannot lock temp file <%s>\n",cmd,ADVLOCK);
-	}
-
 	update_entry(resource,sys_err);
-	unlink(ADVLOCK);
 
 	if (ns_unadv(argv[1]) == FAILURE) {
 		if (sys_err) {
-			nserror(cmd);
+			if (ns_errno == R_PERM)
+				fprintf(stderr, "%s: <%s> not advertised by this host\n", cmd, resource);
+			else
+				nserror(cmd);
 			exit(1);
 		}
 	}
@@ -150,7 +158,6 @@ int	sys_err;
 
 	if ((fp1 = fopen(TEMPADV, "w")) == NULL) {
 		fprintf(stderr,"%s: cannot create temporary advertise file <%s>\n",cmd,TEMPADV);
-		unlink(ADVLOCK);
 		exit(1);
 	}
 

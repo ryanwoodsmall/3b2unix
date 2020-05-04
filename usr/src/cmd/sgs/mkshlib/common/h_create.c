@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mkshlib:common/h_create.c	1.3"
+#ident	"@(#)mkshlib:common/h_create.c	1.4.1.6"
 
 #include <stdio.h>
 #include "filehdr.h"
@@ -15,7 +15,9 @@
 #include "reloc.h"
 #include "ldfcn.h"
 #include "shlib.h"
+#include "paths.h"
 #include "hst.h"
+#include "trg.h"
 
 
 /* mklibdef() creates the library definition file.
@@ -60,6 +62,8 @@ mklibdef()
 		fatal("Cannot open %s",trgname);
 
 	/* open deffil */
+	if (defname == NULL)
+		fatal("Cannot create name for library definition file");
 	if ((deffil=fopen(defname,"w")) == NULL)
 		fatal("Cannot open library definition file");
 
@@ -150,14 +154,14 @@ mklibdef()
 	initsym(&symbol, libdefsym);
 	symbol.n_scnum= N_ABS;	/* doesn't matter what section it is defined in */
 	if (symbol.n_zeroes == 0L)
-		symbol.n_offset= 4L;
+		symbol.n_offset= sizeof(long);
 
 	if (fwrite((char *)&symbol, SYMESZ, 1, deffil) != 1)
 		fatal("Cannot write symbol table to library definition file");
 	if (symbol.n_zeroes == 0L) {
 		len= strlen(libdefsym);
-		slength=  4 + len + 1;
-		if ((fwrite((char *)&slength, 4, 1, deffil) != 1)
+		slength=  sizeof(long) + len + 1;
+		if ((fwrite((char *)&slength, sizeof(long), 1, deffil) != 1)
 				|| (fwrite(libdefsym, len+1, 1, deffil) != 1))
 			fatal("Cannot write string table to library definition file");
 	}
@@ -201,11 +205,15 @@ creatobjs()
 		curobj= objects[i];
 
 		/* get full pathname for modified object */
-		if (curobj->init == NULL)
-			fnam= makename(moddir, curobj->objname);
-		else {
+		outfnam= makename(moddir, curobj->objname);
+		if (curobj->init != NULL)
+		{
 			fnam= makename(moddir, getbase(tempnam(moddir,"mod")));
 			errno= 0; /* reset errno after call to tempnam() */
+		}
+		else 
+		{
+			fnam = outfnam;
 		}
 		
 		/* open modified object for writing */
@@ -301,9 +309,9 @@ creatobjs()
         	/* copy string table */
         	size= stringtab.next - stringtab.start;
         	if (size) {
-                	size += 4;
-                	if ((fwrite((char *)&size, 4, 1, ofil) != 1) ||
-                                (fwrite(stringtab.start,(int)size-4, 1, ofil) != 1))
+                	size += sizeof(long);
+                	if ((fwrite((char *)&size, sizeof(long), 1, ofil) != 1) ||
+                                (fwrite(stringtab.start,(int)size-sizeof(long), 1, ofil) != 1))
                         	fatal("failed to write string table to temp file");
         	}
 
@@ -318,14 +326,53 @@ creatobjs()
 		(void)fclose(ofil);
 
 		/* add the .init section if one exists */
-		if (curobj->init != NULL) {
-			outfnam= makename(moddir, curobj->objname);
-			if (execute(ldname,ldname,"-r","-o",outfnam,fnam,
-						curobj->init->initname,(char *)0))
-				fatal("Internal %s invocation failed",ldname);
-		}
+		if (curobj->init != NULL &&
+		    execute(ldname,ldname,"-r","-o",outfnam,fnam,
+		    curobj->init->initname,(char *)0))
+			fatal("Internal %s invocation failed",ldname);
 	}
 }
+
+/*
+ * Remember, for the host file, that "s" should
+ * be exported.
+ */
+exportsym(s)
+	char *s;
+{
+	extern char *ifil3name;
+	static FILE *fp = NULL;
+	char *p;
+
+	if (ifil3name == NULL)
+	{
+		ifil3name=   tempnam(TMPDIR,"trg7"); /* Export/hide directives */
+		if (ifil3name == NULL)
+			fatal("Cannot construct name of intermediate loader file.");
+	}
+	if (fp == NULL && (fp = fopen(ifil3name, "a")) == NULL)
+			fatal("Cannot construct name of intermediate loader file.");
+	(void) fprintf(fp, "EXPORT {");
+	for (p = s; *p != '\0'; p++)
+	{
+		switch (*p) {
+			case '[':
+			case ']':
+			case '\\':
+			case '!':
+			case '?':
+			case '*':
+				putc('\\', fp);
+			default:		/* fall into next case */
+				putc(*p, fp);
+				break;
+			} /* switch */
+	} /* for */
+	(void) fprintf(fp, "}\n");
+	(void) fflush(fp);
+	return;
+}
+	
 
 /* This routine writes a symbol table entry to ofil and updates the string table */
 void
@@ -356,7 +403,7 @@ FILE	*ofil;		/* output file */
 		}
 
 		(void)strcpy(pstrtab->next, symbol.n_nptr);
-		symbol.n_offset= (pstrtab->next - pstrtab->start) + 4;
+		symbol.n_offset= (pstrtab->next - pstrtab->start) + sizeof(long);
 		pstrtab->next += len;
 	}
 
@@ -379,14 +426,16 @@ archive()
 		maxlen;
 
 	/* set cmd */
-	maxlen=strlen(moddir)+strlen(prefix)+strlen(hstname)+34+BUFSIZ;
-	if ((cmd= malloc((unsigned)maxlen)) == NULL)
-		fatal("Out of space");
+	if (*hstname == '/')
+		cmd = strbuild("cd ", moddir, " && ar r ",
+			hstname, " `", prefix, "lorder ", NULL);
+	else
+		cmd = strbuild("dir=`pwd` && cd ", moddir,
+			" && ar r $dir/", hstname,
+			" `", prefix, "lorder ", NULL);
+	cmdlen = maxlen = strlen(cmd);
+	p = cmd + maxlen;
 
-	p= cmd;
-	p+= sprintf(p,"dir=`pwd` && cd %s && ar r $dir/%s `%slorder ",
-		moddir,hstname,prefix);
-	cmdlen= strlen(cmd);
 	for (i=0; i<numobjs; i++) {
 		cmdlen+= strlen(objects[i]->objname) + 1;
 		if (maxlen <= cmdlen) {

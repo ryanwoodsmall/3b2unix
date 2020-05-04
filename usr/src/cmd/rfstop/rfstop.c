@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)dustop:dustop.c	1.9"
+#ident	"@(#)rfstop:rfstop.c	1.11.1.1"
 #include <stdio.h>
 #include <nserve.h>
 #include <time.h>
@@ -29,14 +29,14 @@ char *argv[];
 		exit(1);
 	}
 
-	if (getuid() != 0) {
+	if (geteuid() != 0) {
 		ERROR("must be super-user");
 		exit(1);
 	}
 
-	signal(SIGHUP,  SIG_IGN);
-	signal(SIGINT,  SIG_IGN);
-	signal(SIGQUIT, SIG_IGN);
+	sigset(SIGHUP,  SIG_IGN);
+	sigset(SIGINT,  SIG_IGN);
+	sigset(SIGQUIT, SIG_IGN);
 
 	/*
 	 *	Issue the rfstop(2) system call to stop all 
@@ -50,7 +50,10 @@ char *argv[];
 			ERROR("remote clients are using local resources");
 		else if (errno == EADV)
 			ERROR("resources are still advertised");
-		else
+		else if (errno == ENONET) {
+			ERROR("RFS is not running");
+			exit(1);
+		} else
 			perror(argv[0]);
 		ERROR("cannot stop RFS");
 		exit(1);
@@ -62,7 +65,8 @@ char *argv[];
 	 *	responsibilities, if necessary.
 	 */
 
-	system("rfadmin -p >/dev/null 2>&1");
+	if (system("rfadmin -p >/dev/null 2>&1") == 0x200)
+		ERROR("warning: no secondary name servers active");
 
 	sprintf(cmd, "kill `cat %s 2>/dev/null` 2>/dev/null", NSPID);
 

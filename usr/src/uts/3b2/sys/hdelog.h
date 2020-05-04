@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/hdelog.h	10.2"
+#ident	"@(#)kern-port:sys/hdelog.h	10.3"
 /* values for filling in readtype are: */
 #define HDECRC		1	/* for CRC data checking */
 #define HDEECC		2	/* for Error Correction Code data processing */
@@ -27,6 +27,7 @@ struct hdedata {
 	char	badrtcnt;	/* number of unreadable tries */
 	char	bitwidth;	/* bitwidth of corrected error: 0 if CRC */
 	time_t	timestmp;	/* time stamp helps pathological cases*/
+	int	pad2;		/* round size to 2^n */
 };
 
 /* structure for hdeeqdt[] table declared in space.h */

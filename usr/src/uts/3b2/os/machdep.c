@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/machdep.c	10.15"
+#ident	"@(#)kern-port:os/machdep.c	10.15.1.1"
 #include "sys/sysmacros.h"
 #include "sys/param.h"
 #include "sys/types.h"
@@ -537,6 +537,15 @@ svirtophysfail()
 	cmn_err(CE_PANIC, "svirtophys - movtrw failed.");
 }
  
+
+/* devcheck() is an obsolete routine that is kept in to maintain     *
+ * driver compatibility. The dev_addr array is now set up by lboot   *
+ * at system boot time and can be accessed by an external symbol     *
+ * "<driver name>_addr". The dev_cnt that was returned by devcheck() *
+ * can be obtained by defining a variable in the /etc/master.d       *
+ * file and initializing it to "#D". The variable should be of the   *
+ * form "<driver name>_cnt" to make all of the drivers consistent.   *
+ */
 
 devcheck(devtype, dev_addr)
 int devtype;

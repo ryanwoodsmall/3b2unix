@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)fsck:fsck.c	1.29"
+#ident		"@(#)fsck:fsck.c	1.31"
 #include <stdio.h>
 #include <ctype.h>
 #ifdef RT
@@ -32,7 +32,7 @@
 #include <sys/sysmacros.h>
 #endif
 #include <sys/filsys.h>
-#ifdef u3b2
+#if u3b2 || u3b15
 #include <sys/uadmin.h>
 #endif
 #include <sys/dir.h>
@@ -40,7 +40,7 @@
 #include <sys/ino.h>
 #include <sys/stat.h>
 #endif
-#ifdef u3b2
+#if u3b2 || u3b15
 #include <sys/sys3b.h>
 #endif
 
@@ -198,7 +198,10 @@ MEMSIZE	memsize;		/* amt of memory we got */
 #if u3b
 #define MAXDATA ((MEMSIZE)350*1024)
 #endif
-#if u3b5 || u3b2
+#if u3b15
+#define MAXDATA (((MEMSIZE)100*2048) + 0x80880000)
+#endif
+#if u3b2
 #define MAXDATA (((MEMSIZE)64*2048) + 0x80880000)
 #endif
 #ifdef vax
@@ -419,6 +422,10 @@ char	*argv[];
 		sflag = 0;
 	if(csflag) nflag++;
 
+#ifdef u3b15
+	bflag++;
+#endif
+
 #if !STANDALONE && !pdp11
 	if(!argc) {		/* use default checklist */
 		if((fp = fopen(checklist,"r")) == NULL)
@@ -489,7 +496,7 @@ char	*argv[];
 #if FsTYPE==2
 			if(superblk.s_magic != FsMAGIC ||
 			(superblk.s_magic == FsMAGIC && superblk.s_type == Fs1b)) {
-#ifdef u3b5
+#ifdef u3b15
 				error("%c %s not a 2k file system\n",
 					id,argv[ix]);
 #else
@@ -514,7 +521,7 @@ char	*argv[];
 #if FsTYPE==2
 			if(superblk.s_magic != FsMAGIC ||
 			(superblk.s_magic == FsMAGIC && superblk.s_type == Fs1b)) {
-#ifdef u3b5
+#ifdef u3b15
 				error("%c %s not a 2k file system\n",
 					id,filename);
 #else
@@ -787,7 +794,7 @@ if(!fast) {
 
 }	/* if fast check, skip to phase 5 */
 	printf("%c %s** Phase 5 - Check Free List ",id,devname);
-#ifdef u3b2
+#if u3b2 || u3b15
 	rebflg = dfile.mod+fileblk.b_dirty+sblk.b_dirty+inoblk.b_dirty;
 #endif
 	if(sflag || (csflag && rplyflag == 0)) {
@@ -901,7 +908,7 @@ if(!fast) {
 	} else {
 		fixstate = 0;
 	}
-#ifdef u3b2
+#if u3b2 || u3b15
 	if (hotroot && (superblk.s_state == FsACTIVE))
 		rebflg = 1;
 	else if ((superblk.s_state + (long)superblk.s_time) != FsOKAY) {
@@ -923,7 +930,7 @@ if(!fast) {
 #endif
 	printf("%c %s%ld files %ld blocks %ld free\n",id,devname,
 #if FsTYPE==2
-#ifdef u3b5
+#ifdef u3b15
 		n_files,n_blks*4,n_free*4);
 #else
 		n_files,n_blks*2,n_free*2);
@@ -935,9 +942,15 @@ if(!fast) {
 #ifndef STANDALONE
 		time(&superblk.s_time);
 #endif
-#ifdef u3b2
-		if(fixstate || rebflg)
+#if u3b2 || u3b15
+		if(hotroot && (fixstate || rebflg)) {
+			if (bflag)
+				superblk.s_state = FsOKAY - (long)superblk.s_time;
+			else
+				superblk.s_state = FsACTIVE;
+		} else if(fixstate || rebflg)
 			superblk.s_state = FsOKAY - (long)superblk.s_time;
+
 #endif
 		sbdirty();
 	}
@@ -948,7 +961,7 @@ if(!fast) {
 		if (hotroot) {
 			printf("\n%c %s*** ROOT FILE SYSTEM WAS MODIFIED ***\n",
 				id,devname);
-#ifdef u3b2
+#if u3b2 || u3b15
 			if (bflag) {
 				if (!rebflg && (uadmin(A_REMOUNT, 0, 0) == 0)) {
 					  printf("  *** ROOT REMOUNTED ***\n");
@@ -960,15 +973,11 @@ if(!fast) {
 					uadmin(A_REBOOT, AD_BOOT, 0);
 				}
 			} else {
+#ifdef u3b2
 				printf("%c %s***** BOOT UNIX (NO SYNC!) *****\n",id,devname);
 				for(;;);
+#endif
 			}
-#else
-#if u3b5
-			printf("%c %s***** BOOT UNIX from firmware (NO SYNC!) *****\n",id,devname);
-			printf("Returning to FIRMWARE in 15 seconds!!!!!\n");
-			sleep(15);
-			sys3b(1); /* return to firmware */
 #else
 			printf("%c %s***** BOOT UNIX (NO SYNC!) *****\n",id,devname);
 #if u370
@@ -976,7 +985,6 @@ if(!fast) {
 				reboot();
 #endif
 			for(;;);
-#endif
 #endif
 		} else 
 			printf("%c %s*** FILE SYSTEM WAS MODIFIED ***\n",id,devname);
@@ -1690,9 +1698,26 @@ char *dev;
 			return(NO);
 		}
 	}
-	else if((statarea.st_mode & S_IFMT) == S_IFCHR)
+	else if((statarea.st_mode & S_IFMT) == S_IFCHR){
 		rawflg++;
-	else {
+/*  These changes to protect the user from checking a file system as a  */
+/*  character device while the file system is mounted as a block device */
+/*  and to prevent the checking of root as a character device will work */
+/*  only as long as the major and minor numbers of the said devices are */
+/*  the same. (Which is the case on the 3B2 and 3B15)		*/
+		
+#if u3b2 || u3b15
+		if(rootdev == statarea.st_rdev) {
+			error("%c %s%s - root must be checked as a BLOCK device\n",id,devname,dev);
+			return(NO);
+		}
+		else if(ustat(statarea.st_rdev,&ustatarea) >= 0) {
+			error("%c %s%s file system is mounted as a BLOCK device, ignored\n",id,devname,dev);
+			return(NO);
+		}
+#endif			
+	} else {		
+
 		error("%c %s%s is not a block or character device\n",id,devname,dev);
 		return(NO);
 	}
@@ -1802,7 +1827,7 @@ char *dev;
 		if(rawflg && (off_t)msize > totsz+BSIZE) {
 			niblk += (unsigned)((off_t)msize-totsz)>>BSHIFT;
 #if FsTYPE==2
-#ifdef u3b5
+#ifdef u3b15
 			if(niblk > MAXRAW / 4)
 				niblk = MAXRAW / 4;
 #else
@@ -2342,7 +2367,7 @@ makefree()
 	superblk.s_dinfo[1] = cyl;
 	clear(flg,sizeof(flg));
 #if FsTYPE==2
-#ifdef u3b5
+#ifdef u3b15
 	step /= 4;
 	cyl /= 4;
 #else

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:popen.c	1.2"
+#ident	"@(#)mailx:popen.c	1.4"
 /*
  * mailx -- a modified version of a University of California at Berkeley
  *	mail program
@@ -46,6 +46,8 @@ char	*cmd, *mode;
 		int	stdio;
 
 		stdio = tst(0, 1);
+		setgid(getgid());
+		setuid(getuid());
 		(void) close(myside);
 		(void) close(stdio);
 		(void) fcntl(yourside, 0, stdio);
@@ -66,7 +68,12 @@ pclose(ptr)
 FILE	*ptr;
 {
 	register int f, r;
-	int status, (*hstat)(), (*istat)(), (*qstat)();
+	int status;
+#ifndef SIGRETRO
+	void (*hstat)(), (*istat)(), (*qstat)();
+#else
+	int (*hstat)(), (*istat)(), (*qstat)();
+#endif /* SIGRETRO */
 
 	f = fileno(ptr);
 	(void) fclose(ptr);

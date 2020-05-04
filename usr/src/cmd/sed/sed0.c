@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sed:sed0.c	1.7"
+#ident	"@(#)sed:sed0.c	1.10"
 
 
 
@@ -70,7 +70,7 @@ char    *argv[];
 	hend = &holdsp[LBSIZE];
 	lcomend = &genbuf[71];
 	ptrend = &ptrspace[PTRSIZE];
-	reend = &respace[RESIZE];
+	reend = &respace[RESIZE-1];
 	labend = &labtab[LABSIZE];
 	lnum = 0;
 	pending = 0;
@@ -145,7 +145,9 @@ char    *argv[];
 	}
 	fclose(stdout);
 	exit(0);
+	/* NOTREACHED */
 }
+
 fcomp()
 {
 
@@ -473,14 +475,9 @@ jtcommon:
 				}
 				if(p == rep->r1.re1) {
 					rep->r1.re1 = op;
-				} else {
+				} else 
 					op = rep->r1.re1;
-				}
-
-				if((rep->r1.rhs = p) > reend) {
-					fprintf(stderr, TMMES, linebuf);
-					exit(2);
-				}
+				rep->r1.rhs = p;
 
 				if((p = compsub(rep->r1.rhs)) == badp) {
 					fprintf(stderr, CGMES, linebuf);
@@ -582,10 +579,6 @@ jtcommon:
 					fprintf(stderr, CGMES, linebuf);
 					exit(2);
 				}
-				if(p > reend) {
-					fprintf(stderr, TMMES, linebuf);
-					exit(2);
-				}
 				break;
 
 		}
@@ -616,11 +609,20 @@ char    *rhsbuf;
 	p = rhsbuf;
 	q = cp;
 	for(;;) {
+		if(p > reend) {
+			fprintf(stderr, TMMES, linebuf);
+			exit(2);
+		}
 		if((*p = *q++) == '\\') {
+			p++;
+			if(p > reend) {
+				fprintf(stderr, TMMES, linebuf);
+				exit(2);
+			}
 			*p = *q++;
 			if(*p > nbra + '0' && *p <= '9')
 				return(badp);
-			*p++ |= 0200;
+			p++;
 			continue;
 		}
 		if(*p == sseof) {
@@ -631,7 +633,6 @@ char    *rhsbuf;
 		if(*p++ == '\0') {
 			return(badp);
 		}
-
 	}
 }
 
@@ -815,10 +816,16 @@ dechain()
 char *ycomp(expbuf)
 char    *expbuf;
 {
-	register char   c, *ep, *tsp;
+	register char   c; 
+	register char *ep, *tsp;
+	register int i;
 	char    *sp;
 
 	ep = expbuf;
+	if(ep + 0377 > reend) {
+		fprintf(stderr, TMMES, linebuf);
+		exit(2);
+	}
 	sp = cp;
 	for(tsp = cp; *tsp != sseof; tsp++) {
 		if(*tsp == '\\')
@@ -828,7 +835,8 @@ char    *expbuf;
 	}
 	tsp++;
 
-	while((c = *sp++ & 0177) != sseof) {
+	while((c = *sp++) != sseof) {
+		c &= 0377;
 		if(c == '\\' && *sp == 'n') {
 			sp++;
 			c = '\n';
@@ -844,10 +852,9 @@ char    *expbuf;
 		return(badp);
 	cp = ++tsp;
 
-	for(c = 0; !(c & 0200); c++)
-		if(ep[c] == 0)
-			ep[c] = c;
+	for(i = 0; i < 0400; i++)
+		if(ep[i] == 0)
+			ep[i] = i;
 
-	return(ep + 0200);
+	return(ep + 0400);
 }
-

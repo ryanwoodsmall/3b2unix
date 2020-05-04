@@ -5,15 +5,17 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)tools:select.c	1.24"
+#ident	"@(#)tools:select.c	1.25"
 
 /*
  * select() draws a screen, and allows the user to move from field to field.
- * Two uses: 
- * 1: current field selector (no fl argument; retruns one fl,
- *    that points to the current field just selected (flag=0).
- * 2: selecting fields that are incompatible (etc.) with the 
- *    already selected current field (flag=1)
+ * Four uses ("flag" argument): 
+ * 0: select field for attributes setting; no argument;
+      returns pointer to fieldlink list containing selected field.
+ * 1: select fields for MV valfuncs; current field is
+      argument; linked list of selected fields is returned.
+ * 2: Set command line substring locations.
+ * 3: Select conditional exit field.
  * Major portions of this routine are copied from fill_out().
  */
 
@@ -24,9 +26,9 @@ char nums[] = {'0','1','2','3','4','5','6','7','8','9' };
 VOID copy_form_std();
 
 struct fieldlink *select(fl,s,flag)
-struct fieldlink *fl;
-int flag;
-char *s;
+struct fieldlink *fl;  /* Linked list of fields */
+int flag;     /* "Use" flag -- see above */
+char *s;     /* Top line text */
 {  static struct field *mem_f_pt=fields;
    struct field *f_pt, *f0_pt, *cap_f_pt;
    struct fieldlink *fl0;
@@ -39,9 +41,11 @@ char *s;
    extern int helpnum;
    extern char fthelp[];
 
+/* Define fields used for TOP line */
    if (flag==0 || flag==2 || flag==3) cap_f_pt = (struct field *)0;
    else if (fl!=(struct fieldlink *)0) cap_f_pt = fl->f_pt;
 
+/* TOP line text */
    if (strlen(s)<80) strcpy(title,s);
    else {
       strncpy(title,s,75);
@@ -53,6 +57,7 @@ char *s;
 
    SCRLINES = LINES-5;
 
+/* Set field to remembered field, when appropriate */
    switch(flag) {
    case 0:
       Field_pt = mem_f_pt;
@@ -68,11 +73,17 @@ char *s;
    }
 
 
+/*
+ * Find first non-header field.
+ */
    while (Field_pt->type==0 || Field_pt->type==9)   {
       if (Field_pt<last_field_pt) Field_pt++;
       else Field_pt = fields;
    }
 
+/*
+ * Various initializations.
+ */
    Row = Field_pt->row;
    Col = Field_pt->col+3;
    
@@ -81,6 +92,9 @@ char *s;
    page = ((Row==0)?1:(Row-1))/(SCRLINES-4) + 1;
    Stdscr_loc = (page-1) * (SCRLINES-4) - 4;
 
+/*
+ * Restart point.
+ */
 AA:
    colmove(1);
    copy_form_std(4);
@@ -91,6 +105,9 @@ AA:
    draw_line(LINES-3);
    page_num();
 
+/*
+ * Draw arrows or left-margin location numbers, as needed.
+ */
    switch(flag) {
    case 0:
    case 3:
@@ -115,8 +132,12 @@ AA:
    refresh();
 
 
+/*
+ * Main used input loop.
+ */
    while ((c=getch())!=CTRL(T) && c!=KEY_F(5))
    {
+      /* Draw arrows or left-margin location numbers, as needed.  */
       switch(flag) {
          case 0:
          case 3:
@@ -134,14 +155,14 @@ AA:
 
       if (!isdigit(c)) n='0';
 
-      switch(c)
+      switch(c)   /* Main switch */
       {
-      case KEY_F(3):
+      case KEY_F(3):  /* Redraw screen */
       case CTRL(L):
          clearok(curscr,TRUE);
          wrefresh(curscr);
          break;
-      case CTRL(F):  
+      case CTRL(F):   /* Page forward */
          if (maxpage>1) {
             if (page == maxpage)
                page = 1;
@@ -165,7 +186,7 @@ AA:
          else
             err_rpt(6,1);
          break;
-      case CTRL(B):
+      case CTRL(B): /* Page backward */
          if (maxpage>1) {
             if (page == 1)
                page = maxpage;
@@ -189,14 +210,14 @@ AA:
          else
             err_rpt(6,1);
          break;
-      case CTRL(P):  
+      case CTRL(P):    /* Cursor up */
       case KEY_UP:
          do {
             if (Field_pt>fields) Field_pt--;
             else Field_pt=last_field_pt;
          } while (Field_pt->type==0 || Field_pt->type==9);
          break;
-      case CTRL(Y):
+      case CTRL(Y):    /* Help */
       case KEY_F(6):
          helpnum = 27+flag;
          store(stdscr,0,LINES,COLS);
@@ -204,7 +225,7 @@ AA:
          store(stdscr,1,LINES,COLS);
          refresh();
          break;
-      case CTRL(N): 
+      case CTRL(N):   /* Cursos down */
       case '\015':
       case KEY_DOWN:
          do {
@@ -212,10 +233,10 @@ AA:
             else Field_pt=fields;
          } while (Field_pt->type==0 || Field_pt->type==9);
          break;
-      case CTRL(G):
+      case CTRL(G):   /* "action" -- see specific description below*/
       case KEY_F(1):
          switch(flag) {
-         case 0:
+         case 0:    /* Select field and return w/field pointer */
          case 3:
             clear();
             if (flag==0) mem_f_pt=Field_pt;
@@ -224,7 +245,7 @@ AA:
             fl0->f_pt = Field_pt;
             return(fl0);
             break;
-         case 1:
+         case 1:   /* Add/delete arrow; add/rmove field form fieldlink list */
             if (fl!= (struct fieldlink *)0 && Field_pt==fl->f_pt)
                err_rpt(46,1);
             else {
@@ -238,33 +259,33 @@ AA:
                }
             }
             break;
-         case 2:
+         case 2:   /* Not allowed for location() module */
             err_rpt(6,1);
             break;
          }
          break;
-      case CTRL(R):
+      case CTRL(R):   /* Abort or terminate; return to previous screen */
       case KEY_F(4):
-         switch(flag) {
+         switch(flag) {  /* Abort: return 0 pointer */
          case 0:
             clear();
             return((struct fieldlink *)0);
             break;
-         case 1:
+         case 1:         /* Return */
             clear();
             return(fl);
             break;
-         case 2:
+         case 2:         /* Return */
             clear();
             return((struct fieldlink*)1);
             break;
-         case 3:
+         case 3:         /* Not allowed for location module */
             err_rpt(6,1);
             break;
          }
          break;
-      default:
-         if (flag==2 && isdigit(c)) {
+      default:   /* digit processing for location(); first letter search */
+         if (flag==2 && isdigit(c)) {   /* Digit processing */
             if (Field_pt->bundle!=1) {
                mvaddch(Field_pt->row-Stdscr_loc,0,nums[n-'0']);
                addch(nums[(char)c-'0']);
@@ -273,7 +294,7 @@ AA:
             }
             else err_rpt(45,1);
          }
-         else if (isalpha(c)) {
+         else if (isalpha(c)) {    /* First letter search */
             f0_pt=NULL;
             f_pt = (Field_pt==last_field_pt) ? fields : Field_pt+1;
             while (f_pt!=Field_pt && f0_pt==NULL)  {
@@ -290,7 +311,7 @@ AA:
          }
          else err_rpt(6,1);
          break;
-      }
+      } /* End switch */
 
       Row = Field_pt->row;
       Col = Field_pt->col+3;
@@ -309,6 +330,7 @@ AA:
             indicate(1,fl0->f_pt);
       draw_bottom(flag,title,cap_f_pt);
 
+      /* Draw arrows or left-margin location numbers, as needed.  */
       switch(flag) {
          case 0:
          case 3:
@@ -330,7 +352,7 @@ AA:
       refresh();
 
 
-   }
+   } /* End of loop */
 
 /*
  * When break out of loop (^T/f5), return NULL pointer
@@ -366,6 +388,10 @@ AA:
    else return((struct fieldlink *)0);
 }
 
+
+/*
+ * Add (on_off=1)/ delete (on_off=0) arrow for field (f_pt).
+ */
 VOID indicate(on_off,f_pt)
 struct field *f_pt;
 int on_off;
@@ -406,6 +432,9 @@ int on_off;
    return(1);
 }
 
+/*
+ * Remove field pointer from linked list of field pointers.
+ */
 int rm_f_pt(fl,f_pt)
 struct fieldlink *fl;
 struct field *f_pt;
@@ -417,6 +446,9 @@ struct field *f_pt;
    return(1);
 }
 
+/*
+ * Add field pointer to linked list of field pointers.
+ */
 
 int add_f_pt(fl,f_pt)
 struct fieldlink *fl;
@@ -431,6 +463,10 @@ struct field *f_pt;
    return(1);
 }
 
+
+/*
+ * Check if field pointer is in linked list.
+ */
 int is_in_fl(fl,f_pt)
 struct fieldlink *fl;
 struct field *f_pt;
@@ -442,6 +478,9 @@ struct field *f_pt;
 }
 
 
+/*
+ * Generate on-screen location numbers 
+ */
 VOID loccopy()
 {  struct field *f_pt;
    int row;
@@ -461,8 +500,11 @@ VOID loccopy()
 }
 
 draw_bottom(flag,title,f_pt)
-int flag;
-char *title;
+/*
+ * Display bottom and top of screen.
+ *.
+int flag;   /* Use mode */
+char *title;          /*TOP line title */
 struct field *f_pt;
 {
 
@@ -493,6 +535,9 @@ struct field *f_pt;
 
 }
 
+/*
+ * Display page number.
+ */
 page_num()
 {
    page = (Row-1)/(SCRLINES-4) + 1;
@@ -502,6 +547,9 @@ page_num()
 }
 
 
+/*
+ * Move all cols to make room for arrows, location numbers, etc..
+ */
 colmove(m_nm)
 int m_nm;
 {  struct field *f0_pt;

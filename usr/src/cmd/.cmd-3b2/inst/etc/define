@@ -1,4 +1,4 @@
-#ident	"@(#)cmd-3b2:inst/etc/define	1.7"
+#ident	"@(#)cmd-3b2:inst/etc/define	1.7.1.1"
 #
 # define
 #
@@ -12,10 +12,10 @@ export	PATH REL TM OLDTM VOL
 
 PATH=/inst/bin:/inst/final/usr/lbin:/etc:/bin:/usr/bin
 
-REL=3.0
+REL=3.1
 OLDTM="3B2 Version 1" 	# For upgrade messages
-TM="3B2 Release 3.0"
-VOL=3.0
+TM="3B2 Release 3.1"
+VOL=3.1
 
 # Define device entries for both disks
 

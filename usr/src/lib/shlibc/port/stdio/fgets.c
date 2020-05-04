@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libc-port:stdio/fgets.c	3.7"
+#ident	"@(#)libc-port:stdio/fgets.c	3.8"
 /*LINTLIBRARY*/
 /*
  * This version reads directly from the buffer rather than looping on getc.
@@ -30,6 +30,8 @@ register FILE *iop;
 	char *p, *ptr0 = ptr;
 	register int n;
 
+	if ((size <= 0) || !(iop->_flag & (_IOREAD | _IORW)))
+		return (NULL);
 	for (size--; size > 0; size -= n) {
 		if (iop->_cnt <= 0) { /* empty buffer */
 			if (_filbuf(iop) == EOF) {

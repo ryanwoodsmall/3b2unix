@@ -6,7 +6,7 @@
 #	actual or intended publication of such source code.
 
 
-	.ident	"@(#)kern-port:ml/ttrap.s	10.10"
+	.ident	"@(#)kern-port:ml/ttrap.s	10.12"
 #
 #   NOTE -- CHANGES TO USER.H (AND PROC) MAY REQUIRE CORRESPONDING CHANGES TO THE
 #		FOLLOWING .SET's.
@@ -30,6 +30,7 @@
 	.set	u_priptrsv,0x134 # offset to u_priptrsv
 	.set	u_prisv,0x138	# offset to u_prisv
 	.set	p_pri,0x1	# offset of p_pri
+	.set	u_fpovr,0x4ac	# offset of u_fpovr
 	.set	u_procp,0x4e4	# offset of u_procp
 	.set	u_tracepc,0x1cc	# offset to u_tracepc
 
@@ -413,6 +414,11 @@ nrmx_ilc:
 	MOVW	-16(%sp),u+u_ipcb+u_pc	# PC after user RETG
 	MOVW	-12(%sp),u+u_ipcb+u_psw	# PSW after user RETG
 	MOVAW	-16(%sp),u+u_ipcb+u_sp	# sp after RETG completes
+	TSTW	u+u_fpovr		# user trapping on ovrflow ?
+	BEB	ovr_done			# branch if not.
+	ORW2	&0x00400000,u+u_ipcb+u_psw	# restore OE bit
+	ANDW2	&0xfff7ffff,u+u_ipcb+u_psw	# Turn off V bit.
+ovr_done:
 	ANDW2	&0xfffffeff,u+u_ipcb+u_psw	# Turn off R bit.
 	ORW2	&0x00001e80,u+u_ipcb+u_psw	# I=1, PM & CM = user.
 	MOVW	%r0,u+u_priptrsv	# save %r0

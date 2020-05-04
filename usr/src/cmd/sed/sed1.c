@@ -5,8 +5,9 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sed:sed1.c	1.4"
+#ident	"@(#)sed:sed1.c	1.7"
 #include <stdio.h>
+#include <ctype.h>
 #include "sed.h"
 #include <regexp.h>
 
@@ -108,7 +109,7 @@ char *file;
 					if(*p2 == CEND) {
 						p1 = 0;
 					} else if(*p2 == CLNUM) {
-						c = p2[1];
+						c = (unsigned char)p2[1];
 						if(lnum > tlno[c]) {
 							ipc->r1.inar = 0;
 							if(ipc->r1.negfl)
@@ -131,7 +132,7 @@ char *file;
 					}
 
 				} else if(*p1 == CLNUM) {
-					c = p1[1];
+					c = (unsigned char)p1[1];
 					if(lnum != tlno[c]) {
 						if(ipc->r1.negfl)
 							goto yes;
@@ -188,7 +189,7 @@ char *file;
 match(expbuf, gf)
 char	*expbuf;
 {
-	register char   *p1, *p2;
+	register char   *p1;
 
 	if(gf) {
 		if(*expbuf)	return(0);
@@ -244,11 +245,15 @@ int	n;
 		if (c == '&') {
 			sp = place(sp, loc1, loc2);
 			continue;
-		} else if (c&0200 && (c &= 0177) >= '1' && c < NBRA+'1') {
-			sp = place(sp, braslist[c-'1'], braelist[c-'1']);
-			continue;
+		} 
+		if(c == '\\') {
+			c = *rp++;
+			if (c >= '1' && c < NBRA+'1') {
+				sp = place(sp, braslist[c-'1'], braelist[c-'1']);
+				continue;
+			}
 		}
-		*sp++ = c&0177;
+		*sp++ = c;
 		if (sp >= &genbuf[LBSIZE])
 			fprintf(stderr, "output line too long.\n");
 	}
@@ -263,6 +268,7 @@ int	n;
 	while (*lp++ = *sp++);
 	spend = lp-1;
 }
+
 char	*place(asp, al1, al2)
 char	*asp, *al1, *al2;
 {
@@ -375,7 +381,7 @@ union reptr	*ipc;
 			p2 = genbuf;
 			genbuf[72] = 0;
 			while(*p1)
-				if(*p1 >= 040 || *p1 & 0200) {
+				if((unsigned char)*p1 >= 040) {
 					if(*p1 == 0177) {
 						p3 = rub;
 						while(*p2++ = *p3++)
@@ -388,14 +394,41 @@ union reptr	*ipc;
 						p1++;
 						continue;
 					}
-					*p2++ = *p1++;
-					if(p2 >= lcomend) {
-						*p2 = '\\';
-						fprintf(stdout, "%s\n", genbuf);
-						p2 = genbuf;
+					if(!isprint(*p1 & 0377)) {
+						*p2++ = '\\';
+						if(p2 >= lcomend) {
+							*p2 = '\\';
+							fprintf(stdout, "%s\n", genbuf);
+							p2 = genbuf;
+						}
+						*p2++ = (*p1 >> 6) + '0';
+						if(p2 >= lcomend) {
+							*p2 = '\\';
+							fprintf(stdout, "%s\n", genbuf);
+							p2 = genbuf;
+						}
+						*p2++ = ((*p1 >> 3) & 07) + '0';
+						if(p2 >= lcomend) {
+							*p2 = '\\';
+							fprintf(stdout, "%s\n", genbuf);
+							p2 = genbuf;
+						}
+						*p2++ = (*p1++ & 07) + '0';
+						if(p2 >= lcomend) {
+							*p2 = '\\';
+							fprintf(stdout, "%s\n", genbuf);
+							p2 = genbuf;
+						}
+					} else {
+						*p2++ = *p1++;
+						if(p2 >= lcomend) {
+							*p2 = '\\';
+							fprintf(stdout, "%s\n", genbuf);
+							p2 = genbuf;
+						}
 					}
 				} else {
-					p3 = trans[*p1-1];
+					p3 = trans[(unsigned char)*p1-1];
 					while(*p2++ = *p3++)
 						if(p2 >= lcomend) {
 							*p2 = '\\';
@@ -508,10 +541,10 @@ union reptr	*ipc;
 			hspend = p2 - 1;
 			break;
 
-		case YCOM:
+		case YCOM: 
 			p1 = linebuf;
 			p2 = ipc->r1.re1;
-			while(*p1 = p2[*p1])	p1++;
+			while(*p1 = p2[(unsigned char)*p1])	p1++;
 			break;
 	}
 

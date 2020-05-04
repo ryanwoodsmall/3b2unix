@@ -5,12 +5,13 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/bio.c	10.5"
+#ident	"@(#)kern-port:os/bio.c	10.5.2.1"
 #include "sys/types.h"
 #include "sys/sema.h"
 #include "sys/sysmacros.h"
 #include "sys/sbd.h"
 #include "sys/param.h"
+#include "sys/fs/s5param.h"
 #include "sys/fs/s5macros.h"
 #include "sys/psw.h"
 #include "sys/pcb.h"
@@ -29,26 +30,12 @@
 #include "sys/var.h"
 #include "sys/cmn_err.h"
 #include "sys/inline.h"
+#include "sys/rbuf.h"
 
 /* Convert logical block number to a physical number */
 /* given block number and block size of the file system */
 /* Assumes 512 byte blocks (see param.h). */
 #define LTOPBLK(blkno, bsize)	(blkno * ((bsize>>SCTRSHFT)))
-/*
- * Unlink a buffer from the available list and mark it busy.
- * (internal interface)
- */
-#define notavail(bp) \
-{\
-	register s;\
-\
-	s = spl6();\
-	bp->av_back->av_forw = bp->av_forw;\
-	bp->av_forw->av_back = bp->av_back;\
-	bp->b_flags |= B_BUSY;\
-	bfreelist.b_bcount--;\
-	splx(s);\
-}
 
 /* count and flag for outstanding async writes */
 
@@ -233,6 +220,7 @@ register struct buf *bp;
 	}
 	bp->b_flags &= ~(B_WANTED|B_BUSY|B_ASYNC|B_AGE);
 	bfreelist.b_bcount++;
+	bp->b_reltime = (unsigned long)lbolt;
 	splx(s);
 }
 
@@ -268,7 +256,7 @@ register daddr_t blkno;
 long bsize;
 {
 	register struct buf *bp;
-	register struct buf *dp;
+	register struct buf *dp; 
 
 	if (bmajor(dev) >= bdevcnt)
 		cmn_err(CE_PANIC,"blkdev");
@@ -293,6 +281,13 @@ long bsize;
 		notavail(bp);
 		return(bp);
 	}
+
+	/* Take buffer off RFS freelist, if available. */
+	if ( rcacheinit && (rbfreelist.av_forw != &rbfreelist) 
+	   && ((bp = (struct buf *)chk_rlist(LGET)) != NULL))
+		goto found;
+
+	/* Else take buffer from local freelist. */
 	spl6();
 	if (bfreelist.av_forw == &bfreelist) {
 		bfreelist.b_flags |= B_WANTED;
@@ -307,9 +302,10 @@ long bsize;
 		bwrite(bp);
 		goto loop;
 	}
-	bp->b_flags = B_BUSY;
 	bp->b_back->b_forw = bp->b_forw;
 	bp->b_forw->b_back = bp->b_back;
+     found:
+	bp->b_flags = B_BUSY;
 	bp->b_forw = dp->b_forw;
 	bp->b_back = dp;
 	dp->b_forw->b_back = bp;
@@ -331,13 +327,20 @@ geteblk()
 	register struct buf *dp;
 
 loop:
+	dp = &bfreelist;
+
+	/* Take buffer off RFS freelist, if available. */
+	if ( rcacheinit && (rbfreelist.av_forw != &rbfreelist) 
+	   && ((bp = (struct buf *)chk_rlist(LGET)) != NULL))
+		goto found;
+
+	/* Else take buffer from local freelist. */
 	spl6();
 	while (bfreelist.av_forw == &bfreelist) {
 		bfreelist.b_flags |= B_WANTED;
 		sleep((caddr_t)&bfreelist, PRIBIO+1);
 	}
 	spl0();
-	dp = &bfreelist;
 	bp = bfreelist.av_forw;
 	notavail(bp);
 	if (bp->b_flags & B_DELWRI) {
@@ -345,9 +348,11 @@ loop:
 		bwrite(bp);
 		goto loop;
 	}
-	bp->b_flags = B_BUSY|B_AGE;
 	bp->b_back->b_forw = bp->b_forw;
 	bp->b_forw->b_back = bp->b_back;
+
+found:
+	bp->b_flags = B_BUSY|B_AGE;
 	bp->b_forw = dp->b_forw;
 	bp->b_back = dp;
 	dp->b_forw->b_back = bp;
@@ -498,6 +503,7 @@ binit()
 {
 	register struct buf *bp;
 	register struct buf *dp;
+	register struct rbuf *rdp;
 	register unsigned i;
 	register caddr_t pbuffer;
 
@@ -527,5 +533,13 @@ binit()
 	bp->av_forw = NULL;
 	for (i=0; i < v.v_hbuf; i++)
 		hbuf[i].b_forw = hbuf[i].b_back = (struct buf *)&hbuf[i];
+	/* 
+ 	*  Initialization for network cache 
+ 	*/
+	rdp = &rbfreelist;
+	rdp->b_forw = rdp->b_back =
+	    rdp->av_forw = rdp->av_back = rdp->f_forw = rdp->f_back = rdp;
+	lbuf_ct = v.v_buf;
+	rbuf_ct = 0;
 }
 

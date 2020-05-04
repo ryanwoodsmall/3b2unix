@@ -5,10 +5,10 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)kern-port:boot/lboot/makefile	10.4"
+#ident	"@(#)kern-port:boot/lboot/makefile	10.5.1.1"
 
 ROOT=
-INCRT= ../..
+INC= $(ROOT)/usr/include
 INCLOC= ..
 INS=	install
 LINT=	lint -n
@@ -26,7 +26,7 @@ XREF=	cxref -c -t -s
 	-DDEBUG2
 
 #CFLAGS=	-g $(CPPOPT)
-CPPOPT=	-I$(INCLOC) -I$(INCRT) -Uvax -Uu3b5 -Du3b2 -Updp11 $(TEST) $(MORECPP)
+CPPOPT=	-I$(INCLOC) -I$(INC) -Uvax -Uu3b15 -Du3b2 -Updp11 $(TEST) $(MORECPP)
 CFLAGS=	-O $(CPPOPT)
 #LDFLAGS=-m
 LDFLAGS=
@@ -129,7 +129,7 @@ debug:	lboot FRC
 	rm -f lboot.s lboot.name lboot.map
 
 print:	.print
-.print:	Makefile $(LBLD) $(INCRT)/sys/boothdr.h $(HEADERS) $(SOURCE)
+.print:	Makefile $(LBLD) $(INC)/sys/boothdr.h $(HEADERS) $(SOURCE)
 	$(XCL) $?
 	touch .print
 
@@ -143,64 +143,64 @@ FRC:
 #
 
 basicio.o: basicio.c \
-	$(INCRT)/sys/boot.h \
-	$(INCRT)/sys/csr.h \
+	$(INC)/sys/boot.h \
+	$(INC)/sys/csr.h \
 	$(INCLOC)/sys/dir.h \
-	$(INCRT)/sys/edt.h \
-	$(INCRT)/sys/errno.h \
+	$(INC)/sys/edt.h \
+	$(INC)/sys/errno.h \
 	$(INCLOC)/sys/filsys.h \
-	$(INCRT)/sys/firmware.h \
-	$(INCRT)/sys/ino.h \
+	$(INC)/sys/firmware.h \
+	$(INC)/sys/ino.h \
 	$(INCLOC)/sys/inode.h \
 	$(INCLOC)/sys/param.h \
-	$(INCRT)/sys/stat.h \
-	$(INCRT)/sys/sys3b.h \
-	$(INCRT)/sys/sysmacros.h \
-	$(INCRT)/sys/types.h \
+	$(INC)/sys/stat.h \
+	$(INC)/sys/sys3b.h \
+	$(INC)/sys/sysmacros.h \
+	$(INC)/sys/types.h \
 	io.h \
 	lboot.h \
 	$(FRC)
 
 clibrary.o: clibrary.c \
 	/usr/include/ctype.h \
-	$(INCRT)/sys/boot.h \
-	$(INCRT)/sys/csr.h \
+	$(INC)/sys/boot.h \
+	$(INC)/sys/csr.h \
 	$(INCLOC)/sys/dir.h \
-	$(INCRT)/sys/edt.h \
-	$(INCRT)/sys/errno.h \
-	$(INCRT)/sys/firmware.h \
+	$(INC)/sys/edt.h \
+	$(INC)/sys/errno.h \
+	$(INC)/sys/firmware.h \
 	$(INCLOC)/sys/param.h \
-	$(INCRT)/sys/sys3b.h \
-	$(INCRT)/sys/types.h \
+	$(INC)/sys/sys3b.h \
+	$(INC)/sys/types.h \
 	error.h \
 	lboot.h \
 	$(FRC)
 
 dfcstand.o: dfcstand.c \
-	$(INCRT)/sys/boot.h \
-	$(INCRT)/sys/csr.h \
+	$(INC)/sys/boot.h \
+	$(INC)/sys/csr.h \
 	$(INCLOC)/sys/dir.h \
-	$(INCRT)/sys/edt.h \
-	$(INCRT)/sys/firmware.h \
-	$(INCRT)/sys/if.h \
+	$(INC)/sys/edt.h \
+	$(INC)/sys/firmware.h \
+	$(INC)/sys/if.h \
 	$(INCLOC)/sys/iobuf.h \
 	$(INCLOC)/sys/param.h \
-	$(INCRT)/sys/sys3b.h \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/vtoc.h \
+	$(INC)/sys/sys3b.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/vtoc.h \
 	error.h \
 	io.h \
 	lboot.h \
 	$(FRC)
 
 error.o: error.c \
-	$(INCRT)/sys/boot.h \
-	$(INCRT)/sys/csr.h \
+	$(INC)/sys/boot.h \
+	$(INC)/sys/csr.h \
 	$(INCLOC)/sys/dir.h \
-	$(INCRT)/sys/edt.h \
-	$(INCRT)/sys/firmware.h \
-	$(INCRT)/sys/sys3b.h \
-	$(INCRT)/sys/types.h \
+	$(INC)/sys/edt.h \
+	$(INC)/sys/firmware.h \
+	$(INC)/sys/sys3b.h \
+	$(INC)/sys/types.h \
 	error.h \
 	lboot.h \
 	$(FRC)
@@ -215,19 +215,19 @@ loadunix.o: loadunix.c \
 	/usr/include/scnhdr.h \
 	/usr/include/storclass.h \
 	/usr/include/syms.h \
-	$(INCRT)/sys/boot.h \
-	$(INCRT)/sys/boothdr.h \
-	$(INCRT)/sys/conf.h \
-	$(INCRT)/sys/csr.h \
+	$(INC)/sys/boot.h \
+	$(INC)/sys/boothdr.h \
+	$(INC)/sys/conf.h \
+	$(INC)/sys/csr.h \
 	$(INCLOC)/sys/dir.h \
-	$(INCRT)/sys/edt.h \
-	$(INCRT)/sys/firmware.h \
+	$(INC)/sys/edt.h \
+	$(INC)/sys/firmware.h \
 	$(INCLOC)/sys/param.h \
-	$(INCRT)/sys/sbd.h \
-	$(INCRT)/sys/stat.h \
-	$(INCRT)/sys/sys3b.h \
-	$(INCRT)/sys/sysmacros.h \
-	$(INCRT)/sys/types.h \
+	$(INC)/sys/sbd.h \
+	$(INC)/sys/stat.h \
+	$(INC)/sys/sys3b.h \
+	$(INC)/sys/sysmacros.h \
+	$(INC)/sys/types.h \
 	error.h \
 	lboot.h \
 	$(FRC)
@@ -242,16 +242,16 @@ main.o: main.c \
 	/usr/include/scnhdr.h \
 	/usr/include/storclass.h \
 	/usr/include/syms.h \
-	$(INCRT)/sys/boot.h \
-	$(INCRT)/sys/csr.h \
+	$(INC)/sys/boot.h \
+	$(INC)/sys/csr.h \
 	$(INCLOC)/sys/dir.h \
-	$(INCRT)/sys/edt.h \
-	$(INCRT)/sys/firmware.h \
+	$(INC)/sys/edt.h \
+	$(INC)/sys/firmware.h \
 	$(INCLOC)/sys/param.h \
-	$(INCRT)/sys/sbd.h \
-	$(INCRT)/sys/sys3b.h \
-	$(INCRT)/sys/todc.h \
-	$(INCRT)/sys/types.h \
+	$(INC)/sys/sbd.h \
+	$(INC)/sys/sys3b.h \
+	$(INC)/sys/todc.h \
+	$(INC)/sys/types.h \
 	error.h \
 	lboot.h \
 	$(FRC)
@@ -260,13 +260,13 @@ misc.o: misc.s \
 	$(FRC)
 
 on.o: on.c \
-	$(INCRT)/sys/boot.h \
-	$(INCRT)/sys/csr.h \
+	$(INC)/sys/boot.h \
+	$(INC)/sys/csr.h \
 	$(INCLOC)/sys/dir.h \
-	$(INCRT)/sys/edt.h \
-	$(INCRT)/sys/firmware.h \
-	$(INCRT)/sys/sys3b.h \
-	$(INCRT)/sys/types.h \
+	$(INC)/sys/edt.h \
+	$(INC)/sys/firmware.h \
+	$(INC)/sys/sys3b.h \
+	$(INC)/sys/types.h \
 	lboot.h \
 	$(FRC)
 
@@ -281,16 +281,16 @@ subr.o: subr.c \
 	/usr/include/scnhdr.h \
 	/usr/include/storclass.h \
 	/usr/include/syms.h \
-	$(INCRT)/sys/boot.h \
-	$(INCRT)/sys/csr.h \
+	$(INC)/sys/boot.h \
+	$(INC)/sys/csr.h \
 	$(INCLOC)/sys/dir.h \
-	$(INCRT)/sys/edt.h \
-	$(INCRT)/sys/firmware.h \
-	$(INCRT)/sys/sbd.h \
-	$(INCRT)/sys/stat.h \
-	$(INCRT)/sys/sys3b.h \
-	$(INCRT)/sys/sysmacros.h \
-	$(INCRT)/sys/types.h \
+	$(INC)/sys/edt.h \
+	$(INC)/sys/firmware.h \
+	$(INC)/sys/sbd.h \
+	$(INC)/sys/stat.h \
+	$(INC)/sys/sys3b.h \
+	$(INC)/sys/sysmacros.h \
+	$(INC)/sys/types.h \
 	error.h \
 	lboot.h \
 	$(FRC)
@@ -305,18 +305,18 @@ tables.o: tables.c \
 	/usr/include/scnhdr.h \
 	/usr/include/storclass.h \
 	/usr/include/syms.h \
-	$(INCRT)/sys/boot.h \
-	$(INCRT)/sys/boothdr.h \
-	$(INCRT)/sys/conf.h \
-	$(INCRT)/sys/csr.h \
+	$(INC)/sys/boot.h \
+	$(INC)/sys/boothdr.h \
+	$(INC)/sys/conf.h \
+	$(INC)/sys/csr.h \
 	$(INCLOC)/sys/dir.h \
-	$(INCRT)/sys/edt.h \
-	$(INCRT)/sys/firmware.h \
+	$(INC)/sys/edt.h \
+	$(INC)/sys/firmware.h \
 	$(INCLOC)/sys/param.h \
-	$(INCRT)/sys/psw.h \
-	$(INCRT)/sys/pcb.h \
-	$(INCRT)/sys/sys3b.h \
-	$(INCRT)/sys/types.h \
+	$(INC)/sys/psw.h \
+	$(INC)/sys/pcb.h \
+	$(INC)/sys/sys3b.h \
+	$(INC)/sys/types.h \
 	error.h \
 	lboot.h \
 	$(FRC)

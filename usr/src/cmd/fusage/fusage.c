@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)fusage:fusage.c	1.15"
+#ident	"@(#)fusage:fusage.c	1.15.3.1"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -16,6 +16,8 @@
 #include <nserve.h>
 #include <ctype.h>
 #include "fumount.h"
+#include <sys/rfsys.h>
+#include <errno.h>
 
 #define MNTTAB "/etc/mnttab"
 #define ADVTAB "/etc/advtab"
@@ -34,6 +36,7 @@ struct advlst {
 struct clnts *client;
 struct mnttab *mnttab;
 int nmount;
+extern int errno;
 
 main(argc, argv)
 int argc;
@@ -41,6 +44,7 @@ char *argv[];
 {
 	char *resrc, *adv_dir, str[SZ_RES+SZ_MACH+SZ_PATH+20];
 	int nadv, mtab, clntsum, advsum, local, prtflg, fswant, i, j, k;
+	int exitcode = 0;
 	FILE *atab;
 	struct stat stbuf;
 	struct statfs fsi;
@@ -48,14 +52,19 @@ char *argv[];
 
 	for(i = 0; i < argc; i++)
 		if(argv[i][0] == '-') {
-			printf("Usage: %s [mounted file system]\n", argv[0]);
-			printf("          [advertised resource]\n");
-			printf("          [mounted block special device]\n");
+			fprintf(stderr,"Usage: %s [mounted file system]\n", argv[0]);
+			fprintf(stderr,"          [advertised resource]\n");
+			fprintf(stderr,"          [mounted block special device]\n");
 
 			exit(1);
 		}
+	/* command fails when RFS not installed in system */
+	if ((rfsys(RF_RUNSTATE) == -1) && errno == ENOPKG) {
+		perror("fusage");
+		exit(1);
+	}
 	uname(&myname);
-	printf("\nFILE USAGE REPORT FOR %.6s\n\n",myname.nodename);
+	printf("\nFILE USAGE REPORT FOR %.8s\n\n",myname.nodename);
 
 		/* load /etc/mnttab data */
 
@@ -133,7 +142,7 @@ noadv:
 			fswant = 0;
 		advsum = 0;
 		if(statfs(mnttab[i].mt_filsys,&fsi,sizeof(struct statfs),0)<0){
-			fsi.f_bsize = 1000;	/* force report in blocks */
+			fsi.f_bsize = 1024;	/* force report in blocks */
 		}
 		for(j = 0; j < nadv; j++) {
 			if(isinfs(i, advlst[j].dir)) {
@@ -192,9 +201,11 @@ noadv:
 		}
 	}
 	for(i = 1; i < argc; i++)
-		if(argv[i][0] != '\0')
+		if(argv[i][0] != '\0') {
+			exitcode = 2;
 			printf("'%s' not found\n", argv[i]);
-	exit(0);
+		}
+	exit(exitcode);
 }
 #define EQ(X,Y) !strcmp(X,Y)
 wantprint(argc, argv, r1, r2)
@@ -219,13 +230,7 @@ prdat(s,n, bsize)
 char *s;
 short bsize;
 {
-	char *tag;
-
-	if(bsize == 1000)
-		tag = "Blocks";
-	else
-		tag = "Kb";
-	printf("\t\t\t%15s %10d %s\n", s, n * bsize / 1000, tag);
+	printf("\t\t\t%15s %10d KB\n", s, n * bsize / 1024);
 }
 
 isinfs(n,advdir)

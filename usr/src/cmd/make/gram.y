@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 %{
-#ident	"@(#)make:gram.y	1.4.1.1"
+#ident	"@(#)make:gram.y	1.4.1.2"
 %}
 
 %{#include "defs"
@@ -153,6 +153,7 @@ shlist:	SHELLINE   = { $$ = $1;  prevshp = $1; }
 CHARSTAR zznextc;	/* zero if need another line; otherwise points to next char */
 int yylineno;
 static char inmacro = NO;
+extern char funny[256];
 
 yylex()
 {
@@ -203,7 +204,7 @@ yylex()
 	p = zznextc;
 	q = word;
 
-	while( ! ( funny[*p] & TERMINAL) )
+	while( ! ( funny[(unsigned char) *p] & TERMINAL) )
 		*q++ = *p++;
 
 	if(p != zznextc)

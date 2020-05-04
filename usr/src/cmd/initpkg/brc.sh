@@ -5,11 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)initpkg:./brc.sh	1.6"
-
-echo "
-/etc/devnm / | grep -v swap | /etc/setmnt	# put root into mount table
-" >brc
+#ident	"@(#)initpkg:./brc.sh	1.7"
 
 if u3b2
 then echo "if [ -f /etc/advtab ]

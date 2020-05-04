@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)crash-3b2:init.c	1.7"
+#ident	"@(#)crash-3b2:init.c	1.7.1.1"
 /*
  * This file contains code for the crash initialization.
  */
@@ -66,7 +66,7 @@ init()
 	/*
 	 * Set a flag if the dumpfile is of an active system.
 	 */
-	if((strcmp(dumpfile,"/dev/mem")==0) || (strcmp(dumpfile,"/dev/kmem")==0))
+	if(strcmp(dumpfile,"/dev/mem") == 0)
 		active = 1;
 	else {
 		offset = SPMEM - MAINSTORE - CHDR_OFFSET ;

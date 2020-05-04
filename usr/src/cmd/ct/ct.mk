@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)ct:ct.mk	2.4"
+#ident	"@(#)ct:ct.mk	2.8"
 #
 #	ct make file
 #
@@ -32,17 +32,17 @@ INS=cpset
 # INS=../uucp/Cpset
 
 CTDIR = .
+#CFLAGS = -O -DSTANDALONE -DSMALL -I$(UUDIR)	# for smaller a.outs
 CFLAGS = -O -DSTANDALONE -I$(UUDIR)
-CFLAGS = -O -DSTANDALONE -DSMALL -I$(UUDIR) # for smaller a.outs
-LIBS= -lnsl_s
+LIBS= -lc_s -lnsl_s
 
 CTOBJS =  ct.o callers.o getargs.o line.o uucpdefs.o ulockf.o\
-	 conn.o interface.o sysfiles.o strsave.o
+	 conn.o interface.o sysfiles.o strsave.o strecpy.o stoa.o
 
 CTSRC =  ct.c $(UUDIR)/callers.c $(UUDIR)/getargs.c \
 	$(UUDIR)/line.c $(UUDIR)/uucpdefs.c $(UUDIR)/ulockf.c \
 	 $(UUDIR)/conn.c $(UUDIR)/interface.c $(UUDIR)/sysfiles.c \
-	 $(UUDIR)/strsave.c
+	 $(UUDIR)/strsave.c $(UUDIR)/strecpy.c $(UUDIR)/stoa.c
 
 ct:	copyright $(CTOBJS)
 	$(CC) $(CFLAGS) $(CTOBJS) $(LIBS) $(LDFLAGS) -o ct
@@ -95,3 +95,9 @@ sysfiles.o:	$(UUDIR)/sysfiles.c  $(UUDIR)/sysfiles.h
  
 strsave.o:	$(UUDIR)/strsave.c
 	$(CC) -c $(CFLAGS) $(UUDIR)/strsave.c
+ 
+strecpy.o:	$(UUDIR)/strecpy.c
+	$(CC) -c $(CFLAGS) $(UUDIR)/strecpy.c
+ 
+stoa.o:	$(UUDIR)/stoa.c
+	$(CC) -c $(CFLAGS) $(UUDIR)/stoa.c

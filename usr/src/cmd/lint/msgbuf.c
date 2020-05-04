@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)lint:msgbuf.c	1.5"
+#ident	"@(#)lint:msgbuf.c	1.7"
 /*	3.0 SID #	1.2	*/
 # include	"messages.h"
 # include	"lerror.h"

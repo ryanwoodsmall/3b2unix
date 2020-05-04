@@ -18,6 +18,7 @@
 /lib/fcrt0.o
 /lib/fmcrt1.o
 /lib/fmcrt0.o
+/lib/pcrt1.o
 /lib/libc.a
 /lib/libld.a
 /lib/libm.a
@@ -27,10 +28,15 @@
 /usr/lib/libp/libmalloc.a
 /lib/mcrt1.o
 /lib/mcrt0.o
-/lib/nmawk
 /lib/optim
 /lib/libPW.a
 /usr/bin/m4
 /usr/bin/tsort
 /usr/lib/libmalloc.a
 /usr/lib/llib-lmalloc.l
+/usr/lib/llib-lc
+/usr/lib/llib-lc.ln
+/usr/lib/llib-lm
+/usr/lib/llib-lm.ln
+/usr/lib/llib-port
+/usr/lib/llib-port.ln

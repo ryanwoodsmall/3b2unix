@@ -1,14 +1,14 @@
-#ident	"@(#)mk::mkcmd	1.15scp"
+#ident	"@(#)mk::mkcmd	1.17"
 #
 MAKE=${MAKE:-make}
 #	If we are in a cross compilation environment then use cross compiler
 if [ "$ROOT" != "" ]
 then
-	if u3b2 || u3b5
+	if u3b2 || u3b15
 	then
-		AS=${AS:-"m32as"}	export AS
-		CC=${CC:-"m32cc"}	export CC
-		LD=${LD:-"m32ld"}	export LD
+		AS=m32as	export AS
+		CC=m32cc	export CC
+		LD=m32ld	export LD
 	fi
 else
 	AS=as	export AS
@@ -18,7 +18,7 @@ fi
 #	Insure that only one machine type is valid
 #	Note: the redirection is needed to handle the possibility
 #		of a nonexistent file in the $MACH machine list
-MACH="vax pdp11 u3b2 u3b u3b5"
+MACH="vax pdp11 u3b2 u3b u3b15"
 (truecnt=0
 for mach in $MACH
 do
@@ -54,8 +54,9 @@ LDFILE=${LDFILE-${SRC}/ldflags}
 #	sflag	- shared text, turns off the -i and -n loader options.
 #		Saves the intermediate .c file from a yacc or lex in
 #		<filename>.x for later :mkcmd runs.
-#	ldlibs	- shared library flag. It is either null (no shared libs
-#		should be accessed) or "-lc_s" (build with the shared libc.a).
+#	ldlibs	- shared library flag. It is either "-lnsl_s" (build w/the
+#		shared libnsl_s.a) or "-lc_s -lnsl_s" (build w/both 
+#		shared libc_s.a and libnsl_s.a). Default is both.
 #	iflag	- seperate I&D space. It is either set to '-i' (when building
 #		certain commands on a 16-bit machine (e.g. PDP11/70)
 #		or null (for all other cases).

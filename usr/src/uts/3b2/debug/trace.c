@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:debug/trace.c	10.2"
+#ident	"@(#)kern-port:debug/trace.c	10.2.1.1"
 #include	<sys/types.h>
 #include	<sys/param.h>
 #include	<sys/immu.h>
@@ -63,6 +63,11 @@ trace()
 	asm("	MOVAW	my_stack,%fp");
 	asm("	MOVAW	my_stack,%ap");
 
+	if(!(paddr->p_flag & SULOAD))
+	{
+		cmn_err(CE_CONT, "Process was swapped-out\n");
+		goto out;
+	}
 	/*
 		Did we get into demon via a ^P?  If we did and we're
 		trying to trace the process that was running, then
@@ -83,7 +88,7 @@ trace()
 		pcbaddr = u.u_pcbp;
 
 	tracepcb();
-
+out:
 	asm("	MOVW	%r8,%sp");	/* restore old stack */
 	asm("	MOVW	%r6,%ap");
 	asm("	MOVW	%r5,%fp");
@@ -138,6 +143,7 @@ tracepcb()
 		cmn_err(CE_CONT, "^Can't trace processes in user mode\n");
 		goto out;
 	}
+
 
 	oldpri = splhi();
 	srama_save = srama[SCN3];

@@ -5,13 +5,13 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)kern-port:ml/ml.mk	10.6"
+#ident	"@(#)kern-port:ml/ml.mk	10.6.1.1"
 
 
 ROOT =
-INCRT=$(ROOT)/usr/include
+INC=$(ROOT)/usr/include
 DASHG =
-CFLAGS= $(DASHO) $(DASHG) -I$(INCRT) -DINKERNEL $(MORECPP)
+CFLAGS= $(DASHO) $(DASHG) -I$(INC) -DINKERNEL $(MORECPP)
 FRC =
 
 SFILES = ttrap.s cswitch.s misc.s 
@@ -36,10 +36,10 @@ all:	../locore.o ../start.o ../gate.o
 	$(LD)  -r -o ../start.o uprt.o pstart.o cdump.o
 
 ../gate.o: gate.c \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/psw.h \
-	$(INCRT)/sys/gate.h \
-	$(INCRT)/sys/pcb.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/psw.h \
+	$(INC)/sys/gate.h \
+	$(INC)/sys/pcb.h \
 	$(FRC)
 	$(CC) $(CFLAGS) -c gate.c
 	mv gate.o ../gate.o
@@ -71,42 +71,42 @@ FRC:
 #
 
 cdump.o: cdump.c \
-	$(INCRT)/sys/sbd.h \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/param.h \
-	$(INCRT)/sys/fs/s5param.h \
-	$(INCRT)/sys/psw.h \
-	$(INCRT)/sys/immu.h \
-	$(INCRT)/sys/nvram.h \
-	$(INCRT)/sys/firmware.h \
-	$(INCRT)/sys/cdump.h \
-	$(INCRT)/sys/todc.h \
+	$(INC)/sys/sbd.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/param.h \
+	$(INC)/sys/fs/s5param.h \
+	$(INC)/sys/psw.h \
+	$(INC)/sys/immu.h \
+	$(INC)/sys/nvram.h \
+	$(INC)/sys/firmware.h \
+	$(INC)/sys/cdump.h \
+	$(INC)/sys/todc.h \
 	$(FRC)
 
 kpcbs.o: kpcbs.c \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/psw.h \
-	$(INCRT)/sys/pcb.h \
-	$(INCRT)/sys/param.h \
-	$(INCRT)/sys/fs/s5param.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/psw.h \
+	$(INC)/sys/pcb.h \
+	$(INC)/sys/param.h \
+	$(INC)/sys/fs/s5param.h \
 	$(FRC)
 
 pstart.o: pstart.c \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/psw.h \
-	$(INCRT)/sys/param.h \
-	$(INCRT)/sys/fs/s5param.h \
-	$(INCRT)/sys/sysmacros.h \
-	$(INCRT)/sys/sbd.h \
-	$(INCRT)/sys/csr.h \
-	$(INCRT)/sys/sit.h \
-	$(INCRT)/sys/immu.h \
-	$(INCRT)/sys/fs/s5dir.h \
-	$(INCRT)/sys/signal.h \
-	$(INCRT)/sys/pcb.h \
-	$(INCRT)/sys/user.h \
-	$(INCRT)/sys/firmware.h \
-	$(INCRT)/sys/nvram.h \
-	$(INCRT)/sys/var.h \
-	$(INCRT)/sys/iobd.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/psw.h \
+	$(INC)/sys/param.h \
+	$(INC)/sys/fs/s5param.h \
+	$(INC)/sys/sysmacros.h \
+	$(INC)/sys/sbd.h \
+	$(INC)/sys/csr.h \
+	$(INC)/sys/sit.h \
+	$(INC)/sys/immu.h \
+	$(INC)/sys/fs/s5dir.h \
+	$(INC)/sys/signal.h \
+	$(INC)/sys/pcb.h \
+	$(INC)/sys/user.h \
+	$(INC)/sys/firmware.h \
+	$(INC)/sys/nvram.h \
+	$(INC)/sys/var.h \
+	$(INC)/sys/iobd.h \
 	$(FRC)

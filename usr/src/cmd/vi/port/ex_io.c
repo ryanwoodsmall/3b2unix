@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident	"@(#)vi:port/ex_io.c	1.16"
+#ident	"@(#)vi:port/ex_io.c	1.19"
 #include "ex.h"
 #include "ex_argv.h"
 #include "ex_temp.h"
@@ -247,7 +247,7 @@ glob(gp)
 				close(io);
 				c = -1;
 			} else
-				c = ch & TRIM;
+				c = ch;
 			if (c <= 0 || isspace(c))
 				break;
 			*cp++ = c;
@@ -349,49 +349,6 @@ rop(c)
 	case S_IFDIR:
 		error(" Directory");
 
-	case S_IFREG:
-#ifdef CRYPT
-		if (xflag)
-			break;
-#endif
-		i = read(io, (char *) &magic, sizeof(magic));
-		lseek(io, 0l, 0);
-		if (i != sizeof(magic))
-			break;
-		switch (magic) {
-
-		case 0405:	/* data overlay on exec */
-		case 0407:	/* unshared */
-		case 0410:	/* shared text */
-		case 0411:	/* separate I/D */
-		case 0413:	/* VM/Unix demand paged */
-		case 0430:	/* PDP-11 Overlay shared */
-		case 0431:	/* PDP-11 Overlay sep I/D */
-			error(" Executable");
-
-		/*
-		 * We do not forbid the editing of portable archives
-		 * because it is reasonable to edit them, especially
-		 * if they are archives of text files.  This is
-		 * especially useful if you archive source files together
-		 * and copy them to another system with ~%take, since
-		 * the files sometimes show up munged and must be fixed.
-		 */
-		case 0177545:
-		case 0177555:
-			error(" Archive");
-
-		default:
-#ifdef mbb
-			/* C/70 has a 10 bit byte */
-			if (magic & 03401600)
-#else
-			/* Everybody else has an 8 bit byte */
-			if (magic & 0100200)
-#endif
-				error(" Non-ascii file");
-			break;
-		}
 	}
 	if (c != 'r') {
 		if (value(vi_READONLY) && denied) {
@@ -643,7 +600,8 @@ char *nextip;
 getfile()
 {
 	register short c;
-	register char *lp, *fp;
+	register char *lp; 
+	register char *fp;
 
 	lp = linebuf;
 	fp = nextip;
@@ -658,17 +616,16 @@ getfile()
 				}
 				return (EOF);
 			}
-#ifdef CRYPT
-			fp = genbuf;
-			while(fp < &genbuf[ninbuf]) {
-				if (*fp++ & 0200) {
-					if (kflag)
-						if (run_crypt(cntch, genbuf, ninbuf+1, perm) == -1)
-						  smerror("Cannot decrypt block of text\n");
-					break;
-				}
+			if(crflag == -1) {
+				if(isencrypt(genbuf, ninbuf + 1))
+					crflag = 2;
+				else
+					crflag = -2;
 			}
-#endif
+			if (crflag > 0 && run_crypt(cntch, genbuf, ninbuf+1, perm) == -1) {
+					smerror("Cannot decrypt block of text\n");
+					break;
+			}
 			fp = genbuf;
 			cntch += ninbuf+1;
 		}
@@ -679,12 +636,6 @@ getfile()
 		if (c == 0) {
 			cntnull++;
 			continue;
-		}
-		if (c & QUOTE) {
-			cntodd++;
-			c &= TRIM;
-			if (c == 0)
-				continue;
 		}
 		*lp++ = c;
 	} while (c != '\n');
@@ -701,7 +652,8 @@ putfile(isfilter)
 int isfilter;
 {
 	line *a1;
-	register char *fp, *lp;
+	register char *lp;
+	register char *fp;
 	register int nib;
 	register bool ochng = chng;
 
@@ -718,11 +670,9 @@ int isfilter;
 		for (;;) {
 			if (--nib < 0) {
 				nib = fp - genbuf;
-#ifdef CRYPT
                 		if(kflag && !isfilter)
                                         if (run_crypt(cntch, genbuf, nib, perm) == -1)
 					  wrerror();
-#endif
 				if (write(io, genbuf, nib) != nib) {
 					wrerror();
 				}
@@ -737,11 +687,9 @@ int isfilter;
 		}
 	} while (a1 <= addr2);
 	nib = fp - genbuf;
-#ifdef CRYPT
 	if(kflag && !isfilter)
 		if (run_crypt(cntch, genbuf, nib, perm) == -1)
 			wrerror();
-#endif
 	if ((cntch == 0) && (nib == 1)) {
 		cntln = 0;
 		return;

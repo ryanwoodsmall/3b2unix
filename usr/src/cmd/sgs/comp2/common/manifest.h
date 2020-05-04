@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)pcc2:common/manifest.h	10.4.1.1"
+#ident	"@(#)pcc2:common/manifest.h	10.14"
 
 /*To allow multiple includes:*/
 #ifndef MANIFEST_H
@@ -255,11 +255,15 @@
 # define VFLD	171
 # define COPY	172
 # define BEGF	173
+# define CAPCALL 174
+# define RSAVE	175
+# define RREST	176
+# define CAPRET 177
 #endif	/* def CG */
 
 	/* DSIZE is the size of the dope array:  highest OP # + 1 */
 #ifdef	CG
-#define DSIZE  BEGF+1
+#define DSIZE  CAPRET+1
 #else
 # define DSIZE MANY+1+1			/* room for UNARY INCALL */
 #endif
@@ -391,7 +395,13 @@ extern int errno;
 #ifndef	FP_ATOF				/* convert string to FP_DOUBLE */
 #ifndef	FLOATCVT			/* backward compatibility */
 #define	FP_ATOF(s) atof(s)		/* use UNIX atof() */
+			/*Note: for CG, we also need a C++ declaration
+			  of atof(); */
+#  ifdef c_plusplus
+extern double atof(char *);
+#  else
 extern double atof();
+#  endif
 #else
 #define	FP_ATOF(s) FLOATCVT(s)
 #endif
@@ -423,6 +433,8 @@ extern double atof();
 ** scratch register.  Always choose right-most bit.
 */
 #	define RS_CHOOSE(vec) ((vec) & ~((vec)-1))
+/* Choose left-most bit.  This one's a function. */
+extern RST RS_RCHOOSE();
 
 #	define RS_NONE	((RST) 0)	/* no register bits */
 /* these definitions are slight perversions of the use of RS_BIT */
@@ -451,35 +463,104 @@ extern double atof();
 
 /*	table sizes	*/
 
-# ifndef BCSZ
-# define BCSZ 100 /* size of the table to save break and continue labels */
-# endif
-# ifndef MAXNEST
-# define MAXNEST BCSZ	/* maximum nesting depth (for scopestack) */
-# endif
-# ifndef SYMTSZ
-# define SYMTSZ 1100 /* size of the symbol table */
-# endif
-# ifndef DIMTABSZ
-# define DIMTABSZ 1500 /* size of the dimension/size table */
-# endif
-# ifndef PARAMSZ
-# define PARAMSZ 150 /* size of the parameter stack */
-# endif
-# define ARGSZ 50 /* size of the argument stack */
-# ifndef TREESZ
-# if defined(FORT) || defined(CG)
-# define TREESZ 1000
-# else
-# define TREESZ 370 /* space for building parse tree */
-# endif
-# endif
+/* The following undef-initions will help flag places where
+** older machine-dependent code depends on fixed size tables.
+*/
+#undef BCSZ
+#undef MAXNEST
+#undef SYMTSZ
+#undef DIMTABSZ
+#undef PARAMSZ
+#undef ARGSZ
+#undef TREESZ
+/* keep this one for non-users of MAKEHEAP */
 # ifndef SWITSZ
 # define SWITSZ 250 /* size of switch table */
 # endif
 # ifndef YYMAXDEPTH
 # define YYMAXDEPTH 300 /* yacc parse stack */
 # endif
+
+/* The following define initial sizes for dynamic tables. */
+
+#ifndef INI_NINS		/* inst[]:  table of generated instructions */
+#define INI_NINS 50
+#endif
+
+#ifndef	INI_SWITSZ		/* swtab[]:  switch case table */
+#define	INI_SWITSZ 100
+#endif
+
+#ifndef	INI_HSWITSZ		/* heapsw[]:  heap-sorted switch table */
+#define	INI_HSWITSZ 25
+#endif
+
+#ifndef INI_BBFSZ		/* bb_flags[]:  .bb debug flag table */
+#define INI_BBFSZ 10
+#endif
+
+#ifndef INI_FAKENM		/* mystrtab[]:  unnamed struct fake names */
+#define INI_FAKENM 15
+#endif
+
+#ifndef	INI_N_MAC_ARGS		/* macarg_tab[]:  enhanced asm arg. names */
+#define INI_N_MAC_ARGS 5
+#endif
+
+#ifndef	INI_SZINLARGS		/* inlargs[]:  buffer for enhanced asm. formals */
+#define	INI_SZINLARGS 50
+#endif
+
+#ifndef INI_ASMBUF		/* asmbuf[]:  buffer for asm() lines */
+#define INI_ASMBUF 20
+#endif
+
+#ifndef	INI_SYMTSZ		/* stab[]:  symbol table */
+#define	INI_SYMTSZ 500
+#endif
+
+#ifndef INI_RNGSZ		/*case_ranges[]: ranges for big cases (CG) */
+#define INI_RNGSZ INI_SWITSZ
+#endif
+
+/* dimtab must be at least 16:  see mainp1() */
+#if !defined(INI_DIMTABSZ) || INI_DIMTABSZ < 20
+#undef INI_DIMTABSZ		/* dimtab[]:  dimension (and misc.) table */
+#define INI_DIMTABSZ 400
+#endif
+
+#ifndef	INI_PARAMSZ		/* paramstk[]:  struct parameter stack */
+#define INI_PARAMSZ 100
+#endif
+
+#ifndef	INI_BCSZ		/* asavbc[]:  block information */
+#define INI_BCSZ 50
+#endif
+
+/* scopestack should be at least 3 (indices 0-2) to handle simple fct. */
+#if !defined(INI_MAXNEST) || INI_MAXNEST < 3
+#undef INI_MAXNEST		/* scopestack[]:  sym. tab. scope stack */
+#define INI_MAXNEST 20
+#endif
+
+#ifndef INI_ARGSZ		/* argstk[], argsoff[], argty[]:  incoming
+				** arg information
+				*/
+#define INI_ARGSZ 15
+#endif
+
+#ifndef INI_INSTK		/* instack[]:  initialization stack */
+#define INI_INSTK 10
+#endif
+
+#ifndef	INI_TREESZ		/* number of nodes per cluster */
+#define	INI_TREESZ 100
+#endif
+
+#ifndef	INI_MAXHASH		/* number of segmented scanner hash tables */
+#define	INI_MAXHASH 20
+#endif
+
 
 #ifdef	CG
 /*	turn on NONEST if can't nest calls or allocs */
@@ -503,7 +584,6 @@ extern double atof();
 
 extern int nerrors;  /* number of errors seen so far */
 
-typedef union ndu NODE;
 typedef unsigned int TWORD;
 typedef long CONSZ;  /* size in which constants are converted */
 
@@ -538,136 +618,73 @@ extern char *opst[];  /* a vector containing names for ops */
 
 # define NCOSTS (NRGS+4)
 
-	/* in one-pass operation, define the tree nodes */
+typedef union ndu NODE;
+
+/* This #define gives those items that must be in both first
+** and second pass nodes.
+*/
+
+#define ND12 \
+    int op;		/* opcode */		\
+    TWORD type;		/* type encoding */	\
+    NODE * left;	/* left operand */	\
+    NODE * right;	/* right operand */	\
+    CONSZ lval;		/* constant value */	\
+    int rval;		/* usually stab entry */ \
+    FP_DOUBLE dval	/* double constant */
+
+
+/* Pass 1 node */
+typedef struct {
+    ND12;		/* the above, and ... */
+    int flags;		/* special pass 1 flags */
+    int csiz;		/* sizoff */
+    int cdim;		/* dimoff */
+} ND1;
+
+/* Pass 2 node */
+typedef struct {
+    ND12;		/* the basics, plus ... */
+
+    int goal;		/* code generation goal */
+    int label;		/* branch target label # */
+    int lop;		/* GENBR branch condition */
+    char * name;	/* pointer to name string */
+    int stsize;		/* structure size */
+    short stalign;	/* structure alignment */
+    short argsize;	/* size of CALL argument list */
+#ifndef STINCC
+    int cst[NCOSTS];	/* PCC2 costs */
+#endif
+#if defined(REGSET) || defined(CG)
+    int scratch;	/* index to scratch register vectors */
+#endif
+#ifdef CG
+    int strat;		/* code generation strategy */
+    int id;		/* name of CSE destination */
+#endif
+} ND2;
 
 union ndu {
+    ND1 fn;	/* front end node */
+    ND1 fpn;	/* floating point node */
 
-	struct {
-		int op;
-		int goal;
-		TWORD type;
-#ifdef	CG
-		int strat;
-		int tnum;
+    ND2 in;	/* interior (binary) node */
+    ND2 tn;	/* terminal (leaf) node */
+    ND2 bn;	/* branch node */
+    ND2 stn;	/* structure node */
+#ifdef CG
+    ND2 csn;	/* CSE node */
 #endif
-#ifndef	STINCC
-		int cst[NCOSTS];
-#else
-		int cpad[2];		/* hack for now */
-#endif
-		char * name;
-#ifdef REGSET
-		int scratch;		/* index to scratch register vectors */
-#endif
-		char pad[NCHNAM-sizeof(char *)];	/* padding hack! */
-		NODE *left;
-		NODE *right;
-	}in;	/* interior node */
-	
-	struct {
-		int op;
-		int goal;
-		TWORD type;
-#ifdef	CG
-		int strat;
-		int tnum;
-#endif
-#ifndef	STINCC
-		int cst[NCOSTS];
-#else
-		int cpad[2];		/* hack for now */
-#endif
-		char * name;
-#   ifdef REGSET
-		int scratch;		/* index to scratch register vectors */
-#   endif
-		char pad[NCHNAM-sizeof(char *)];	/* padding hack! */
-		CONSZ lval;
-		int rval;
-	}tn;	/* terminal node */
-	
-	struct {
-		int op;
-		int goal;
-		TWORD type;
-#ifdef	CG
-		int strat;
-		int tnum;
-#endif
-#ifndef	STINCC
-		int cst[NCOSTS];
-#else
-		int cpad[2];		/* hack for now */
-#endif
-		int label;  /* for use with branching */
-#   ifdef REGSET
-		int scratch;		/* index to scratch register vectors */
-#   endif
-		int lop;  /* the opcode being branched on */
-	}bn;	/* branch node */
-
-	struct {
-		int op;
-		int goal;
-		TWORD type;
-#ifdef	CG
-		int strat;
-		int tnum;
-#endif
-#ifndef	STINCC
-		int cst[NCOSTS];
-#else
-		int cpad[2];		/* hack for now */
-#endif
-		int stsize;  /* sizes of structure objects */
-#   ifdef REGSET
-		int scratch;		/* index to scratch register vectors */
-#   endif
-		short stalign;  /* alignment of structure objects */
-		short argsize;  /* size of argument list for call */
-	}stn;	/* structure node */
-
-	struct {
-		int op;
-		int goal;
-		TWORD type;
-		int cdim;
-		int csiz;
-	}fn;	/* front node */
-	
-	struct {
-		/* this structure is used when a floating point constant
-		   is being computed */
-		int op;
-		int goal;
-		TWORD type;
-		int cdim;
-		int csiz;
-		FP_DOUBLE dval;
-	}fpn;	/* floating point node */
-#ifdef	CG
-	struct {
-		int op;
-		int goal;
-		TWORD type;
-		int strat;
-		int tnum;
-#ifndef	STINCC
-		int cst[NCOSTS];
-#else
-		int cpad[2];		/* hack for now */
-#endif
-		int id;
-#ifdef REGSET
-		int scratch;		/* scratch registers used */
-#endif
-		char pad[NCHNAM-sizeof(char *)];	/* padding hack! */
-		NODE *left;
-		NODE *right;
-	}csn;	/*CG CSE node*/
-#endif	/* def CG */
-
 };
+
+
+typedef struct nndu {
+    NODE node;
+    int _node_no;
+} nNODE;			/* numbered node */
+
+#define node_no(p) /* NODE * p */ (((nNODE *) (p))->_node_no)
 
 
 #ifdef	CG
@@ -692,6 +709,53 @@ NODE	*firstl(), *lastl();	/*CG functions*/
 # define STRNG 4
 #ifdef	CG
 # define CDATA 5	/* constants */
+# define CURRENT 6	/* Return current locctr*/
+# define UNK 7		/* Unknown (inital) state */
+#endif
+
+/* Define table descriptor structure for dynamically
+** managed tables.
+*/
+
+struct td {
+    int td_allo;		/* array elements allocated */
+    int td_used;		/* array elements in use */
+    int td_size;		/* sizeof(array element) */
+    int td_flags;		/* flags word */
+    char * td_start;		/* (really void *) pointer to array start */
+    char * td_name;		/* table name for error */
+#ifdef STATSOUT
+    int td_max;			/* maximum value reached */
+#endif
+};
+
+/* flags for td_flags */
+#define TD_MALLOC 	1	/* array was malloc'ed */
+#define TD_ZERO		2	/* zero expansion area */
+
+int td_enlarge();		/* enlarges a table so described, returns
+				** old size
+				*/
+
+#define TD_INIT(tab, allo, size, flags, start, name) \
+struct td tab = { \
+	allo,	/* allocation */ \
+	0,	/* used always 0 */ \
+	size,	/* entry size */ \
+	flags,	/* flags */ \
+	(char *)start,	/* pointer */ \
+	name	/* table name */ \
+}
+
+
+#ifdef	IN_LINE
+/* The table for inline formal names gets used by both Pass 1 and
+** Pass 2 code.
+*/
+extern struct td td_inlargs;
+#define	inlargs ((char *) td_inlargs.td_start)
+#define	sz_inlargs (td_inlargs.td_used)
+#define	SZINLARGS (td_inlargs.td_allo)
 #endif
 
 #endif	/* def MANIFEST_H:  from top of file */

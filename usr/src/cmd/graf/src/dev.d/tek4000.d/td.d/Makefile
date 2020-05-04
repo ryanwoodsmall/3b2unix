@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)graf:src/dev.d/tek4000.d/td.d/Makefile	1.7"
+#ident	"@(#)graf:src/dev.d/tek4000.d/td.d/Makefile	1.8"
 ###
 ### Standard Constants 
 ###
@@ -36,7 +36,7 @@ MAKEFILE = Makefile
 MAINS = td
 
 OBJECTS =  devarc.o devbuff.o devcursor.o devfill.o devfinal.o devinit.o \
-	devline.o devtext.o td.o xytek.o xytekl.o
+	devline.o devtext.o td.o x.o xytek.o xytekl.o
 
 SOURCES =  devarc.c devbuff.c devcursor.c devfill.c devfinal.c devinit.c \
 	devline.c devtext.c td.c xytek.c xytekl.c

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:fs/du/duiget.c	10.4"
+#ident	"@(#)kern-port:fs/du/duiget.c	10.5"
 #include "sys/types.h"
 #include "sys/sysmacros.h"
 #include "sys/param.h"
@@ -35,6 +35,8 @@
 #include "sys/rdebug.h"
 #include "sys/cmn_err.h"
 #include "sys/message.h"
+#include "sys/sema.h"
+#include "sys/comm.h"
 
 struct inode *
 duiread(ip)
@@ -53,6 +55,8 @@ register struct inode *ip;
 	DUPRINT4 (DB_FSS,"duiput: ip = %x   sndd = %x syscall %d\n",
 			ip, ip->i_fsptr,u.u_syscall);
 	del_sndd (ip->i_fsptr);
+	if (((sndd_t)(ip->i_fsptr))->sd_stat & SDCACHE)
+		rfinval (ip->i_fsptr, -1, 0);
 	ip->i_fsptr = NULL;
 }
 

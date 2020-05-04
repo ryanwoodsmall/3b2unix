@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 %{
-#ident	"@(#)egrep:egrep.y	1.10.1.1"
+#ident	"@(#)egrep:egrep.y	1.10.1.2"
 %}
 /*
  * egrep -- print lines containing (or not containing) a regular expression
@@ -28,12 +28,12 @@
 
 #define MAXLIN 350
 #define MAXPOS 4000
-#define NCHARS 128
+#define NCHARS 256
 #define NSTATES 128
 #define FINAL -1
-char gotofn[NSTATES][NCHARS];
+unsigned char gotofn[NSTATES][NCHARS];
 int state[NSTATES];
-char out[NSTATES];
+unsigned char out[NSTATES];
 int line = 1;
 int name[MAXLIN];
 int left[MAXLIN];
@@ -41,7 +41,7 @@ int right[MAXLIN];
 int parent[MAXLIN];
 int foll[MAXLIN];
 int positions[MAXPOS];
-char chars[MAXLIN];
+unsigned char chars[MAXLIN];
 int nxtpos;
 int nxtchar = 0;
 int tmpstat[MAXLIN];
@@ -49,8 +49,9 @@ int initstat[MAXLIN];
 int xstate;
 int count;
 int icount;
-char *input = NULL;
+unsigned char *input = NULL;
 
+extern int getopt();
 int access();
 void exit();
 
@@ -76,7 +77,7 @@ int	nsucc;
 
 %%
 s:	t
-		={ unary(FINAL, $1);
+		={ (void) unary(FINAL, $1);
 		  line--;
 		}
 	;
@@ -119,15 +120,18 @@ r:	r OR r
 	;
 
 %%
-yyerror(s) {
-	fprintf(stderr, "egrep: %s\n", s);
+void
+yyerror(s) 
+char *s;
+{
+	(void) fprintf(stderr, "egrep: %s\n", s);
 	exit(2);
 }
 
 yylex() {
 	extern int yylval;
 	int cclcnt, x;
-	register char c, d;
+	register unsigned char c, d;
 	switch(c = nextch()) {
 		case '$':
 		case '^': c = '\n';
@@ -174,6 +178,8 @@ yylex() {
 		default: yylval = c; return (CHAR);
 	}
 }
+
+int
 nextch() {
 	register int c;
 	if (fflag) {
@@ -183,11 +189,13 @@ nextch() {
 	return(c);
 }
 
+int
 synerror() {
-	fprintf(stderr, "egrep: syntax error\n");
+	(void) fprintf(stderr, "egrep: syntax error\n");
 	exit(2);
 }
 
+int
 enter(x) int x; {
 	if(line >= MAXLIN) overflo();
 	name[line] = x;
@@ -196,6 +204,7 @@ enter(x) int x; {
 	return(line++);
 }
 
+int
 cclenter(x) int x; {
 	register linno;
 	linno = enter(x);
@@ -203,7 +212,8 @@ cclenter(x) int x; {
 	return (linno);
 }
 
-node(x, l, r) {
+int
+node(x, l, r) int x, l, r; {
 	if(line >= MAXLIN) overflo();
 	name[line] = x;
 	left[line] = l;
@@ -213,7 +223,8 @@ node(x, l, r) {
 	return(line++);
 }
 
-unary(x, d) {
+int
+unary(x, d) int x, d; {
 	if(line >= MAXLIN) overflo();
 	name[line] = x;
 	left[line] = d;
@@ -221,12 +232,15 @@ unary(x, d) {
 	parent[d] = line;
 	return(line++);
 }
+
+int
 overflo() {
-	fprintf(stderr, "egrep: regular expression too long\n");
+	(void) fprintf(stderr, "egrep: regular expression too long\n");
 	exit(2);
 }
 
-cfoll(v) {
+void
+cfoll(v) int v;{
 	register i;
 	if (left[v] == 0) {
 		count = 0;
@@ -240,10 +254,12 @@ cfoll(v) {
 		cfoll(right[v]);
 	}
 }
+
+void
 cgotofn() {
 	register c, i, k;
 	int n, s;
-	char symbol[NCHARS];
+	unsigned char symbol[NCHARS];
 	int j, nc, pc, pos;
 	int curpos, num;
 	int number, newpos;
@@ -290,7 +306,7 @@ cgotofn() {
 						cont:;
 					}
 				}
-				else printf("something's funny\n");
+				else (void) printf("something's funny\n");
 			}
 			pos++;
 		}
@@ -334,7 +350,8 @@ cgotofn() {
 	}
 }
 
-cstate(v) {
+int
+cstate(v) int v;{
 	register b;
 	if (left[v] == 0) {
 		if (tmpstat[v] != 1) {
@@ -360,7 +377,8 @@ cstate(v) {
 }
 
 
-member(symb, set, torf) {
+int
+member(symb, set, torf) int symb, set, torf;{
 	register i, num, pos;
 	num = chars[set];
 	pos = set + 1;
@@ -369,7 +387,8 @@ member(symb, set, torf) {
 	return (!torf);
 }
 
-notin(n) {
+int
+notin(n) int n;{
 	register i, j, pos;
 	for (i=0; i<=n; i++) {
 		if (positions[state[i]] == count) {
@@ -384,7 +403,8 @@ notin(n) {
 	return (1);
 }
 
-add(array, n) int *array; {
+int
+add(array, n) int *array; int n;{
 	register i;
 	if (nxtpos + count > MAXPOS) overflo();
 	array[n] = nxtpos;
@@ -396,13 +416,14 @@ add(array, n) int *array; {
 	}
 }
 
+int
 follow(v) int v; {
 	int p;
 	if (v == line) return;
 	p = parent[v];
 	switch(name[p]) {
 		case STAR:
-		case PLUS:	cstate(v);
+		case PLUS:	(void) cstate(v);
 				follow(p);
 				return;
 
@@ -427,12 +448,14 @@ follow(v) int v; {
 }
 
 
+void
 main(argc, argv)
+int argc;
 char **argv;
 {
 	register c;
 	char *usage;
-	register char *arg;
+	register unsigned char *arg;
 	int errflg = 0;
 	usage = "[ -bcilnv ] [ -e exp ] [ -f file ] [ strings ] [ file ] ...";
 
@@ -453,14 +476,14 @@ char **argv;
 
 		case 'e':
 			eflag++;
-			input = optarg;
+			input = (unsigned char *)optarg;
 			continue;
 
 		case 'f':
 			fflag++;
 			expfile = fopen(optarg,"r");
 			if (expfile == NULL) {
-				fprintf(stderr, "egrep: can't open %s\n", optarg);
+				(void) fprintf(stderr, "egrep: can't open %s\n", optarg);
 				exit(2);
 			}
 			continue;
@@ -483,56 +506,57 @@ char **argv;
 
 	argc -= optind;
 	if (errflg || ((argc <= 0) && !fflag && !eflag)) {
-		printf("usage: egrep %s\n",usage);
+		(void) printf("usage: egrep %s\n",usage);
 		exit(2);
 	}
 	if ( !eflag  && !fflag ) {
-		input = argv[optind];
+		input = (unsigned char *)argv[optind];
 		optind++;
 		argc--;
 	}
 
 	if (iflag && !fflag) {
 		for (arg = input; *arg != NULL; ++arg)
-			*arg = (char)tolower((int)(*arg));
+			*arg = (unsigned char)tolower((int)(*arg));
 	}
 
 	argv = &argv[optind];
 	if(argc > 0)
 		if (access(*argv, 0) != 0) {
-			fprintf(stderr, "egrep: %s does not exist\n", *argv);
+			(void) fprintf(stderr, "egrep: %s does not exist\n", *argv);
 			exit(2);
 		}
-	yyparse();
+	(void) yyparse();
 
 	cfoll(line-1);
 	cgotofn();
 	nfile = argc;
 	if (argc<=0) {
 		if (lflag) exit(1);
-		execute((char *)NULL);
+		execute((unsigned char *)NULL);
 	}
 	else
 		while ( --argc >= 0 ) {
-			execute(*argv);
+			execute(*(unsigned char **)argv);
 			argv++;
 		}
 	exit((nsucc == 2) ? 2 : (nsucc == 0));
 }
 
+int
 execute(file)
-char *file;
+unsigned char *file;
 {
-	register char *p;
+	register unsigned char *p;
 	register cstat;
 	register ccount;
-	char buf[2*BUFSIZ];
-	char *nlp;
+	unsigned char buf[2*BUFSIZ];
+	unsigned char *nlp;
 	int istat;
 	int in_line;
 	if (file) {
-		if ((fptr = fopen(file, "r")) == NULL) {
-			fprintf(stderr, "egrep: can't open %s\n", file);
+		if ((fptr = fopen((char *)file, "r")) == NULL) {
+			(void) fprintf(stderr, "egrep: can't open %s\n", file);
 			nsucc = 2;
 			return;
 		}
@@ -546,7 +570,7 @@ char *file;
 	blkno = 0;
 	p = buf;
 	nlp = p;
-	if ((ccount = fread(p, sizeof(char), BUFSIZ, fptr)) <= 0) goto done;
+	if ((ccount = fread((char *)p, sizeof(unsigned char), BUFSIZ, fptr)) <= 0) goto done;
 	in_line = 1;
 	istat = cstat = gotofn[0]['\n'];
 	if (out[cstat]) goto found;
@@ -563,19 +587,19 @@ char *file;
 				succeed:	nsucc = (nsucc == 2) ? 2 : 1;
 						if (cflag) tln++;
 						else if (lflag) {
-							printf("%s\n", file);
-							fclose(fptr);
+							(void) printf("%s\n", file);
+							(void) fclose(fptr);
 							return;
 						}
 						else {
-							if (nfile > 1) printf("%s:", file);
-							if (bflag) printf("%d:", blkno);
-							if (nflag) printf("%ld:", lnum);
+							if (nfile > 1) (void) printf("%s:", file);
+							if (bflag) (void) printf("%d:", blkno);
+							if (nflag) (void) printf("%ld:", lnum);
 							if (p <= nlp) {
-								while (nlp < &buf[2*BUFSIZ]) putchar(*nlp++);
+								while (nlp < &buf[2*BUFSIZ]) (void) putchar((char)*nlp++);
 								nlp = buf;
 							}
-							while (nlp < p) putchar(*nlp++);
+							while (nlp < p) (void) putchar((char)*nlp++);
 						}
 					}
 					lnum++;
@@ -585,14 +609,14 @@ char *file;
 				cfound:
 				if (--ccount <= 0) {
 					if (p <= &buf[BUFSIZ]) {
-						ccount = fread(p, sizeof(char), BUFSIZ, fptr);
+						ccount = fread((char *)p, sizeof(unsigned char), BUFSIZ, fptr);
 					}
 					else if (p == &buf[2*BUFSIZ]) {
 						p = buf;
-						ccount = fread(p, sizeof(char), BUFSIZ, fptr);
+						ccount = fread((char *)p, sizeof(unsigned char), BUFSIZ, fptr);
 					}
 					else {
-						ccount = fread(p, sizeof(char), &buf[2*BUFSIZ] - p, fptr);
+						ccount = fread((char *)p, sizeof(unsigned char), &buf[2*BUFSIZ] - p, fptr);
 					}
 					if (ccount <= 0) {
 						if (in_line && (vflag == 0)) {
@@ -618,14 +642,14 @@ char *file;
 		brk2:
 		if (--ccount <= 0) {
 			if (p <= &buf[BUFSIZ]) {
-				ccount = fread(p, sizeof(char), BUFSIZ, fptr);
+				ccount = fread((char *)p, sizeof(unsigned char), BUFSIZ, fptr);
 			}
 			else if (p == &buf[2*BUFSIZ]) {
 				p = buf;
-				ccount = fread(p, sizeof(char), BUFSIZ, fptr);
+				ccount = fread((char *)p, sizeof(unsigned char), BUFSIZ, fptr);
 			}
 			else {
-				ccount = fread(p, sizeof(char), &buf[2*BUFSIZ] - p, fptr);
+				ccount = fread((char *)p, sizeof(unsigned char), &buf[2*BUFSIZ] - p, fptr);
 			}
 			if (ccount <= 0) {
 				if (in_line && vflag) {
@@ -638,10 +662,11 @@ char *file;
 		}
 		in_line = 1;
 	}
-done:	fclose(fptr);
+done:	(void) fclose(fptr);
 	if (cflag) {
 		if (nfile > 1)
-			printf("%s:", file);
-		printf("%ld\n", tln);
+			(void) printf("%s:", file);
+		(void) printf("%ld\n", tln);
 	}
 }
+

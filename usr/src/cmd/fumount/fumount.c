@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)fumount:fumount.c	1.9"
+#ident	"@(#)fumount:fumount.c	1.9.3.1"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -19,7 +19,7 @@
 #define MAXGRACE 3600
 
 char *malloc(), *getnode();
-char usage[] = "Usage: fumount [-w <seconds(0-%d)>] <resource>\n";
+char usage[] = "Usage: fumount [-w <seconds(1-%d)>] <resource>\n";
 
 extern	int	optind,	opterr;
 extern	char	*optarg;
@@ -56,12 +56,20 @@ char **argv;
 	}
 
 	if(geteuid() != 0) {
-		printf("Fumount: Must be Super User\n");
+		fprintf(stderr,"fumount: must be super user\n");
 		exit(1);
 	}
 	if (rfsys(RF_GETDNAME, dom_resrc, MAXDNAME) < 0) {
-		fprintf(stderr,"Can't get domain name. ");
+		fprintf(stderr,"fumount: can't get domain name.\n");
 		perror("fumount");
+		exit(1);
+	}
+	if(nlload()){
+		fprintf(stderr,"fumount: can't get enough memory\n");
+		exit(1);
+	}
+	if(getnodes(optarg, advflg) == 1) {
+		fprintf(stderr,"fumount: %s not known\n", optarg);
 		exit(1);
 	}
 	
@@ -71,30 +79,23 @@ char **argv;
 	sprintf(cmd, "unadv %s >/dev/null 2>&1\n", optarg);
 	if(system(cmd))
 		advflg = NOTADV;
-	if(nlload()){
-		printf(stderr,"Fumount: can't get enough memory\n");
-		exit(1);
-	}
-	if(getnodes(optarg, advflg) == 1) {
-		if(advflg == NOTADV)
-			fprintf(stderr,"fumount: %s not known\n",optarg);
-	} else
-			/* execute remote warning script */
-		for(i = 0; client[i].flags != EMPTY; i++)
-			if(client[i].flags & KNOWN)
-				sndmes(client[i].sysid, grace, dom_resrc);
 
-		/* sleep 'grace' seconds */
+	/* execute remote warning script */
+	for(i = 0; client[i].flags != EMPTY; i++)
+		if(client[i].flags & KNOWN)
+			sndmes(client[i].sysid, grace, dom_resrc);
+
+	/* sleep 'grace' seconds */
 	sleep(atoi(grace));
 
-		/* blow them away */
+	/* blow them away */
 	if(rfsys(RF_FUMOUNT, optarg) == -1) {
 		if(advflg & NOTADV) {
-			printf("fumount: %s not known\n", optarg);
+			fprintf(stderr, "fumount: %s not known\n", optarg);
 			exit(1);
 		} else {
 			if(client[0].flags != EMPTY) {	/* at least 1 client */
-				perror("fumount: rfsys(2) failed.");
+				perror("fumount: failure due to internal error");
 				exit(1);
 			}
 		/* failure of rfsys is not an error if no clients were 

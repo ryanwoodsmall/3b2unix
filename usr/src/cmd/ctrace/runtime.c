@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)ctrace:runtime.c	1.3"
+#ident	"@(#)ctrace:runtime.c	1.4"
 /*	ctrace - C program debugging tool
  *
  *	run-time package of trace functions
@@ -308,7 +308,7 @@ union {
 #ifndef B_CT_
 	/* check for a possible non-null pointer */
 	if (_size == sizeof(char *) && value.p != 0) {
-		int	(*sigbus)(), (*sigsegv)();
+		void	(*sigbus)(), (*sigsegv)();
 
 		/* see if this is a non-null string */
 		if (setjmp(sj_ct_) == 0) {

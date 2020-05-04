@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)sccs:cmd/cmd.mk	6.14"
+#ident	"@(#)sccs:cmd/cmd.mk	6.16"
 #
 #
 
@@ -15,10 +15,9 @@ HDR = ../hdr
 
 HELPLOC = $(ROOT)/usr/lib/help
 
-LIBS = ../lib/comobj.a	\
-	../lib/mpwlib.a	\
-	../lib/cassi.a	\
-	../lib/libPW.a
+LIBS = ../lib/comobj.a \
+	../lib/cassi.a \
+	../lib/mpwlib.a
 
 ROOT =
 
@@ -148,7 +147,7 @@ install:	all
 	if [ ! -d $(HELPLOC) ] ; then mkdir $(HELPLOC) ; fi
 	if [ ! -d $(HELPLOC)/lib ] ; then mkdir $(HELPLOC)/lib ; fi
 	-mv help2 $(HELPLOC)/lib
-	if u3b5 || u3b2 ; \
+	if u3b15 || u3b2 ; \
 	then \
 		cpset help $(HELPLOC)/lib ; \
 	else \

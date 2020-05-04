@@ -5,31 +5,32 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)fusage:fusage.mk	1.3"
+#ident	"@(#)fusage:fusage.mk	1.3.3.1"
 
 #	fusage make file
 
 ROOT=
-INCDIR = $(ROOT)/usr/include
+INC = $(ROOT)/usr/include
 INSDIR = $(ROOT)/usr/bin
-CFLAGS = -O -c -I$(INCDIR)
+CFLAGS = -O -c -I$(INC) 
+LDFLAGS = -s
 INS=/etc/install
 
-all:	install clobber
+all:	fusage
 
 fusage: fusage.o getnodes.o
-	$(CC) -o fusage fusage.o getnodes.o $(LDLIBS)
+	$(CC) -o fusage $(LDFLAGS) fusage.o getnodes.o $(LDLIBS)
 	chmod 755 fusage
 
-fusage.o: fusage.c $(INCDIR)/stdio.h $(INCDIR)/sys/types.h \
-		$(INCDIR)/sys/stat.h $(INCDIR)/mnttab.h fumount.h \
-		$(INCDIR)/sys/utsname.h 
+fusage.o: fusage.c $(INC)/stdio.h $(INC)/sys/types.h \
+		$(INC)/sys/stat.h $(INC)/mnttab.h fumount.h \
+		$(INC)/sys/utsname.h $(INC)/sys/rfsys.h $(INC)/errno.h
 
-getnodes.o: getnodes.c $(INCDIR)/nlist.h $(INCDIR)/stdio.h $(INCDIR)/fcntl.h \
-		$(INCDIR)/sys/types.h $(INCDIR)/sys/sema.h \
-		$(INCDIR)/sys/comm.h $(INCDIR)/sys/gdpstr.h \
-		$(INCDIR)/sys/cirmgr.h $(INCDIR)/sys/idtab.h \
-		$(INCDIR)/sys/mount.h $(INCDIR)/sys/adv.h fumount.h
+getnodes.o: getnodes.c $(INC)/nlist.h $(INC)/stdio.h $(INC)/fcntl.h \
+		$(INC)/sys/types.h $(INC)/sys/sema.h \
+		$(INC)/sys/comm.h $(INC)/sys/gdpstr.h \
+		$(INC)/sys/cirmgr.h $(INC)/sys/idtab.h \
+		$(INC)/sys/mount.h $(INC)/sys/adv.h fumount.h
 	$(CC) $(CFLAGS) getnodes.c 
 
 install: fusage

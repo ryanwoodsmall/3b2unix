@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/fcntl.h	10.3"
+#ident	"@(#)kern-port:sys/fcntl.h	10.4"
 /* Flag values accessible to open(2) and fcntl(2) */
 /*  (The first three can only be set by open) */
 #define	O_RDONLY 0
@@ -21,15 +21,17 @@
 #define	O_EXCL	02000	/* exclusive open */
 
 /* fcntl(2) requests */
-#define	F_DUPFD	0	/* Duplicate fildes */
-#define	F_GETFD	1	/* Get fildes flags */
-#define	F_SETFD	2	/* Set fildes flags */
-#define	F_GETFL	3	/* Get file flags */
-#define	F_SETFL	4	/* Set file flags */
-#define	F_GETLK	5	/* Get file lock */
-#define	F_SETLK	6	/* Set file lock */
+#define	F_DUPFD		0	/* Duplicate fildes */
+#define	F_GETFD		1	/* Get fildes flags */
+#define	F_SETFD		2	/* Set fildes flags */
+#define	F_GETFL		3	/* Get file flags */
+#define	F_SETFL		4	/* Set file flags */
+#define	F_GETLK		5	/* Get file lock */
+#define	F_SETLK		6	/* Set file lock */
 #define	F_SETLKW	7	/* Set file lock and wait */
-#define F_CHKFL		8	/* Check legality of file flag changes */
+#define	F_CHKFL		8	/* Check legality of file flag changes */
+#define	F_ALLOCSP	10	/* reserved */
+#define	F_FREESP	11	/* reserved */
 
 /* file segment locking set data type - information passed to system by user */
 struct flock {

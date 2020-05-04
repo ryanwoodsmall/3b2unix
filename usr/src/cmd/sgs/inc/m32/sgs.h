@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)xenv:m32/sgs.h	1.41.1.5"
+#ident	"@(#)xenv:m32/sgs.h	1.41.1.14"
 /*
  */
 
@@ -47,4 +47,4 @@
 #define MAXINT	2147483647
 
 #define	SGSNAME	""
-#define	RELEASE	"C Compilation System, Issue 4.0 (11.0) 1/3/86"
+#define	RELEASE	"C Compilation System, Issue 4.1 8/27/86"

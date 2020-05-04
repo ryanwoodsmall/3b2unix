@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)dustart:dustart.c	1.21"
+#ident	"@(#)dustart:dustart.c	1.25.1.1"
 #include <stdio.h>
 #include <fcntl.h>
 #include <sys/signal.h>
@@ -103,7 +103,7 @@ char *argv[];
 		exit(2);
 	}
 
-	if (getuid() != 0) {
+	if (geteuid() != 0) {
 		ERROR("must be super-user");
 		exit(2);
 	}
@@ -181,7 +181,7 @@ char *argv[];
 
 	if (rfstart() < 0) {
 		if (errno == EAGAIN) {
-			ERROR("Tunable parameter MAXGDP is not set to a large enough value");
+			ERROR("An RFS tunable parameter is set too low");
 			ERROR("Consult Administrator's Guide");
 		} else {
 			perror(cmd_name);
@@ -198,11 +198,17 @@ char *argv[];
 	 *	If any other interrupt, stop the name server and exit.
 	 */
 
-	signal(SIGUSR1, ok_rtn);
-	signal(SIGUSR2, error_rtn);
-	signal(SIGHUP,  intrp_rtn);
-	signal(SIGINT,  intrp_rtn);
-	signal(SIGQUIT, intrp_rtn);
+	sigset(SIGUSR1, ok_rtn);
+	sigset(SIGUSR2, error_rtn);
+	sigset(SIGHUP,  intrp_rtn);
+	sigset(SIGINT,  intrp_rtn);
+	sigset(SIGQUIT, intrp_rtn);
+
+	/*
+	 *	Clean up the /etc/advtab file.
+	 */
+
+	close(open("/etc/advtab", O_TRUNC));
 
 	/*
 	 *	Fork off a child which will eventually start off
@@ -210,8 +216,8 @@ char *argv[];
 	 */
 
 	if ((parent = ns_process = fork()) == -1) {
-		ERROR("cannot fork to start name server");
 		perror(cmd_name);
+		ERROR("cannot fork to start name server");
 		rfstop();
 		exit(2);
 	}
@@ -238,8 +244,8 @@ char *argv[];
 	} else {
 		setpgrp();
 		if (execv(NSERVE, n_argv) == -1) {
-			ERROR("cannot exec name server");
 			perror(cmd_name);
+			ERROR("cannot exec name server");
 			kill(getppid(), SIGUSR2);
 			exit(2);
 		}
@@ -256,11 +262,11 @@ char *argv[];
 
 	if (ns_initaddr(mach_name) == FAILURE) {
 		if (cflag) {
-			ERROR("warning: could not send address to primary name server");
-			system("/bin/setpgrp /usr/bin/rfudaemon &");
+			ERROR("warning: could not contact primary name server");
+			system("/bin/setpgrp /usr/nserve/rfudaemon &");
 			exit(2);
 		} else {
-			ERROR("could not send address to primary name server");
+			ERROR("could not contact primary name server");
 			nserror(cmd_name);
 			rfstop();
 			killns();
@@ -312,13 +318,7 @@ char *argv[];
 	 *	other systems (for fumount, etc.).
 	 */
 
-	system("/bin/setpgrp /usr/bin/rfudaemon &");
-
-	/*
-	 *	Finally, clean up the /etc/advtab file.
-	 */
-
-	close(open("/etc/advtab", O_TRUNC));
+	system("/bin/setpgrp /usr/nserve/rfudaemon &");
 
 	exit(0);
 }
@@ -356,8 +356,8 @@ killns()
 	 */
 
 	if (kill(ns_process, SIGKILL) < 0) {
-		ERROR("error in killing name server");
 		perror(cmd_name);
+		ERROR("error in killing name server");
 	}
 }
 

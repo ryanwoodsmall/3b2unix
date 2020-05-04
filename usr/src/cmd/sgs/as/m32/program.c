@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:m32/program.c	1.21"
+#ident	"@(#)as:m32/program.c	1.21.1.3"
 #include <stdio.h>
 #include <filehdr.h>
 #include <sgs.h>
@@ -24,7 +24,6 @@
 
 int txtsec = -1;
 int datsec = -1;
-static int firstinstr = 1;
 
 #ifdef	CHIPFIX
 static char * SWA_CHIP = "@(#) CHIPFIX";
@@ -68,7 +67,7 @@ static struct mnemonic mnemonics[] = {
 0
 };
 
-#define HASHSIZ 1007
+#define HASHSIZ 1009
 static short	hashtab[HASHSIZ];
 
 /* initializes the hash table for mnemonics */
@@ -132,7 +131,7 @@ extern char cfile[];
 extern struct scnhdr sectab[];
 extern int mksect();
 extern cgsect();
-extern upsymins *lookup(); /* for looking up labels */
+extern upsymins lookup(); /* for looking up labels */
 static char as_version[] = "02.01";
 static short
 	expand,		/* expand byte to be generated */
@@ -210,6 +209,10 @@ yyparse()
 
 	mk_hashtab();
 	if (dbg) fdin = stdin;
+
+/* set default UNIX section */
+	cgsect(mksect(lookup(_TEXT, INSTALL, USRNAME).stp, STYP_TEXT));
+
 	line = 0;
 newline:
 	while (fgets(linebuf,BUFSIZ,fdin)) {	/* line loop */
@@ -343,7 +346,7 @@ while(curtoken->type != ENDOFLINE) {
 		register upsymins	symptr;
 
 		if (dbg) printf("LAB %s\n",curtoken->ptr);
-		symptr = *lookup(curtoken->ptr, INSTALL, USRNAME);
+		symptr = lookup(curtoken->ptr, INSTALL, USRNAME);
 		if ((symptr.stp->styp & TYPE) != UNDEF) {
 			yyerror("error: multiply defined label");
 			fprintf(stderr, "\t\t... \"%s\"\n", curtoken->ptr);
@@ -370,14 +373,6 @@ while(curtoken->type != ENDOFLINE) {
 			yyerror("invalid instruction name");
 			fprintf(stderr, "\t\t... \"%s\"\n", curtoken->ptr);
 			goto instr_done;
-		}
-		else if (firstinstr)
-		{
-			firstinstr = 0;
-			/*
-			 * set default UNIX section
-			 */
-	cgsect(mksect(lookup(_TEXT, INSTALL, USRNAME)->stp, STYP_TEXT));
 		}
 
 		/* processing operands */
@@ -481,7 +476,7 @@ case PSSECTION :	/* .section <id>[,<string>] */
 		fprintf(stderr,"\t\t... not %d\n",numopnds);
 		goto instr_done;
 		}
-	cgsect(mksect(lookup(GETID(1),INSTALL,USRNAME)->stp,att));
+	cgsect(mksect(lookup(GETID(1),INSTALL,USRNAME).stp,att));
 	}
 	goto instr_done;
 case PSBSS :	/*   .bss <id>,<expr>,<expr>   */
@@ -490,13 +485,13 @@ case PSBSS :	/*   .bss <id>,<expr>,<expr>   */
 	GETEXPR(3)
 	if (operstak[1].exptype != ABS)
 		aerror("'.align' field not absolute");
-	bss(lookup(GETID(1),INSTALL,USRNAME)->stp,
+	bss(lookup(GETID(1),INSTALL,USRNAME).stp,
 	    operstak[0].expval,operstak[1].expval,
 	    operstak[0].exptype);
 	goto instr_done;
 case PSDEF :	/*   .def <id>   */
 	CHEKONEID
-	generate(0,DEFINE,NULLVAL, lookup(GETID(1),INSTALL,USRNAME)->stp);
+	generate(0,DEFINE,NULLVAL, lookup(GETID(1),INSTALL,USRNAME).stp);
 	goto instr_done;
 case PSDIM :	/*   .dim <expr>[,<expr>]*   */
 	if (numopnds == 0) {
@@ -512,7 +507,7 @@ case PSDIM :	/*   .dim <expr>[,<expr>]*   */
 	goto instr_done;
 case PSGLOBL :	/*   .globl <id>   */
 	CHEKONEID
-	lookup(GETID(1),INSTALL,USRNAME)->stp->styp |= EXTERN;
+	lookup(GETID(1),INSTALL,USRNAME).stp->styp |= EXTERN;
 	goto instr_done;
 case PSFILE :	/*   .file <string>   */
 case PSIDENT :	/*   .ident <string>   */
@@ -572,7 +567,7 @@ case PSSET :	/*   .set <id>,<expr>   */
 	{ register symbol *symptr;
 	CHEKID(1)
 	GETEXPR(2)
-	symptr = lookup(GETID(1),INSTALL,USRNAME)->stp;
+	symptr = lookup(GETID(1),INSTALL,USRNAME).stp;
 	if (instrptr->index == PSCOMM) {
 		if ((symptr->styp & TYPE) != UNDEF) {
 			yyerror("tried to redefine symbol");
@@ -617,7 +612,7 @@ case PSSET :	/*   .set <id>,<expr>   */
 	goto instr_done; }
 case PSTAG :	/*   .tag <id>   */
 	CHEKONEID
-	generate(0,SETTAG,NULLVAL, lookup(GETID(1),INSTALL,USRNAME)->stp);
+	generate(0,SETTAG,NULLVAL, lookup(GETID(1),INSTALL,USRNAME).stp);
 	goto instr_done;
 #if	FLOAT
 case PSDECINT :
@@ -694,11 +689,15 @@ case PSFLOAT :
 case PSBYTE :	/*   .byte [<num>:]<expr>[,[<num>:]<expr>]*   */
 case PSHALF :	/*   .half [<num>:]<expr>[,[<num>:]<expr>]*   */
 case PSWORD :	/*   .word [<num>:]<expr>[,[<num>:]<expr>]*   */
+case PSUAHALF :	/*   .uahalf [<num>:]<expr>[,[<num>:]<expr>]*   */
+case PSUAWORD :	/*   .uaword [<num>:]<expr>[,[<num>:]<expr>]*   */
 	{ register width; int spctype;
 	switch (instrptr->index) {
 	case PSBYTE : spctype = NBPW/4; break;
 	case PSHALF : spctype = NBPW/2; ckalign(2L); break;
 	case PSWORD : spctype = NBPW; ckalign(4L); break;
+	case PSUAHALF : spctype = NBPW/2; break;
+	case PSUAWORD : spctype = NBPW; break;
 	}
 	for (curopnd = 1; curopnd <= numopnds; curopnd++) {
 		oplexptr = curtoken[curopnd].ptr;
@@ -745,7 +744,9 @@ case PSWORD :	/*   .word [<num>:]<expr>[,[<num>:]<expr>]*   */
 		generate(0,NEWSTMT,line,NULLSYM);
 	}
 	switch (instrptr->index) {
-	case PSBYTE : fillbyte(); break;
+	case PSBYTE : 
+	case PSUAHALF : 
+	case PSUAWORD : fillbyte(); break;
 	case PSHALF : fillbyte(); ckalign(2L); break;
 	case PSWORD : fillbyte(); ckalign(4L); break;
 	}
@@ -877,7 +878,7 @@ short valtype;
 	if ((sym->styp & TYPE) != UNDEF)
 		yyerror("multiply define label in `.bss'");
 	if (bsssec < 0) bsssec = mksect(
-		lookup(_BSS, INSTALL, USRNAME)->stp, STYP_BSS);
+		lookup(_BSS, INSTALL, USRNAME).stp, STYP_BSS);
 	if (mod = sectab[bsssec].s_size % alignment)
 		sectab[bsssec].s_size += alignment - mod;
 	sym->value = sectab[bsssec].s_size;

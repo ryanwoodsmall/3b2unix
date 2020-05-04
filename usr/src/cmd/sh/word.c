@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sh:word.c	1.9"
+#ident	"@(#)sh:word.c	1.11"
 /*
  * UNIX shell
  */

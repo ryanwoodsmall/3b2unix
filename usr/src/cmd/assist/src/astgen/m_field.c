@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)tools:m_field.c	1.18"
+#ident	"@(#)tools:m_field.c	1.19"
 #include "../forms/muse.h"
 #include "tools.h"
 #include "vdefs.h"
@@ -103,6 +103,7 @@ struct field *f_pt;
 }
 
 VOID cleanup(f_pt)	/*called to put back ^X, if needed*/
+			/*do this when about to leave screen*/
 struct field *f_pt;
 {
 	f_pt->action = (char*)calloc((unsigned)(strlen(action)+3),sizeof(char));
@@ -138,7 +139,7 @@ register struct field *f_pt;
 			cleanup(f_pt);	/*add ^X to action, if needed*/
 			return(0); /*all the way back*/
 		case KEY_F(7):
-		case CTRL(e):	if (cur_mf == NAME)
+		case CTRL(e):	if (cur_mf == NAME) /*edit screen name*/
 					{
 					action=editstr(action);
 					mredisplay(f_pt);
@@ -157,7 +158,7 @@ register struct field *f_pt;
 					switch_act(); /*toggle action*/
 					mredisplay(f_pt);
 					break;
-				case NAME:
+				case NAME: /*change screen name*/
 					mvaddstr(mfld[NAME].ylab,mfld[NAME].xval,"<empty>");
 					clrtoeol();
 					show_cmd("",8);
@@ -165,7 +166,7 @@ register struct field *f_pt;
 					action =
 			askstring("",mfld[NAME].ylab,mfld[NAME].xval,79,cur_mf,mhelpfile,1)->str;
 					break;
-				case I_H_M:
+				case I_H_M:/*edit item help message*/
 					f_pt->help=editstr(f_pt->help);
 					while ((tmp=helpchk(f_pt->help)) != 0)
 						{
@@ -200,7 +201,7 @@ register struct field *f_pt;
 			cur_mf=nextvar(NUM_MLINES,cur_mf);
 			break;
 		case CTRL(p):
-		case KEY_UP:
+		case KEY_UP: /*previous item*/
 			mvaddstr(mfld[cur_mf].ylab,mfld[cur_mf].xlab,
 			mfld[cur_mf].name);
 			cur_mf=prevvar(NUM_MLINES,cur_mf);
@@ -209,7 +210,7 @@ register struct field *f_pt;
 		case CTRL(l):	/*redraw screen*/
 			REDRAW;
 			break;
-		default:
+		default:	/*look for 1st letter match*/
 			if ((tmp=firstlet(mfld,NUM_MLINES,c,cur_mf)) == -1)
 				flushinp();	/*no first letter match*/
 			else 
@@ -240,7 +241,7 @@ VOID switch_act() /*toggle from unix command to assist screen*/
 			}
 }
 
-VOID mredisplay(f_pt)
+VOID mredisplay(f_pt)	/*show updated screen*/
 register struct field *f_pt;
 {
 	int i;

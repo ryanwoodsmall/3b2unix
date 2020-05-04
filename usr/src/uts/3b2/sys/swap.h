@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/swap.h	10.1"
+#ident	"@(#)kern-port:sys/swap.h	10.2"
 /*	The following structure contains the data describing a
  *	swap file.
  */
@@ -22,6 +22,7 @@ typedef struct swaptab {
 	int	st_npgs;	/* Number of pages of swap	*/
 				/* space on device.		*/
 	int	st_nfpgs;	/* Nbr of free pages on device.	*/
+	int	st_pad[2];	/* Round size to 2^n.		*/
 } swpt_t;
 
 #define	ST_INDEL	0x01	/* This file is in the process 	*/

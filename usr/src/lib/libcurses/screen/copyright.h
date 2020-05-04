@@ -5,4 +5,5 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/copyright.h	1.1"
+#ident	"@(#)curses:screen/copyright.h	1.3"
+

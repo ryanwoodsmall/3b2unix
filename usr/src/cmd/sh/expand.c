@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sh:expand.c	1.15"
+#ident	"@(#)sh:expand.c	1.18"
 /*
  *	UNIX shell
  *
@@ -247,96 +247,6 @@ closedir(dirp)
 register DIR	*dirp;		/* stream from opendir() */
 {
 	return close(dirp->dd_fd);
-}
-
-gmatch(s, p)
-register unsigned char	*s, *p;
-{
-	register unsigned char scc;
-	unsigned char c;
-
-	scc = *s++;
-	switch (c = *p++)
-	{
-	case '[':
-		{
-			BOOL ok;
-			int lc = -1;
-			int notflag = 0;
-
-			ok = 0;
-			if (*p == '!')
-			{
-				notflag = 1;
-				p++;
-			}
-			while (c = *p++)
-			{
-				if (c == ']')
-					return(ok ? gmatch(s, p) : 0);
-				else if (c == MINUS && lc > 0 && *p!= ']')
-				{
-					if (notflag)
-					{
-						if (scc < lc || scc > *(p++))
-							ok++;
-						else
-							return(0);
-					}
-					else
-					{
-						if (lc <= scc && scc <= (*p++))
-							ok++;
-					}
-				}
-				else
-				{
-					if(c == '\\') /* skip to quoted character */
-						c = *p++;
-					lc = c;
-					if (notflag)
-					{
-						if (scc && scc != lc)
-							ok++;
-						else
-							return(0);
-					}
-					else
-					{
-						if (scc == lc)
-							ok++;
-					}
-				}
-			}
-			return(0);
-		}
-
-	case '\\':	
-		c = *p++; /* skip to quoted character and see if it matches */
-	default:
-		if (c != scc)
-			return(0);
-
-	case '?':
-		return(scc ? gmatch(s, p) : 0);
-
-	case '*':
-		while (*p == '*')
-			p++;
-
-		if (*p == 0)
-			return(1);
-		--s;
-		while (*s)
-		{
-			if (gmatch(s++, p))
-				return(1);
-		}
-		return(0);
-
-	case 0:
-		return(scc == 0);
-	}
 }
 
 static int

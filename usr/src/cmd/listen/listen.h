@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)listen:listen.h	1.2"
+#ident	"@(#)listen:listen.h	1.4.2.1"
 
 /*
  * listen.h:	Include file for network listener related user programs
@@ -42,8 +42,17 @@
  * See also:  nlsname(3), nlsconnect(3), nlsestablish(3)
  */
 
-static char *nls_prot_msg = "NLPS:000:001:%d";
-static char *nls_v2_msg =   "NLPS:002:002:%s";
+/*
+ * defines for compatability purposes
+ */
+
+#define nls_prot_msg	nls_v0_d
+#define nls_v2_msg	nls_v2_s
+
+static char *nls_v0_d = "NLPS:000:001:%d";
+static char *nls_v0_s = "NLPS:000:001:%s";
+static char *nls_v2_d = "NLPS:002:002:%d";
+static char *nls_v2_s = "NLPS:002:002:%s";
 
 #define	NLSSTART	0
 #define	NLSFORMAT	2
@@ -51,3 +60,25 @@ static char *nls_v2_msg =   "NLPS:002:002:%s";
 #define NLSDISABLED	4
 
 
+/*
+ * Structure for handling multiple connection requests on the same stream.
+ */
+
+struct callsave {
+	struct t_call *c_cp;
+	struct callsave *c_np;
+};
+
+struct call_list {
+	struct callsave *cl_head;
+	struct callsave *cl_tail;
+};
+
+#define EMPTY(p)	(p->cl_head == (struct callsave *) NULL)
+
+/*
+ * Ridiculously high value for maximum number of connects per stream.
+ * Transport Provider will determine actual maximum to be used.
+ */
+
+#define MAXCON		100

@@ -5,13 +5,13 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/captoinfo.c	1.6.1.3"
+#ident	"@(#)curses:screen/captoinfo.c	1.6.1.7"
 /*
     NAME
 	captoinfo - convert a termcap description to a terminfo description
 
     SYNOPSIS
-	captoinfo [-1vV] [ filename ... ]
+	captoinfo [-1vV] [-w width] [ filename ... ]
 
     AUTHOR
 	Tony Hansen, January 22, 1984.
@@ -91,7 +91,7 @@ extern char *strcpy();
 
 /* globals for this file */
 char *progname;			/* argv [0], the name of the program */
-static char *termname;		/* the name of the terminal being worked on */
+static char *term_name;		/* the name of the terminal being worked on */
 static int uselevel;		/* whether we're dealing with use= info */
 static int boolcount,	       	/* the maximum numbers of each name array */
 	   numcount,
@@ -169,7 +169,7 @@ void checktermcap()
 		!capsearch (strcodes, ostrcodes, tbuf+1))
 		(void) fprintf (stderr,
 		    "%s: TERM=%s: commented out code '%.2s' is unknown.\n",
-		    progname, termname, tbuf+1);
+		    progname, term_name, tbuf+1);
 	    continue;
 	    }
 
@@ -186,7 +186,7 @@ void checktermcap()
 	    default:
 		(void) fprintf (stderr,
 		    "%s: TERM=%s: unknown type given for the termcap code '%.2s'.\n",
-		    progname, termname, tbuf);
+		    progname, term_name, tbuf);
 		type = tunknown;
 	    }
 
@@ -203,7 +203,7 @@ void checktermcap()
 	    if (type != tbool && type != tcancel)
 		(void) fprintf (stderr,
 		    "%s: TERM=%s: wrong type given for the boolean termcap code '%.2s'.\n",
-		    progname, termname, tbuf);
+		    progname, term_name, tbuf);
 	    continue;
 	    }
 
@@ -213,7 +213,7 @@ void checktermcap()
 	    if (type != tnum && type != tcancel)
 		(void) fprintf (stderr,
 		    "%s: TERM=%s: wrong type given for the numeric termcap code '%.2s'.\n",
-		    progname, termname, tbuf);
+		    progname, term_name, tbuf);
 	    continue;
 	    }
 
@@ -223,13 +223,13 @@ void checktermcap()
 	    if (type != tstr && type != tcancel)
 		(void) fprintf (stderr,
 		    "%s: TERM=%s: wrong type given for the string termcap code '%.2s'.\n",
-		    progname, termname, tbuf);
+		    progname, term_name, tbuf);
 	    continue;
 	    }
 
 	(void) fprintf (stderr,
 	    "%s: TERM=%s: the %s termcap code '%.2s' is not a valid name.\n",
-	    progname, termname,
+	    progname, term_name,
 	    (type == tbool) ? "boolean" :
 	    (type == tnum) ? "numeric" :
 	    (type = tstr) ? "string" :
@@ -246,11 +246,11 @@ int filltables ()
     register int i, tret;
 
     /* Retrieve the termcap entry. */
-    if ((tret = otgetent (bp, termname)) != 1)
+    if ((tret = otgetent (bp, term_name)) != 1)
 	{
 	(void) fprintf (stderr,
 	    "%s: TERM=%s: tgetent failed with return code %d (%s).\n",
-	    progname, termname, tret,
+	    progname, term_name, tret,
 	    (tret == 0) ? "non-existent or invalid entry" :
 	    (tret == -1) ? "cannot open $TERMCAP" :
 	    "unknown reason");
@@ -318,7 +318,7 @@ int filltables ()
 	    {
 	    (void) fprintf (stderr,
 		"%s: TERM=%s: cap %s (info %s) is NULL: REMOVED\n",
-		progname, termname, strcodes[i], strnames[i]);
+		progname, term_name, strcodes[i], strnames[i]);
 	    strval [uselevel] [i] = NULL;
 	    }
 	}
@@ -368,7 +368,7 @@ int filltables ()
 	    {
 	    (void) fprintf (stderr,
 		"%s: TERM=%s: cap %s (no terminfo name) is NULL: REMOVED\n",
-		progname, termname, ostrcodes[i]);
+		progname, term_name, ostrcodes[i]);
 	    ostrval [uselevel] [i] = NULL;
 	    }
 	}
@@ -444,7 +444,7 @@ register char *capname;
 	    }
 
     (void) fprintf (stderr, "%s: TERM=%s: termcap name '%s' not found.\n",
-	progname, termname, capname);
+	progname, term_name, capname);
 
     return (char *) NULL;
 }
@@ -534,7 +534,7 @@ register int newvalue;
 	}
 
     (void) fprintf (stderr, "%s: TERM=%s: the boolean name '%s' was not found!\n",
-	progname, termname, infoname);
+	progname, term_name, infoname);
 }
 
 /*
@@ -563,7 +563,7 @@ register int newvalue;
 	}
 
     (void) fprintf (stderr, "%s: TERM=%s: the numeric name '%s' was not found!\n",
-	progname, termname, infoname);
+	progname, term_name, infoname);
 }
 
 /*
@@ -599,7 +599,7 @@ register char *infoname, *newvalue;
 	}
 
     (void) fprintf (stderr, "%s: TERM=%s: the string name '%s' was not found!\n",
-	progname, termname, infoname);
+	progname, term_name, infoname);
 }
 
 /*
@@ -736,7 +736,7 @@ handleko()
 			    {
 			    (void) fprintf (stderr,
 				"%s: TERM=%s: a function key for '%s' was specified with the value ",
-				progname, termname, capname);
+				progname, term_name, capname);
 			    tpr (stderr, capstr);
 			    (void) fprintf (stderr, ", but it already has the value '");
 			    tpr (stderr, infostr);
@@ -750,7 +750,7 @@ handleko()
 	if (!found)
 	    {
 	    (void) fprintf (stderr, "%s: TERM=%s: the unknown termcap name '%s' was\n",
-		progname, termname, capname);
+		progname, term_name, capname);
 	    (void) fprintf (stderr, "specified in the 'ko' termcap capability.\n");
 	    }
 	}
@@ -850,7 +850,7 @@ handlema()
 		else if (strcmp (cap, infostr) != 0)
 		    {
 		    (void) fprintf (stderr, "%s: TERM=%s: the vi character '",
-			progname, termname);
+			progname, term_name);
 		    prchar (stderr, vichar);
 		    (void) fprintf (stderr,
 			"' (info '%s') has the value '",
@@ -953,7 +953,7 @@ void adddefaults ()
 	     (onumval[uselevel][cap_ug] != sg))
 	(void) fprintf (stderr,
 	    "%s: TERM=%s: Warning: termcap sg and ug had different values (%d<->%d).\n",
-	    progname, termname, sg, onumval[uselevel][cap_ug]);
+	    progname, term_name, sg, onumval[uselevel][cap_ug]);
 
     /* The MT boolean was never really part of termcap, */
     /* but we can check for it anyways. */
@@ -1096,7 +1096,7 @@ void changecalculations ()
 		parmsaved = 1;
 		(void) fprintf (stderr,
 		    "%s: TERM=%s: Warning: the string produced for '%s' may be inefficient.\n",
-		    progname, termname, strnames[i]);
+		    progname, term_name, strnames[i]);
 		(void) fprintf (stderr, "It should be looked at by hand.\n");
 		}
 	    else
@@ -1291,16 +1291,16 @@ char *usename;
 captoinfo ()
 {
     char usename[512];
-    char *stermname;
+    char *sterm_name;
 
-    if (termname == NULL)
+    if (term_name == NULL)
 	{
-	(void) fprintf (stderr, "%s: Null termname given.\n", progname);
+	(void) fprintf (stderr, "%s: Null term_name given.\n", progname);
 	return;
 	}
 
     if (verbose)
-	(void) fprintf (trace, "changing cap to info, TERM=%s.\n", termname);
+	(void) fprintf (trace, "changing cap to info, TERM=%s.\n", term_name);
 
     uselevel = 0;
     if (filltables () == 0)
@@ -1313,15 +1313,15 @@ captoinfo ()
 	uselevel = 1;
 	if (verbose)
 	    (void) fprintf (trace, "use= found, %s uses %s.\n",
-		termname, TLHtcname);
+		term_name, TLHtcname);
 	(void) strcpy (usename, TLHtcname);
-	stermname = termname;
-	termname = usename;
+	sterm_name = term_name;
+	term_name = usename;
 	if (filltables () == 0)
 	    return;
 	adddefaults ();
 	changecalculations ();
-	termname = stermname;
+	term_name = sterm_name;
 	print_use_entry (usename);
 	}
     else
@@ -1332,7 +1332,7 @@ use_etc_termcap ()
 {
     if (verbose)
 	(void) fprintf (trace, "reading from /etc/termcap\n");
-    termname = getenv ("TERM");
+    term_name = getenv ("TERM");
     captoinfo ();
 }
 
@@ -1359,18 +1359,18 @@ register char *capfile;
 	(void) fprintf (trace, "setting the environment for %s.\n", TERMCAP);
 }
 
-settermname ()
+setterm_name ()
 {
     if (verbose)
-	(void) fprintf (trace, "setting the environment for TERM=%s.\n", termname);
-    (void) sprintf (TERM, "TERM=%s", termname);
+	(void) fprintf (trace, "setting the environment for TERM=%s.\n", term_name);
+    (void) sprintf (TERM, "TERM=%s", term_name);
 }
 
 /* Look at the current line to see if it is a list of names. */
 /* If it is, return the first name in the list, else NULL. */
 /* As a side-effect, comment lines and blank lines */
 /* are copied to standard output. */
-char *gettermname (line)
+char *getterm_name (line)
 register char *line;
 {
     register char *lineptr = line;
@@ -1431,9 +1431,9 @@ register char *filename;
 
     while (fgets (buffer, BUFSIZ, termfile) != NULL)
 	{
-	if ((termname = gettermname (buffer)) != NULL)
+	if ((term_name = getterm_name (buffer)) != NULL)
 	    {
-	    settermname ();
+	    setterm_name ();
 	    captoinfo ();
 	    }
 	}
@@ -1520,10 +1520,12 @@ char **argv;
 		verbose++;
 		break;
 	    case 'V':
+		printf("@(#)curses:screen/captoinfo.c	1.6.1.7\n");
+		fflush(stdout);
 		exit (0);
 	    case '?':
 		(void) fprintf (stderr,
-		    "usage: %s [-1Vv] [filename ...]\n", progname);
+		    "usage: %s [-1Vv] [-w width] [filename ...]\n", progname);
 		(void) fprintf (stderr, "\t-1\tsingle column output\n");
 		(void) fprintf (stderr, "\t-v\tverbose debugging output\n");
 		(void) fprintf (stderr, "\t-V\tprint program version\n");

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/text.c	10.18"
+#ident	"@(#)kern-port:os/text.c	10.18.1.4"
 #include "sys/types.h"
 #include "sys/param.h"
 #include "sys/sysmacros.h"
@@ -104,7 +104,7 @@ loop:
 	 *	RG_NOFREE until the end also.
 	 */
 
-	if ((rp = allocreg(ip, RT_STEXT, 0)) == NULL) {
+	if ((rp = allocreg(ip, RT_STEXT)) == NULL) {
 		iput(ip);
 		return(NULL);
 	}
@@ -134,6 +134,7 @@ loop:
 
 		/* fall thru case if REMOTE */
 	case 0410:
+	case 0411:
 		if (loadreg(prp, base, ip, org, size) < 0) {
 			ip->i_count--;
 			detachreg(prp, &u);
@@ -354,8 +355,6 @@ loop:
 	return(rval);
 }
 
-#ifndef vax
-
 #define FORCE	1
 
 /*
@@ -390,7 +389,7 @@ register preg_t *prp;
 		nprp = prp;
 		rp->r_type = RT_PRIVATE;
 	} else {
-		ip = rp->r_iptr;
+		ASSERT(rp->r_iptr == NULL || (rp->r_iptr->i_flag & ILOCK));
 		va = prp->p_regva;
 		if ((nrp = dupreg(rp, NOSLEEP, FORCE)) == NULL) {
 			regrele(rp);
@@ -405,56 +404,11 @@ register preg_t *prp;
 		/* detachreg() unlocks ip */
 		if (ip)
 			plock(ip);
-		if ((nprp = attachreg(nrp, up, va, PT_TEXT, SEG_RO)) == NULL
-		  && ip)
-			prele(ip);
+		if ((nprp = attachreg(nrp, up, va, PT_TEXT, SEG_RO)) == NULL)
+			freereg(nrp);
 		winubunlock();
 	}
+	if (nprp)
+		nprp->p_reg->r_flags |= RG_WASTEXT;
 	return(nprp);
 }
-
-#else
-
-/*
- * Prepare object process text region for writing.  If there is currently
- * only one reference to it, and it's not sticky text (RG_NOFREE set on the
- * region), remove it from the active region list so that it will no longer
- * be found by xalloc() and change the region type (not the pregion type)
- * to RT_PRIVATE.  If more than one process is using it, make a private
- * duplicate, detach the original region from the object process, and attach
- * the duplicate in its place.  In either case return the pregion pointer
- * of the (new or old, and now private) text region.
- */
-preg_t *
-xdup(p, prp)
-register struct proc *p;
-register preg_t *prp;
-{
-	register reg_t *rp = prp->p_reg, *nrp;
-	register preg_t *nprp;
-	caddr_t va;
-
-	ASSERT(rp->r_flags & RG_LOCK);
-	ASSERT(rp->r_type == RT_STEXT);
-	if (rp->r_refcnt == 1 && (rp->r_flags & RG_NOFREE) == 0) {
-		nprp = prp;
-		/* Remove it from the active region list */
-		rp->r_back->r_forw = rp->r_forw;
-		rp->r_forw->r_back = rp->r_back;
-		rp->r_type = RT_PRIVATE;
-	} else {
-		extern struct user *uservad;
-		va = prp->p_regva;
-		if ((nrp = dupreg(rp, SEG_RO, 1)) == NULL) {
-			regrele(rp);
-			return(NULL);
-		}
-		/* Should RG_DONE be set on the new region? */
-		uaccess(&(baseseg[p->p_ptaddr+p->p_ptsize][-USIZE]));
-		detachreg(uservad, prp);
-		nprp = attachreg(nrp, uservad, va, PT_TEXT, SEG_RO);
-	}
-	return(nprp);
-}
-
-#endif

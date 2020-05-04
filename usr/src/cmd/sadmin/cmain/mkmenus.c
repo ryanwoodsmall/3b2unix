@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sadmin:cmain/mkmenus.c	1.5.1.3"
+#ident	"@(#)sadmin:cmain/mkmenus.c	1.5.1.5"
 /*
 	descend a tree of directory looking for menus of commands
 */
@@ -331,7 +331,7 @@ char	*pid;
 	static char	**av = 0;
 	int		i;
 	int		childpid;
-	int		(*prevsig)();
+	void		(*prevsig)();
 	int		status;
 
 	if( !av ) {

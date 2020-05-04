@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)listen:nlsaddr.c	1.2"
+#ident	"@(#)listen:nlsaddr.c	1.3"
 
 /*
  * nlsaddr.c:
@@ -85,7 +85,7 @@
 
 struct t_call *
 nlscalloc(fd)
-	int fd;
+int fd;
 {
 	struct t_info info;
 	struct t_call *call;
@@ -131,10 +131,7 @@ fail:
 	t_free(call, T_CALL);		/* t_free will release allocated mem*/
 	t_errno = TSYSERR;		/* errno must be ENOMEM	*/
 	return((struct t_call *)0);
-
 }
-
-
 
 
 /*
@@ -152,8 +149,8 @@ static char hex_digits[] = "0123456789ABCDEF";
 
 void
 nlsaddr2c(charaddr, addr, len)
-	register char *charaddr, *addr;
-	register len;
+register char *charaddr, *addr;
+register len;
 {
 	register unsigned i;
 
@@ -189,8 +186,8 @@ nlsaddr2c(charaddr, addr, len)
 
 int
 nlsc2addr(addr, maxlen, charaddr)
-	register char *addr, *charaddr;
-	register maxlen;
+register char *addr, *charaddr;
+register maxlen;
 {
 	register len;
 	register int i;

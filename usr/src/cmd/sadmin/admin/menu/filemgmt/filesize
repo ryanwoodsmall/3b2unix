@@ -1,10 +1,9 @@
-#ident	"@(#)sadmin:admin/menu/filemgmt/filesize	2.5"
+#ident	"@(#)sadmin:admin/menu/filemgmt/filesize	2.6"
 #menu# list the largest files in a particular directory
 #help# 
 #help#	Filesize prints the names of the largest files in a specific
-#help#	directory.  If you don't enter a directory name, your HOME
-#help#	directory will be used.  If you don't specify how many large
-#help#	files to list, 10 files will be listed.
+#help#	directory. If you don't specify how many large file to list,
+#help#	10 files will be listed.
 
 trap 'exit 0' 1 2 15
 trap "	trap '' 1 2
@@ -15,10 +14,10 @@ deffiles=10	# default number of large files
 
 while true
 do
-	fsys=`checkre ${flags} -D "$HOME" -H'
+	fsys=`checkre ${flags} -H'
 	This is the starting point used to build the list of large files.' \
 		-fe "Enter full path name of the directory to search
-(default $HOME) [?, q]: " \
+[?, q]: " \
 		'^/.*' 'Directory name must begin with a "/".'`
 
 	if [ -d "${fsys}" ]
@@ -31,7 +30,7 @@ done
 
 nfiles=`checkre ${flags} -D "${deffiles}" \
 		-fe "Enter the number of large files to be included in list
-(default ${deffiles}) [q]:" \
+(default ${deffiles} largest) [q]:" \
 		'^[0-9]*$' 'Answer contains an illegal character.
 	Only numbers are permitted.' \
 		'[1-9]' 'Answer must be greater than zero.' \

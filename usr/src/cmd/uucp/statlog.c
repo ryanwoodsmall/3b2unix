@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:statlog.c	1.1"
+#ident	"@(#)uucp:statlog.c	1.2"
 
 #include "uucp.h"
 
@@ -24,6 +24,10 @@ time_t		millisecs;
 	unsigned long	bytes1000;
 
 	bytes1000 = bytes * 1000;
+	/* on fast machines, times(2) resolution may not be enough */
+	/* so millisecs may be zero.  just use 1 as best guess */
+	if ( millisecs == 0 )
+		millisecs = 1;
 	(void) sprintf(text, "%s %lu / %lu.%.3u secs, %lu bytes/sec",
 		direction, bytes, millisecs/1000, millisecs%1000,
 		bytes1000/millisecs );

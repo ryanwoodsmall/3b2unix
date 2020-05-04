@@ -5,25 +5,22 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/delay.c	1.4.1.1"
-/*
-  Split off from tputs.c
-*/
+#ident	"@(#)curses:screen/delay.c	1.4.1.3"
 
-#include "curses.ext"
+#include	"curses_inc.h"
 
 /*
  * The following array gives the number of tens of milliseconds per
  * character for each speed as returned by gtty.  Thus since 300
  * baud returns a 7, there are 33.3 milliseconds per char at 300 baud.
  */
-static
-short	tmspc10[] = {
-	/* 0   50    75   110 134.5 150  200  300   baud */
-	   0, 2000, 1333, 909, 743, 666, 500, 333,
-	/* 600 1200 1800 2400 4800 9600 19200 38400 baud */
-	   166, 83,  55,  41,  20,  10,   5,    2
-};
+static	short	tmspc10[] =
+		{
+		    /* 0   50    75   110 134.5 150  200  300   baud */
+		       0, 2000, 1333, 909, 743, 666, 500, 333,
+		    /* 600 1200 1800 2400 4800 9600 19200 38400 baud */
+		       166, 83,  55,  41,  20,  10,   5,    2
+		};
 
 /*
  * Insert a delay into the output stream for "delay/10" milliseconds.
@@ -32,38 +29,31 @@ short	tmspc10[] = {
  * Transmitting pad characters slows many terminals down and also
  * loads the system.
  */
-int
+
 _delay(delay, outc)
-register int delay;
-int (*outc)();
+register	int	delay;
+int		(*outc)();
 {
-	register int mspc10;
-	register int pc;
-	register int outspeed;
+    register	int	mspc10;
+    register	int	pc;
+    register	int	outspeed;
 
-	/* if there is no pad character, then just return */
-	if (no_pad_char)
-		return OK;
+    /* if there is no pad character, then just return */
+    if (no_pad_char)
+	goto good;
 
-#ifndef 	NONSTANDARD
-# ifdef SYSV
-	outspeed = PROGTTY.c_cflag&CBAUD;
-# else
-	outspeed = PROGTTY.sg_ospeed;
-# endif
-#else		/* NONSTANDARD */
-	outspeed = outputspeed(cur_term);
-#endif		/* NONSTANDARD */
-	if (outspeed <= 0 || outspeed >= (sizeof tmspc10 / sizeof tmspc10[0]))
-		return ERR;
+    outspeed = _BR(PROGTTY);
+    if (outspeed <= 0 || outspeed >= (sizeof tmspc10 / sizeof tmspc10[0]))
+	return (ERR);
 
-	mspc10 = tmspc10[outspeed];
-	delay += mspc10 / 2;
-	if (pad_char)
-		pc = *pad_char;
-	else
-		pc = 0;
-	for (delay /= mspc10; delay-- > 0; )
-		(*outc)(pc);
-	return OK;
+    mspc10 = tmspc10[outspeed];
+    delay += mspc10 / 2;
+    if (pad_char)
+	pc = *pad_char;
+    else
+	pc = 0;
+    for (delay /= mspc10; delay-- > 0; )
+	(*outc)(pc);
+good:
+    return (OK);
 }

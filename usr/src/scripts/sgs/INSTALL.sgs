@@ -1,4 +1,4 @@
-#ident	"@(#)pkg.sgs:INSTALL.sgs	1.14"
+#ident	"@(#)pkg.sgs:INSTALL.sgs	1.15"
 #
 # Multiple Floppy INSTALL Script
 #
@@ -244,7 +244,7 @@ done
 # if necessary
 #
 
-if [ -s /usr/options/crypt.name ]
+if [ -s /usr/options/crypt.name -a -s /usr/lib/libcrypt_d.a ]
 then
 	mv -f /usr/lib/libcrypt.a /usr/lib/libcrypt_i.a
 	mv -f /usr/lib/libcrypt_d.a /usr/lib/libcrypt.a

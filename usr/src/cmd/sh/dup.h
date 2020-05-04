@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sh:dup.h	1.4"
+#ident	"@(#)sh:dup.h	1.6"
 #
 /*
  *	UNIX shell

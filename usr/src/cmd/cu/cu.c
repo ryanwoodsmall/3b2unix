@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)cu:cu.c	2.14"
+#ident	"@(#)cu:cu.c	2.20"
 
 /********************************************************************
  *cu [-sspeed] [-lline] [-h] [-t] [-d] [-n] [-o|-e] telno | systemname
@@ -71,6 +71,20 @@ int Cn;				/*fd for remote comm line */
 static char *_Cnname;			/*to save associated ttyname */
 jmp_buf Sjbuf;			/*needed by uucp routines*/
 
+/*	io buffering	*/
+/*	Wiobuf contains, in effect, 3 write buffers (to remote, to tty	*/
+/*	stdout, and to tty stderr) and Riobuf contains 2 read buffers	*/
+/*	(from remote, from tty).  [WR]IOFD decides which one to use.	*/
+/*	[RW]iop holds current position in each.				*/
+#define WIOFD(fd)	(fd == TTYOUT ? 0 : (fd == Cn ? 1 : 2))
+#define RIOFD(fd)	(fd == TTYIN ? 0 : 1)
+#define WRIOBSZ 256
+static char Riobuf[2*WRIOBSZ];
+static char Wiobuf[3*WRIOBSZ];
+static int Riocnt[2]={0,0};
+static char *Riop[2]; 
+static char *Wiop[3]; 
+
 extern int
 	errno,			/* supplied by system interface */
 	optind;			/* variable in getopt() */
@@ -87,6 +101,7 @@ static struct call {		/*NOTE-also included in altconn.c--> */
 	char *class;		/* call class */
 	}Cucall;
 	
+static int Saved_tty;		/* was TCGETAW of _Tv0 successful?	*/
 static struct termio _Tv, _Tv0;	/* for saving, changing TTY atributes */
 static struct termio _Lv;	/* attributes for the line to remote */
 static struct utsname utsn; 
@@ -166,6 +181,8 @@ char *P_TELLENGTH = "Telno cannot exceed 58 digits!\r\n";
 main(argc, argv)
 char *argv[];
 {
+	extern void setservice();
+	extern int sysaccess();
 	struct stat buff;
 	struct stat bufsave;
 	char s[MAXPH];
@@ -176,10 +193,28 @@ char *argv[];
 	int lflag=0;
 	int nflag=0;
 	int systemname = 0;
+
+	Riop[0] = &Riobuf[0];
+	Riop[1] = &Riobuf[WRIOBSZ];
+	Wiop[0] = &Wiobuf[0];
+	Wiop[1] = &Wiobuf[WRIOBSZ];
+	Wiop[2] = &Wiobuf[2*WRIOBSZ];
+
 	Verbose = 1;		/*for uucp callers,  dialers feedback*/
 	strcpy(Progname,"cu");
-	i = setservice(Progname);
-	ASSERT( i == 0, Ct_OPEN, "Systems", 0 );
+	setservice(Progname);
+	if ( sysaccess(EACCESS_SYSTEMS) != 0 ) {
+		(void)fprintf(stderr, "cu: cannot read Systems files\n");
+		exit(1);
+	}
+	if ( sysaccess(EACCESS_DEVICES) != 0 ) {
+		(void)fprintf(stderr, "cu: cannot read Devices files\n");
+		exit(1);
+	}
+	if ( sysaccess(EACCESS_DIALERS) != 0 ) {
+		(void)fprintf(stderr, "cu: cannot read Dialers files\n");
+		exit(1);
+	}
 
 	Cucall.speed = "Any";       /*default speed*/
 	Cucall.line = NULL;
@@ -202,9 +237,17 @@ char *argv[];
 				Terminal = YES;
 				break;
 			case 'e':
+				if ( Oddflag ) {
+					(void)fprintf(stderr, "%s: cannot have both even and odd parity\n", argv[0]);
+					exit(1);
+				}
 				Evenflag = 1;
 				break;
 			case 'o':
+				if ( Evenflag ) {
+					(void)fprintf(stderr, "%s: cannot have both even and odd parity\n", argv[0]);
+					exit(1);
+				}
 				Oddflag = 1;
 				break;
 			case 's':
@@ -234,7 +277,7 @@ char *argv[];
 	if(fstat(TTYIN, &buff) < 0) {
 		VERBOSE(P_NOTERMSTAT,"");
 		exit(1);
-	} else if(buff.st_rdev == 0) {
+	} else if ( (buff.st_mode & S_IFMT) == S_IFCHR && buff.st_rdev == 0 ) {
 		VERBOSE(P_3BCONSOLE,"");
 		exit(1);
 		}
@@ -272,7 +315,8 @@ char *argv[];
 		exit(0);
 	}
 
-	(void)ioctl(TTYIN, TCGETA, &_Tv0); /* save initial tty state */
+	/* save initial tty state */
+	Saved_tty = ( ioctl(TTYIN, TCGETA, &_Tv0) == 0 );
 	_Tintr = _Tv0.c_cc[VINTR]? _Tv0.c_cc[VINTR]: '\377';
 	_Tquit = _Tv0.c_cc[VQUIT]? _Tv0.c_cc[VQUIT]: '\377';
 	_Terase = _Tv0.c_cc[VERASE]? _Tv0.c_cc[VERASE]: '\377';
@@ -305,8 +349,14 @@ char *argv[];
 		Cn = altconn(&Cucall);
 
 	_Cnname = ttyname(Cn);
-	if(_Cnname != NULL)
-		chmod(_Cnname, DEVICEMODE);
+	if(_Cnname != NULL) {
+		struct stat Cnsbuf;
+		if ( fstat(Cn, &Cnsbuf) == 0 )
+			Dev_mode = Cnsbuf.st_mode;
+		else
+			Dev_mode = R_DEVICEMODE;
+		chmod(_Cnname, M_DEVICEMODE);
+	}
 
 	Euid = geteuid();
 	if(setuid(getuid()) && setgid(getgid()) < 0) {
@@ -453,9 +503,11 @@ transmit()
 					VERBOSE(P_LINE_GONE,"");
 					return(IOERR);
 				}
-				if(Duplex == NO)
-					if(w_char(TTYERR) == NO)
+				if(Duplex == NO) {
+					if((w_char(TTYERR) == NO) ||
+					   (wioflsh(TTYERR) == NO))
 						return(IOERR);
+				}
 				if ((_Cxc == _Tintr) || (_Cxc == _Tquit) ||
 					 ( (p==b) && (_Cxc == _Myeof) ) ) {
 					CDEBUG(4,"got a tintr\n\r","");
@@ -595,7 +647,8 @@ static void
 _shell(str)
 char	*str;
 {
-	int	fk, (*xx)(), (*yy)();
+	int	fk;
+	void	(*xx)(), (*yy)();
 
 	CDEBUG(4,"call _shell(%s)\r\n", str);
 	fk = dofork();
@@ -978,7 +1031,8 @@ _mode(arg)
 {
 	CDEBUG(4,"call _mode(%d)\r\n", arg);
 	if(arg == 0) {
-		(void)ioctl(TTYIN, TCSETAW, &_Tv0);
+		if ( Saved_tty )
+			(void)ioctl(TTYIN, TCSETAW, &_Tv0);
 	} else {
 		(void)ioctl(TTYIN, TCGETA, &_Tv);
 		if(arg == 1) {
@@ -1029,43 +1083,103 @@ dofork()
 static int
 r_char(fd)
 {
-	int rtn;
+	int rtn = 1, rfd;
+	char *riobuf;
 
-	while((rtn = read(fd, &_Cxc, 1)) < 0){
-		if(errno == EINTR)
-	/* onintrpt() called asynchronously before this line */
-			if(Intrupt == YES) {
-				_Cxc = '\0';	/* got a BREAK */
-				return(YES);
-			} else
-				continue;	/*a signal other than*/ 
-					    /*interrupt received during read*/
-		else {
-			CDEBUG(4,"got read error, not EINTR\n\r","");
-			break;			/* something wrong */
+	/* find starting pos in correct buffer in Riobuf	*/
+	rfd = RIOFD(fd);
+	riobuf = &Riobuf[rfd*WRIOBSZ];
+
+	if (Riop[rfd] >= &riobuf[Riocnt[rfd]]) {
+		/* empty read buffer - refill it	*/
+
+		/*	flush any waiting output	*/
+		if ( (wioflsh(Cn) == NO ) || (wioflsh(TTYOUT) == NO) )
+			return(NO);
+
+		while((rtn = read(fd, riobuf, WRIOBSZ)) < 0){
+			if(errno == EINTR) {
+		/* onintrpt() called asynchronously before this line */
+				if(Intrupt == YES) {
+					/* got a BREAK */
+					_Cxc = '\0';
+					return(YES);
+				} else {
+					/*a signal other than interrupt*/ 
+					/*received during read*/
+					continue;
+				}
+			} else {
+				CDEBUG(4,"got read error, not EINTR\n\r","");
+				break;			/* something wrong */
+			}
+		}
+		if (rtn > 0) {
+			/* reset current position in buffer	*/
+			/* and count of available chars		*/
+			Riop[rfd] = riobuf;
+			Riocnt[rfd] = rtn;
 		}
 	}
-	_Cxc &= 0177; 			/*must mask off parity bit*/
-	return(rtn == 1? YES: NO);	
+
+	if ( rtn > 0 ) {
+		_Cxc = *(Riop[rfd]++) & 0177; 	/*must mask off parity bit*/
+		return(YES);
+	} else {
+		_Cxc = '\0';
+		return(NO);
+	}
 }
 
 static int
 w_char(fd)
 {
-	int rtn;
+	int wfd;
+	char *wiobuf;
 
-	while((rtn = write(fd, &_Cxc, 1)) < 0)
-		if(errno == EINTR)
-			if(Intrupt == YES) {
-				VERBOSE("\ncu: Output blocked\r\n","");
-				_quit(IOERR);
-			} else
-				continue;	/* alarm went off */
-		else
-			break;			/* bad news */
-	return(rtn == 1? YES: NO);
+	/* find starting pos in correct buffer in Wiobuf	*/
+	wfd = WIOFD(fd);
+	wiobuf = &Wiobuf[wfd*WRIOBSZ];
+
+	if (Wiop[wfd] >= &wiobuf[WRIOBSZ]) {
+		/* full output buffer - flush it */
+		if ( wioflsh(fd) == NO )
+			return(NO);
+	}
+	*(Wiop[wfd]++) = _Cxc;
+	return(YES);
 }
 
+/* wioflsh	flush output buffer	*/
+static int
+wioflsh(fd)
+int fd;
+{
+	int rtn, wfd;
+	char *wiobuf;
+
+	/* find starting pos in correct buffer in Wiobuf	*/
+	wfd = WIOFD(fd);
+	wiobuf = &Wiobuf[wfd*WRIOBSZ];
+
+	if (Wiop[wfd] > wiobuf) {
+		/* there's something in the buffer */
+		while((rtn = write(fd, wiobuf, (Wiop[wfd] - wiobuf))) < 0) {
+			if(errno == EINTR)
+				if(Intrupt == YES) {
+					VERBOSE("\ncu: Output blocked\r\n","");
+					_quit(IOERR);
+				} else
+					continue;	/* alarm went off */
+			else {
+				Wiop[wfd] = wiobuf;
+				return(NO);			/* bad news */
+			}
+		}
+	}
+	Wiop[wfd] = wiobuf;
+	return(YES);
+}
 
 
 static void
@@ -1134,7 +1248,7 @@ int code;	/*Closes device; removes lock files          */
 
 	(void) setuid(Euid);
 	if(Cn > 0) {
-		chmod(_Cnname, 0644);
+		chmod(_Cnname, Dev_mode);
 		(void)close(Cn);
 	}
 

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)pcc2:common/reader.c	10.5"
+#ident	"@(#)pcc2:common/reader.c	10.10"
 
 # include "mfile2.h"
 #ifndef	NODBG
@@ -55,6 +55,9 @@ register NODE *p;
 	q->in.left = r;
 	r->tn.op = QNODE;
 	r->tn.rval = callreg(p); /* the reg where the value will be forced */
+#ifdef CG
+	q->in.strat = r->in.strat = 0;
+#endif
 	return( q );
 }
 
@@ -187,6 +190,7 @@ register o,l;
 	   && logop( pop=p->tn.op )
 #ifdef	CG
 	   && !(p->in.strat & EXIGNORE)
+	   && (pop != BCMP)
 #endif
 	   && (pop != ANDAND) 
 	   && (pop != OROR)) 
@@ -204,8 +208,11 @@ register o,l;
 			p->tn.op = CMP;
 	}
 #else
-	if( o && logop( pop=p->tn.op ) &&
-		(pop!= ANDAND) 
+	if( o && logop( pop=p->tn.op )
+#ifdef CG
+		&& (pop != BCMP)
+#endif
+		&& (pop != ANDAND) 
 	        && (pop != OROR)
 	) p->tn.op = CMP;
 #endif
@@ -404,9 +411,9 @@ register NODE *p1, *p2;
 	/* execute p then q */
 	register NODE *q;
 
-	q = talloc();
 	if (!p1) return p2;
 	if (!p2) return p1;
+	q = talloc();
 	q->in.op = COMOP;
 	q->in.type = p2->in.right->in.type;
 	q->in.left = p1;
@@ -457,7 +464,7 @@ register goal,t,f;
 #ifndef NODBG
 	if( odebug >2 ) 
 	{
-		fprintf(outfile, "condit( %d (%s), %s, %d, %d )\n", (int)(p-node),
+		fprintf(outfile, "condit( %d (%s), %s, %d, %d )\n", (int)node_no(p),
 		opst[o], goal==CCC?"CCC":(goal==NRGS?"NRGS":"CEFF"),
 		t, f );
 	}
@@ -640,8 +647,6 @@ register goal,t,f;
                         case COPYASM:
                         case JUMP:
                         case GOTO:
-                        case LET:
-                        case CSE:
                         case ALIGN:
                         case BMOVE:
                         case BMOVEO:
@@ -652,6 +657,10 @@ register goal,t,f;
                         case EXCLEAR:
                         case EXTEST:
                         case EXRAISE:
+			case CAPCALL:
+			case CAPRET:
+			case RSAVE:
+			case RREST:
 #endif
 				goal = NRGS;
 			}
@@ -661,9 +670,19 @@ register goal,t,f;
 		   result is not clear from the lhs.  If our goal is
 		   CEFF, we don't need a result, but we need to
 		   preserve that dependancy. So special case it. */
+		/* For CG: the lhs is always for value; the rhs is
+		  whatever the goal of the LET is*/
 		if (goal==CEFF)  {
 			if (o == ANDAND) return andeff(p);
 			if (o == OROR) return oreff(p);
+#ifdef CG
+			if (o == LET)
+			{
+				p->in.left = condit( p->in.left, NRGS, -1, -1 );
+				p->in.right = condit( p->in.right, goal, -1, -1 );
+				return p;
+			}
+#endif
 		}
 		/* This next batch of code wanders over the tree getting
 		   rid of code which is for effect only and has no
@@ -798,10 +817,13 @@ register goal,t,f;
 			case LT:
 			case GE:
 			case GT:
-				if( logop( p->in.left->tn.op ) )
+				if(    logop( p->in.left->tn.op )
+				    || p->in.left->in.op == QUEST )
 				{
-					/* situation like (a==0)==0 */
-					/* ignore optimization */
+					/* situation like (a==0)==0
+					** or ((i ? 0 : 1) == 0
+					** ignore optimization
+					*/
 					goto noopt;
 				}
 				break;
@@ -829,6 +851,16 @@ noopt:
 		return( p );
 
 #ifdef	CG
+	case BCMP:
+			/*Don't call condit on the CM's that
+			  hold these 'ternary' nodes together.*/
+		p->in.left = condit(p->in.left, NRGS, -1, -1);
+		p->in.right->in.left = condit(p->in.right->in.left, NRGS, -1, -1);
+		p->in.right->in.right = condit(p->in.right->in.right, NRGS, -1, -1);
+		if( t>=0 ) p = genbr( NE, t, p );
+		if( f>=0 ) p = genbr( (t>=0)?0:EQ, f, p );
+		return( p );
+
 	case SEMI:
 			/*RTOL semi for condition codes .
 			  we must save a value, do the lhs, then
@@ -1012,7 +1044,12 @@ register NODE *p;
 }
 
 p2bbeg( aoff, myreg ) 
-register aoff,myreg;
+register aoff;
+#ifdef	REGSET				/* in RCC, myreg is register bit vector */
+RST myreg;
+#else
+register myreg;
+#endif
 {
 	static int myftn = -1;
 	SETOFF( aoff, ALSTACK );
@@ -1076,10 +1113,9 @@ e2print( p )
 register NODE *p; 
 {
 #ifdef CG
-			/*CG can can send debug prints to debugfile*/
-	FILE *saveofile = outfile;
-	ofile(debugfile);
-#endif
+	cgprint(p,0);
+	return;
+#else
 #ifdef	STINCC
 	PUTS( "\n*********\n" );
 #else
@@ -1087,11 +1123,7 @@ register NODE *p;
 #endif
 	e22print( p ,"T");
 	PUTS("=========\n");
-#ifdef CG
-			/* Now, reset the file */
-	fflush(outfile);
-	ofile(saveofile);
-#endif
+#endif /*def CG */
 }
 
 e22print( p ,s)
@@ -1128,7 +1160,7 @@ char *s;
 	for( d=down; d>1; d -= 2 ) PUTCHAR( '\t' );
 	if( d ) PUTS( "    " );
 
-	fprintf(outfile, "%s.%d) op= '%s'",s, (int)(p-node), opst[p->in.op] );
+	fprintf(outfile, "%s.%d) op= '%s'",s, (int)node_no(p), opst[p->in.op] );
 #ifdef CG
 	prstrat(p->in.strat);	/*print the strategy field*/
 #endif
@@ -1202,6 +1234,8 @@ char *s;
                 break;
 
         case BEGF:
+	case RSAVE:
+	case RREST:
                 {
                 int i;
                         for (i=0; i<TOTREGS; ++i)
@@ -1251,7 +1285,7 @@ char *s;
 
 	PUTS( ", " );
 #ifdef	CG
-	if (p->in.tnum & OCOPY)
+	if (p->in.strat & OCOPY)
 	    PUTS( "<Ocopy>,");
 #endif
 	t2print( p->in.type );

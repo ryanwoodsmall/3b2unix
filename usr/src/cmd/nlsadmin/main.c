@@ -5,12 +5,12 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)nlsadmin:main.c	1.12"
+#ident	"@(#)nlsadmin:main.c	1.18.2.1"
 
 #include "sys/types.h"
 #include "sys/tiuser.h"
 #include "sys/stat.h"
-#include "sys/dir.h"
+#include "dirent.h"
 #include "stdio.h"
 #include "ctype.h"
 #include "signal.h"
@@ -25,6 +25,8 @@ char    *arg0;
 int Errno;
 
 char serv_str[16];
+char id_str[BSIZE];
+char res_str[BSIZE];
 char flag_str[10];
 char mod_str[BSIZE];
 char path_str[BSIZE];
@@ -52,9 +54,11 @@ extern char *errscode;
 extern char *errperm;
 extern char *errdbf;
 extern char *errsvc;
+extern char *errarg;
 extern char *init[];
 
 extern char *malloc();
+
 
 main(argc, argv)
 int   argc;
@@ -71,6 +75,8 @@ char *argv[];
 	int	mflag = 0;
 	char    *laddr = NULL;
 	char    *taddr = NULL;
+	char	*id = NULL;
+	char	*res = NULL;
 	char    *pathname = NULL;
 	char    *command = NULL;
 	char    *comment = NULL;
@@ -105,11 +111,11 @@ char *argv[];
 	/* get password entry for name LSUIDNAME.  homedir = LSUIDNAME's home */
 
 	if (!(pwdp = getpwnam(LSUIDNAME)) || !(strlen(pwdp->pw_dir)))  {
-		fprintf(stderr,"%s: could not find correct pasword entry for %s\n",arg0,LSUIDNAME);
+		fprintf(stderr,"%s: could not find correct password entry for %s\n",arg0,LSUIDNAME);
 		exit(NLSNOPASS);
 	}
 	nlsuid = pwdp->pw_uid;
-	strcpy(homedir, pwdp->pw_dir);
+	strcpy(homedir, HOMEDIR);
 	endpwent();
 
 	umask(022);
@@ -119,9 +125,9 @@ char *argv[];
 	 */
 
 #ifndef	S4
-	while ((c = getopt(argc, argv, "a:c:d:e:ikl:mnp:qr:st:vxy:z:")) != EOF) {
+	while ((c = getopt(argc, argv, "a:c:d:e:ikl:mnp:qr:st:vw:xy:z:")) != EOF) {
 #else
-	while ((c = getopt(argc, argv, "a:c:d:e:ikl:mnqr:st:vxy:z:S:")) != EOF) {
+	while ((c = getopt(argc, argv, "a:c:d:e:ikl:mnqr:st:vw:xy:z:S:")) != EOF) {
 #endif
 		switch (c) {
 			case 'a':
@@ -192,6 +198,11 @@ char *argv[];
 				break;
 			case 'v':
 				flag |= VERBOSE;
+				break;
+			case 'w':
+				flag |= ADD;
+				if (*optarg != '-')
+					id = optarg;
 				break;
 			case 'x':
 				flag |= ALL;
@@ -274,6 +285,9 @@ char *argv[];
 #endif
 	}
 
+	if ((flag != ALL) && (flag != INIT) && check_version(pathname))
+		error("database file is not current version, please convert", NLSVER);
+
 	switch (flag) {
 		case ALL:
 			if (mflag || qflag || nflag || adrflg || net_spec)
@@ -286,6 +300,8 @@ char *argv[];
 			if (uid != 0)
 				error(errperm, NLSPERM);
 			if (access(pathname, 0) < 0) {
+				if (strchr(net_spec, '\n'))
+					error(errarg, NLSCMD);
 				if (!make_db(pathname, net_spec))
 					error("error in making database file", Errno);
 			} else {
@@ -299,7 +315,11 @@ char *argv[];
 				usage();
 			if (uid != 0)
 				error(errperm, NLSPERM);
-			if (!add_nls(pathname,serv_code,modules,command,comment, mflag))
+			if (strchr(serv_code, '\n') || strchr(modules, '\n') ||
+			    strchr(command, '\n') || strchr(comment, '\n') ||
+			    strchr(id, '\n') || strchr(res, '\n'))
+				error(errarg, NLSCMD);
+			if (!add_nls(pathname,serv_code,id,res,modules,command,comment,mflag))
 				error("could not add service", Errno);
 			break;
 		case REM:
@@ -366,6 +386,8 @@ char *argv[];
 				usage();
 			if ((laddr || taddr) && (uid != 0))
 				error(errperm, NLSPERM);
+			if (strchr(laddr, '\n') || strchr(taddr, '\n'))
+				error(errarg, NLSCMD);
 			if (!chg_addr(net_spec, laddr, taddr, adrflg))
 				error("error in accessing address file",Errno);
 			exit(NLSOK);
@@ -403,6 +425,7 @@ char *argv[];
 	exit(Errno);
 }
 
+
 #ifdef S4
 
 static char *usagemsg = "\
@@ -414,7 +437,7 @@ initialize:	[-i]  | \n\
 set addresses:	[ [-l address|-]  [-t address|-] ]  |\n\
 		[-S STARLAN_NETWORK_name]  |\n\
 query servers:	[[-q] -z service_code]  |\n\
-add server:	[ [-m] -a service_code -c \"command\" -y \"comment\" ]  |\n\
+add server:	[ [-m] -a service_code -c \"command\" [-w id] -y \"comment\" ]  |\n\
 remove server:	[-r service_code]  |\n\
 enable/disable:	[-d service_code]  |  [-e service_code]\n\
 ";
@@ -426,18 +449,19 @@ static char *usagemsg = "\
 \twhere [ options ] are:\n\
 [-q]  |  [-v]  |  [-s]  |  [-k]  |  [-i]  | \n\
 [ [-l address|-]  [-t address|-] ]  |\n\
-[ [-m] -a svc_code -c \"cmd\" -y \"comment\"  [-p module_list] ]  |\n\
+[ [-m] -a svc_code -c \"cmd\" -y \"comment\"  [-p module_list] [-w id]]  |\n\
 [[-q] -z svc_code]  |  [-r svc_code]  |  [-d svc_code]  |  [-e svc_code]\n\
 ";
 
 #endif
 
+
 usage()
 {
-
 	fprintf(stderr, usagemsg, arg0, arg0, arg0);
 	exit(NLSCMD);
 }
+
 
 error(s, ec)
 char *s;
@@ -448,9 +472,16 @@ int ec;
 	exit(ec);
 }
 
-add_nls(fname, serv, mods, path, comm, flag)	/* add an entry to the database */
+
+/*
+ * add an entry to the database, res is reserved for future use, ignore for now
+ */
+
+add_nls(fname, serv, id, res, mods, path, comm, flag)
 char *fname;
 char *serv;
+char *id;
+char *res;
 char *mods;
 register char *path;
 char *comm;
@@ -460,6 +491,7 @@ int flag;
 #ifndef S4
 	struct stat sbuf;
 #endif
+
 
 	for (; *path ; path++)		/* clean up beginning white space */
 		if (!isspace(*path))
@@ -483,10 +515,12 @@ int flag;
 		Errno = NLSOPEN;
 		return(0);
 	}
+	if (!id)
+		id = DEFAULTID;
 	if (mods)
-		fprintf(fp,"%s:%s:NULL,%s,:%s\t#%s\n",serv,flag?"na":"n",mods,path,comm);
+		fprintf(fp,"%s:%s:%s:reserved:NULL,%s,:%s\t#%s\n",serv,flag?"na":"n",id,mods,path,comm);
 	else
-		fprintf(fp,"%s:%s:NULL,:%s\t#%s\n",serv,flag?"na":"n",path,comm);
+		fprintf(fp,"%s:%s:%s:reserved:NULL,:%s\t#%s\n",serv,flag?"na":"n",id,path,comm);
 	if (fclose(fp) != 0) {
 		fprintf(stderr,errclose,arg0,fname,errno);
 		Errno = NLSCLOSE;
@@ -501,6 +535,8 @@ int flag;
 		(void) stat(path, &sbuf);
 		if (!(sbuf.st_mode & 0111))
 			fprintf(stderr,"%s: warning - %s not executable\n", arg0, path);
+		if (!(sbuf.st_mode & S_IFREG))
+			fprintf(stderr, "%s: warning - %s not a regular file\n", arg0, path);
 	} else {
 		fprintf(stderr,"%s: warning - %s not found\n", arg0, path);
 	}
@@ -509,6 +545,7 @@ int flag;
 
 	return(1);
 }
+
 
 rem_nls(fname, serv_code)	       /* remove an entry from the database */
 char *fname;
@@ -536,6 +573,7 @@ char *serv_code;
 		return(0);
 	return(1);
 }
+
 
 enable_nls(fname, serv_code)	    /* enable a specific service code */
 char *fname;
@@ -585,6 +623,7 @@ char *serv_code;
 	}
 	for ( ; *from ; )
 		*to++ = *from++;
+	*to = '\0';
 	fprintf(tfp, "%s", copy);
 	free(bp);
 	free(copy);
@@ -594,6 +633,7 @@ char *serv_code;
 		return(0);
 	return(1);
 }
+
 
 disable_nls(fname, serv_code)	   /* disable a specific service code */
 char *fname;
@@ -644,6 +684,7 @@ char *serv_code;
 	*to++ = 'x';
 	for ( ; *from ; )
 		*to++ = *from++;
+	*to = '\0';
 	fprintf(tfp, "%s", copy);
 	free(bp);
 	free(copy);
@@ -654,12 +695,11 @@ char *serv_code;
 	return(1);
 }
 
+
 isdir(s)		/* check to see if a directory exists */
 char *s;
 {
-
 	struct stat sbuf;
-
 
 	if (stat(s, &sbuf) != 0) {
 		fprintf(stderr, "%s: could not stat %s, errno = %d\n",arg0,s,errno);
@@ -672,6 +712,7 @@ char *s;
 		return(0);
 }
 
+
 isnum(s)		/* check to see if s is a numeric string */
 register char *s;
 {
@@ -683,6 +724,7 @@ register char *s;
 	return(1);
 }
 
+
 isactive(name)	  /* is a listener active? */
 char *name;
 {
@@ -692,7 +734,7 @@ char *name;
 
 	sprintf(lockname, "%s/%s", homedir, name);
 	if (access(lockname, 0) < 0) {
-		fprintf(stderr, "%s: net_spec %s not found\n", arg0, name);
+		fprintf(stderr, erropen, arg0, name);
 		exit(NLSNOTF);
 	}
 	strcat(lockname, "/");
@@ -726,6 +768,7 @@ char *name;
 	close(fd);
 	return(0);
 }
+
 
 make_db(fname, nspec)	   /* create the database file */
 char *fname;
@@ -821,6 +864,7 @@ char *nspec;
 	return(1);
 }
 
+
 chg_addr(fname, la, ta, flag)
 char *fname;
 char *la;
@@ -859,6 +903,31 @@ register int flag;
 	if(p = strrchr(adr2, (int)'\n'))
 		*p = (char)0;
 	fp = NULL;
+
+/*
+ * check to make sure the addresses are different before we zap the addr file
+ * 3 cases exist, we are changing both, just la, or just ta
+ */
+
+	if ((la && ta && !strcmp(la, ta)) || (la && !ta && !strcmp(la, adr2)) || (!la && ta && !strcmp(adr1, ta))) {
+		fprintf(stderr, "%s: listening addresses not unique\n", arg0);
+		Errno = NLSNOTUNIQ;
+
+/*
+ * this little piece allows stuff like "nlsadmin -l addr -t- netspec"
+ * to still print out the 'other' address even if the update fails.  Note
+ * that fp will be NULL after this.
+ */
+
+		if (la) {
+			flag &= ~LISTEN;
+			la = NULL;
+		}
+		if (ta) {
+			flag &= ~TTY;
+			ta = NULL;
+		}
+	}
 	if (!la) {
 		if (flag & LISTEN)
 			printf("%s\n",adr1);
@@ -871,8 +940,12 @@ register int flag;
 		fprintf(fp, "%s\n", la);
 	}
 	if (!ta) {
-		if (flag & TTY)
-			printf("%s\n",adr2);
+		if (flag & TTY) {
+			if (adr2[0] != NULL)
+				printf("%s\n",adr2);
+			else
+				fprintf(stderr, "Terminal login service address not configured\n");
+		}
 		if (fp)
 			fprintf(fp, "%s\n", adr2);
 	} else {
@@ -898,8 +971,12 @@ register int flag;
 			return(0);
 		}
 	}
-	return(1);
+	if (Errno == NLSNOTUNIQ)
+		return(0);
+	else
+		return(1);
 }
+
 
 init_db(fp)	     /* initialize the database file */
 FILE *fp;
@@ -909,6 +986,7 @@ FILE *fp;
 	for ( i=0; *init[i]; i++)
 		fprintf(fp,"%s\n",init[i]);
 }
+
 
 copy_file(fp, start, finish)
 register FILE *fp;
@@ -955,6 +1033,7 @@ register int finish;
 	} /* if */
 }
 
+
 find_pid(name)
 char *name;
 {
@@ -973,6 +1052,7 @@ char *name;
 	return((int)strtol(pidchar, (char **)NULL, 10));
 }
 
+
 start_nls(name, flag)
 char *name;
 int flag;
@@ -983,6 +1063,7 @@ int flag;
 	FILE *fp;
 	struct netbuf *lbuf = NULL;
 	struct netbuf *tbuf = NULL;
+	int taddr = 0;	/* true if remote tty address specified */
 	extern struct netbuf *stoa();
 	extern void nlsaddr2c();
 
@@ -1009,8 +1090,8 @@ int flag;
 	*tstr = (char)0;
 	(void) fgets(lstr, NAMEBUFSZ, fp);
 	(void) fgets(tstr, NAMEBUFSZ, fp);
-	if (*lstr == '\n' || *tstr == '\n') {
-		fprintf(stderr,"%s: addresses not initialized for %s\n",arg0,name);
+	if (*lstr == '\n') {
+		fprintf(stderr,"%s: address not initialized for %s\n",arg0,name);
 		(void) fclose(fp);
 		exit(NLSADRF);
 	}
@@ -1021,13 +1102,17 @@ int flag;
 	}
 	*(lstr + strlen(lstr) -1) = (char)0;
 	*(tstr + strlen(tstr) -1) = (char)0;
+	if (*tstr)
+		taddr = 1;
 
 	/* call stoa - convert from rfs address to netbuf */
 
 	if ((lbuf = stoa(lstr, lbuf)) == NULL)
 		error(errmalloc, NLSMEM);
-	if ((tbuf = stoa(tstr, tbuf)) == NULL)
-		error(errmalloc, NLSMEM);
+	if (taddr) {
+		if ((tbuf = stoa(tstr, tbuf)) == NULL)
+			error(errmalloc, NLSMEM);
+	}
 
 	/* call nlsaddr2c - convert from netbuf to listener format */
 
@@ -1035,15 +1120,22 @@ int flag;
 	free(tstr);
 	if ((lstr = (char *)malloc(NAMEBUFSZ*2+1))==NULL)
 		error(errmalloc, NLSMEM);
-	if ((tstr = (char *)malloc(NAMEBUFSZ*2+1))==NULL)
-		error(errmalloc, NLSMEM);
+	if (taddr) {
+		if ((tstr = (char *)malloc(NAMEBUFSZ*2+1))==NULL)
+			error(errmalloc, NLSMEM);
+	}
 	nlsaddr2c(lstr, lbuf->buf, lbuf->len);
-	nlsaddr2c(tstr, tbuf->buf, tbuf->len);
+	if (taddr)
+		nlsaddr2c(tstr, tbuf->buf, tbuf->len);
 
 	(void) fclose(fp);
-	execl( buff, LISTENER, "-n", name, "-l", lstr, "-r", tstr, 0);
+	if (taddr)
+		execl( buff, LISTENER, "-n", name, "-l", lstr, "-r", tstr, 0);
+	else
+		execl( buff, LISTENER, "-n", name, "-l", lstr, 0);
 	error("could not exec listener", NLSEXEC ); 
 }
+
 
 kill_nls(name)
 char *name;
@@ -1067,6 +1159,7 @@ char *name;
 	}
 	return(1);
 }
+
 
 close_temp(fname)
 char *fname;
@@ -1103,6 +1196,7 @@ char *fname;
 	return(1);
 }
 
+
 open_temp()
 {
 	signal(SIGHUP, SIG_IGN);
@@ -1122,6 +1216,7 @@ open_temp()
 	umask(022);
 	return(1);
 }
+
 
 find_serv(fp, code)	     /* find a service routine */
 FILE *fp;
@@ -1148,6 +1243,7 @@ char *code;
 	return(-1);
 }
 
+
 print_spec(fname)
 char *fname;
 {
@@ -1166,14 +1262,14 @@ char *fname;
 
 #ifdef S4
 
-		printf("%s\t%s\t%s\t%s\n",serv_str, ignore?"DISABLED":"ENABLED ",path_str,cmnt_str);
+		printf("%s\t%s\t%s\t%s\t%s\n",serv_str, ignore?"DISABLED":"ENABLED ",id_str,path_str,cmnt_str);
 
 #else
 
 		if (mod_str[0] == (char)0)
-			printf("%s\t%s\tNOMODULES\t%s\t%s\n",serv_str, ignore?"DISABLED":"ENABLED ",path_str,cmnt_str);
+			printf("%s\t%s\t%s\tNOMODULES\t%s\t%s\n",serv_str, ignore?"DISABLED":"ENABLED ",id_str,path_str,cmnt_str);
 		else
-			printf("%s\t%s\t%s\t%s\t%s\n",serv_str, ignore?"DISABLED":"ENABLED ",mod_str,path_str,cmnt_str);
+			printf("%s\t%s\t%s\t%s\t%s\t%s\n",serv_str, ignore?"DISABLED":"ENABLED ",id_str,mod_str,path_str,cmnt_str);
 
 #endif /* S4 */
 
@@ -1182,6 +1278,7 @@ char *fname;
 		error("error in reading database file", Errno);
 	(void) fclose(fp);
 }
+
 
 print_all(dir)
 char *dir;
@@ -1201,17 +1298,20 @@ char *dir;
 	}
 }
 
+
 struct lbuf *
 read_dir(dir)
 char *dir;
 {
 	register struct lbuf *first, *lp, *nlp;
-	register int i;
-	register FILE *dfp;
-	struct direct dentry;
+	register DIR *dfp;
+	register struct dirent *dp;
+	extern DIR *opendir();
+	extern int closedir();
+	extern struct dirent *readdir();
 
 	first = NULL;
-	if ((dfp = fopen(dir, "r")) == NULL) {
+	if ((dfp = opendir(dir)) == NULL) {
 		fprintf(stderr, "%s: %s unreadable\n", arg0, dir);
 		Errno = NLSRDIR;
 		return(NULL);
@@ -1220,23 +1320,21 @@ char *dir;
 		error(errmalloc, NLSMEM);
 	first->link = (struct lbuf *)NULL;
 	lp = first;
-	for (;;) {
-		if (fread((char *)&dentry, sizeof(dentry), 1, dfp) != 1)
-			break;
-		if (dentry.d_ino == 0 || dentry.d_name[0] == '.')
+	while (dp = readdir(dfp)) {
+		if (dp->d_name[0] == '.')
 			continue;
 		if ((nlp = (struct lbuf *)malloc(sizeof(struct lbuf))) == NULL)
 			error(errmalloc, NLSMEM);
 		nlp->link = (struct lbuf *)NULL;
-		for (i = 0; i < DIRSIZ; i++)
-			lp->lname[i] = dentry.d_name[i];
+		strcpy(lp->lname, dp->d_name);
 		lp->link = nlp;
 		lp = nlp;
 		nlp = (struct lbuf *)NULL;
 	}
-	(void) fclose(dfp);
+	closedir(dfp);
 	return(first);
 }
+
 
 process_dir(dir)		/*  CAUTION: recursive routine */
 char *dir;
@@ -1263,6 +1361,7 @@ char *dir;
 		free(dirname);
 	} /* for */
 }
+
 
 makedir(p, s)
 char *p;
@@ -1302,6 +1401,7 @@ char *s;
 	return(1);
 }
 
+
 print_serv(fname, code, flag)
 char *fname;
 char *code;
@@ -1327,19 +1427,20 @@ int flag;
 
 #ifdef S4
 
-		printf("%s\t%s\t%s\t%s\n",serv_str, ignore?"DISABLED":"ENABLED ",path_str,cmnt_str);
+		printf("%s\t%s\t%s\t%s\t%s\n",serv_str, ignore?"DISABLED":"ENABLED ",id_str,path_str,cmnt_str);
 
 #else
 
 		if (mod_str[0] == (char)0)
-			printf("%s\t%s\tNOMODULES\t%s\t%s\n",serv_str, ignore?"DISABLED":"ENABLED ",path_str,cmnt_str);
+			printf("%s\t%s\t%s\tNOMODULES\t%s\t%s\n",serv_str, ignore?"DISABLED":"ENABLED ",id_str,path_str,cmnt_str);
 		else
-			printf("%s\t%s\t%s\t%s\t%s\n",serv_str, ignore?"DISABLED":"ENABLED ",mod_str,path_str,cmnt_str);
+			printf("%s\t%s\t%s\t%s\t%s\t%s\n",serv_str, ignore?"DISABLED":"ENABLED ",id_str,mod_str,path_str,cmnt_str);
 
 #endif /* S4 */
 
 	exit(NLSOK);
 }
+
 
 ok_netspec(nspec)		/* validates a net_spec name */
 char *nspec;

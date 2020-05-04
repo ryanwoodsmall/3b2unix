@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:admin/menu/ttymgmt/modtty	2.11"
+#ident	"@(#)sadmin:admin/menu/ttymgmt/modtty	2.13"
 #menu# show and optionally modify characteristics of tty lines
 #help#
 #help#	This subcommand reports and allows you to change the characteristics
@@ -170,12 +170,12 @@ ${tty}: new characteristics:
 		ed - /etc/inittab <<-!  ||  admerr $0 Cannot change /etc/inittab.
 			H
 			/getty.* ${tty} /  s/$/ # /
-			s/ ${tty}  *${curlineset} / ${tty} ${lineset} /
+			s/ ${tty}  *${curlineset}/ ${tty} ${lineset}/
 			s/:${curstate}:/:${state}:/
 			.v/ -t /  s/getty  */&-t ${delay} /
 			.g/ -t /  s/-t  *[0-9]\{1,\}  */-t ${delay} /
 			.g/ -t off /  s// /
-			s *#.* # ${desc}
+			s[	 ]*#.* # ${desc}
 			s/[# ]*\$//
 			w
 			!echo ${tty} now has new characteristics.

@@ -33,6 +33,7 @@ new	d--775 0 3
 			join		---555 2 2	../usr/bin/join
 			newform		---555 2 2	../usr/bin/newform
 			nl		---555 2 2	../usr/bin/nl
+			oawk		---555 2 2	../usr/bin/oawk
 			pack		---555 2 2	../usr/bin/pack
 			paste		---555 2 2	../usr/bin/paste
 			pg		---555 2 2	../usr/bin/pg
@@ -51,4 +52,4 @@ new	d--775 0 3
 	$
 $
 $
-#ident	"@(#)pkg.dfm:dfm/proto	1.9"
+#ident	"@(#)pkg.dfm:dfm/proto	1.9.1.1"

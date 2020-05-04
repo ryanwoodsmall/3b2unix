@@ -5,19 +5,19 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)terminfo:terminfo.mk	1.2"
+#ident	"@(#)terminfo:terminfo.mk	1.5"
 #
 #	terminfo makefile
 #
 
 ROOT=
-TERMDIR=${ROOT}/usr/lib/terminfo
-TABDIR=${ROOT}/usr/lib/tabset
+TERMDIR=$(ROOT)/usr/lib/terminfo
+TABDIR=$(ROOT)/usr/lib/tabset
 PARTS=	header *.ti trailer
 COMPILE=tic -v
 
 all:	ckdir terminfo.src
-	TERMINFO=${TERMDIR} 2>&1 $(COMPILE) terminfo.src > errs
+	TERMINFO=$(TERMDIR) 2>&1 $(COMPILE) terminfo.src > errs
 	@touch install
 	@echo
 	@sh ./ckout

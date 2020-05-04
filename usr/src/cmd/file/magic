@@ -1,4 +1,4 @@
-#ident	"@(#)file:magic	1.24"
+#ident	"@(#)file:magic	1.25"
 #
 #		file cmd's magic file
 #
@@ -33,6 +33,7 @@
 >15	byte		>0		- version %ld
 0	short		0432		Compiled Terminfo Entry
 0	short		0433		Curses screen image
+0	short		0434		Curses screen image
 0	short		0437		pdp11 kernel overlay
 0	short		0570		vax executable
 >12	long		>0		not stripped

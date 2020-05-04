@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)lint:lpass2.c	1.10"
+#ident	"@(#)lint:lpass2.c	1.12"
 /*	3.0 SID #	1.2	*/
 /* lpass2.c
  *	This file includes the main functions for the second lint pass.

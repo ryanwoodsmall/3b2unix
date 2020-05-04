@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/fork.c	10.14"
+#ident	"@(#)kern-port:os/fork.c	10.14.2.5"
 #include "sys/types.h"
 #include "sys/param.h"
 #include "sys/sysmacros.h"
@@ -66,6 +66,8 @@ winublocked()
 
 fork()
 {
+	register npcond;
+
 	sysinfo.sysfork++;
 
 	/*
@@ -76,7 +78,9 @@ fork()
 	 * Check done in newproc().
 	 */
 
-	switch (newproc(1)) {
+	npcond = NP_FAILOK | ( (u.u_uid && u.u_ruid) ? NP_NOLAST : 0);
+	
+	switch (newproc(npcond)) {
 		case 1:  /* child -- successful newproc */
 			u.u_rval1 = u.u_procp->p_ppid;
 			u.u_rval2 = 1; /* child */
@@ -90,6 +94,7 @@ fork()
 			u.u_utime = 0;
 			u.u_acflag = AFORK;
 			u.u_lock = 0;
+			u.u_rcstat = 0;
 			ASSERT(noilocks() == 0);
 			return;
 		case 0: /* parent, rval1 setup by newproc */
@@ -116,7 +121,7 @@ fork()
 
 int	mpid;
 
-newproc(failok)
+newproc(cond)
 {
 	register struct proc *cp, *pp, *pend;
 	register n, a;
@@ -153,7 +158,7 @@ retry:
 	} while (pp++, --n);
 	if (cp == NULL) {
 		if ((struct proc *)v.ve_proc >= &proc[v.v_proc]) {
-			if (failok) {
+			if (cond & NP_FAILOK) {
 				syserr.procovf++;
 				u.u_error = EAGAIN;
 				return(-1);
@@ -166,11 +171,13 @@ retry:
 		pend = cp;
 	pend++;
 	v.ve_proc = (char *)pend;
-	if (u.u_uid && u.u_ruid) {
-		if (cp == &proc[v.v_proc-1] || a > v.v_maxup) {
-			u.u_error = EAGAIN;
-			return(-1);
-		}
+	if (u.u_uid && u.u_ruid && (a > v.v_maxup)) {
+		u.u_error = EAGAIN;
+		return(-1);
+	}
+	if ((cond & NP_NOLAST) && (cp == &proc[v.v_proc-1])) {
+		u.u_error = EAGAIN;
+		return(-1);
 	}
 	/*
 	 * make proc entry for new proc
@@ -183,10 +190,13 @@ retry:
 	cp->p_nice = pp->p_nice;
 	cp->p_chold = pp->p_chold;
 	cp->p_sig = pp->p_sig;
+	cp->p_cursig = pp->p_cursig;
 	cp->p_hold = pp->p_hold;
 	cp->p_stat = SIDL;
 	cp->p_clktim = 0;
 	cp->p_flag = SLOAD | (pp->p_flag & (SSEXEC|SPROCTR));
+	if (cond & NP_SYSPROC)
+		cp->p_flag |= SSYS;
 	cp->p_pid = mpid;
 	cp->p_epid = mpid;
 	cp->p_ppid = pp->p_pid;
@@ -235,7 +245,7 @@ retry:
 		/* Successful copy */
 		break;
 	case -1:
-		if (!failok)
+		if (!(cond & NP_FAILOK))
 			cmn_err(CE_PANIC, "newproc - fork failed\n");
 
 		/* reset all incremented counts */
@@ -431,6 +441,7 @@ struct proc	*pp;
 	*/
 
 	winubunlock();
+	cp->p_flag |= SULOAD;
 	cp->p_stat = SRUN;
 	setrq(cp);
 	return(0);
@@ -507,7 +518,8 @@ int n2seg, n3seg;
 		growsdt(p, 3, 0, NOSLEEP);
 		return(NULL);
 	} else {
-		availrmem -= USIZE;
+		if (p->p_flag & SSYS)
+			availrmem -= USIZE;
 		availsmem -= USIZE;
 	}
 
@@ -548,7 +560,8 @@ register struct proc *p;
 	pfree(&sysreg, ubptbl(p), 0, USIZE);
 	memunlock();
 	regrele(&sysreg);
-	availrmem += USIZE;
+	if (p->p_flag & SSYS)
+		availrmem += USIZE;
 	availsmem += USIZE;
 
 	/* free SDT tables */

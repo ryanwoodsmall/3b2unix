@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:common/obj.c	1.28"
+#ident	"@(#)as:common/obj.c	1.29.1.1"
 
 #include <stdio.h>
 #include <sgs.h>
@@ -20,7 +20,7 @@
 #include "codeout.h"
 #include "section.h"
 
-#if IAPX
+#if IAPX | iAPX286
 #include "instab.h"
 #endif
 
@@ -82,7 +82,7 @@ extern FILE
 	*fdgsymb;
 
 extern upsymins
-	*lookup();
+	lookup();
 
 #if FLEXNAMES
 extern char	*strtab;
@@ -110,7 +110,7 @@ stent	*stack[MAXSTK];
 symbol	*dot;
 
 FILHDR	filhead = {
-#if IAPX
+#if IAPX | iAPX286
 	0,		/* magic number */
 			/* adjusted by setmagic() */
 #else
@@ -428,7 +428,7 @@ outsyms(ptr)
 	strptr = ptr->_name.name;
 #endif
 	sct = (ptr->styp & (~TVDEF));
-#if IAPX
+#if IAPX | iAPX286
 	if (sct & HI12TYPE) { /* static X86 symbols */
 		if (getindx(strptr,C_STAT) < 0)
 			invent(ptr,ptr->value,ptr->sectnum,C_STAT);
@@ -521,7 +521,7 @@ symout(){
 	 * define section name symbols in storage class C_STAT
 	 */
 	for (index=1, sect= &sectab[1]; index<=seccnt; index++, sect++) {
-		sym = (*lookup(sect->s_name,N_INSTALL,USRNAME)).stp;
+		sym = lookup(sect->s_name,N_INSTALL,USRNAME).stp;
 		nullcbuf.cvalue = 0;
 		define(sym,&nullcbuf);
 		setval(sym,&nullcbuf);
@@ -568,7 +568,7 @@ symout(){
 		for(index2 = 0; index2 < SYMNMLEN; index2++)
 			symname[index2] = sment.n_name[index2];
 #endif
-		sym = (*lookup(symname,N_INSTALL,USRNAME)).stp;
+		sym = lookup(symname,N_INSTALL,USRNAME).stp;
 		if (sym == NULLSYM)
 			aerror("symout: Unknown symbol in symbol table");
 		putindx(sym,sment.n_sclass,symbent);

@@ -5,21 +5,35 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)forms:update.c	1.7"
+#ident	"@(#)forms:update.c	1.8"
+
+/* update() -- moves around
+   captions and user strings to make room for new strings 
+   or to accomodate deleted strings */
+
 #include "muse.h"
 #include "mmuse.h"
 
 
-/* THIS ROUTINE DOES USER INPUT STRING WRAP                                      */
 VOID update(last_row)
-register int last_row;
+register int last_row;  /* Row of last segment of current field.
+                           If last_row does not change, fields
+                           following current field do not
+                           have to move */
 {  
    register int first_col, i, k, row, lower;
    struct segment *s_pt;
    struct field *f_pt;
 
-   first_col = Field_pt->col+2;
+   first_col = Field_pt->col+2;  /* Column of first segment
+                                    on seceond line of current field */
 
+/*
+ * Main loop: go thru all strings in current field and adjust their
+ * coordinates so that they appear with single spaces in between,
+ * as many as will fit on a line.  Keep track of number of lines
+ * needed for current field.
+ */
    i = 0;
    for (s_pt=Field_pt->first_s_pt ; s_pt!=NULL ; s_pt=s_pt->next)
    {
@@ -45,7 +59,7 @@ register int last_row;
                *buf_pt++ = null;
             }
          }
-         if (Segm_pt==s_pt)             /* Reassign Segm_pt.             */
+         if (Segm_pt==s_pt)           /* Reassign Segm_pt, it is NULL */
          {
             if (s_pt->next!=NULL) Segm_pt=s_pt->next;
             else if (s_pt->previous!=NULL) Segm_pt=s_pt->previous;
@@ -60,7 +74,7 @@ register int last_row;
             }
          }
       }
-      else                   /* Keep in chain       */
+      else                   /* Keep in chain, adjust coordinates     */
       {
          row = s_pt->row-Stdscr_loc;
          if (row>2 && row<=SCRLINES && s_pt->word!=NULL &&
@@ -90,6 +104,9 @@ register int last_row;
       }
    }
 
+/*
+ * Put strings with new coordinates on stdscr.
+ */
    for (s_pt = Field_pt->first_s_pt;s_pt;s_pt=s_pt->next)
    {
       Field_pt->last_row = s_pt->row;
@@ -97,6 +114,10 @@ register int last_row;
       if (row>2 && row<=SCRLINES)    show(s_pt);
    }
 
+/*
+ * Check if number of lines of current field has changed.
+ * If so, adjust rows of following fields.
+ */
    if ((lower = Field_pt->last_row - last_row) != 0)
    {
       for (f_pt=Field_pt+1;f_pt<=last_field_pt;f_pt++)

@@ -5,12 +5,12 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/ppc.c	10.9"
+#ident	"@(#)kern-port:io/ppc.c	10.9.2.1"
 /*
+ *	Copyright 1984, 1986 AT&T
  *
- * PPC Peripheral (3B2) PORTS Controller Driver
+ * (3B2) PORTS Controller Driver
  */
-
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/fs/s5dir.h"
@@ -40,7 +40,7 @@
 #include "sys/ppc_lla.h"
 #include "sys/inline.h"
 
-int pp_bnbr;
+extern int	pp_bnbr;		/* Defined by master.d/ports */
 
 /*
  * Stuff from self-config master file.
@@ -77,6 +77,7 @@ char pptime[] = {
 };
 #define PU_BLOCK	256	/* size of  kernel scratch memory for pump */
 #define PU_LBLOCK	PU_BLOCK/4
+long versno;
 long    scratch[PU_LBLOCK]; /* scratch area for ppc 
                         download used by the pump
 			routines */
@@ -114,9 +115,9 @@ register dev_t dev;
 	ppisopen[device] = 1;
 
 	/* check if this board is to be pumped */
-	if (flag&O_PUMP)
+	if( flag&O_PUMP )
 	{
-		if (u.u_uid != 0)
+		if(u.u_uid != 0)
 		{
 			u.u_error = EPERM;
 			return;
@@ -133,11 +134,11 @@ register dev_t dev;
 	tp = &pp_tty[device]; /* get tty structure */
 	
 	/* if this port is not open initialize its parameters */
-	if (!(tp->t_state&ISOPEN)) 
+	if(!(tp->t_state&ISOPEN)) 
 	{
 		splpp();
 		/* get entry for device enable*/
-		while ((!(lla_xfree(ppcbid[device],ppcpid[device])))||(dstat[device]&CLDRAIN))
+		while((!(lla_xfree(ppcbid[device],ppcpid[device])))||(dstat[device]&CLDRAIN))
 		{
 			dstat[device] |= WENTRY;
 			dstat[device] |= OPDRAIN;
@@ -160,7 +161,7 @@ register dev_t dev;
 		ppc_conn(ppcbid[device],ppcpid[device]);
 		spl0();
 		ppparm(dev);
-		if (u.u_error)
+		if(u.u_error)
 			return;
 	}
 	else
@@ -171,13 +172,13 @@ register dev_t dev;
 	
 	splpp();
 	/* If delay on open is set wait unit carrier is on */
-	if (!(flag&FNDELAY) && !(tp->t_state&CARR_ON))
-		while (!(tp->t_state&CARR_ON)) {
+	if(!(flag&FNDELAY) && !(tp->t_state&CARR_ON))
+		while(!(tp->t_state&CARR_ON)) {
 			tp->t_state |= WOPEN; /* waiting for open to
 					       complete */
 			sleep((caddr_t)&tp->t_canq, TTIPRI);
 		}
-	if ((!(dstat[device]&SUPBUF)) && (ppcpid[device] != CENTRONICS))
+	if((!(dstat[device]&SUPBUF)) && (ppcpid[device] != CENTRONICS))
 	{
         	if (pb->dcb <= INIT_CB)
 			pb->dcb = INIT_CB; /* give more cblocks for the
@@ -196,18 +197,16 @@ ppstart()
 	int i, j;
 	char *ptr;
 
-	pp_bnbr = devcheck(D_PORTS, pp_addr);
-
 	pumpflag = 0;
 
-	for (i = 0; i < pp_bnbr; i++)
+	for(i = 0; i < pp_bnbr; i++)
 	{
 		csbit[i] = 1;
-		for (ptr = (char *)&pp_board[i]; ptr < ((char *)&pp_board[i] + sizeof(pp_board[i])); ptr++)
+		for(ptr = (char *)&pp_board[i]; ptr < ((char *)&pp_board[i] + sizeof(pp_board[i])); ptr++)
 		{
 				*ptr = 0;
 		}
-		for (j = 0; j < 5; j++)
+		for(j = 0; j < 5; j++)
 		{
 			ppcbid[(i*5)+j] = i;
 			ppcpid[(i*5)+j] = j;
@@ -242,7 +241,7 @@ register dev_t dev;
 
 	/* check to see if this device was pump */
 
-	if (pumpflag) {
+	if(pumpflag) {
 		pumpflag = 0;
 		return;
 	}
@@ -262,7 +261,7 @@ register dev_t dev;
 			}
 		}
 
-		if (dstat[device]&SUPBUF)
+		if(dstat[device]&SUPBUF)
 		{
 			pp_board[ppcbid[device]].dcb -= CB_PER_PPC; /* reduce cblocks */
 			if (pp_board[ppcbid[device]].dcb <= INIT_CB)
@@ -276,7 +275,7 @@ register dev_t dev;
 		}
 	}
 
-	if (tp->t_state&CARR_ON)
+	if(tp->t_state&CARR_ON)
 	{
 	     	while ((tp->t_outq.c_cc) || (tp->t_state&BUSY)) 
 		{
@@ -300,7 +299,7 @@ register dev_t dev;
 			wakeup((caddr_t)&tp->t_cc[1]);
 		}
 	}
-	if (tp->t_state&BUSY)
+	if(tp->t_state&BUSY)
 		tp->t_state &= ~BUSY;
 		
 	spl0();
@@ -378,15 +377,18 @@ ppioctl(dev, cmd, arg, mode)
 			send_brk(tp,ppcbid[device],ppcpid[device],arg);
 			break;
 		case PUMP:
-			if (pumpflag != 1)
+			if(pumpflag != 1)
 			{
 				u.u_error = EPERM;
 				return;
 			}
 			pmctl(dev, cmd, arg, mode);
 			break;
+		case PPC_VERS:
+			versreq(device,cmd,arg,mode);
+			break;
 		default:
-			if (ttiocom(&pp_tty[device], cmd, arg, mode))
+			if(ttiocom(&pp_tty[device], cmd, arg, mode))
 				ppparm(dev);
 			break;
 	}
@@ -405,13 +407,13 @@ register short bid;
 	register struct ppcboard *pb;
 		/*get completion queue entry */
         pb = &pp_board[bid];
-	while (lla_cqueue(bid,&cqe) == PASS) {
-	if ((bid >= pp_bnbr) || (pb->b_state&SYSGFAIL))
-		return;
+	while (lla_cqueue(bid,&cqe) == PASS){
+		if ((bid >= pp_bnbr) || (pb->b_state&SYSGFAIL))
+			return;
 		tp = TP(bid, cqe.common.codes.bits.subdev);
 		index = ((bid * 5) + cqe.common.codes.bits.subdev);
 		/* determine the interrupt opcode */
-		switch (cqe.common.codes.bytes.opcode) {
+		switch(cqe.common.codes.bytes.opcode) {
 		case PPC_RECV:
 			sysinfo.rcvint++;
 
@@ -462,7 +464,7 @@ register short bid;
 			
 			break;
 		case PPC_ASYNC:
-			switch (cqe.appl.pc[0]) {
+			switch(cqe.appl.pc[0]) {
 			case AC_BRK:
 				sysinfo.rcvint++;
 				(*linesw[tp->t_line].l_input)(tp, L_BREAK);
@@ -547,15 +549,22 @@ register short bid;
 		case NORMAL:
 		case FAULT:
 		case QFAULT:
-			if (E_OPCODE(cqe)==QFAULT)
+			if (E_OPCODE(cqe)==QFAULT && 
+                            !(E_ADDR(cqe) == (long) vtop(&versno,NULL) || E_ADDR(cqe) == (long) &versno))
+			  /* QFAULT on PPC_VERS request means the ROMware   */
+			  /* doesn't support version number, default value */
+			  /* should be used.  E_ADDR field is checked for  */
+                          /* PPC_VERS request instead of E_APPL(the opcode) */
+			  /* because somehow E_APPL doesn't return the     */
+			  /* expected opcode(maybe a bug in CIO or ROMcode)*/
 				cmn_err(CE_WARN,
-				"PORTS: QFAULT - opcode= %d, board = %d, \n, subdev = %d, bytecnt = %d, buff address = %x, \n\n",
+				"PORTS: QFAULT - opcode= %d, board = %d, \n, subdev = %d, bytecnt = %d, buff address = %x\n\n",
 				E_APPL(cqe,0), bid,
 			      	cqe.common.codes.bytes.subdev, E_BYTCNT(cqe),E_ADDR(cqe));
 			
-			if (E_OPCODE(cqe)==FAULT)
+			if (E_OPCODE(cqe)==FAULT )
 				cmn_err(CE_WARN,
-				"PORTS: FAULT - opcode= %d, board = %d, \n, subdev = %d, bytecnt = %d, buff address = %x, \n\n", 
+				"PORTS: FAULT - opcode= %d, board = %d, \n, subdev = %d, bytecnt = %d, buff address = %x \n\n", 
 				E_APPL(cqe,0), bid,
 			      	cqe.common.codes.bytes.subdev, E_BYTCNT(cqe),E_ADDR(cqe));
 			if (!(pb->b_state&CIOTYPE))
@@ -584,7 +593,7 @@ register struct tty *tp;
 	bid = index / 5;
 	pid = index  - (bid*5);
 
-	switch (cmd) {
+	switch(cmd) {
 	case T_WFLUSH:
 		if (!(tp->t_state&CARR_ON))
 		{
@@ -598,19 +607,24 @@ register struct tty *tp;
 	case T_OUTPUT:
 		sx = splpp();
 
-		if (tp->t_state&BUSY)
+		if(tp->t_state&BUSY)
 		{
 			splx(sx);
 			break;
 		}
 
-		if (!(lla_xfree(bid,pid)))
+		if(!(lla_xfree(bid,pid)))
 		{
 			splx(sx);
 			break;
 		}
 
-		if (!(CPRES&(*linesw[tp->t_line].l_output)(tp))) {
+		if(!(CPRES&(*linesw[tp->t_line].l_output)(tp))) {
+			if (tp->t_state&OASLP &&
+				tp->t_outq.c_cc<=ttlowat[tp->t_cflag&CBAUD]) {
+				tp->t_state &= ~OASLP;
+				wakeup((caddr_t)&tp->t_outq);
+			}
 			splx(sx);
 			break;
 		}
@@ -627,7 +641,7 @@ register struct tty *tp;
 	case T_RFLUSH:
 
 		ppc_device(bid,pid,DR_ABR);
-		if (!(tp->t_state&TBLOCK))
+		if(!(tp->t_state&TBLOCK))
 			break;
 	case T_UNBLOCK:
 		tp->t_state &= ~TBLOCK;
@@ -637,7 +651,7 @@ register struct tty *tp;
 		if (pid == CENTRONICS)
 			break;
 		sx=splpp();
-		if (tp->t_rbuf.c_ptr != NULL)
+		if(tp->t_rbuf.c_ptr != NULL)
 		{
 			register struct ppcboard *pb;
 			register char *cptr;
@@ -703,7 +717,7 @@ register dev;
 	index = tp - pp_tty; /* find index of pp_tty[] */
 	bid = index / 5;
 	pid = index  - (bid * 5);
-	if ((tp->t_cflag&CBAUD) == 0) {
+	if((tp->t_cflag&CBAUD) == 0) {
 		tp->t_cflag |= HUPCL;
 		ppc_device(bid, pid, DR_DIS);
 		return;
@@ -714,7 +728,7 @@ register dev;
 		dstat[device] |= (SETOPT|WENTRY);
 		sleep((caddr_t)&tp->t_cc[1],TTOPRI);
 	}
-	if ((cp = getcf()) == NULL) {
+	if((cp = getcf()) == NULL) {
 		u.u_error = EIO;
 		spl0();
 		return;
@@ -741,7 +755,7 @@ register dev;
 	xflag = 0;
 
 	xflag |= X_ITIME;
-	if ((tp->t_cflag&CBAUD) <= B300)
+	if((tp->t_cflag&CBAUD) <= B300)
 		opt->ld.zero.itime = pptime[tp->t_cflag&CBAUD];
 	else
 		opt->ld.zero.itime = ITIME;
@@ -768,15 +782,14 @@ register int bid;
 {
 	register int errors;
 
-	if ((pp_bnbr = devcheck(D_PORTS, pp_addr)) <= 0) {
-
+	if (pp_bnbr <= 0 ) {
 		if (bid < pp_bnbr)
 			pp_board[bid].b_state = SYSGFAIL;
-		return(PU_DEVCH);
+		return( PU_DEVCH);
 	}
 
 	if ((bid + 1)> pp_bnbr) 
-		return(PU_DEVCH);
+		return( PU_DEVCH);
 
 
 	errors = 0;
@@ -785,14 +798,64 @@ register int bid;
 	splpp();
 	pp_board[bid].b_state &= ~(SYSGFAIL|ISSYSGEN);
 	spl0();
-	if (ppsysgen(bid) != PASS) {
+	if( ppsysgen(bid) != PASS ) {
 		cmn_err(CE_WARN, "PORTS: SYSGEN failure on board %d\n", bid);
 		errors++;
 	}
 
-	return((errors == 0) ? PASS : FAIL);
+	return( (errors == 0) ? PASS : FAIL );
 }
 
+
+versreq(dev, cmd, val, mode)
+dev_t dev;
+{
+	short bid;
+	extern cio_time();
+	register struct ppcboard *tb;
+	register tid;		/* timeout id */
+
+	bid = ppcbid[dev];
+	tb = &pp_board[bid];
+	if (tb->b_state&CIOTYPE)
+	{
+		u.u_error= EIO; /* there is a CIO type command already in
+				process */
+		return;
+	}
+	splpp();
+	tb->b_state |= CIOTYPE;
+	
+	if ( ppc_version(bid,(char *)&versno, sizeof(versno)) == FAIL )
+	{
+		tb->b_state &= ~ CIOTYPE;
+		spl0();
+		return;
+	}
+	tid= timeout(cio_time,tb,CIO_TIME);
+	sleep((caddr_t)&tb->qcb,PZERO);
+	if (!(tb->b_state&CIOTYPE))
+	{
+		untimeout(tid);
+		spl0();
+	}
+	else
+	{
+		tb->b_state &= ~ CIOTYPE;
+		spl0();
+		u.u_error = EIO;
+		return;
+	}
+
+	if (tb->retcode != NORMAL )
+		versno = DEFAULTVER;
+	if(copyout((char *) &versno, (char *) val, sizeof(versno)))
+	{
+		u.u_error = EFAULT;
+		return;
+	}
+	return;
+}
 
 int ppsysgen(bid)
 register short bid; /* board number */
@@ -860,7 +923,7 @@ register int dev;
 			
 	device = minor(dev);
 
-	while (!(lla_xfree(ppcbid[device],ppcpid[device])))
+	while(!(lla_xfree(ppcbid[device],ppcpid[device])))
 	{
 		dstat[device] |= WENTRY;
 		sleep(&tp->t_cc[1],TTOPRI);
@@ -873,7 +936,7 @@ register int dev;
 	if (!ppisopen[device])
 	{
 		ttyflush(tp, (FREAD | FWRITE));
-		tp->t_state &= ~CARR_ON;
+		tp->t_state &= ~ CARR_ON;
 		ppc_disc(ppcbid[device], ppcpid[device], (char) eflush,
 		    (tp->t_cflag & HUPCL) ? (GR_DTR | GR_CREAD) : GR_CREAD);
 	}
@@ -1016,7 +1079,7 @@ register struct pump_st *pmpr;
 
 	device = minor(pmpr->dev);
 
-	switch (pmpr->cmdcode)
+	switch(pmpr->cmdcode)
 	{
 	case PU_DLD: /* download case */
 		slices = pmpr->size/PU_BLOCK;
@@ -1113,7 +1176,7 @@ ppclr()
  *	3. Wake up any processes sleeping very deeply
  */
 
-	for (bid = 0; bid < pp_bnbr; bid++) {
+	for( bid = 0; bid < pp_bnbr; bid++ ) {
 		ppc_clr(bid);
 
 		pp_board[bid].b_state = SYSGFAIL;
@@ -1129,7 +1192,7 @@ pmctl(dev, cmd, val, mode)
 {
 	struct pump_st pump;
 
-	if (copyin((char *) val, (char *) &pump, sizeof(struct pump_st)))
+	if(copyin((char *) val, (char *) &pump, sizeof(struct pump_st)))
 	{
 		u.u_error = EFAULT;
 		return;
@@ -1137,7 +1200,7 @@ pmctl(dev, cmd, val, mode)
 
 	pppump(&pump);
 
-	if (copyout((char *) &pump, (char *) val, sizeof(struct pump_st)))
+	if(copyout((char *) &pump, (char *) val, sizeof(struct pump_st)))
 	{
 		u.u_error = EFAULT;
 		return;

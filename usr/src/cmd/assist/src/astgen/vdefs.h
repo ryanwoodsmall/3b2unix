@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)tools:vdefs.h	1.3"
+#ident	"@(#)tools:vdefs.h	1.4"
 #define   ADD         0
 #define   DEL         1
 
@@ -22,24 +22,24 @@
 
 extern char editor[16];
 
-struct fieldlink {
+struct fieldlink {  /* Used by select */
    struct field *f_pt;
    struct fieldlink *next;
 };
 
-struct two_index {
+struct two_index {  /* Not used */
    struct index *pr_pt;
    struct index *po_pt;
 };
 
 extern char nullchar;
 
-struct charstr {
+struct charstr {   /* Used by askstring() */
    char *str;
    char ch;
 };
 
-struct first_second {
+struct first_second {  /* Used to find captions and segments in vi screen */
 	char first[1024];
 	char second[1024];
 };

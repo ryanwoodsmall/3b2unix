@@ -5,16 +5,21 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/unctrl.h	1.1"
+#ident	"@(#)curses:screen/unctrl.h	1.3"
 /*
  * unctrl.h
  *
- * 1/26/81 (Berkeley) @(#)unctrl.h	1.1
- * @(#)unctrl.h	1.3	(MRH)	8/23/82
  */
 
-#ifndef unctrl
+#ifndef UNCTRL_H
+#define	UNCTRL_H
+
 extern char	*_unctrl[];
 
-# define	unctrl(ch)	(_unctrl[(unsigned) ch])
-#endif
+#if	!defined(NOMACROS) && !defined(lint)
+
+#define	unctrl(ch)	(_unctrl[(unsigned) ch])
+
+#endif	/* NOMACROS && lint */
+
+#endif	/* UNCTRL_H */

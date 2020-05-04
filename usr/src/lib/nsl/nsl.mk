@@ -7,14 +7,14 @@
 
 
 
-#ident	"@(#)libnsl:nsl/nsl.mk	1.10"
+#ident	"@(#)libnsl:nsl/nsl.mk	1.10.3.1"
 # 
 # Network services library
 #
 
 ROOT=
 USRLIB=$(ROOT)/usr/lib
-LIB=$(ROOT)/shlib
+SHLIB=$(ROOT)/shlib
 INCRT=$(ROOT)/usr/include
 CFLAGS= -I$(INCRT) -O 
 
@@ -24,7 +24,7 @@ LIBOBJS= t_accept.o t_bind.o t_connect.o t_error.o t_close.o\
 	 t_unbind.o t_optmgmt.o\
 	 t_rcvudata.o t_rcvuderr.o t_sndudata.o t_sndrel.o t_rcvrel.o\
 	 t_alloc.o t_free.o t_open.o t_sync.o\
-	 _dummy.o _errlst.o _data.o _conn_util.o _utility.o\
+	 _dummy.o _errlst.o _data.o _data2.o _conn_util.o _utility.o \
 	 __free_def.o __calloc_def.o __perror_def.o __strlen_def.o\
 	 __write_def.o __ioctl_def.o __putmsg_def.o __getmsg_def.o\
 	 __errno_def.o __memcpy_def.o __fcntl_def.o __sigset_def.o\
@@ -42,27 +42,24 @@ INCLUDES=  	$(INCRT)/sys/param.h\
 		./_import.h
 
 
-all:      _spec $(LIB)/libnsl_s $(USRLIB)/libnsl_s.a
+all:      _spec $(SHLIB)/libnsl_s
 
-$(LIB)/libnsl_s: _spec $(LIBOBJS)
+$(SHLIB)/libnsl_s: _spec $(LIBOBJS)
 	-rm -f libnsl_s;
-	$(PFX)mkshlib -s _spec -t libnsl_s
-
-$(USRLIB)/libnsl_s.a: _spec $(LIBOBJS)
 	-rm -f libnsl_s.a;
-	$(PFX)mkshlib -s _spec -h libnsl_s.a -n -t libnsl_s
+	$(PFX)mkshlib -q -s _spec -h libnsl_s.a -t libnsl_s
 
 $(LIBOBJS):	$(INCLUDES)
 
 install:  all
 	install -f $(USRLIB) libnsl_s.a;
-	install -o -f $(LIB) libnsl_s
+	install -o -f $(SHLIB) libnsl_s
 	$(CH)chown bin $(USRLIB)/libnsl_s.a
-	$(CH)chown bin $(LIB)/libnsl_s
+	$(CH)chown bin $(SHLIB)/libnsl_s
 	$(CH)chgrp bin $(USRLIB)/libnsl_s.a
-	$(CH)chgrp bin $(LIB)/libnsl_s
+	$(CH)chgrp bin $(SHLIB)/libnsl_s
 	$(CH)chmod 664 $(USRLIB)/libnsl_s.a
-	$(CH)chmod 775 $(LIB)/libnsl_s
+	$(CH)chmod 775 $(SHLIB)/libnsl_s
 
 clean:
 	-rm -f *.o

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)lint:inline.c	1.1"
+#ident	"@(#)lint:inline.c	1.3"
 #include <ctype.h>
 #include "comp/mfile1"
 

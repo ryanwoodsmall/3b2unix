@@ -5,12 +5,16 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:conn.c	2.9"
+#ident	"@(#)uucp:conn.c	2.14"
 
 #include "uucp.h"
 
 static char _ProtoStr[40] = "";	/* protocol string from Systems file entry */
 extern jmp_buf Sjbuf;
+
+int	Modemctrl, ioctlok;
+struct termio	ttybuf;
+
 
 int alarmtr();
 static void getProto();
@@ -55,6 +59,7 @@ char *system;
 		sysreset();
 		return(fn);
 #else /* !STANDALONE */
+
 		if (chat(nf - F_LOGIN, flds + F_LOGIN, fn,"","") == SUCCESS) {
 			sysreset();
 			return(fn); /* successful return */
@@ -139,15 +144,13 @@ char *flds[], *dev[];
 	/* check class, check (and possibly set) speed */
 	if (EQUALS(flds[F_CLASS], "Any")
 	   && EQUALS(dev[D_CLASS], "Any")) {
-		dev[D_CLASS] = flds[F_CLASS] = DEFAULT_BAUDRATE;
+		dev[D_CLASS] = DEFAULT_BAUDRATE;
 		return(SUCCESS);
 	} else if (EQUALS(dev[F_CLASS], "Any")) {
 		dev[D_CLASS] = flds[F_CLASS];
 		return(SUCCESS);
-	} else if (EQUALS(flds[F_CLASS], "Any")) {
-		flds[D_CLASS] = dev[F_CLASS];
-		return(SUCCESS);
-	} else if (EQUALS(flds[F_CLASS], dev[D_CLASS]))
+	} else if (EQUALS(flds[F_CLASS], "Any") ||
+	EQUALS(flds[F_CLASS], dev[D_CLASS]))
 		return(SUCCESS);
 	else
 		return(FAIL);
@@ -177,6 +180,19 @@ char *buf;
 			continue;
 		na = getargs(buf, dev, devcount);
 		ASSERT(na >= D_CALLER, "BAD LINE", buf, na);
+
+		if ( strncmp(dev[D_LINE],"/dev/",5) == 0 ) {
+			/* since cu (altconn()) strips off leading */
+			/* "/dev/",  do the same here.  */
+			strcpy(dev[D_LINE], &(dev[D_LINE][5]) );
+		}
+
+		/* may have ",M" subfield in D_LINE */
+		if ( (commap = strchr(dev[D_LINE], ',')) != (char *)NULL ) {
+			if ( strcmp( commap, ",M") == SAME )
+				Modemctrl = TRUE;
+			*commap = '\0';
+		}
 
 /* For cu -- to force the requested line to be used */
 #ifdef STANDALONE
@@ -324,7 +340,19 @@ int nf, fn;
 {
 	char *want, *altern;
 	extern char *index();
+	extern int	ioctlok;
+	static int	did_ioctl;
+	extern struct termio	ttybuf;
 	int k, ok;
+
+	/* init ttybuf - used in sendthem() */
+	if ( !did_ioctl ) {
+		if ( ioctl(fn, TCGETA, &ttybuf) == 0 )
+			ioctlok = 1;
+		else
+			DEBUG(7, "chat: TCGETA failed, errno %d\n", errno);
+		did_ioctl = 1;
+	}
 
 	for (k = 0; k < nf; k += 2) {
 		want = flds[k];
@@ -442,8 +470,9 @@ alarmtr()
  */
 
 #define FLUSH() {\
-	if (wrstr(fn, buf, bptr - buf, echocheck) != SUCCESS)\
-		goto err;\
+	if ((bptr - buf) > 0)\
+		if (wrstr(fn, buf, bptr - buf, echocheck) != SUCCESS)\
+			goto err;\
 	bptr = buf;\
 }
 
@@ -454,6 +483,8 @@ int fn;
 	int sendcr = 1, echocheck = 0;
 	register char	*sptr, *pptr, *bptr;
 	char	buf[BUFSIZ];
+	extern struct termio	ttybuf;
+	extern int		ioctlok;
 
 	/* should be EQUALS, but previous versions had BREAK n for integer n */
 	if (PREFIX("BREAK", str)) {
@@ -512,6 +543,7 @@ int fn;
 			default:	/* send the backslash */
 				*bptr++ = '\\';
 				*bptr++ = *sptr;	
+				continue;
 
 			/* flush buf, perform action, and continue */
 			case 'E':	/* echo check on */
@@ -539,13 +571,36 @@ int fn;
 				CDEBUG(5, "BREAK\n", 0);
 				genbrk(fn);
 				continue;
+			case 'M':	/* modem control - set CLOCAL */
+				FLUSH();
+				if ( ! ioctlok ) {
+					CDEBUG(5, ")\nset CLOCAL ignored\n", 0);
+					continue;
+				}
+				CDEBUG(5, ")\nCLOCAL set\n", 0);
+				ttybuf.c_cflag |= CLOCAL;
+				if ( ioctl(fn, TCSETAW, &ttybuf) < 0 )
+					CDEBUG(5, "TCSETAW failed, errno %d\n", errno);
+				continue;
+			case 'm':	/* no modem control - clear CLOCAL */
+				FLUSH();
+				if ( ! ioctlok ) {
+					CDEBUG(5, ")\nclear CLOCAL ignored\n", 0);
+					continue;
+				}
+				CDEBUG(5, ")\nCLOCAL clear\n", 0);
+				ttybuf.c_cflag &= ~CLOCAL;
+				if ( ioctl(fn, TCSETAW, &ttybuf) < 0 )
+					CDEBUG(5, "TCSETAW failed, errno %d\n", errno);
+				continue;
 			}
 		} else
 			*bptr++ = *sptr;
 	}
 	if (sendcr)
 		*bptr++ = '\r';
-	(void) wrstr(fn, buf, bptr - buf, echocheck);
+	if ( (bptr - buf) > 0 )
+		(void) wrstr(fn, buf, bptr - buf, echocheck);
 
 err:
 	CDEBUG(5, ")\n", 0);
@@ -561,11 +616,12 @@ char *buf;
 	char dbuf[BUFSIZ], *dbptr = dbuf;
 
 	buf[len] = 0;
+
 	if (echocheck)
 		return(wrchr(fn, buf, len));
 
 	if (Debug >= 5) {
-		if (sysaccess() == 0) {	/* Systems file access ok */
+		if (sysaccess(ACCESS_SYSTEMS) == 0) { /* Systems file access ok */
 			for (i = 0; i < len; i++) {
 				*dbptr = buf[i];
 				if (*dbptr < 040) {
@@ -591,7 +647,7 @@ register char *buf;
 	int 	i, saccess;
 	char	cin, cout;
 
-	saccess = (sysaccess() == 0);	/* protect Systems file */
+	saccess = (sysaccess(ACCESS_SYSTEMS) == 0); /* protect Systems file */
 	if (setjmp(Sjbuf))
 		return(FAIL);
 	(void) signal(SIGALRM, alarmtr);
@@ -826,3 +882,4 @@ unsigned n;
 
 
 #endif /* NONAP */
+

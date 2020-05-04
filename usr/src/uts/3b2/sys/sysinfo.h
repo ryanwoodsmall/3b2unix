@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/sysinfo.h	10.4"
+#ident	"@(#)kern-port:sys/sysinfo.h	10.4.4.1"
 
 /*
  *	System Information.
@@ -93,7 +93,22 @@ struct dinfo {
 	long	rcv_que;	/* sum of receive Q lgth since boot */
 	long	rcv_occ;	/* clock ticks receive Q occupied */
 };
+struct rcinfo {
+	long	cbread;		/* read blocks sent to remote server*/
+					/* (not found in cache) */
+	long	cbwrite;	/* write blocks not found in local cache*/
+	long	clread;		/* total blocks in remote read */
+	long	clwrite;	/* total blocks in remote write */
+	long	snd_dis;	/* cache disable messages sent (server) */
+	long	snd_msg;	/* total RFS messages sent */
+	long	rcv_dis;	/* cache disable messages received (client) */
+	long	rcv_msg;	/* total RFS messages received */
+	long	dis_bread;	/* # of per-file blocks flushed from cache*/
+	long	blk_inval;	/* # of per-file blocks flushed from cache*/
+	long	inval;		/* # of per-file cache flushes */
+};
 extern struct dinfo dinfo;
+extern struct rcinfo rcinfo;
 extern	int minserve;		/* DU tunable: sever low water mark */
 extern	int maxserve;		/* DU tunable: sever high water mark */
 extern	int nservers;		/* total servers in system */
@@ -135,9 +150,11 @@ struct shlbinfo {
 	long	shlbs;		/* Max # of libs a process can link in	*/
 				/*   at one time.			*/
 	long	shlblnks;	/* # of times processes that have used	*/
-				/*   shared libraries.			*/
+				/*   static shared libraries.		*/
 	long	shlbovf;	/* # of processes needed more shlibs	*/
 				/*   than the system imposed limit.	*/
+	long	shlbatts;	/* # of times processes have attached	*/
+				/*   run time libraries.		*/
 };
 
 extern struct shlbinfo shlbinfo;

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:eio.c	2.3"
+#ident	"@(#)uucp:eio.c	2.9"
 
 #include "uucp.h"
 
@@ -29,7 +29,7 @@ static
 ealarm() {
 	longjmp(Failbuf, 1);
 }
-static int (*esig)();
+static void (*esig)();
 
 /*
  * turn on protocol timer
@@ -96,7 +96,7 @@ erdmsg(str, fn)
 register char *str;
 {
 	register int i;
-	register unsigned len;
+	register int len;
 
 	if(setjmp(Failbuf)) {
 		DEBUG(7, "erdmsg read failed\n", "");
@@ -106,11 +106,9 @@ register char *str;
 	i = EBUFSIZ;
 	for (;;) {
 		alarm(60);
-		if ((len = (*Read)(fn, str, i)) == 0)
-			continue;	/* Perhaps should be FAIL, but the */
-					/* timeout will get it (skip alarm(0) */
+		len = (*Read)(fn, str, i);
 		alarm(0);
-		if (len < 0) return(FAIL);
+		if (len <= 0) return(FAIL);
 		str += len; i -= len;
 		if (*(str - 1) == '\0')
 			break;
@@ -195,14 +193,19 @@ register FILE *fp2;
 	int	mil;
 	long	msglen;
 	char	cmsglen[CMSGSIZ];
+	int	writefile = TRUE, ret = SUCCESS;
 
 	bytes = 0L;
 	(void) millitick();
 	len = erdblk(cmsglen, sizeof(cmsglen), fn);
 	if (len < 0) return(FAIL);
 	sscanf(cmsglen, "%ld", &msglen);
-	bytes = msglen;
 	DEBUG(7, "erdblk msglen %d\n", msglen);
+	if ( ((msglen-1)/512 +1) > Ulimit ) {
+		ret = EFBIG;
+		writefile = FALSE;
+	}
+	bytes = msglen;
 	fd2 = fileno( fp2 );
 	for (;;) {
 		len = erdblk(bufr, MIN(msglen, EBUFSIZ), fn);
@@ -215,13 +218,22 @@ register FILE *fp2;
 			DEBUG(7, "erdblk read too much\n", "");
 			return(FAIL);
 		}
-		write( fd2, bufr, len );
+		/* this write is to file -- use write(2), not (*Write) */
+		if ( writefile == TRUE && write( fd2, bufr, len ) != len ) {
+			ret = errno;
+			DEBUG(7, "erddata: write to file failed, errno %d\n", ret);
+			writefile = FALSE;
+		}
 		if (msglen == 0)
 			break;
 	}
-	ticks = millitick();
-	statlog( "<-", bytes, ticks );
-	return(0);
+	if ( writefile == TRUE ) {
+		ticks = millitick();
+		statlog( "<-", bytes, ticks );
+		return(SUCCESS);
+	}
+	else
+		return(ret);
 }
 
 /*
@@ -247,7 +259,7 @@ register char *blk;
 	for (i = 0; i < len; i += ret) {
 		alarm(60);
 		DEBUG(7, "ask %d ", len - i);
-		if ((ret = (*Read)(fn, blk, (unsigned) len - i)) < 0) {
+		if ((ret = (*Read)(fn, blk, (unsigned) len - i)) <= 0) {
 			alarm(0);
 			DEBUG(7, "read failed\n", "");
 			return(FAIL);

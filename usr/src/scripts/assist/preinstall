@@ -1,15 +1,15 @@
 #ident "@(#)pkg.assist:3b2.pkg/preinstall	1.0"
 #######################################################################
 #
-#         Preinstall Script
+#       Preinstall Script
 #
-#	ASSIST 1.0   March 1986	
+#	ASSIST Software	
 #
 #
 ###############################################################
 #
 
-PKGNAME="ASSIST"
+PKGNAME="ASSIST Software"
 PATH=":.:$PATH:"
 CURDIR1=`pwd`
 

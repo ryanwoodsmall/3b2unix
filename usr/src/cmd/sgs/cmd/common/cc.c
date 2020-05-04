@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sgs-cmd:common/cc.c	1.89.1.1"
+#ident	"@(#)sgs-cmd:common/cc.c	1.89.1.6"
 
 #define	PARGS	if(debug){printf("%scc: ", prefix);for(j=0;j<nlist[AV];j++)printf(" '%s'",list[AV][j]);printf("\n");}
 
@@ -77,6 +77,7 @@ int	stat = 0;
 #define FCRT1	"fcrt1.o"
 #define FMCRT1	"fmcrt1.o"
 #define MCRT1	"mcrt1.o"
+#define PCRT1	"pcrt1.o"
 #define CRTN	"crtn.o"
 #endif
 
@@ -126,27 +127,27 @@ int	stat = 0;
 /* option string for getopt() */
 
 #ifdef N3B
-#define OPTSTR	"cpq:fOSW:t:EPB:go:D:I:U:CHd:VQl:u:L:Y:#"
+#define OPTSTR	"cpq:fOSW:t:EPgo:D:I:U:CHd:VQl:u:L:Y:#"
 #endif
 
 #ifdef U3B
-#define	OPTSTR	"cpq:fOSW:t:EPB:go:D:I:U:CHd:VQl:u:L:Y:#"
+#define	OPTSTR	"cpq:fOSW:EPgo:D:I:U:CHd:VQl:u:L:Y:#"
 #endif
 
 #ifdef VAX
-#define	OPTSTR	"cpq:fOSW:t:EPB:go:D:I:U:CHVl:u:L:Y:#"
+#define	OPTSTR	"cpq:fOSW:EPgo:D:I:U:CHVl:u:L:Y:#"
 #endif
 
 #ifdef MC68
-#define	OPTSTR	"cpq:fOSW:t:EPB:go:D:I:U:CHd:Vl:u:L:Y:#"
+#define	OPTSTR	"cpq:fOSW:EPgo:D:I:U:CHd:Vl:u:L:Y:#"
 #endif
 
 #ifdef M32
-#define	OPTSTR	"cpq:fOSW:t:EPB:go:D:I:U:CHd:VQl:u:L:FK:Y:#"
+#define	OPTSTR	"cpq:fOSW:EPgo:D:I:U:CHd:VQl:u:L:FK:Y:#"
 #endif
 
 #ifdef IAPX
-#define	OPTSTR	"cpfOSW:t:EPB:gk:vo:D:I:U:CHd:Vl:u:L:Y:#"
+#define	OPTSTR	"cpfOSW:t:EPgk:vo:D:I:U:CHd:Vl:u:L:Y:#"
 #endif
 
 
@@ -367,9 +368,9 @@ main (argc, argv)
 #ifdef M32
 		case 'K':	/* optimize for size or speed */
 			if (strcmp(optarg,"sd")==0)
-				Karg = "-K sd";
+				Karg = "-Ksd";
 			else if (strcmp(optarg,"sz")==0)
-				Karg = "-K sz";
+				Karg = "-Ksz";
 			else {
 				fprintf(stderr,"Illegal argument to -K flag, '-K %s'\n",optarg);
 				exit(1);
@@ -432,8 +433,8 @@ main (argc, argv)
 			chg_pathnames(prefix, chpiece, npath);
 			break;
 
-		case 't':
 #ifdef TV
+		case 't':
 			if (optarg[0] == 'v')
 			{
 				tvflag++;
@@ -442,18 +443,12 @@ main (argc, argv)
 				addopt(Xld,"-tv");
 			}
 			else
-#endif
 			{
-				fprintf(stderr,"-t option will be eliminated in SVR4. Use the -Y option instead.\n");
-				if (chpass != NULL) {
-					fprintf(stderr,"-t overwrites earlier option\n");
-					exit(1);
-				}
-				chpass = optarg;
-				if (chpass[0] == 0)
-					chpass = "012p";
-			} /* end if */
+				fprintf(stderr, "-t is an invalid argument.  Use the -Y option instead.\n");
+				exit(1);
+			} /* enf if */
 			break;
+#endif
 
 		case 'E':	/* run only cpp, output to stdout */
 			Eflag++;
@@ -473,17 +468,6 @@ main (argc, argv)
 
 		case 'H':	/* cpp- print pathnames of included files on stderr */
 			addopt(Xcp,"-H");
-			break;
-
-		case 'B':	/* substitute path name */
-			fprintf(stderr,"-B option will be eliminated in SVR4. Use the -Y option instead.\n");
-			if (newpath != NULL) {
-				fprintf(stderr,"-B overwrites earlier option\n");
-				exit(1);
-			}
-			newpath = optarg;
-			if (newpath[0] == '\0')
-				newpath = "/lib/o";
 			break;
 
 		case 'g':	/* turn on symbols and line numbers */
@@ -613,7 +597,11 @@ main (argc, argv)
 			fprintf(stderr,"%cprof is not available\n",qarg);
 			exit(1);
 		}
+#if defined(M32) || defined(M32MAU)
+		crt = PCRT1;
+#else
 		crt = PCRT0;
+#endif
 #ifndef VAX
 		dsflag = dlflag = 0;
 #endif

@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)libgen:libgen.mk	1.3.1.6"
+#ident	"@(#)libgen:libgen.mk	1.3.2.1"
 #	Makefile for libgen library.
 
 ROOT =
@@ -30,30 +30,30 @@ LIBRARY = libgen.a
 OBJECTS =  Err.o basename.o bgets.o bufsplit.o copylist.o day.o dirname.o \
 	eaccess.o erraction.o errafter.o errbefore.o errexit.o errprefix.o \
 	errsource.o errstrtok.o errtag.o errtext.o errtofix.o errusage.o \
-	hash.o incount.o julian.o leap.o mkdirp.o num.o numd.o p2open.o \
-	pathfind.o regerror.o rmdirp.o sesystem.o sgets.o smemcpy.o sputs.o \
-	stradd.o strccpy.o strecpy.o strnlen.o sweekday.o tconv.o tconvs.o \
-	tmpgetopt.o to_date.o tree.o triml.o trimt.o waitpid.o weekday.o \
-	zaccess.o zacct.o zcalloc.o zchdir.o zchmod.o zchown.o zchroot.o \
-	zclose.o zcreat.o zcuserid.o zdup.o zexecv.o zexecve.o zexecvp.o \
-	zfclose.o zfcntl.o zfdopen.o zferror.o zfopen.o zfread.o zfreopen.o \
-	zfseek.o zfstat.o zfwrite.o zioctl.o zkill.o zlink.o \
-	zlseek.o zmalloc.o zmknod.o zmount.o znice.o zopen.o zpipe.o \
+	gmatch.o hash.o incount.o isencrypt.o julian.o leap.o mkdirp.o num.o \
+	numd.o p2open.o pathfind.o regerror.o rmdirp.o sesystem.o sgets.o \
+	smemcpy.o sputs.o stradd.o strccpy.o strecpy.o strnlen.o sweekday.o \
+	tconv.o tconvs.o tmpgetopt.o to_date.o tree.o triml.o trimt.o \
+	waitpid.o weekday.o zaccess.o zacct.o zcalloc.o zchdir.o zchmod.o \
+	zchown.o zchroot.o zclose.o zcreat.o zcuserid.o zdup.o zexecv.o \
+	zexecve.o zexecvp.o zfclose.o zfcntl.o zfdopen.o zferror.o zfopen.o \
+	zfread.o zfreopen.o zfseek.o zfstat.o zfwrite.o zioctl.o zkill.o \
+	zlink.o zlseek.o zmalloc.o zmknod.o zmount.o znice.o zopen.o zpipe.o \
 	zplock.o zptrace.o zread.o zrealloc.o zsetgid.o zsetuid.o zstat.o \
 	zulimit.o zumount.o zuname.o zunlink.o zwait.o zwrite.o
 
 SOURCES =  Err.c basename.c bgets.c bufsplit.c copylist.c day.c dirname.c \
 	eaccess.c erraction.c errafter.c errbefore.c errexit.c errprefix.c \
 	errsource.c errstrtok.c errtag.c errtext.c errtofix.c errusage.c \
-	hash.c incount.c julian.c leap.c mkdirp.c num.c numd.c p2open.c \
-	pathfind.c regerror.c rmdirp.c sesystem.c sgets.c smemcpy.c sputs.c \
-	stradd.c strccpy.c strecpy.c strnlen.c sweekday.c tconv.c tconvs.c \
-	tmpgetopt.c to_date.c tree.c triml.c trimt.c waitpid.c weekday.c \
-	zaccess.c zacct.c zcalloc.c zchdir.c zchmod.c zchown.c zchroot.c \
-	zclose.c zcreat.c zcuserid.c zdup.c zexecv.c zexecve.c zexecvp.c \
-	zfclose.c zfcntl.c zfdopen.c zferror.c zfopen.c zfread.c zfreopen.c \
-	zfseek.c zfstat.c zfwrite.c zioctl.c zkill.c zlink.c \
-	zlseek.c zmalloc.c zmknod.c zmount.c znice.c zopen.c zpipe.c \
+	gmatch.c hash.c incount.c isencrypt.c julian.c leap.c mkdirp.c num.c \
+	numd.c p2open.c pathfind.c regerror.c rmdirp.c sesystem.c sgets.c \
+	smemcpy.c sputs.c stradd.c strccpy.c strecpy.c strnlen.c sweekday.c \
+	tconv.c tconvs.c tmpgetopt.c to_date.c tree.c triml.c trimt.c \
+	waitpid.c weekday.c zaccess.c zacct.c zcalloc.c zchdir.c zchmod.c \
+	zchown.c zchroot.c zclose.c zcreat.c zcuserid.c zdup.c zexecv.c \
+	zexecve.c zexecvp.c zfclose.c zfcntl.c zfdopen.c zferror.c zfopen.c \
+	zfread.c zfreopen.c zfseek.c zfstat.c zfwrite.c zioctl.c zkill.c \
+	zlink.c zlseek.c zmalloc.c zmknod.c zmount.c znice.c zopen.c zpipe.c \
 	zplock.c zptrace.c zread.c zrealloc.c zsetgid.c zsetuid.c zstat.c \
 	zulimit.c zumount.c zuname.c zunlink.c zwait.c zwrite.c
 
@@ -62,16 +62,15 @@ ALL:		$(LIBRARY)
 $(LIBRARY):	$(LIBRARY)(zwrite.o) $(LIBRARY)(zwait.o) \
 		$(LIBRARY)(zunlink.o) $(LIBRARY)(zuname.o) \
 		$(LIBRARY)(zumount.o) $(LIBRARY)(zulimit.o) \
-		$(LIBRARY)(zstat.o) \
-		$(LIBRARY)(zsetuid.o) $(LIBRARY)(zsetgid.o) \
-		$(LIBRARY)(zrealloc.o) $(LIBRARY)(zread.o) \
-		$(LIBRARY)(zptrace.o) $(LIBRARY)(zplock.o) \
-		$(LIBRARY)(zpipe.o) $(LIBRARY)(zopen.o)	\
-		$(LIBRARY)(znice.o) $(LIBRARY)(zmount.o) \
-		$(LIBRARY)(zmknod.o) $(LIBRARY)(zmalloc.o) \
-		$(LIBRARY)(zlseek.o) $(LIBRARY)(zlink.o) \
-		$(LIBRARY)(zkill.o) $(LIBRARY)(zioctl.o) \
-		$(LIBRARY)(zfwrite.o) \
+		$(LIBRARY)(zstat.o) $(LIBRARY)(zsetuid.o) \
+		$(LIBRARY)(zsetgid.o) $(LIBRARY)(zrealloc.o) \
+		$(LIBRARY)(zread.o) $(LIBRARY)(zptrace.o) \
+		$(LIBRARY)(zplock.o) $(LIBRARY)(zpipe.o) \
+		$(LIBRARY)(zopen.o) $(LIBRARY)(znice.o)	\
+		$(LIBRARY)(zmount.o) $(LIBRARY)(zmknod.o) \
+		$(LIBRARY)(zmalloc.o) $(LIBRARY)(zlseek.o) \
+		$(LIBRARY)(zlink.o) $(LIBRARY)(zkill.o)	\
+		$(LIBRARY)(zioctl.o) $(LIBRARY)(zfwrite.o) \
 		$(LIBRARY)(zfstat.o) $(LIBRARY)(zfseek.o) \
 		$(LIBRARY)(zfreopen.o) $(LIBRARY)(zfread.o) \
 		$(LIBRARY)(zfopen.o) $(LIBRARY)(zferror.o) \
@@ -96,8 +95,9 @@ $(LIBRARY):	$(LIBRARY)(zwrite.o) $(LIBRARY)(zwait.o) \
 		$(LIBRARY)(regerror.o) $(LIBRARY)(pathfind.o) \
 		$(LIBRARY)(p2open.o) $(LIBRARY)(numd.o)	$(LIBRARY)(num.o) \
 		$(LIBRARY)(mkdirp.o) $(LIBRARY)(leap.o)	\
-		$(LIBRARY)(julian.o) $(LIBRARY)(incount.o) \
-		$(LIBRARY)(hash.o) $(LIBRARY)(errusage.o) \
+		$(LIBRARY)(julian.o) $(LIBRARY)(isencrypt.o) \
+		$(LIBRARY)(incount.o) $(LIBRARY)(hash.o) \
+		$(LIBRARY)(gmatch.o) $(LIBRARY)(errusage.o) \
 		$(LIBRARY)(errtofix.o) $(LIBRARY)(errtext.o) \
 		$(LIBRARY)(errtag.o) $(LIBRARY)(errstrtok.o) \
 		$(LIBRARY)(errsource.o)	$(LIBRARY)(errprefix.o)	\
@@ -109,80 +109,114 @@ $(LIBRARY):	$(LIBRARY)(zwrite.o) $(LIBRARY)(zwait.o) \
 		$(LIBRARY)(basename.o) $(LIBRARY)(Err.o) 
 
 
-$(LIBRARY)(Err.o): errmsg.h $(INC)/stdio.h \
+$(LIBRARY)(Err.o): errmsg.h \
+		 $(INC)/stdio.h \
 		 $(INC)/sys/types.h 
 
-$(LIBRARY)(basename.o):	 $(INC)/string.h libgen.h	
+$(LIBRARY)(basename.o):	 $(INC)/string.h	\
+		 libgen.h 
 
 $(LIBRARY)(bgets.o):	 $(INC)/stdio.h 
 
 $(LIBRARY)(bufsplit.o):	 libgen.h 
 
 $(LIBRARY)(copylist.o):	 $(INC)/sys/types.h \
-		 $(INC)/sys/stat.h $(INC)/stdio.h 
+		 $(INC)/sys/stat.h \
+		 $(INC)/stdio.h 
 
-$(LIBRARY)(day.o): $(INC)/stdio.h	libgen.h 
+$(LIBRARY)(day.o): $(INC)/stdio.h \
+		 libgen.h 
 
-$(LIBRARY)(dirname.o):	 $(INC)/string.h libgen.h	
+$(LIBRARY)(dirname.o):	 $(INC)/string.h	\
+		 libgen.h 
 
 $(LIBRARY)(eaccess.o):	 $(INC)/errno.h \
-		 $(INC)/sys/errno.h $(INC)/sys/types.h \
+		 $(INC)/sys/errno.h \
+		 $(INC)/sys/types.h \
 		 $(INC)/sys/stat.h libgen.h 
 
-$(LIBRARY)(erraction.o):	 errmsg.h $(INC)/stdio.h \
-		 $(INC)/sys/types.h $(INC)/stdio.h 
+$(LIBRARY)(erraction.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h \
+		 $(INC)/stdio.h 
 
-$(LIBRARY)(errafter.o):	 errmsg.h $(INC)/stdio.h \
-		 $(INC)/sys/types.h $(INC)/stdio.h \
-		 $(INC)/varargs.h	
+$(LIBRARY)(errafter.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h \
+		 $(INC)/stdio.h \
+		 $(INC)/varargs.h 
 
-$(LIBRARY)(errbefore.o):	 $(INC)/varargs.h	errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
-
-$(LIBRARY)(errexit.o):	 errmsg.h $(INC)/stdio.h \
+$(LIBRARY)(errbefore.o): \
+		 $(INC)/varargs.h errmsg.h \
+		 $(INC)/stdio.h \
 		 $(INC)/sys/types.h 
 
-$(LIBRARY)(errprefix.o):	 errmsg.h $(INC)/stdio.h \
+$(LIBRARY)(errexit.o):	 errmsg.h \
+		 $(INC)/stdio.h \
 		 $(INC)/sys/types.h 
 
-$(LIBRARY)(errsource.o):	 errmsg.h $(INC)/stdio.h \
+$(LIBRARY)(errprefix.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(errsource.o):	 errmsg.h \
+		 $(INC)/stdio.h \
 		 $(INC)/sys/types.h 
 
 $(LIBRARY)(errstrtok.o):	 
 
-$(LIBRARY)(errtag.o):	 errmsg.h $(INC)/stdio.h \
+$(LIBRARY)(errtag.o):	 errmsg.h \
+		 $(INC)/stdio.h \
 		 $(INC)/sys/types.h 
 
-$(LIBRARY)(errtext.o):	 errmsg.h $(INC)/stdio.h \
-		 $(INC)/sys/types.h $(INC)/stdio.h \
-		 strselect.h $(INC)/varargs.h 
+$(LIBRARY)(errtext.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h \
+		 $(INC)/stdio.h strselect.h \
+		 $(INC)/varargs.h 
 
-$(LIBRARY)(errtofix.o):	 errmsg.h $(INC)/stdio.h \
+$(LIBRARY)(errtofix.o):	 errmsg.h \
+		 $(INC)/stdio.h \
 		 $(INC)/sys/types.h 
 
-$(LIBRARY)(errusage.o):	 errmsg.h $(INC)/stdio.h \
-		 $(INC)/sys/types.h $(INC)/stdio.h \
-		 $(INC)/varargs.h	
+$(LIBRARY)(errusage.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h \
+		 $(INC)/stdio.h \
+		 $(INC)/varargs.h 
 
-$(LIBRARY)(hash.o): $(INC)/assert.h $(INC)/stdio.h \
-		 hash.h	
+$(LIBRARY)(gmatch.o):	 
 
-$(LIBRARY)(incount.o):	 $(INC)/stdio.h $(INC)/signal.h \
+$(LIBRARY)(hash.o): $(INC)/assert.h \
+		 $(INC)/stdio.h hash.h 
+
+$(LIBRARY)(incount.o):	 $(INC)/stdio.h \
+		 $(INC)/signal.h	\
 		 $(INC)/sys/signal.h 
 
-$(LIBRARY)(julian.o):	 $(INC)/stdio.h libgen.h 
+$(LIBRARY)(isencrypt.o):	 
+
+$(LIBRARY)(julian.o):	 $(INC)/stdio.h \
+		 libgen.h 
 
 $(LIBRARY)(leap.o): libgen.h 
 
-$(LIBRARY)(mkdirp.o):	 $(INC)/stdio.h $(INC)/errno.h \
-		 $(INC)/sys/errno.h $(INC)/string.h	
+$(LIBRARY)(mkdirp.o):	 $(INC)/stdio.h \
+		 $(INC)/errno.h \
+		 $(INC)/sys/errno.h \
+		 $(INC)/string.h	
 
-$(LIBRARY)(num.o): $(INC)/ctype.h	libgen.h 
+$(LIBRARY)(num.o): $(INC)/ctype.h \
+		 libgen.h 
 
-$(LIBRARY)(numd.o): $(INC)/ctype.h libgen.h 
+$(LIBRARY)(numd.o): $(INC)/ctype.h \
+		 libgen.h 
 
-$(LIBRARY)(p2open.o):	 $(INC)/stdio.h $(INC)/signal.h \
-		 $(INC)/sys/signal.h $(INC)/fcntl.h	
+$(LIBRARY)(p2open.o):	 $(INC)/stdio.h \
+		 $(INC)/signal.h	\
+		 $(INC)/sys/signal.h \
+		 $(INC)/fcntl.h \
+		 $(INC)/sys/fcntl.h 
 
 $(LIBRARY)(pathfind.o):	 $(INC)/sys/types.h \
 		 $(INC)/sys/stat.h libgen.h 
@@ -190,201 +224,278 @@ $(LIBRARY)(pathfind.o):	 $(INC)/sys/types.h \
 $(LIBRARY)(regerror.o):	 libgen.h 
 
 $(LIBRARY)(rmdirp.o):	 $(INC)/sys/types.h \
-		 $(INC)/sys/stat.h $(INC)/stdio.h \
-		 $(INC)/errno.h $(INC)/sys/errno.h \
-		 $(INC)/string.h 
+		 $(INC)/sys/stat.h \
+		 $(INC)/stdio.h \
+		 $(INC)/errno.h \
+		 $(INC)/sys/errno.h \
+		 $(INC)/string.h	
 
-$(LIBRARY)(sesystem.o):	 $(INC)/signal.h \
+$(LIBRARY)(sesystem.o):	 $(INC)/signal.h	\
 		 $(INC)/sys/signal.h libgen.h 
 
-$(LIBRARY)(sgets.o):	 $(INC)/values.h 
+$(LIBRARY)(sgets.o):	 $(INC)/values.h	
 
-$(LIBRARY)(smemcpy.o):	 $(INC)/memory.h libgen.h	
+$(LIBRARY)(smemcpy.o):	 $(INC)/memory.h	\
+		 libgen.h 
 
-$(LIBRARY)(sputs.o):	 $(INC)/values.h 
+$(LIBRARY)(sputs.o):	 $(INC)/values.h	
 
 $(LIBRARY)(stradd.o):	 
 
 $(LIBRARY)(strccpy.o):	 libgen.h 
 
-$(LIBRARY)(strecpy.o):	 $(INC)/ctype.h $(INC)/string.h \
-		 libgen.h 
+$(LIBRARY)(strecpy.o):	 $(INC)/ctype.h \
+		 $(INC)/string.h	libgen.h 
 
 $(LIBRARY)(strnlen.o):	 libgen.h 
 
 $(LIBRARY)(sweekday.o):	 libgen.h 
 
-$(LIBRARY)(tconv.o):	 libgen.h $(INC)/time.h 
+$(LIBRARY)(tconv.o):	 libgen.h \
+		 $(INC)/time.h 
 
-$(LIBRARY)(tconvs.o):	 libgen.h $(INC)/time.h 
+$(LIBRARY)(tconvs.o):	 libgen.h \
+		 $(INC)/time.h 
 
 $(LIBRARY)(tmpgetopt.o):	 
 
 $(LIBRARY)(to_date.o):	 libgen.h 
 
-$(LIBRARY)(tree.o): $(INC)/stdio.h hash.h	
+$(LIBRARY)(tree.o): $(INC)/stdio.h \
+		 hash.h	
 
-$(LIBRARY)(triml.o):	 $(INC)/string.h libgen.h	
+$(LIBRARY)(triml.o):	 $(INC)/string.h	\
+		 libgen.h 
 
-$(LIBRARY)(trimt.o):	 $(INC)/string.h libgen.h	
+$(LIBRARY)(trimt.o):	 $(INC)/string.h	\
+		 libgen.h 
 
 $(LIBRARY)(waitpid.o):	 $(INC)/errno.h \
 		 $(INC)/sys/errno.h libgen.h 
 
 $(LIBRARY)(weekday.o):	 libgen.h 
 
-$(LIBRARY)(zaccess.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
-
-$(LIBRARY)(zacct.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
-
-$(LIBRARY)(zcalloc.o):	 errmsg.h $(INC)/stdio.h \
-		 $(INC)/sys/types.h $(INC)/stdio.h 
-
-$(LIBRARY)(zchdir.o):	 errmsg.h $(INC)/stdio.h \
+$(LIBRARY)(zaccess.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
 		 $(INC)/sys/types.h 
 
-$(LIBRARY)(zchmod.o):	 errmsg.h $(INC)/stdio.h \
+$(LIBRARY)(zacct.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
 		 $(INC)/sys/types.h 
 
-$(LIBRARY)(zchown.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
-
-$(LIBRARY)(zchroot.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
-
-$(LIBRARY)(zclose.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
-
-$(LIBRARY)(zcreat.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
-
-$(LIBRARY)(zcuserid.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
-
-$(LIBRARY)(zdup.o): $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
-
-$(LIBRARY)(zexecv.o):	 errmsg.h $(INC)/stdio.h \
-		 $(INC)/sys/types.h 
-
-$(LIBRARY)(zexecve.o):	 errmsg.h $(INC)/stdio.h \
-		 $(INC)/sys/types.h 
-
-$(LIBRARY)(zexecvp.o):	 errmsg.h $(INC)/stdio.h \
-		 $(INC)/sys/types.h 
-
-$(LIBRARY)(zfclose.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
-
-$(LIBRARY)(zfcntl.o):	 errmsg.h $(INC)/stdio.h \
-		 $(INC)/sys/types.h 
-
-$(LIBRARY)(zfdopen.o):	 errmsg.h $(INC)/stdio.h \
-		 $(INC)/sys/types.h $(INC)/stdio.h 
-
-$(LIBRARY)(zferror.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
-
-$(LIBRARY)(zfopen.o):	 errmsg.h $(INC)/stdio.h \
-		 $(INC)/sys/types.h $(INC)/stdio.h 
-
-$(LIBRARY)(zfread.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
-
-$(LIBRARY)(zfreopen.o):	 errmsg.h $(INC)/stdio.h \
-		 $(INC)/sys/types.h $(INC)/stdio.h 
-
-$(LIBRARY)(zfseek.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
-
-$(LIBRARY)(zfstat.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h \
-		 $(INC)/sys/stat.h 
-
-$(LIBRARY)(zfwrite.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
-
-$(LIBRARY)(zioctl.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
-
-$(LIBRARY)(zkill.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
-
-$(LIBRARY)(zlink.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
-
-$(LIBRARY)(zlseek.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
-
-$(LIBRARY)(zmalloc.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
-
-$(LIBRARY)(zmknod.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
-
-$(LIBRARY)(zmount.o):	 errmsg.h $(INC)/stdio.h \
-		 $(INC)/sys/types.h 
-
-$(LIBRARY)(znice.o):	 errmsg.h $(INC)/stdio.h \
-		 $(INC)/sys/types.h 
-
-$(LIBRARY)(zopen.o):	 errmsg.h $(INC)/stdio.h \
-		 $(INC)/sys/types.h $(INC)/fcntl.h \
+$(LIBRARY)(zcalloc.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h \
 		 $(INC)/stdio.h 
 
-$(LIBRARY)(zpipe.o):	 errmsg.h $(INC)/stdio.h \
+$(LIBRARY)(zchdir.o):	 errmsg.h \
+		 $(INC)/stdio.h \
 		 $(INC)/sys/types.h 
 
-$(LIBRARY)(zplock.o):	 $(INC)/sys/lock.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
-
-$(LIBRARY)(zptrace.o):	 errmsg.h $(INC)/stdio.h \
+$(LIBRARY)(zchmod.o):	 errmsg.h \
+		 $(INC)/stdio.h \
 		 $(INC)/sys/types.h 
 
-$(LIBRARY)(zread.o):	 errmsg.h $(INC)/stdio.h \
-		 $(INC)/sys/types.h $(INC)/stdio.h 
-
-$(LIBRARY)(zrealloc.o):	 errmsg.h $(INC)/stdio.h \
-		 $(INC)/sys/types.h $(INC)/stdio.h 
-
-$(LIBRARY)(zsetgid.o):	 errmsg.h $(INC)/stdio.h \
+$(LIBRARY)(zchown.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
 		 $(INC)/sys/types.h 
 
-$(LIBRARY)(zsetuid.o):	 errmsg.h $(INC)/stdio.h \
+$(LIBRARY)(zchroot.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
 		 $(INC)/sys/types.h 
 
-$(LIBRARY)(zstat.o):	 errmsg.h $(INC)/stdio.h \
-		 $(INC)/sys/types.h $(INC)/sys/stat.h 
-
-$(LIBRARY)(zulimit.o):	 errmsg.h $(INC)/stdio.h \
+$(LIBRARY)(zclose.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
 		 $(INC)/sys/types.h 
 
-$(LIBRARY)(zumount.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
+$(LIBRARY)(zcreat.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
+		 $(INC)/sys/types.h 
 
-$(LIBRARY)(zuname.o):	 errmsg.h $(INC)/stdio.h \
-		 $(INC)/sys/types.h $(INC)/sys/utsname.h 
+$(LIBRARY)(zcuserid.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
+		 $(INC)/sys/types.h 
 
-$(LIBRARY)(zunlink.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
+$(LIBRARY)(zdup.o): $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
+		 $(INC)/sys/types.h 
 
-$(LIBRARY)(zwait.o):	 $(INC)/stdio.h errmsg.h \
-		 $(INC)/stdio.h $(INC)/sys/types.h 
+$(LIBRARY)(zexecv.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h 
 
-$(LIBRARY)(zwrite.o):	 errmsg.h $(INC)/stdio.h \
-		 $(INC)/sys/types.h $(INC)/stdio.h 
+$(LIBRARY)(zexecve.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h 
 
-GLOBALINCS = $(INC)/assert.h $(INC)/ctype.h $(INC)/errno.h \
-	$(INC)/fcntl.h $(INC)/memory.h $(INC)/signal.h \
-	$(INC)/stdio.h $(INC)/string.h strselect.h \
-	$(INC)/sys/errno.h $(INC)/sys/lock.h \
-	$(INC)/sys/signal.h $(INC)/sys/stat.h \
-	$(INC)/sys/types.h $(INC)/sys/utsname.h \
-	$(INC)/time.h $(INC)/values.h $(INC)/varargs.h 
+$(LIBRARY)(zexecvp.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h 
 
-LOCALINCS = errmsg.h hash.h libgen.h 
+$(LIBRARY)(zfclose.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zfcntl.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zfdopen.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h \
+		 $(INC)/stdio.h 
+
+$(LIBRARY)(zferror.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zfopen.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h \
+		 $(INC)/stdio.h 
+
+$(LIBRARY)(zfread.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zfreopen.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h \
+		 $(INC)/stdio.h 
+
+$(LIBRARY)(zfseek.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zfstat.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
+		 $(INC)/sys/types.h \
+		 $(INC)/sys/stat.h 
+
+$(LIBRARY)(zfwrite.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zioctl.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zkill.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zlink.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zlseek.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zmalloc.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zmknod.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zmount.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(znice.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zopen.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h \
+		 $(INC)/fcntl.h \
+		 $(INC)/sys/fcntl.h \
+		 $(INC)/stdio.h 
+
+$(LIBRARY)(zpipe.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zplock.o):	 $(INC)/sys/lock.h \
+		 errmsg.h $(INC)/stdio.h	\
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zptrace.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zread.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h \
+		 $(INC)/stdio.h 
+
+$(LIBRARY)(zrealloc.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h \
+		 $(INC)/stdio.h 
+
+$(LIBRARY)(zsetgid.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zsetuid.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zstat.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h \
+		 $(INC)/sys/stat.h 
+
+$(LIBRARY)(zulimit.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zumount.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zuname.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h \
+		 $(INC)/sys/utsname.h 
+
+$(LIBRARY)(zunlink.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zwait.o):	 $(INC)/stdio.h \
+		 errmsg.h $(INC)/stdio.h	\
+		 $(INC)/sys/types.h 
+
+$(LIBRARY)(zwrite.o):	 errmsg.h \
+		 $(INC)/stdio.h \
+		 $(INC)/sys/types.h \
+		 $(INC)/stdio.h 
+
+GLOBALINCS = $(INC)/assert.h \
+	$(INC)/ctype.h \
+	$(INC)/errno.h \
+	$(INC)/fcntl.h \
+	$(INC)/memory.h \
+	$(INC)/signal.h \
+	$(INC)/stdio.h \
+	$(INC)/string.h \
+	$(INC)/sys/errno.h \
+	$(INC)/sys/fcntl.h \
+	$(INC)/sys/lock.h \
+	$(INC)/sys/signal.h \
+	$(INC)/sys/stat.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/utsname.h \
+	$(INC)/time.h \
+	$(INC)/values.h \
+	$(INC)/varargs.h 
+
+LOCALINCS = errmsg.h hash.h libgen.h strselect.h 
 
 clean:
 	rm -f $(OBJECTS)

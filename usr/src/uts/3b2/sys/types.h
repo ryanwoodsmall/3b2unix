@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/types.h	10.6"
+#ident	"@(#)kern-port:sys/types.h	10.6.1.1"
 
 typedef	struct { int r[1]; } *	physadr;
 typedef	long		daddr_t;	/* <disk address> type */
@@ -27,10 +27,3 @@ typedef	short		sysid_t;
 typedef	short		index_t;
 typedef	short		lock_t;		/* lock work for busy wait */
 typedef	unsigned int	size_t;		/* len param for string funcs */
-/*
- * Distributed UNIX hook 
- */
-typedef struct cookie {
-	long	c_sysid;
-	long 	c_rcvd;
-} *cookie_t;

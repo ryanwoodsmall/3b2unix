@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:com/sgs.h	1.13"
+#ident	"@(#)sdb:com/sgs.h	1.14"
 
 #if vax
 #define ISMAGIC(x)	((((unsigned short)x)==(unsigned short)VAXROMAGIC) || \
@@ -45,6 +45,7 @@
 #define AOUT1MAGIC	0407
 #define AOUT2MAGIC	0410
 #define	AOUT3MAGIC	0413	/* Paging aout header magic number. */
+#define	AOUT4MAGIC	0443	/* Shared libraries */
 #endif
 
 #define	SGSNAME	""

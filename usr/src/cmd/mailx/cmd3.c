@@ -5,13 +5,12 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:cmd3.c	1.10"
+#ident	"@(#)mailx:cmd3.c	1.11"
 #
 
 #include "rcv.h"
 #include <sys/stat.h>
-typedef	int	(*sigtype)();
-extern sigtype m_sigset();
+typedef	SIG	(*sigtype)();
 
 /*
  * mailx -- a modified version of a University of California at Berkeley
@@ -37,7 +36,8 @@ char	*str;
 shell1(str)
 	char *str;
 {
-	int (*sig[2])(), stat[1];
+	SIG (*sig[2])();
+	int stat[1];
 	register int t;
 	char *Shell;
 	char cmd[BUFSIZ];
@@ -48,7 +48,7 @@ shell1(str)
 	if ((Shell = value("SHELL")) == NOSTR || *Shell=='\0')
 		Shell = SHELL;
 	for (t = 2; t < 4; t++)
-		sig[t-2] = m_sigset(t, SIG_IGN);
+		sig[t-2] = sigset(t, SIG_IGN);
 	t = vfork();
 	if (t == 0) {
 		setuid(getuid());
@@ -66,7 +66,7 @@ shell1(str)
 	if (t == -1)
 		perror("fork");
 	for (t = 2; t < 4; t++)
-		m_sigset(t, sig[t-2]);
+		sigset(t, sig[t-2]);
 	return(0);
 }
 
@@ -77,13 +77,14 @@ shell1(str)
 dosh(str)
 	char *str;
 {
-	int (*sig[2])(), stat[1];
+	SIG (*sig[2])();
+	int stat[1];
 	register int t;
 	char *Shell;
 	if ((Shell = value("SHELL")) == NOSTR || *Shell=='\0')
 		Shell = SHELL;
 	for (t = 2; t < 4; t++)
-		sig[t-2] = m_sigset(t, SIG_IGN);
+		sig[t-2] = sigset(t, SIG_IGN);
 	t = vfork();
 	if (t == 0) {
 		setuid(getuid());

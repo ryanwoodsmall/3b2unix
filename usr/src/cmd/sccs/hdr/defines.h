@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sccs:hdr/defines.h	6.4"
+#ident	"@(#)sccs:hdr/defines.h	6.5"
 # include	"sys/types.h"
 # include	"stdio.h"
 # include	"macros.h"
@@ -213,6 +213,6 @@ struct	pfile	{
 };
 
 
-# define RESPSIZE	512
+# define RESPSIZE	1024
 # define NVARGS	64
 # define VSTART 3

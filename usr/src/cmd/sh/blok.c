@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sh:blok.c	1.7"
+#ident	"@(#)sh:blok.c	1.9"
 /*
  *	UNIX shell
  */

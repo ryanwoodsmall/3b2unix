@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)mcs:mcs.mk	1.2"
+#ident	"@(#)mcs:mcs.mk	1.3"
 ROOT=
 FRC =
 INSDIR = $(ROOT)/usr/bin 
@@ -24,6 +24,9 @@ clean:
 
 clobber:	clean
 	-rm -f mcs
+
+lint:
+	lint $(CFLAGS) mcs.c
 
 FRC:
 

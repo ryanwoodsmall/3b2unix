@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/if.h	10.2"
+#ident	"@(#)kern-port:sys/if.h	10.2.2.1"
 /* This file contains the command and status information needed 
    to initialize structure definitions for the 3B2 product 
    floppy disk subsystem utilizing the Western Digital 2797

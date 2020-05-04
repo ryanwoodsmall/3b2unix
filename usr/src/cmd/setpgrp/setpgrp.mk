@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)setpgrp:setpgrp.mk	1.1"
+#ident	"@(#)setpgrp:setpgrp.mk	1.2"
 
 #	Makefile for setpgrp
 
@@ -15,7 +15,7 @@ DIR = $(ROOT)/bin
 
 INC = $(ROOT)/usr/include
 
-LDFLAGS =
+LDFLAGS = -s
 
 CFLAGS = -O -I$(INC)
 

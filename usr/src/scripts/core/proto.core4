@@ -125,6 +125,11 @@ d--775 0 3
 				l	d--775 2 2
 					lp	---644 2 2	../usr/lib/terminfo/l/lp
 				$
+				p	d--775 2 2
+					pe550	---644 2 2	../usr/lib/terminfo/p/pe550
+					pe6100	---644 2 2	../usr/lib/terminfo/p/pe6100
+					pt505	---644 2 2	../usr/lib/terminfo/p/pt505
+				$
 				r	d--775 2 2
 					regent100	---644 2 2	../usr/lib/terminfo/r/regent100
 					regent20	---644 2 2	../usr/lib/terminfo/r/regent20
@@ -144,4 +149,4 @@ d--775 0 3
 		$
 	$
 $
-:#ident	"@(#)core:proto.core4	1.11"
+:#ident	"@(#)core:proto.core4	1.11.1.5"

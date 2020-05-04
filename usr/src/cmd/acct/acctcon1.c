@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)acct:acctcon1.c	1.9"
+#ident	"@(#)acct:acctcon1.c	1.10"
 /*
  *	acctcon1 [-p] [-t] [-l file] [-o file] <wtmp-file >ctmp-file
  *	-p	print input only, no processing
@@ -64,6 +64,7 @@ char	*ctime();
 long	ftell();
 uid_t	namtouid();
 dev_t	lintodev();
+extern	time_t 	time();
 
 main(argc, argv) 
 char **argv;

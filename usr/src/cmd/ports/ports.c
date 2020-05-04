@@ -5,19 +5,25 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)ports:ports.c	1.7"
+#ident	"@(#)ports:ports.c	1.7.2.1"
 /*
- *	Copyright 1984 AT&T
+ *	Copyright 1986 AT&T
  */
 
 #include "stdio.h"
 #include "fcntl.h"
+#include "string.h"
 #include "sys/sysmacros.h"
 #include "sys/edt.h"
 #include "sys/sys3b.h"
 #include "sys/types.h"
 #include "sys/stat.h"
 #include "sys/dir.h"
+#include "sys/pump.h"
+#include "sys/cio_defs.h"
+#include "sys/pp_dep.h"
+#include "sys/queue.h"
+#include "sys/ppc.h"
 
 #define PORT_CODE	3
 #define MAXSLOTS	13
@@ -44,7 +50,7 @@ struct edtsize {
 } edtsize;
 
 struct edt *edtptr;
-
+long version;
 
 main()
 {
@@ -61,6 +67,8 @@ main()
 	int edt_size;
 	char *path = "/dev";
 	int i, j, n = 0;
+	char pumpfile[25];
+	int rtn;
 
      	if(sys3b(S3BEDT,&edtsize,sizeof(struct edtsize)) != 0)
 		err("Ports: Sys3b call to get edt table failed.\nCall your local service representative.\n");
@@ -133,6 +141,7 @@ main()
 
 	close(fd);
 	umask(cmask);
+	strcpy(pumpfile,"ports"); /* default ports file */
 	for(i = 0; i < MAXSLOTS; i++)
 	{
 		if(slot[i] != 0)
@@ -154,14 +163,17 @@ main()
 						mknod(device, 0020622, ((i<<8)|(j-1)));
 						if(j == 1)
 						{
-							sprintf(cmd, "/etc/pump %s /lib/pump/ports", device);
+							ver(device,pumpfile);
+							sprintf(cmd, "/etc/pump %s /lib/pump/%s", device,pumpfile);
 							system(cmd);
 						}
 					}
 				}
 				else
 				{
-					sprintf(cmd, "/etc/pump %s/tty%d1 /lib/pump/ports", path, i);
+					sprintf(device, "%s/tty%d1", path,i);
+					ver(device,pumpfile);
+					sprintf(cmd, "/etc/pump %s /lib/pump/%s", device, pumpfile);
 					system(cmd);
 
 				}
@@ -176,7 +188,8 @@ main()
 
 					if(j == 1)
 					{
-						sprintf(cmd, "/etc/pump %s /lib/pump/ports", device);
+						ver(device,pumpfile);
+						sprintf(cmd, "/etc/pump %s /lib/pump/%s", device,pumpfile);
 						system(cmd);
 					}
 				}
@@ -213,7 +226,7 @@ main()
 	stat("/etc/inittab", &temp.statb);
 
 	if((inittab = fopen("/etc/inittab", "r")) == NULL)
-		err("/etc/inittab cannot be opened for reading and writing.  Please call your local service representative.\n");
+		err("/etc/inittab cannot be opened for reading.  Please call your local service representative.\n");
 
 	if(creat("/etc/newfile", 0000666) < 0)
 	{
@@ -257,7 +270,7 @@ main()
 
 	for(j = 0; j < MAXSLOTS; j++)
 	{
-		for(n = 1; n < 6; n++)
+		for(n = 1; n < 5; n++)
 		{
 			if(slot[j] != 0 && ttycor[j] == 0)
 				sprintf(buffer[i++], "%d%d:234:off:/etc/getty tty%d%d 9600\n", j, n, j, n);
@@ -305,4 +318,57 @@ int cnt;
 			return(-1);
 
 	return(0);
+}
+ver(device,pumpfile)
+char *device, *pumpfile;
+{
+	struct pump_st pumpst;
+	struct stat statb;
+	long version;
+	int fd;
+
+	
+	strcpy(pumpfile,"ports");
+
+	if((fd = open(device, O_PUMP)) < 0)
+	{
+		fprintf(stderr, "Version Error %d: Can't open %s\n", errno, device);
+		return;
+	}
+	if(stat(device, &statb) < 0)
+	{
+		fprintf(stderr, "Version error: %d - Can't get status of %s\n",
+		errno, device);
+		close(fd);
+		return;
+	}
+
+
+	pumpst.dev = statb.st_rdev;
+	pumpst.min = (short)minor(statb.st_rdev);
+
+	pumpst.retcode = PU_NULL;
+	pumpst.cmdcode = PU_RST;
+
+	if(ioctl(fd, PUMP, &pumpst) < 0)
+	{
+		fprintf(stderr, "Version Error: %d - ioctl(pump_rst) call\n", errno);
+		close(fd);
+		return;
+	}
+
+	if(pumpst.retcode != NORMAL)
+	{
+		fprintf(stderr, "Version Error: %d - reset failed\n",errno);
+		close(fd);
+		return;
+	}
+	if(ioctl(fd, PPC_VERS, &version) < 0)
+	{
+		fprintf(stderr, "Version Error: %d - ioctl(version) call\n", errno);
+		close(fd);
+		return;
+	}
+	if (version == HIPORTS)strcpy(pumpfile,"ports.hpp");
+	close(fd);
 }

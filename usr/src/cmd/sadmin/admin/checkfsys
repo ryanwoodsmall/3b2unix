@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:admin/checkfsys	2.7"
+#ident	"@(#)sadmin:admin/checkfsys	2.10"
 #	Copyright (c) 1984 AT&T.  All Rights Reserved.
 #	THIS IS UNPUBLISHED PROPRIETARY SOURCE CODE OF AT&T.
 #	The copyright notice above does not evidence any actual
@@ -61,13 +61,24 @@ then
 You may remove the medium.'
 	exit 0
 fi
-
+ERR=0
+if [ -f /${fsname} ]
+	then
+		ERR=2
+	elif [ -d /${fsname} ]
+	then
+	mounted=`/etc/mount | sed 's; .*;;'`
+	if echo "$mounted" | grep "/${fsname}\$"
+	then
+		ERR=3
+	fi
+fi
 checktype=`checklist ${flags} -fep -H '
 	The "check" looks for file system damage but does not attempt to
 	fix it.  The "interactive repair" asks you to decide what should be
 	done for each error.  The "automatic repair" makes standard repairs
-	when it finds errors.  "automatic" generally safe, although there are
-	some problems it cannot handle.  In those cases you need a file system
+	when it finds errors;  it is generally safe, although there are some 
+	problems it cannot handle.  In those cases, you need a file system
 	repair expert to fix things.
 	     Most users will be satisfied using "automatic".  For particularly
 	sensitive or unreproducible data we recommend that you use "check"
@@ -109,11 +120,26 @@ then
 	representative if you think there is a machine problem.
 You may now remove the medium."
 else
+	if [ $ERR -ne 0 ]
+	then
+		echo "\tUnable to mount file system '${fsname}' to complete checking."
+		case "$ERR" in
+		"2") echo "\tA file by that name already exists in the root directory."
+			;;
+		"3") echo "\tA file system with that name is already mounted."
+			;;
+		*) echo "\tUnknown error $ERR."
+			;;
+		esac
+	  exit 1
+	fi
+
 	trap "	trap '' 1 2
 		diskumount -n '${ndrive}' ${ddrive}" 0
 	/etc/mount ${ddrive} /${fsname} -r
 	if [ ! -d /${fsname}/lost+found ]
 	then
+		echo "There is no lost+found directory on file system '${fsname}'"
 		exit 0
 	fi
 	cd /${fsname}/lost+found

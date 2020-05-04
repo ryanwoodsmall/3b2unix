@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)ld:common/ld00.c	1.39"
+#ident	"@(#)ld:common/ld00.c	1.39.1.2"
 #include "system.h"
 
 #include <stdio.h>
@@ -570,7 +570,7 @@ int ifile;		/* set TRUE iff the flag comes from an ifile */
 			zflag++;
 			break;
 #endif
-#if !UNIX || !DMERT
+#if !UNIX && !DMERT
 		case 'B':
 			if( ifile )
 				if (yylex() != LONGINT)
@@ -599,7 +599,7 @@ int ifile;		/* set TRUE iff the flag comes from an ifile */
 			break;
 		case 'L':
 			if ( nldirs >= MAXLDIRS )
-				yyerror("too many -L options, %d allowed", MAXLDIRS-1);
+				yyerror("too many -L options, %d allowed", MAXLDIRS-NDELDIRS);
 			else if ( flgname[1] == NULL )
 				yyerror("no directory given with -L");
 			else if ( strlen(&flgname[1]) > MAXDLEN )

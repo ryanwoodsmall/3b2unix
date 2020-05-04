@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)xt:xtraces.c	2.5"
+#ident	"@(#)xt:xtraces.c	2.6"
 
 /*	Copyright (c) 1984 AT&T	*/
 /*	  All Rights Reserved  	*/
@@ -19,13 +19,15 @@
  * Routine to print 'xt' driver traces
  */
 #include "stdio.h"
-
+#include "errno.h"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/tty.h"
 #include "sys/jioctl.h"
 #include "sys/xtproto.h"
 #include "sys/xt.h"
+
+#define Fprintf (void)fprintf
 
 #if XTRACE == 1
 #define min(x, y)	((x) < (y)? (x) : (y))
@@ -42,10 +44,12 @@ char *mtype[] = {
 	"", "SENDCHAR", "NEW", "UNBLK", "DELETE", "EXIT",
 	"DEFUNCT", "SENDNCHARS", "RESHAPE",
 };	
-#endif XTRACE
+#endif
 
-void
-xtraces(cfd, ofd)
+int
+xtraces(name, cfd, ofd)
+char *name;
+int cfd;
 register FILE *ofd;
 {
 #if XTRACE == 1
@@ -55,10 +59,13 @@ register FILE *ofd;
 	register time_t date;
 	long t;
 
-	if (ioctl(cfd, XTIOCTRACE, &Traces) == -1)
-		return;
+	if (ioctl(cfd, XTIOCTRACE, &Traces) == -1) {
+		Fprintf(stderr,"%s: xt ioctl failed - errno '%d'\n",name,errno);
+		return(1);
+	}
+
 	if ((i = Traces.used) == 0 || (Traces.flags&TRACEON) == 0)
-		return;
+		return(0);
 	(void)time(&t);
 	(void)fprintf(ofd, "\n%15.15s Xt Packet Traces:-\n", ctime(&t)+4);
 	if (Traces.flags&TRACELOCK)
@@ -110,5 +117,6 @@ register FILE *ofd;
 			tp = Traces.log;
 	} while (--i);
 	(void)fflush(ofd);
-#endif XTRACE
+	return(0);
+#endif
 }

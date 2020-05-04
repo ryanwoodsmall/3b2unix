@@ -1,7 +1,7 @@
-#ident	"@(#)pkg.usrenv:usrenv/setup	1.6"
+#ident	"@(#)pkg.usrenv:usrenv/setup	1.6.1.1"
 ln /bin/true /bin/u3b2 2>/dev/null
 ln /bin/false /bin/u3b 2>/dev/null
-ln /bin/false /bin/u3b5 2>/dev/null
+ln /bin/false /bin/u3b15 2>/dev/null
 ln /bin/false /bin/vax 2>/dev/null
 ln /bin/false /bin/pdp11 2>/dev/null
 #

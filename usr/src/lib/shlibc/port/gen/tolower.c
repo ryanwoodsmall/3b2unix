@@ -5,18 +5,20 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libc-port:gen/tolower.c	1.4"
-/*	3.0 SID #	1.2	*/
-/*LINTLIBRARY*/
+#ident	"@(#)libc-port:gen/tolower.c	1.6"
 /*
- * If arg is upper-case, return the lower-case, else return the arg.
+ * If arg is upper-case, return lower-case, otherwise return arg.
+ * International version
  */
+
+#include <ctype.h>
 
 int
 tolower(c)
 register int c;
 {
-	if(c >= 'A' && c <= 'Z')
-		c -= 'A' - 'a';
+	if (isupper(c))
+		c = _tolower(c);
 	return(c);
 }
+

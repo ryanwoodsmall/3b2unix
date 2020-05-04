@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:aux.c	1.9"
+#ident	"@(#)mailx:aux.c	1.14"
 #
 
 #include <errno.h>
@@ -461,7 +461,7 @@ struct sstack {
 	FILE	*s_file;		/* File we were in. */
 	int	s_cond;			/* Saved state of conditionals */
 	int	s_loading;		/* Loading .mailrc, etc. */
-} sstack[_NFILE];
+} *sstack;
 
 /*
  * Pushdown current input file and switch to a new one.
@@ -474,18 +474,30 @@ source(name)
 {
 	register FILE *fi;
 	register char *cp;
+	long ulimit();
+	char *calloc();
 
 	if ((cp = expand(name)) == NOSTR)
 		return(1);
 	if ((fi = fopen(cp, "r")) == NULL) {
-		perror(cp);
+		printf("Unable to open %s\n",cp);
 		return(1);
 	}
-	if (ssp >= _NFILE-2) {
-		printf("Too much \"sourcing\" going on.\n");
-		fclose(fi);
-		return(1);
+
+	if ( !maxfiles ) {
+		if ( (maxfiles=ulimit(4, 0)) < 0 ) {
+			perror("maxfiles");
+			fclose(fi);
+			return(1);
+		}
+		sstack = (struct sstack *)calloc(maxfiles, sizeof(struct sstack));
+		if ( sstack == NULL ) {
+			printf("Couldn't allocate memory for sourcing stack\n");
+			fclose(fi);
+			return(1);
+		}
 	}
+
 	sstack[++ssp].s_file = input;
 	sstack[ssp].s_cond = cond;
 	sstack[ssp].s_loading = loading;
@@ -795,13 +807,24 @@ anyof(s1, s2)
 
 #ifndef SIGRETRO
 
+typedef SIG	(*sigtype)();
+
 /*
  * This routine is used by the sigretro package to
  * reset held signals to ignored signals.  If you're not
  * using sigretro, you don't need to do anything, but you DO
  * need this stub to keep everyone happy.
  */
-sigchild() {}
+sigchild()
+{
+}
+
+sigtype
+sigsys(sig, func)
+sigtype func;
+{
+	return(signal(sig, func));
+}
 
 #endif /* SIGRETRO */
 

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)crash-3b2:stream.c	1.15"
+#ident	"@(#)crash-3b2:stream.c	1.15.3.1"
 /*
  * This file contains code for the crash functions:  stream, queue, mblock,
  * mbfree, dblock, dbfree, strstat, linkblk, dballoc, qrun.
@@ -64,7 +64,7 @@ getstream()
 	long arg1 = -1;
 	long arg2 = -1;
 	int c;
-	char *heading = "SLOT  WRQ IOCB INODE  PGRP    IOCID   IOCWT WOFF ERR FLAGS\n";
+	char *heading = "SLOT  WRQ IOCB INODE  PGRP    IOCID   IOCWT WOFF ERR FLAG\n";
 
 	if(!Streams)
 		if(!(Streams = symsrch("streams")))
@@ -101,7 +101,8 @@ getstream()
 				continue;
 			if(arg2 != -1)
 				for(slot = arg1; slot <= arg2; slot++)
-					prstream(all,full,slot,phys,addr,heading);
+					prstream(all,full,slot,phys,addr,
+						heading);
 			else {
 				if(arg1 < vbuf.v_nstream)
 					slot = arg1;
@@ -131,11 +132,14 @@ char *heading;
 		(char *)&strm, sizeof strm,"streams table slot");
 	if (!strm.sd_wrq && !all) 
 		return;
-	if(addr > -1) 
-		slot = getslot(addr,(long)Streams->n_value,sizeof strm,phys);
 	if(full)
 		fprintf(fp,"%s",heading);
-	fprintf(fp,"%4d ",slot);
+	if(addr > -1) 
+		slot = getslot(addr,(long)Streams->n_value,sizeof strm,phys,
+			vbuf.v_nstream);
+	if(slot == -1)
+		fprintf(fp,"  -  ");
+	else fprintf(fp,"%4d ",slot);
 	fprintf(fp,"%4d ",((long)strm.sd_wrq - Queue->n_value)/
 		sizeof(struct queue));
 	ioc_slot = ((long)strm.sd_iocblk - Mblock->n_value)/
@@ -163,8 +167,8 @@ char *heading;
 		((strm.sd_flag & STR2TIME) ? "s2tm " : ""),
 		((strm.sd_flag & STR3TIME) ? "s3tm " : ""));
 	if(full) {
-		fprintf(fp,"\t STRTAB  CNT\n");
-		fprintf(fp,"\t%8x  %2d\n",
+		fprintf(fp,"\t STRTAB  RCNT\n");
+		fprintf(fp,"\t%8x   %2d\n",
 			strm.sd_strtab,
 			strm.sd_pushcnt);
 		fprintf(fp,"\tSIGFLAGS:  %s%s%s%s\n",
@@ -238,7 +242,7 @@ getqueue()
 		}
 	}
 	fprintf(fp,"QUEUE TABLE SIZE = %d\n",vbuf.v_nqueue);
-	fprintf(fp,"SLOT   INFO   NEXT LINK   PTR     CNT HEAD TAIL MINP MAXP HIWT LOWT FLAGS\n");
+	fprintf(fp,"SLOT   INFO   NEXT LINK   PTR     RCNT HEAD TAIL MINP MAXP HIWT LOWT FLAG\n");
 	if(args[optind]) {
 		all = 1;
 		do {
@@ -276,8 +280,11 @@ long addr;
 	if (!(que.q_flag & QUSE) && !all)
 		return;
 	if(addr > -1) 
-		slot = getslot(addr,(long)Queue->n_value,sizeof que,phys);
-        fprintf(fp,"%4d ",slot);
+		slot = getslot(addr,(long)Queue->n_value,sizeof que,phys,
+			vbuf.v_nqueue);
+	if(slot == -1)
+		fprintf(fp,"  -  ");
+        else fprintf(fp,"%4d ",slot);
 	fprintf(fp,"%8x ",que.q_qinfo);
 	qn = ((long)que.q_next - Queue->n_value)/(sizeof(struct queue));
 	ql = ((long)que.q_link - Queue->n_value)/(sizeof(struct queue));
@@ -288,7 +295,7 @@ long addr;
 		fprintf(fp,"%4d ",ql);
 	else fprintf(fp,"   - ");
 	fprintf(fp,"%8x ",que.q_ptr);
-	fprintf(fp,"%4d ",que.q_count);
+	fprintf(fp," %4d ",que.q_count);
 	m = que.q_first;
 	if (m) {
 		fprintf(fp,"%4d ",
@@ -386,8 +393,11 @@ long addr;
 	if (!mblk.b_datap && !all) 
 		return(-1);
 	if(addr > -1) 
-		slot = getslot(addr,(long)Mblock->n_value,sizeof mblk,phys);
-        fprintf(fp,"%4d ",slot);
+		slot = getslot(addr,(long)Mblock->n_value,sizeof mblk,phys,
+			nmblock);
+	if(slot == -1)
+		fprintf(fp,"  -  ");
+	else fprintf(fp,"%4d ",slot);
 	mnext = ((long)mblk.b_next - Mblock->n_value)/sizeof(struct msgb);
 	mcont = ((long)mblk.b_cont - Mblock->n_value)/sizeof(struct msgb);
 	mprev = ((long)mblk.b_prev - Mblock->n_value)/sizeof(struct msgb);
@@ -486,7 +496,7 @@ getdblk()
 		}
 	}
 	fprintf(fp,"DATA BLOCK TABLE SIZE = %d\n",ndblock);
-	fprintf(fp,"SLOT CLASS SIZE  REF   TYPE     BASE     LIMIT  FREEP\n");
+	fprintf(fp,"SLOT CLASS SIZE  RCNT   TYPE     BASE     LIMIT  FREEP\n");
 	if(args[optind]) {
 		if(class) 
 			do {
@@ -534,13 +544,16 @@ long addr;
 	if (!dblk.db_ref && !all)
 		return(-1);
 	if(addr > -1) 
-		slot = getslot(addr,(long)Dblock->n_value,sizeof dblk,phys);
+		slot = getslot(addr,(long)Dblock->n_value,sizeof dblk,phys,
+			ndblock);
 	if (dblk.db_class != lastcls) {
 		fprintf(fp,"\n");
 		lastcls=dblk.db_class;
 	}
-	fprintf(fp,"%4d %5d ",
-		slot,
+	if(slot == -1)
+		fprintf(fp,"  - ");
+	else fprintf(fp,"%4d",slot);
+	fprintf(fp," %5d ",
 		dblk.db_class);
 	switch (dblk.db_class) {
 		case 0: fprintf(fp,"   4 "); break;
@@ -554,7 +567,7 @@ long addr;
 		case 8: fprintf(fp,"4096 "); break;
 		default: fprintf(fp,"   - ");
 	}
-	fprintf(fp,"%4d ", dblk.db_ref); 
+	fprintf(fp," %4d ", dblk.db_ref); 
 	switch (dblk.db_type) {
 		case M_DATA: fprintf(fp,"data     "); break;
 		case M_PROTO: fprintf(fp,"proto    "); break;
@@ -628,7 +641,7 @@ getdbfree()
 			default  :	longjmp(syn,0);
 		}
 	}
-	fprintf(fp,"SLOT CLASS SIZE  REF   TYPE     BASE     LIMIT  FREEP\n");
+	fprintf(fp,"SLOT CLASS SIZE  RCNT   TYPE     BASE     LIMIT  FREEP\n");
 	if(args[optind]) 
 		do {
 			if((klass = (int)strcon(args[optind++],'d')) == -1)
@@ -771,7 +784,7 @@ prstrstat()
 	p = &(vbuf.v_nblk4096);
 	for (i=NCLASS-1; i>=0; i--) dcc[i] = *p++;
 
-	fprintf(fp,"ITEM             CONFIGURED   ALLOCATED     FREE\n");
+	fprintf(fp,"ITEM               CONFIGURED   ALLOCATED     FREE\n");
 
 	readmem((long)Qhead->n_value,1,-1,(char *)&q,
 		sizeof q,"qhead");
@@ -833,17 +846,32 @@ prstrstat()
 		}
 	}
 
-	fprintf(fp,"streams             %4d         %4d       %4d\n",
+	fprintf(fp,"streams               %4d         %4d       %4d\n",
 		vbuf.v_nstream, susecnt, vbuf.v_nstream - susecnt);
-	fprintf(fp,"queues              %4d         %4d       %4d\n",
+	fprintf(fp,"queues                %4d         %4d       %4d\n",
 		vbuf.v_nqueue, qusecnt, vbuf.v_nqueue - qusecnt);
-	fprintf(fp,"message blocks      %4d         %4d       %4d\n",
+	fprintf(fp,"message blocks        %4d         %4d       %4d\n",
 		nmblock, musecnt, mfreecnt);
-	fprintf(fp,"data block totals   %4d         %4d       %4d\n",
+	fprintf(fp,"data block totals     %4d         %4d       %4d\n",
 		ndblock, dusecnt, dfreecnt);
 	for (i=0; i<NCLASS; i++) 
-		fprintf(fp,"data block class%2d  %4d         %4d       %4d\n",
-			i, dcc[i], duc[i], dfc[i]);
+		{
+		fprintf(fp,"data block size ");
+		switch (i) {
+			case 0: fprintf(fp,"   4  "); break;
+			case 1: fprintf(fp,"  16  "); break;
+			case 2: fprintf(fp,"  64  "); break;
+			case 3: fprintf(fp," 128  "); break;
+			case 4: fprintf(fp," 256  "); break;
+			case 5: fprintf(fp," 512  "); break;
+			case 6: fprintf(fp,"1024  "); break;
+			case 7: fprintf(fp,"2048  "); break;
+			case 8: fprintf(fp,"4096  "); break;
+			default: fprintf(fp,"   -  ");
+			}
+		fprintf(fp,"%4d         %4d       %4d\n",
+			dcc[i], duc[i], dfc[i]);
+		}
 	fprintf(fp,"\nCount of scheduled queues:%4d\n", qruncnt);
 
 
@@ -896,24 +924,24 @@ getlinkblk()
 				continue;
 			if(arg2 != -1)
 				for(slot = arg1; slot <= arg2; slot++)
-					prlinkblk(all,slot,phys,addr);
+					prlinkblk(all,slot,phys,addr,nmuxlink);
 			else {
 				if(arg1 < nmuxlink)
 					slot = arg1;
 				else addr = arg1;
-				prlinkblk(all,slot,phys,addr);
+				prlinkblk(all,slot,phys,addr,nmuxlink);
 			}
 			slot = addr = arg1 = arg2 = -1;
 		}while(args[++optind]);
 	}
 	else for(slot = 0; slot < nmuxlink; slot++)
-		prlinkblk(all,slot,phys,addr);	
+		prlinkblk(all,slot,phys,addr,nmuxlink);	
 }
 
 /* print linkblk table */
 int
-prlinkblk(all,slot,phys,addr)
-int all,slot,phys;
+prlinkblk(all,slot,phys,addr,max)
+int all,slot,phys,max;
 long addr;
 {
 	struct linkblk linkbuf;
@@ -923,8 +951,11 @@ long addr;
 	if(!linkbuf.l_qtop && !all)
 		return;
 	if(addr > -1)
-		slot = getslot(addr,(long)Linkblk->n_value,sizeof linkbuf,phys);
-	fprintf(fp,"%4d", slot);
+		slot = getslot(addr,(long)Linkblk->n_value,sizeof linkbuf,phys,
+			max);
+	if(slot == -1)
+		fprintf(fp,"  - ");
+	else fprintf(fp,"%4d", slot);
 		slot = ((long)linkbuf.l_qtop-Queue->n_value)/
 			sizeof(struct queue);
 		if((slot >= 0) && (slot < vbuf.v_nqueue))
@@ -983,8 +1014,8 @@ int class;
 
 	readmem((long)(Dballoc->n_value+class*sizeof dbalbuf),1,-1,
 		(char *)&dbalbuf,sizeof dbalbuf,"dballoc table");
-	fprintf(fp,"CLASS  CNT    LO    MED\n");
-	fprintf(fp,"  %d   %5d %5d %5d\n",
+	fprintf(fp,"CLASS   RCNT    LO   MED\n");
+	fprintf(fp,"  %d    %5d %5d %5d\n",
 		class,
 		dbalbuf.dba_cnt,
 		dbalbuf.dba_lo,

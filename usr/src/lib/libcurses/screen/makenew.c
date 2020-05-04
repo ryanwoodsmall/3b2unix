@@ -5,98 +5,91 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/makenew.c	1.2"
-# include	"curses.ext"
+#ident	"@(#)curses:screen/makenew.c	1.7"
+#include	"curses_inc.h"
 
-/*
- *	This routine sets up a window buffer and returns a pointer to it.
- */
-WINDOW *
-_makenew(num_lines, num_cols, begy, begx)
-int	num_lines, num_cols, begy, begx;
+/* This routine sets up a window buffer and returns a pointer to it. */
+
+WINDOW	*
+_makenew(nlines, ncols, begy, begx)
+register	int	nlines, ncols;
+int			begy, begx;
 {
-	register int	i;
-	register WINDOW	*win;
-	register int	by, bx, nlines, ncols;
-	extern char *malloc(), *calloc();
+    /* order the register allocations against highest usage */
+    register	WINDOW	*win;
 
-	by = begy;
-	bx = begx;
-	nlines = num_lines;
-	ncols = num_cols;
+#ifdef	DEBUG
+    if (outf)
+	fprintf(outf, "MAKENEW(%d, %d, %d, %d)\n", nlines, ncols, begy, begx);
+#endif	/* DEBUG */
 
-	if (nlines <= 0 || ncols <= 0 || by > lines || bx > COLS)
-		return (WINDOW *) NULL;
+    if ((win = (WINDOW *) malloc(sizeof (WINDOW))) == NULL)
+	goto out_no_win;
+    if ((win->_y = (chtype **) malloc(nlines * sizeof (chtype *))) == NULL)
+	goto out_win;
+#ifdef	_VR3_COMPAT_CODE
+    if ((_y16update) &&
+	((win->_y16 = (_ochtype **) calloc(1, nlines * sizeof (_ochtype *))) == NULL))
+    {
+	goto out_y16;
+    }
+#endif	/* _VR3_COMPAT_CODE */
+    if ((win->_firstch = (short *) malloc(2 * nlines * sizeof(short))) == NULL)
+    {
+#ifdef	_VR3_COMPAT_CODE
+	free((char *) win->_y16);
+out_y16:
+#endif	/* _VR3_COMPAT_CODE */
+	free((char *) win->_y);
+out_win:
+	free((char *) win);
+out_no_win:
+	curs_errno = CURS_BAD_MALLOC;
+#ifdef	DEBUG
+	strcpy(curs_parm_err, "_makenew");
+#endif	/* DEBUG */
+	return ((WINDOW *) NULL);
+    }
+    else
+	win->_lastch = win->_firstch + nlines;
 
-# ifdef	DEBUG
-	if(outf) fprintf(outf, "MAKENEW(%d, %d, %d, %d)\n", nlines, ncols, by, bx);
-# endif
-	/* use calloc because everything needs to be zero */
-	if ((win = (WINDOW *) calloc(1, sizeof (WINDOW))) == NULL) {
-		(void) fprintf (stderr, "calloc returned NULL in _makenew\n");
-		return (WINDOW *) NULL;
-	}
-# ifdef DEBUG
-	if(outf) fprintf(outf, "MAKENEW: nlines = %d\n", nlines);
-# endif
-	if ((win->_y = (chtype **) malloc(nlines * sizeof (chtype *))) == NULL) {
-		(void) fprintf (stderr, "malloc returned NULL in _makenew\n");
-		goto out_win;
-	}
-	/* use calloc because everything needs to be zero */
-	if ((win->_firstch = (short *) calloc((unsigned)nlines, sizeof (short))) == NULL) {
-		(void) fprintf (stderr, "calloc returned NULL in _makenew\n");
-		goto out__y;
-	}
-	if ((win->_lastch = (short *) malloc(nlines * sizeof (short))) == NULL) {
-		(void) fprintf (stderr, "malloc returned NULL in _makenew\n");
-	out__y:	free((char *)win->_y);
-	out_win:free((char *)win);
-		free((char *)win);
-		return (WINDOW *) NULL;
-	}
-# ifdef DEBUG
-	if(outf) fprintf(outf, "MAKENEW: ncols = %d\n", ncols);
-# endif
-	win->_cury = win->_curx = 0;
-	win->_clear = (nlines == lines && ncols == COLS);
-	win->_maxy = nlines;
-	win->_maxx = ncols;
-	win->_begy = by;
-	win->_begx = bx;
-	win->_scroll = win->_leave = FALSE;
-	win->_use_idl = 1;
-	win->_need_idl = 0;
-	win->_tmarg = 0;
-	win->_bmarg = nlines - 1;
-	win->_flags |= _WINCHANGED;
-	{
-		register short *lastch = win->_lastch;
-		register int ncols1 = ncols - 1;
-		for (i = 0; i < nlines; i++)
-			lastch[i] = ncols1;
-	}
-	if (bx + ncols == COLS) {
-		win->_flags |= _ENDLINE;
-		/* Full window: scrolling heuristics (linefeed) work */
-		if (nlines == lines && ncols == COLS &&
-		    by == 0 && bx == 0 && scroll_forward)
-			win->_flags |= _FULLWIN;
-		/* Scrolling window: it might scroll on us by accident */
-		if (by + nlines == lines && auto_right_margin &&
-		        (!cursor_left ||
-			 (!enter_insert_mode && !insert_character)))
-			win->_flags |= _SCROLLWIN;
-	}
-# ifdef DEBUG
-	if(outf) fprintf(outf, "MAKENEW: win->_clear = %d\n", win->_clear);
-	if(outf) fprintf(outf, "MAKENEW: win->_leave = %d\n", win->_leave);
-	if(outf) fprintf(outf, "MAKENEW: win->_scroll = %d\n", win->_scroll);
-	if(outf) fprintf(outf, "MAKENEW: win->_flags = %0.2o\n", win->_flags);
-	if(outf) fprintf(outf, "MAKENEW: win->_maxy = %d\n", win->_maxy);
-	if(outf) fprintf(outf, "MAKENEW: win->_maxx = %d\n", win->_maxx);
-	if(outf) fprintf(outf, "MAKENEW: win->_begy = %d\n", win->_begy);
-	if(outf) fprintf(outf, "MAKENEW: win->_begx = %d\n", win->_begx);
-# endif
-	return win;
+    win->_cury = win->_curx = 0;
+    win->_maxy = nlines;
+    win->_maxx = ncols;
+    win->_begy = begy;
+    win->_begx = begx;
+    win->_clear = (((begy + SP->Yabove + begx) == 0) &&
+	(nlines >= (LINES + SP->Yabove)) && (ncols >= COLS));
+    win->_leave = win->_scroll = win->_use_idl = win->_use_keypad =
+	win->_notimeout = win->_immed = win->_sync = FALSE;
+    win->_use_idc = TRUE;
+    win->_ndescs = win->_tmarg = 0;
+    win->_bmarg = nlines - 1;
+    win->_bkgd = _BLNKCHAR;
+    win->_delay = win->_parx = win->_pary = -1;
+    win->_attrs = A_NORMAL;
+    win->_flags = _WINCHANGED;
+    win->_parent = win->_padwin = (WINDOW *) NULL;
+    (void) memset((char *) win->_firstch, 0, (int) (nlines * sizeof(short)));
+    {
+	register	short	*lastch = win->_lastch,
+				*elastch = lastch + nlines;
+
+	ncols--;
+	while (lastch < elastch)
+	    *lastch++ = ncols;
+    }
+
+#ifdef	DEBUG
+    if(outf)
+    {
+	fprintf(outf, "MAKENEW: win->_clear = %d\n", win->_clear);
+	fprintf(outf, "MAKENEW: win->_flags = %0.2o\n", win->_flags);
+	fprintf(outf, "MAKENEW: win->_maxy = %d\n", win->_maxy);
+	fprintf(outf, "MAKENEW: win->_maxx = %d\n", win->_maxx);
+	fprintf(outf, "MAKENEW: win->_begy = %d\n", win->_begy);
+	fprintf(outf, "MAKENEW: win->_begx = %d\n", win->_begx);
+    }
+#endif	/* DEBUG */
+    return (win);
 }

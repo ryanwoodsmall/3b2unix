@@ -5,11 +5,11 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)dustart:dustart.mk	1.6"
+#ident	"@(#)dustart:dustart.mk	1.7"
 ROOT =
 TESTDIR = .
 INSDIR = $(ROOT)/usr/bin
-INCRT = $(ROOT)/usr/include
+INC = $(ROOT)/usr/include
 INS = :
 CFLAGS = -O -s
 LDFLAGS = -lns $(LDLIBS)
@@ -18,7 +18,7 @@ FRC =
 all: rfstart
 
 rfstart: rfstart.c 
-	$(CC) -I$(INCRT) $(CFLAGS) -o $(TESTDIR)/rfstart rfstart.c $(LDFLAGS)
+	$(CC) -I$(INC) $(CFLAGS) -o $(TESTDIR)/rfstart rfstart.c $(LDFLAGS)
 
 install: all
 	install -n $(INSDIR) $(TESTDIR)/rfstart

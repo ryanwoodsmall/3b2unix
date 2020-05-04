@@ -88,7 +88,6 @@ new	d--775 0 3
 				msg.h	---444	2 2	../usr/include/sys/msg.h
 				nami.h	---444	2 2	../usr/include/sys/nami.h
 				netid.h	---444	2 2	../usr/include/sys/netid.h
-				npack.h	---444	2 2	../usr/include/sys/npack.h
 				nserve.h	---444	2 2	../usr/include/sys/nserve.h
 				nvram.h	---444	2 2	../usr/include/sys/nvram.h
 				open.h	---444	2 2	../usr/include/sys/open.h
@@ -106,6 +105,7 @@ new	d--775 0 3
 				pump.h	---444	2 2	../usr/include/sys/pump.h
 				que.h	---444	2 2	../usr/include/sys/que.h
 				queue.h	---444	2 2	../usr/include/sys/queue.h
+				rbuf.h	---444	2 2	../usr/include/sys/rbuf.h
 				rdebug.h	---444	2 2	../usr/include/sys/rdebug.h
 				recover.h	---444	2 2	../usr/include/sys/recover.h
 				reg.h	---444	2 2	../usr/include/sys/reg.h
@@ -154,7 +154,6 @@ new	d--775 0 3
 				var.h	---444	2 2	../usr/include/sys/var.h
 				vtoc.h	---444	2 2	../usr/include/sys/vtoc.h
 				fs	d--775	0 3
-					prfcntl.h	---444	2 2	../usr/include/sys/fs/prfcntl.h
 					s5fblk.h	---444	2 2	../usr/include/sys/fs/s5fblk.h
 					s5dir.h	---444	2 2	../usr/include/sys/fs/s5dir.h
 					s5filsys.h	---444	2 2	../usr/include/sys/fs/s5filsys.h
@@ -167,4 +166,4 @@ new	d--775 0 3
 	$
 $
 $
-#ident "@(#)pkg.sys:proto.sys	1.9"
+#ident "@(#)pkg.sys:proto.sys	1.9.1.4"

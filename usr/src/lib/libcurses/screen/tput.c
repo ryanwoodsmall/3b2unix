@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/tput.c	1.11"
+#ident	"@(#)curses:screen/tput.c	1.15"
 
 /* tput - print terminal attribute
 
@@ -39,7 +39,7 @@ extern char *optarg;
 
 char *progname;		/* argv[0] */
 int CurrentBaudRate;	/* current baud rate */
-int reset = 0;		/* called as resetterm */
+int reset = 0;		/* called as reset_term */
 int fildes = 1;
 
 main (argc, argv)
@@ -81,6 +81,10 @@ char **argv;
 
     switch (setuperr)
 	{
+	case -2:
+	    (void) fprintf(stderr,"%s: unreadable terminal descriptor \"%s\"\n",
+		argv[0], term);
+	    exit(3);
 	case -1:
 	    (void) fprintf(stderr,"%s: no terminfo database\n",
 		argv[0]);
@@ -100,7 +104,7 @@ char **argv;
     if (strcmp(cap, "init") == 0)
         initterm();
     else if (strcmp(cap, "reset") == 0)
-        resetterm();
+        reset_term();
     else if (strcmp(cap, "longname") == 0)
         printf("%s\n",longname());
     else
@@ -134,8 +138,6 @@ char **argv;
     if ((thisstr = tigetstr(cap)) != (char *)-1)
 	{
 	if (!thisstr) exit(1);
-	if (strcmp(cap, "flash") == 0 || strcmp(cap, "bell") == 0)
-		xon_xoff = 0;
 	for (parmset = 0; optind < argc; optind++, parmset++)
 	    if (allnumeric(argv[optind]))
 		parm[parmset] = atoi(argv[optind]);
@@ -315,7 +317,7 @@ struct delay	FFdelay[] =
 #endif	/* BSD */
 
 /*
-    Initterm (resetterm) does terminal specific initialization. In
+    Initterm (reset_term) does terminal specific initialization. In
     particular, the init_strings from terminfo are output and tabs are
     set (if they aren't hardwired in). Much of this stuff was done by
     the tset(1) program.
@@ -554,7 +556,7 @@ initterm ()
     exit(0);
 }
 
-resetterm()
+reset_term()
 {
     reset++;
     initterm();

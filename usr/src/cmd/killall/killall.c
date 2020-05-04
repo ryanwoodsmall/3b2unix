@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)killall:killall.c	1.14"
+#ident	"@(#)killall:killall.c	1.15"
 /*
  *  Go through the process table and kill all valid processes that
  *  are not Process 0 (vhand on 3B20, swapper on other machines) 
@@ -56,18 +56,18 @@
 #define PROC_STR	"_proc"
 #define V_STR		"_v"
 #endif
-#if u3b || u3b5 || u370 || u3b2
+#if u3b || u3b15 || u370 || u3b2
 #define PROC_STR	"proc"
 #define V_STR		"v"
 #endif
 
 /*
- * The 3b5 has to perform a mapping to go from physical to virtual
+ * The 3b15 has to perform a mapping to go from physical to virtual
  * memory references.  With this command, the 2 seeks (proc and v)
  * are in kernal space and if the source for the command is changed 
  * to open /dev/kmem instead of /dev/mem, no mapping need be done.
  */
-#if u3b || u3b5 || u3b2
+#if u3b || u3b15 || u3b2
 #define MEMORY	"/dev/kmem"
 #else
 #define MEMORY	"/dev/mem"

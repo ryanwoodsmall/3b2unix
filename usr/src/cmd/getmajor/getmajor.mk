@@ -5,14 +5,14 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)getmajor:getmajor.mk	1.3"
+#ident	"@(#)getmajor:getmajor.mk	1.3.1.1"
 # (IH)getmajor.mk	1.1
 #
 #		Copyright 1984 AT&T
 #
 ########
 #
-#	getmajor makefile for 3b5
+#	getmajor makefile for 3b15
 #
 ########
 

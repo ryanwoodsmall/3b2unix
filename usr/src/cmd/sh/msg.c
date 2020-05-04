@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sh:msg.c	1.12"
+#ident	"@(#)sh:msg.c	1.15"
 /*
  *	UNIX shell
  */
@@ -57,6 +57,12 @@ char	libacc[] 	= "can't access a needed shared library";
 char	libbad[]	= "accessing a corrupted shared library";
 char	libscn[]	= ".lib section in a.out corrupted";
 char	libmax[]	= "attempting to link in too many libs";
+char    emultihop[]     = "Multihop attempted";
+char    nulldir[]       = "null directory";
+char    enotdir[]       = "not a directory";
+char    enoent[]        = "does not exist";
+char    eacces[]        = "permission denied";
+char    enolink[]       = "remote link inactive";
 
 /*
  * messages for 'builtin' functions

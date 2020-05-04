@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)optim:common/optim.c	1.33"
+#ident	"@(#)optim:common/optim.c	1.34"
 
 /*	machine independent improvement routines */
 
@@ -151,7 +151,7 @@ extern char *label_left();
 extern BLOCK *lblhash();
 extern void bldgr(), putbr(), rmunrch(), modrefs(), indegree(), mkltbl();
 #ifdef spflg
-extern char * yysflgs();
+extern char ** yysflgs();
 #endif
 
 /************************************************************************/
@@ -208,7 +208,12 @@ main(argc, argv) /* initialize, process parameters,  control processing, etc. */
 			default:
 #ifdef spflg
 				if(spflg(i)) {
-					*argv = yysflgs(*argv);
+					if (argv != yysflgs(argv)) {
+						--argc;
+						++argv;
+					}
+					*(*argv+1) = '\0';
+					continue;
 				}
 				else
 #endif

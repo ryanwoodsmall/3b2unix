@@ -5,8 +5,8 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sa:timex.c	1.12"
-/*	timex.c 1.12 of 8/7/85 	*/
+#ident	"@(#)sa:timex.c	1.14"
+/*	timex.c 1.14 of 6/26/86 	*/
 #include <sys/types.h>
 #include <sys/times.h>
 #include <sys/param.h>
@@ -17,7 +17,7 @@
 
 time_t	times();
 long	atol();
-long	time();
+extern	time_t time();
 int	isatty();
 char	*ttyname();
 char	*strcat();
@@ -155,7 +155,7 @@ char **argv;
 	}
 
 	if (sflg)  {
-		sprintf(cmd,"/usr/bin/sar -ubdycwaqvmprDS -f %s 1>&2",fname);
+		sprintf(cmd,"/usr/bin/sar -ubdycwaqvmprCDS -f %s 1>&2",fname);
 		system(cmd);
 		unlink(fname);
 	}

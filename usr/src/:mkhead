@@ -1,4 +1,4 @@
-#ident	"@(#)mk::mkhead	1.15"
+#ident	"@(#)mk::mkhead	1.17"
 #
 #	Install UNIX System header files
 #
@@ -26,9 +26,13 @@ then
 elif pdp11
 then
 	cp $SRCDIR/sys.pdp $TARGDIR/sys.s
-elif u3b5 || u3b2
+elif u3b15 || u3b2
 then
-	cp $SRCDIR/sys.u3b5 $TARGDIR/sys.s
+	if [ -f $SRCDIR/sys.u3b15 ]
+	then	cp $SRCDIR/sys.u3b15 $TARGDIR/sys.s
+	elif [ -f $SRCDIR/sys.u3b5 ]
+	then	cp $SRCDIR/sys.u3b5 $TARGDIR/sys.s
+	fi
 fi
 chmod 664 $TARGDIR/sys.s
 if [ "$ROOT" = "" ]

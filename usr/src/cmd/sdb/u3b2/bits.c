@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:u3b2/bits.c	1.3"
+#ident	"@(#)sdb:u3b2/bits.c	1.4"
 #include	<stdio.h>
 #include	"dis.h"
 #include	"sgs.h"
@@ -497,7 +497,7 @@ int	idsp;
 	case	EXPUH:
 	case	EXPSW:
 	case	EXPUW:
-		get_operand(temp);
+		get_operand(temp,idsp);
 		sprintf(result,"%s%s",temp2,temp);
 		return;
 

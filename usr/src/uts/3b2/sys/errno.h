@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/errno.h	10.7"
+#ident	"@(#)kern-port:sys/errno.h	10.7.1.1"
 /*
  * Error codes
  */
@@ -84,7 +84,6 @@
 #define	ECOMM	70	/* Communication error on send		*/
 #define EPROTO	71	/* Protocol error			*/
 #define	EMULTIHOP 74	/* multihop attempted */
-#define	ELBIN	75	/* Inode is remote (not really error)*/
 #define	EDOTDOT 76	/* Cross mount point (not really error)*/
 #define EBADMSG 77	/* trying to read unreadable message	*/
 

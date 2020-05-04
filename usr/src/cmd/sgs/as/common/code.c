@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:common/code.c	1.13"
+#ident	"@(#)as:common/code.c	1.15.1.3"
 #include <stdio.h>
 #include "codeout.h"
 #include "scnhdr.h"
@@ -19,14 +19,13 @@ int previous = 0;
 int counter = -1;
 int seccnt = 0;
 short bitpos = 0;
-extern symbol symtab[];
 extern short Oflag;	/* debugging flag */
 extern long newdot;	/* up-to-date value of "." */
 
 extern symbol	*dot;
 extern unsigned short line;
 extern char *filenames[];
-extern upsymins *lookup();
+extern upsymins lookup();
 
 struct scnhdr sectab[NSECTIONS+1];	/* section header table */
 struct scninfo secdat[NSECTIONS+1];	/* section info table */
@@ -49,10 +48,13 @@ symbol *sym;
 {
 	register long	pckword;
 	register struct scninfo *seci;
-	unsigned short locindex;
+	register unsigned long locindex = 0;
 	static int nosecerr = 1;
 
-	locindex = sym==NULL ? 0 : 1+(sym-symtab);
+	if (sym) {
+		GETSYMINDX(sym,locindex);
+		locindex++;
+	}
 #if DEBUG
 	if (Oflag) {
 		if (bitpos == 0)
@@ -77,7 +79,7 @@ symbol *sym;
 	/* the number bits which are generated. */
 	/* in the normal case "counter == -1" end does not */
 	/* affect the code generation */ 
-	if ((dot->styp & TXT) && (counter >=0))
+	if ((counter >=0) && (dot->styp & TXT))
 	{
 	   counter += nbits;
 	   return;
@@ -97,34 +99,59 @@ symbol *sym;
 			}
 		return;
 		}
-	/* put a codebuf structure out to the packed temp file */
 
-	if (seci->s_cnt == TBUFSIZ) {
-		fwrite(seci->s_buf, sizeof(long), TBUFSIZ, seci->s_fd);
-		seci->s_cnt=0;
-	}
+	/* put a codebuf structure out to the packed temp file */
+#define putoutcode(x) \
+	if (seci->s_cnt == TBUFSIZ) {\
+		fwrite(seci->s_buf, sizeof(long), TBUFSIZ, seci->s_fd);\
+		seci->s_cnt=0;\
+	}\
+	seci->s_buf[seci->s_cnt++] = (x);
+
 	pckword = MKACTNUM(action) | MKNUMBITS(nbits);
-	if ((locindex) != 0) {
-		pckword |= SYMINDEX | (locindex & LWRBITS);
-		if ((value) == 0) {
-			seci->s_buf[seci->s_cnt++] = pckword | VAL0;
-		} else {
-			seci->s_buf[seci->s_cnt++] = pckword;
-			if (seci->s_cnt == TBUFSIZ) {
-				fwrite(seci->s_buf, sizeof(long), TBUFSIZ, seci->s_fd);
-				seci->s_cnt=0;
-			}
-			seci->s_buf[seci->s_cnt++] = value;
+	if (locindex == 0) {
+		MKSYMABSENT(pckword)
+		if (value == 0) {
+			MKVALABSENT(pckword)
+			putoutcode(pckword)
+		} else if (!(value & 0xffff0000)) { /* 16 bits */
+			MKVAL16BITS(pckword)
+			putoutcode(pckword | value)
+		} else { /* 32 bits */
+			MKVAL32BITS(pckword)
+			putoutcode(pckword)
+			putoutcode(value)
 		}
-	} else if (((value) & UPRBITS) == 0) {
-		seci->s_buf[seci->s_cnt++] = VAL16 | SYMORVAL(value) | pckword;
-	} else {
-		seci->s_buf[seci->s_cnt++] = pckword;
-		if (seci->s_cnt == TBUFSIZ) {
-			fwrite(seci->s_buf, sizeof(long), TBUFSIZ, seci->s_fd);
-			seci->s_cnt=0;
+	} else if (!(locindex & 0xffff0000)) { /* 16 bits */
+		MKSYM16BITS(pckword)
+		if (value == 0) {
+			MKVALABSENT(pckword)
+			putoutcode(pckword | locindex)
+		} else if (!(value & 0xffff0000)) { /* 16 bits */
+			MKVAL16BITS(pckword)
+			putoutcode(pckword | locindex)
+			putoutcode(value)
+		} else { /* 32 bits */
+			MKVAL32BITS(pckword)
+			putoutcode(pckword | locindex)
+			putoutcode(value)
 		}
-		seci->s_buf[seci->s_cnt++] = value;
+	} else { /* symbol index is 32 bits */
+		MKSYM32BITS(pckword)
+		if (value == 0) {
+			MKVALABSENT(pckword)
+			putoutcode(pckword)
+			putoutcode(locindex)
+		} else if (!(value & 0xffff0000)) { /* 16 bits */
+			MKVAL16BITS(pckword)
+			putoutcode(pckword | value)
+			putoutcode(locindex)
+		} else { /* 32 bits */
+			MKVAL32BITS(pckword)
+			putoutcode(pckword)
+			putoutcode(locindex)
+			putoutcode(value)
+		}
 	}
 	bitpos += nbits;
 	newdot += bitpos/BITSPBY;
@@ -139,7 +166,7 @@ flushbuf()
 
 	for(i = 1, p= &secdat[1]; i <= seccnt; i++, p++)
 	{
-		fwrite((char *)p->s_buf, sizeof(long), p->s_cnt, p->s_fd);
+		fwrite((char *)p->s_buf, sizeof(long), (int) p->s_cnt, p->s_fd);
 		p->s_cnt = 0;
 		fflush(p->s_fd);
 		if (ferror(p->s_fd))
@@ -160,6 +187,7 @@ cgsect(newsec)
 	 */
 
 	sectab[dot->sectnum].s_size = newdot;
+	secdat[dot->sectnum].s_maxval = dot->maxval;
 
 	/*
 	 * save current section number
@@ -174,6 +202,7 @@ cgsect(newsec)
 	dot->sectnum = newsec;
 	dot->styp = secdat[newsec].s_typ;
 	dot->value = newdot = sectab[newsec].s_size;
+	dot->maxval = secdat[newsec].s_maxval;
 }
 
 /*
@@ -198,8 +227,10 @@ register int	att;
 			yyerror("Section name already defined");
 		else if (seccnt >= NSECTIONS)
 			yyerror("Too many sections defined");
-		else if (strlen(sym->_name.name) > 8)
+#if FLEXNAMES
+		else if (sym->_name.tabentry.zeroes == 0)
 			yyerror("Section name too long");
+#endif
 		else
 		{
 			seccnt++;
@@ -235,18 +266,26 @@ char *string;
 		} value;
 	static int comsec = -1;
 	if (comsec < 0) comsec = mksect(
-		lookup(".comment", INSTALL, USRNAME)->stp, STYP_INFO);
+		lookup(".comment", INSTALL, USRNAME).stp, STYP_INFO);
 	prevsec = previous;
 	cgsect(comsec);
 	size = strlen(string) + 1;
 	for (i=0; i < size/4; i++) {
 		for (j = 0; j < sizeof(long)/sizeof(char); j++)
+#if vax
+			value.chr[3-j] = *(string + j + i * 4);
+#else
 			value.chr[j] = *(string + j + i * 4);
+#endif
 		generate(BITSPW, NOACTION, value, NULLSYM);
 		}
 	if (size % 4) {
 		for (k = 0,j = sizeof(long)/sizeof(char) - size % 4; j < sizeof(long)/sizeof(char); j++,k++)
+#if vax
+			value.chr[3-j] = *(string + k + i * 4);
+#else
 			value.chr[j] = *(string + k + i * 4);
+#endif
 		generate((size % 4) * BITSPBY, NOACTION, value, NULLSYM);
 		}
 	cgsect(previous);

@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:shell/selectdevice	2.7"
+#ident	"@(#)sadmin:shell/selectdevice	2.9"
 #	Select one of the simple administration names for a block or character
 #	device.
 
@@ -52,7 +52,7 @@ then
 fi
 
 cd $DIR
-patterns=`echo $*  |  sed 's/[^ ]\{1,\}/& &[!a-zA-Z]*/g'`
+patterns=`echo $*  |  sed 's/[^ ]\{1,\}/&[!a-zA-Z]*/g'`
 devs=`ls ${patterns} 2>/dev/null`
 
 if [ -z "${devs}" ]
@@ -74,7 +74,7 @@ then
 	echo $DIR/${devs}
 	exit 0
 fi
-list=`echo "${devs}"  |  pr -t -n' ' -4`
+list=`echo "${devs}"  |  pr -i20 -t -n' ' -4`
 select=`checklist -q q -k "${pid}" -fep "${question}
 ${list}
 Enter a number, a name, the initial part of a name, or

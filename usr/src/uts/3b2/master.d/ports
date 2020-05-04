@@ -1,4 +1,4 @@
-*#ident	"@(#)kern-port:master.d/ports	10.4"
+*#ident	"@(#)kern-port:master.d/ports	10.4.1.1"
 *
 * PORTS
 *
@@ -12,6 +12,7 @@ act	1       pp	-	 5      10
 						dstat[#C*#D] (%c)
 						ppisopen[#C*#D] (%c)
 						pp_board[#C] (%0x6fc)
+						pp_bnbr(%i) ={#C}
 						savee[#C*SAVEXP] (%0xc)
 						maxsavexp(%i) ={#C*SAVEXP}
 						csbit[#C] (%i)

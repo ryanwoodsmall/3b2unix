@@ -5,9 +5,9 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)shl:signal.c	1.10"
+#ident	"@(#)shl:signal.c	1.11"
 #include	"defs.h"
-int 	(*(sig[NSIG]))() = 
+void 	(*(sig[NSIG]))() = 
 {
 	0,
 	hangup,
@@ -31,9 +31,9 @@ int 	(*(sig[NSIG]))() =
 	SIG_IGN
 };
 
-int	(*(save_sig[NSIG]))();
+void	(*(save_sig[NSIG]))();
 	
-hangup()
+void hangup()
 {
 
 	int i;
@@ -54,7 +54,7 @@ hangup()
 }
 
 
-child_death()
+void child_death()
 {
 	int pid;
 	int status;

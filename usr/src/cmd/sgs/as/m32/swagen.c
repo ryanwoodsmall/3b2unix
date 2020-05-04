@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:m32/swagen.c	1.21"
+#ident	"@(#)as:m32/swagen.c	1.24.1.4"
 #include <stdio.h>
 #include "systems.h"
 #include "symbols.h"
@@ -22,7 +22,7 @@
 #define SIGNED 0
 #define UNSIGNED 1
 
-extern upsymins *lookup();
+extern upsymins lookup();
 extern struct mnemonic *find_mnemonic();
 extern short
 	workaround, /* no software workaround flag */
@@ -542,7 +542,9 @@ OPERAND *arg3;
 	OPERAND c_tmp3;
 	OPERAND *c_arg3 = &c_tmp3;
 	struct mnemonic *tmpins;
-	char *mov = "MOVW";
+	struct mnemonic *mov = find_mnemonic("MOVW");
+	long opcode;
+	unsigned char ntype;
 
 	if (!workaround)
 		return(0);
@@ -557,11 +559,6 @@ OPERAND *arg3;
 			insptr->name[2] == 'u' || !er76chk(arg1,arg2,arg3))
 				return(0);
 	}
-
-	if (insptr->name[3] == 'H')
-		mov = "MOVH";
-	else if (insptr->name[3] == 'B')
-		mov = "MOVB";
 
 	if (insptr->name[0] == 'u')	/* if it is 'u' are definitely staying */
 		arg1->newtype = UWORD;
@@ -589,24 +586,73 @@ OPERAND *arg3;
 		return(0);
 	}
 
-	incrstk(12);
+/*
+ * If the denominator(addr1) and the result(addr3) do not
+ * "overlap" we can generate a better workaround:
+ *
+ *	MOVx	arg2,arg3
+ *	yyyx2	arg1,arg3
+ *
+ *	where yyy = {MOD|MUL|DIV}
+ *	and   x   = {W|H|B}
+ *
+ * "Overlap" means that they could be the same or overlapping memory
+ * locations, or the same register.
+ *
+ */
+		/* assume largest size, can't change types if dyadic */
+	if (!overlap(arg1,4,arg3,4) && (arg2->newtype == arg3->newtype)) {
+		opcode = mov->opcode;		/* MOV of proper size */
+		if (insptr->name[3] == 'H')
+			opcode += 2;
+		else if (insptr->name[3] == 'B')
+			opcode += 3;
+		generate(mov->nbits,NOACTION,opcode, NULLSYM);
+/*
+ * Strange expand modes as follows:
+ *	arg1's expand mode is passed to addrgen,
+ *	if arg2 has a type it will be used, else arg1's
+ */
+		addrgen(mov,arg2,arg1->newtype,1);
+/*
+ * And similarly, we pass the last controlling type
+ * for arg3
+ */
+		addrgen(mov,arg3,
+			((arg2->newtype == NOTYPE) ? 
+				arg1->newtype :
+				arg2->newtype),2);
 
+	/* anding with 0xBF produces the dyadic instruction */
+		generate(insptr->nbits,NOACTION,(insptr->opcode&0xBF),NULLSYM);
+		addrgen(insptr,arg1,NOTYPE,1);
+		addrgen(insptr,arg3,arg2->newtype,2);
+		return(1);
+	}
+
+	ntype = NOTYPE;
 	if (arg1->newtype == NOTYPE)
 		switch(optype(insptr->tag,1)) {
 		case 0:	/* byte */
-			arg1->newtype = UBYTE;
+			ntype = UBYTE;
 			break;
 		case 1:	/* half */
-			arg1->newtype = SHALF;
+			ntype = SHALF;
 			break;
 		case 2:	/* word */
-			arg1->newtype = SWORD;
+			ntype = NOTYPE;
 			break;
 		}
-	if (arg2->newtype == NOTYPE)
-		arg2->newtype = arg1->newtype;
-	if (arg3->newtype == NOTYPE)
-		arg3->newtype = arg2->newtype;
+	else
+		ntype = arg1->newtype;
+	if (arg2->newtype != NOTYPE)
+		ntype = arg2->newtype;
+	if (arg3->newtype != NOTYPE)
+		ntype = arg3->newtype;
+	if (arg3->type == REGMD)
+		ntype = SWORD;
+
+	incrstk(12);
 
 	*c_arg1 = *arg1;
 	*c_arg2 = *arg2;
@@ -653,6 +699,8 @@ OPERAND *arg3;
 	c_arg3->exptype = ABS;
 	c_arg3->symptr = NULLSYM;
 	c_arg3->expval = -12;
+	if (arg3->type == REGMD)
+		c_arg3->newtype = ntype;
 
 	generate(8,NOACTION,insptr->opcode,NULLSYM);
 	addrgen(insptr,c_arg1,NOTYPE,1);
@@ -664,6 +712,7 @@ OPERAND *arg3;
 	    (arg3->reg == SPREG))
 		arg3->expval -= 12;
 
+	c_arg3->newtype = ntype;
 	gen2("MOVW",c_arg3,arg3);
 	if (arg3->type != REGMD)
 		generate (8, NOACTION, 0x70, NULLSYM); /* NOP */
@@ -675,8 +724,9 @@ OPERAND *arg3;
 		arg3->expval += 12;
 
 	*c_arg3 = *arg3;
+	arg3->newtype = ntype;
 	c_arg3->newtype = NOTYPE;
-	gen2(mov,arg3,c_arg3);	/* Restore condition codes */
+	gen2("MOVW",arg3,c_arg3);	/* Restore condition codes */
 
 	if (arg3->type != REGMD)
 		generate (8, NOACTION, 0x70, NULLSYM); /* NOP */
@@ -691,9 +741,11 @@ OPERAND *addr1;
 OPERAND *addr2;
 {
 #if ER16FIX
+	if (addr2->type == REGMD)
+		return(YES);
+
 	if (addr1->type == REGMD)
 		return(NO);
-
 	switch (addr2->type) {
 	case REGDFMD:
 		if (addr1->type == DSPMD)
@@ -712,7 +764,6 @@ OPERAND *addr2;
 				return(NO);
 		break;
 	case IMMD:
-	case REGMD:
 		return(NO);
 		break;
 	}

@@ -1,4 +1,4 @@
-*#ident	"@(#)kern-port:master.d/stubs	10.14"
+*#ident	"@(#)kern-port:master.d/stubs	10.14.3.3"
 *
 *  STUBS
 *      Used to define all functions referenced in the kernel
@@ -51,6 +51,7 @@ ox
 						remote_call(){noreach}
 						riget(){noreach}
 						rnamei1(){noreach}
+						rnamei0(){noreach}
 						rnamei2(){noreach}
 						rnamei3(){noreach}
 						rnamei4(){noreach}
@@ -63,3 +64,6 @@ ox
 						rsuword(){noreach}
 						rem_date(){}
 						duustat(){nopkg}
+						disable_cache(){noreach}
+						enable_cache(){noreach}
+						chk_rlist(){noreach}

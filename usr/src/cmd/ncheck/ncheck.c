@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)ncheck:ncheck.c	1.13"
+#ident	"@(#)ncheck:ncheck.c	1.14"
 /*
  * ncheck -- obtain file names from reading filesystem
  */
@@ -38,8 +38,8 @@
 #include <sys/fblk.h>
 
 /* file system block size */
-#if (vax || u3b || u3b5 || u3b2) && (FsTYPE == 3)
-#if u3b5
+#if (vax || u3b || u3b15 || u3b2) && (FsTYPE == 3)
+#if u3b15
 #define FSBSIZE	(BSIZE*4)
 #else
 #define FSBSIZE	(BSIZE*2)

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)pcc2:common/optim.c	10.4"
+#ident	"@(#)pcc2:common/optim.c	10.5"
 
 # include "mfile1.h"
 
@@ -104,7 +104,7 @@ NODE *p;
 #ifndef NODBG
 	if( opdebug ) 
 	{
-		printf( "tydown(%d) called with:\n", p-node );
+		printf( "tydown(%d) called with:\n", node_no(p) );
 		eprint( p );
 	}
 #endif
@@ -141,7 +141,7 @@ NODE *p;
 			if( opdebug ) 
 			{
 				printf( "tydown(%d), after doptim(R):\n",
-				p-node );
+				node_no(p) );
 				eprint(p);
 			}
 #endif
@@ -162,7 +162,7 @@ NODE *p;
 			if( opdebug ) 
 			{
 				printf( "tydown(%d), after doptim(L):\n",
-				p-node );
+				node_no(p) );
 				eprint(p);
 			}
 #endif
@@ -196,7 +196,7 @@ again:
 #ifndef NODBG
 	if( opdebug ) 
 	{
-		printf( "sconvert(%d) called:\n", p-node );
+		printf( "sconvert(%d) called:\n", node_no(p) );
 		eprint( p );
 	}
 #endif
@@ -383,7 +383,8 @@ short revrel[] =
 };
 
 #ifndef NODBG
-# define REPORT(x) if(opdebug)printf( "optim turns %d into %d\n",p-node,x-node);
+# define REPORT(x) if(opdebug)printf( "optim turns %d into %d\n", \
+						node_no(p), node_no(x));
 #else
 # define REPORT(x)
 #endif
@@ -700,7 +701,7 @@ bless:
 				if( opdebug ) 
 				{
 					printf( "optim replaces op1 (%d) by:\n",
-					p-node );
+					node_no(p) );
 					eprint(l);
 				}
 #endif

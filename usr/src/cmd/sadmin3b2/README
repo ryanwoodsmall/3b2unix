@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin3b2:README	1.3"
+#ident	"@(#)sadmin3b2:README	1.4"
 	Simple Administration software for AT&T 3B2 Computers (sadmin3b2)
 
 UPDATING A PREVIOUSLY INSTALLED SIMPLE ADMINISTRATION
@@ -16,7 +16,7 @@ below.
 Then install all the new source files and follow the instructions below.
 It is possible to install new source without going through this sequence,
 but there is a chance that it won't work because of name collisions and the
-like.  This is guarenteed to give a clean sweep and properly build the product.
+like.  This is guaranteed to give a clean sweep and properly build the product.
 
 INSTALLATION INSTRUCTIONS
 All source files are installed under a single directory, traditionally
@@ -28,7 +28,7 @@ All the product pieces are installed by the super-user issuing the command
 		make -f sadmin3b2.mk install
 
 INSTALLING UNDER A DIFFERENT ROOT
-The installation above installs releative to /.
+The installation above installs relative to /.
 The relative position of these files can be modified by adding a ROOT:
 		make -f sadmin3b2.mk ROOT=`pwd`/installdir install
 

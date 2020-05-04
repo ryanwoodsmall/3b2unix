@@ -1,5 +1,5 @@
 /*LINTLIBRARY*/
-#ident	"@(#)lint:llib-lc	2.19"
+#ident	"@(#)lint:llib-lc	2.23"
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/ipc.h>
@@ -128,6 +128,10 @@ void    (*	signal(s, a))() void (*a)(); { return (a); }
 /* SIGSET(2) */
 #include <signal.h>
 void    (*      sigset(s, a))() void (*a)(); {return  (a); }
+int	sighold(s) { return(s); }
+int	sigrelse(s) { return(s); }
+int	sigignore(s) { return(s); }
+int	sigpause(s) { return(s); }
 /* STAT(2) */
 #include <sys/stat.h>
 int	stat(s, b) char *s; struct stat *b; { return (0); }
@@ -205,6 +209,10 @@ void	tzset() {}
 long	timezone;
 int	daylight;
 char *	tzname[2];
+/* CFTIME(3C) */
+int	cftime(b,f,t) char *b, *f; time_t *t; { return (0); }
+int	ascftime(b,f,t) char *b, *f; struct tm *t; { return(0); }
+void	setcftime(s) char *s; { };
 /* CTYPE(3C) */
 #undef isalpha
 #undef isupper
@@ -221,6 +229,8 @@ char *	tzname[2];
 int	isalpha(c) { return (c); }
 int	isupper(c) { return (c); }
 int	islower(c) { return (c); }
+int	old_isupper(c) { return (c); }
+int	old_islower(c) { return (c); }
 int	isdigit(c) { return (c); }
 int	isxdigit(c) { return (c); }
 int	isalnum(c) { return (c); }
@@ -230,6 +240,7 @@ int	isprint(c) { return (c); }
 int	isgraph(c) { return (c); }
 int	iscntrl(c) { return (c); }
 int	isascii(c) { return (c); }
+int	setchrclass(s) char *s; { return (0); }
 char	_ctype[129];
 /* CUSERID(3S) */
 char *	cuserid(s) char *s; { return (s); }
@@ -401,7 +412,7 @@ int	fscanf(f, s) FILE *f; char *s; { return (0); }
 int	sscanf(p, s) char *p, *s; { return (0); }
 /* SETBUF(3S) */
 void	setbuf(f, b) FILE *f; char *b; {}
-int	setvbuf(f, t, b, s) FILE *f; char *b; { return (t); }
+int	setvbuf(f, b, t, s) FILE *f; char *b; { return (t); }
 /* SETJMP(3C) */
 #include <setjmp.h>
 int	setjmp(e) jmp_buf e; { return (0); }

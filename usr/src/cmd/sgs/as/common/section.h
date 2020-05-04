@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:common/section.h	1.2"
+#ident	"@(#)as:common/section.h	1.3"
 
 /*
  * output section information
@@ -19,4 +19,5 @@ struct scninfo
 	long		s_up;		/* !=0 => round size */
 	long		s_buf[TBUFSIZ];/* code output buffer */
 	long		s_cnt;		/* number of elements in buffer */
+	short		s_maxval;	/* for span-dependent optimization */
 };

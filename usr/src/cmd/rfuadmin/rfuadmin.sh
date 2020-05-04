@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)rfuadmin:rfuadmin.sh	1.11"
+#ident	"@(#)rfuadmin:rfuadmin.sh	1.12.2.1"
 
 #if u3b2
 echo "#	Copyright (c) 1984 AT&T
@@ -17,8 +17,8 @@ echo "#	Copyright (c) 1984 AT&T
 
 #ident	\"@(#)/usr/bin/rfuadmin.sl 1.2 3.0 10/07/85 50322\"
 
-# executed by rfudaemon on request from annother system.
-# this is a filter that alllows other systems to execute
+# executed by rfudaemon on request from another system.
+# this is a filter that allows other systems to execute
 # selected commands. This example is used by the fumount
 # command when a remote system is going down.
 # System administrators may expand the case list if it is
@@ -36,12 +36,7 @@ case \$1 in
 'fuwarn' | 'disconnect' | 'fumount')
 	TYPE=\$1
 	RESRC=\$2
-	if [ \"\$3\" = \"0\" ]
-	then
-		GRACE=NOW!
-	else
-		GRACE=\"in \$3 seconds.\"
-	fi
+	GRACE=\$3
 	;;
 'error')
 	echo \$* >>\$LOG
@@ -102,17 +97,25 @@ case \${TYPE} in
 
 #		The fumount(1M) warning from a host
 'fuwarn')
-	echo \"\$1\" is being removed from the system \$GRACE.>>\$LOG
+	if [ \"\$GRACE\" != \"0\" ]
+	then
+	echo \"\$1\" will be disconnected from the system in \$GRACE seconds.>>\$LOG
 	/etc/wall <<!
-'\$1' is being removed from the system \$GRACE
+'\$1' will be disconnected from the system in \$GRACE seconds.
 !
+	fi
 	exit 0
 	;;
 
 'disconnect' | 'fumount')
-	if [ \"\$TYPE\" = \"disconnect\" ]
+	if [ \"\$TYPE\" = \"fumount\" ]
 	then
-	echo \"\$1\" has been disconnected from the system.>>\$LOG
+		echo \"$1\" is being disconnected from the system NOW!>>\$LOG
+		/etc/wall <<!
+'\$1' is being disconnected from the system NOW!
+!
+	else
+		echo \"\$1\" has been disconnected from the system.>>\$LOG
 		/etc/wall <<!
 '\$1' has been disconnected from the system.
 !

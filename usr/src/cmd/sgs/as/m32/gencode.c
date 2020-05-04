@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:m32/gencode.c	1.30"
+#ident	"@(#)as:m32/gencode.c	1.32.1.1"
 #include <stdio.h>
 #include "systems.h"
 #include "symbols.h"
@@ -30,7 +30,7 @@ register OPERAND *addr;
 short	expand, opnum;
 {
 	long	fpval[3];
-	register char desc;
+	register long desc;
 	long vallen = 0;
 	int action = NOACTION;
 	register long val = addr->expval;
@@ -647,13 +647,9 @@ OPERAND	*opnd1;
 				opnd1->symptr);
 			return;
 		case U_SDI: /* unknown; generate 16-bit short (interm.) and flag */
-			/* convert opcode(s) from short to intermed. */
-			if ((opcd >> 8) != 0)
-				/* subtract 1 from both opcodes */
-				opcd -= 0x0101L;
-			else
-				/* subtract 1 from opcode */
-				--opcd;
+			/* convert opcode from short to intermed. */
+			/*  complementary branch (if any) stays the same */
+			--opcd;
 			generate(8,BRNOPT,opcd,NULLSYM);
 			generate(16,RELPC16,opnd1->expval,
 				opnd1->symptr);
@@ -727,11 +723,9 @@ OPERAND	*opnd1;
 			generate(8,BSBNOPT,opcd,NULLSYM);
 			generate(16,RELPC16,opnd1->expval,
 				opnd1->symptr);
-			generate(8,NOACTION,opcd >> 8,NULLSYM);
-			addrgen(insptr,opnd1,NOTYPE,1);
 			return;
 		case L_SDI:
-			generate(8,NOACTION,opcd,NULLSYM);
+			generate(8,NOACTION,opcd>>8,NULLSYM);
 			addrgen(insptr,opnd1,NOTYPE,2);
 			return;
 		} /* switch */

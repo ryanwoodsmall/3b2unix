@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)volcopy:volcopy.mk	1.1"
+#ident	"@(#)volcopy:volcopy.mk	1.2"
 
 #	Makefile for volcopy
 
@@ -69,6 +69,7 @@ clean:
 
 clobber:
 	rm -f $(OBJECTS)
+	rm -f $(MAINS)
 
 newmakefile:
 	makefile -m -f $(MAKEFILE)  -s INC $(INC)

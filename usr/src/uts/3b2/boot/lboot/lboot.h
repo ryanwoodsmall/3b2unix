@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:boot/lboot/lboot.h	10.3"
+#ident	"@(#)kern-port:boot/lboot/lboot.h	10.4.1.1"
 
 /*
  * Note -- header files must be included in the following order:
@@ -189,7 +189,7 @@ extern int              nswap;
  * Use the IAU functions
  */
 
-#ifdef u3b5
+#ifdef u3b15
 #define	bzero		(*(IAU_FNCTS)->pfi[BZERO])
 #define	restart		(*(IAU_FNCTS)->pfi[RESTART])
 #define	scanf		(*(IAU_FNCTS)->pfi[SCANF])
@@ -215,7 +215,7 @@ extern int              nswap;
 #define EDT_START	P_EDT	/* origin of EDT */
 
 /*
- * Is this an automatic boot of /unix?  (Equivalent to 3B5's AUTOBOOT switch)
+ * Is this an automatic boot of /unix?  (Equivalent to 3B15's AUTOBOOT switch)
  */
 #define ISAUTO		(P_CMDQ->b_type == UNIXBOOT)
 #endif
@@ -423,7 +423,7 @@ extern int             fseek();			/* reposition a file pointer for a buffered st
 #undef DEBUG1i
 #undef DEBUG2
 
-#else	TEST is defined
+#else
 
 #if !DEBUG1
 #undef DEBUG1a
@@ -470,6 +470,6 @@ extern boolean prt[];
 #define	_MAXFILES	8	/* total number of source files */
 #endif
 
-#else	!TEST
+#else
 #define	PROGRAM(name)
 #endif

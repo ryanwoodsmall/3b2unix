@@ -5,18 +5,13 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/leaveok.c	1.1"
-/*
- * Routines to deal with setting and resetting modes in the tty driver.
- * See also setupterm.c in the termlib part.
- */
-#include "curses.ext"
+#ident	"@(#)curses:screen/leaveok.c	1.5"
+#include	"curses_inc.h"
 
-/*
- * TRUE => OK to leave cursor where it happens to fall after refresh.
- */
 leaveok(win,bf)
-WINDOW *win; int bf;
+WINDOW	*win;
+int	bf;
 {
-	win->_leave = bf;
+    win->_leave = bf;
+    return (OK);
 }

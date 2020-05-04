@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sh:macro.c	1.19"
+#ident	"@(#)sh:macro.c	1.21"
 /*
  * UNIX shell
  */
@@ -319,6 +319,8 @@ char	*as;
 	return(fixstak());
 }
 
+/* Save file descriptor for command substitution */
+int savpipe = -1;
 static
 comsubst(trimflag)
 int trimflag; /* used to determine if argument will later be trimmed */
@@ -359,9 +361,11 @@ int trimflag; /* used to determine if argument will later be trimmed */
 		 * is open only when needed
 		 */
 		chkpipe(pv);
+		savpipe = pv[OTPIPE];
 		initf(pv[INPIPE]); /* read from pipe */
 		execute(t, 0, (int)(flags & errflg), 0, pv);
 		close(pv[OTPIPE]);
+		savpipe = -1;
 	}
 	tdystak(savptr);
 	memcpy(stakbot, savptr, strlngth);

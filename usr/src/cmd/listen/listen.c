@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)listen:listen.c	1.14"
+#ident	"@(#)listen:listen.c	1.19.4.4"
 
 /*
  * Network Listener Process
@@ -65,13 +65,13 @@
 
 /* defines	*/
 
-#define min(a,b) 		(a>b ? b : a)
-
 #define NAMESIZE	(NAMEBUFSZ-1)
 
 #define SPLhi()		Splflag = 1
 #define SPLlo()		Splflag = 0
 
+#define GEN	1
+#define LOGIN	0
 
 /* global variables	*/
 
@@ -85,9 +85,9 @@ static char Provbuf[PATHSIZE];
 char	*Provider = Provbuf;	/* name of transport provider		*/
 char	*Netspec = NETSPEC;
 
-int	Debuglvl = 0;
-
-int	Nfd1, Nfd2, Nfd3;		/* Net fd's			*/
+int	Nfd1 = -1;		/* Net fd's, init to illegal		*/
+int	Nfd2 = -1;
+int	Nfd3 = -1;
 
 char	_rlbuf[NAMEBUFSZ];		/* remote login name		*/
 char	_lsbuf[NAMEBUFSZ];		/* listener service name	*/
@@ -101,17 +101,24 @@ char	*Lxname = NULL;			/* listener svc external name	*/
 int	Rlen = NAMEBUFSZ;
 int	Llen = NAMEBUFSZ;
 
-char	*Basedir;			/* base dir (from /etc/passwd)	*/
-char	Basebuf[256];
+struct	call_list	Lfree;		/* network call save free list */
+struct	call_list	Lpend;		/* network call save pending list */
+unsigned int	Lmaxcon;		/* maximum # of connections for gen. listen */
+
+struct	call_list	Rfree;		/* rem login call save free list */
+struct	call_list	Rpend;		/* rem login call save pending list */
+unsigned int	Rmaxcon;		/* maximum # of connections for remote login */
+
+char	*Basedir = BASEDIR;		/* base dir */
 char	*Home;				/* listener's home directory	*/
-char	Homebuf[350];			/* Basebuf + "/" + DIRSZ	*/
+char	Homebuf[BUFSIZ];
 FILE	*Debugfp = stderr;
 FILE	*Logfp;
 int	Pidfd;
 
 int	Background;			/* are we in background?	*/
 
-char	Lastmsg[512];		/* contains last msg logged (by stampbuf) */
+char	Lastmsg[BUFSIZ];		/* contains last msg logged (by stampbuf) */
 
 int	Logmax = LOGMAX;
 
@@ -123,63 +130,28 @@ int	Sigusr1;		/* data base file changed		*/
 
 int	Splflag;		/* logfile critical region flag		*/
 
-char *Nenviron[NENVIRON + 1];	/* server's environment array for execve */
 
+static char *badnspmsg = "Bad netspec on command line ( Pathname too long )\n";
+static char *badstart  = "Listener failed to start properly\n";
 
-
-
-static char *badpwdmsg = "Missing/bad password file entry for %s?\n";
-static char *badnspmsg = "Bad netpec on command line ( Pathname too long )\n";
 
 main(argc, argv)
-	int argc;
-	char **argv;
+int argc;
+char **argv;
 {
 	register char **av;
+	struct stat buf;
 	int ret;
-	char	scratch[50];
-	register struct passwd *pwdp;
-	register struct group *grpp;
-	extern struct passwd *getpwnam();
-	extern struct group *getgrnam();
-	extern void exit(), endpwent(), endgrent();
+	extern void exit(), logexit();
 
 	/*
 	 * pre-initialization:
 	 */
 
-	/* change real and effective uid/gid to non-root */
-
-	if (!(grpp = getgrnam(LSGRPNAME)))  {	/* get group entry	*/
-		fprintf(stderr, "No group entry for %s?\n", LSGRPNAME);
-		exit(1);
+	if (geteuid() != 0) {
+		fprintf(stderr, "Must be root to start listener\n");
+		logexit(1, badstart);
 	}
-
-	if (setgid(grpp->gr_gid))  {
-		sprintf(scratch, "Cannot set group id to %s", LSGRPNAME);
-		perror(scratch);
-		exit(1);
-	}
-
-	endgrent();
-
-	/* get password entry for name LSUIDNAME.  Basedir = LSUIDNAME's home */
-
-	if (!(pwdp = getpwnam(LSUIDNAME)) || !(strlen(pwdp->pw_dir)))  {
-		fprintf(stderr,badpwdmsg,LSUIDNAME);
-		exit(1);
-	}
-
-	if (setuid(pwdp->pw_uid))  {
-		sprintf(scratch, "Cannot set user id to %s", LSUIDNAME);
-		perror(scratch);
-		exit(1);
-	}
-
-	strcpy(Basebuf, pwdp->pw_dir);
-	Basedir = Basebuf;
-
-	endpwent();
 
 	/*
 	 * quickly, find -n [ and -v ] argument on command line	
@@ -200,11 +172,9 @@ main(argc, argv)
 		++av;
 	}
 
-	/* calc homedir/provider from passwd file (dir entry) + "/netspec" */
-
 	if (strlen(Netspec) > PATHSIZE)  {
 		fprintf(stderr, badnspmsg);
-		exit(1);
+		logexit(1, badstart);
 	}
 
 	strcpy(Homebuf,Basedir);
@@ -217,7 +187,7 @@ main(argc, argv)
 
 	if (chdir(Home))  {
 		fprintf(stderr,"Cannot change directory to %s\n",Home);
-		exit(1);
+		logexit(1, badstart);
 	}
 
 	/*
@@ -231,12 +201,12 @@ main(argc, argv)
 		if (!(Debugfp = fopen(VDBGNAME, "w")))  {
 			fprintf(stderr,"Can't create debug file: %s in %s\n",
 				VDBGNAME, Home);
-			exit(1);
+			exit(1); /* don't log validation exits */
 		}
 #endif
 		ret = init_dbf();
 		logmessage(ret ? "Bad data base file": "Good data base file");
-		exit(ret);
+		exit(ret); /* don't log validation exits */
 	}
 
 	umask(0);
@@ -246,17 +216,31 @@ main(argc, argv)
 		fprintf(stderr, "Errno %d opening lock file %s/%s.\n", 
 			errno, Home, LCKNAME);
 		fprintf(stderr, "Listener may already be running!\n");
-		exit(1);
+		logexit(1, badstart);
 	}
 
 	write(Lckfd, "lock", 4);
 
 	if (locking(Lckfd, 1, 0L) == -1)  {
 		fprintf(stderr, "Errno %d while locking lock file\n", errno);
-		exit(1);
+		logexit(1, badstart);
 	}
 
 	umask(022);
+
+	if (stat(LOGNAME, &buf) == 0) {
+		/* file exists, try and save it but if we can't don't worry */
+		unlink(OLOGNAME);
+		if (link(LOGNAME, OLOGNAME)) {
+			fprintf(stderr, "Lost old log file\n");
+		}
+		unlink(LOGNAME);
+	}
+
+/*
+ * At this point, either it didn't exist, we successfully saved it
+ * or we couldn't save it.  In any case, just open and continue.
+ */
 
 	Logfp = fopen(LOGNAME, "w");
 
@@ -271,10 +255,10 @@ main(argc, argv)
 	if (!Logfp) {
 #endif
 		fprintf(stderr,"listener cannot create file(s) in %s\n",Home);
-		exit(1);
+		logexit(1, badstart);
 	}
 
-	logmessage("@(#)listen:listen.c	1.8");
+	logmessage("@(#)listen:listen.c	1.19.4.4");
 
 #ifdef	DEBUGMODE
 	logmessage("Listener process with DEBUG capability");
@@ -287,8 +271,8 @@ main(argc, argv)
 
 
 initialize(argv, argc)
-	int argc;
-	char **argv;
+int argc;
+char **argv;
 {
 
 	/* try to get my "basename"		*/
@@ -309,24 +293,17 @@ initialize(argv, argc)
 	logmessage("Initialization Complete");
 }
 
+
 /*
  * cmd_line_args uses getopt(3) to read command line arguments.
  */
 
-#ifdef	DEBUGMODE
-
-static char *Optflags = "n:r:l:D:L:";
-
-#else
-
 static char *Optflags = "n:r:l:L:";
-
-#endif	/* DEBUGMODE */
 
 
 cmd_line_args(argv,argc)
-	int argc;
-	char **argv;
+int argc;
+char **argv;
 {
 	register i;
 	extern char *optarg;
@@ -358,17 +335,6 @@ cmd_line_args(argv,argc)
 			Lxname = optarg;
 			break;
 
-#ifdef	DEBUGMODE
-
-		case 'D':		/* Debug level			*/
-			if (isdigits(optarg))
-				Debuglvl = atoi( optarg );
-			else
-				++errflag;
-			break;
-
-#endif	/* DEBUGMODE */
-
 		case 'L':		/* max log entries		*/
 			if (isdigits(optarg))  {
 				Logmax = atoi( optarg );
@@ -386,7 +352,7 @@ cmd_line_args(argv,argc)
 
 #ifndef S4
 
-		if (!Rxname || !Lxname)
+		if (!Lxname)
 			++errflag;
 
 #endif
@@ -395,6 +361,7 @@ cmd_line_args(argv,argc)
 		error(E_CMDLINE, EXIT | NOCORE);
 
 }
+
 
 /*
  * pid_open:
@@ -430,9 +397,6 @@ pid_open()
 }
 
 
-
-
-
 /*
  * net_open: open and bind communications channels
  *		The name generation code in net_open, open_bind and bind is, 
@@ -444,7 +408,9 @@ pid_open()
 net_open()
 {
 	extern char *memcpy();
+	extern char *t_alloc();
 	extern int nlsc2addr();
+	void queue();
 #ifdef	S4
 	register char *p;
 	extern char *getnodename();
@@ -453,6 +419,9 @@ net_open()
 #ifdef	CHARADDR
 	char pbuf[NAMEBUFSZ + 1];
 #endif
+	register int i;
+	register struct callsave *tmp;
+	char scratch[BUFSIZ];
 
 	DEBUG((9,"in net_open"));
 
@@ -501,29 +470,145 @@ net_open()
 	/* this debug code assumes addresses are printable characters */
 	/* not necessarily null terminated.	*/
 
-	(void)memcpy(pbuf, Nodename, Rlen);
-	*(pbuf+Rlen) = (char)0;
-	DEBUG((3, "Nodename = %s, length = %d", pbuf, Rlen));
+	if (Rxname) {
+		(void)memcpy(pbuf, Nodename, Rlen);
+		*(pbuf+Rlen) = (char)0;
+		DEBUG((3, "Nodename = %s, length = %d", pbuf, Rlen));
+	}
 	(void)memcpy(pbuf, Pnodename, Llen);
 	*(pbuf+Llen) = (char)0;
 	DEBUG((3, "Pnodename = %s, length = %d", pbuf, Llen));
 #endif	/* CHARADDR	*/
 
-	/*
-	 * QLEN must be 1 for S4.  However,
-	 * for 3b2, QLEN may be greater, but a lot more code must be
-	 *	added to maintain the list of connect/disconnect
-	 *	events pulled off the stream.
-	 */
+	if (Rxname) {
+		Nfd1 = open_bind(Nodename, MAXCON, Rlen, &Rmaxcon);
+		sprintf(scratch, "Rmaxcon is %d", Rmaxcon);
+		logmessage(scratch);
+	}
 
-	Nfd1 = open_bind(Nodename,QLEN, Rlen);
-	Nfd2 = open_bind(Pnodename,QLEN, Llen);
+/*
+ * set up call save list for remote login service
+ */
 
-	if ( (Nfd1 == -1) || (Nfd2 == -1) )
+	if (Rxname) {
+		Rfree.cl_head = (struct callsave *) NULL;
+		Rfree.cl_tail = (struct callsave *) NULL;
+		for (i = 0; i < Rmaxcon; ++i) {
+			if ((tmp = (struct callsave *) malloc(sizeof(struct callsave))) == NULL) {
+				error(E_MALLOC, NOCORE | EXIT);
+			}
+			if ((tmp->c_cp = (struct t_call *) t_alloc(Nfd1, T_CALL, T_ALL)) == NULL) {
+				tli_error(E_T_ALLOC, EXIT);
+			}
+			queue(&Rfree, tmp);
+		}
+	}
+
+	Nfd2 = open_bind(Pnodename, MAXCON, Llen, &Lmaxcon);
+	sprintf(scratch, "Lmaxcon is %d", Lmaxcon);
+	logmessage(scratch);
+
+/*
+ * set up call save list for general network listen service
+ */
+
+	Lfree.cl_head = (struct callsave *) NULL;
+	Lfree.cl_tail = (struct callsave *) NULL;
+	for (i = 0; i < Lmaxcon; ++i) {
+		if ((tmp = (struct callsave *) malloc(sizeof(struct callsave))) == NULL) {
+			error(E_MALLOC, NOCORE | EXIT);
+		}
+		if ((tmp->c_cp = (struct t_call *) t_alloc(Nfd2, T_CALL, T_ALL)) == NULL) {
+			tli_error(E_T_ALLOC, EXIT);
+		}
+		queue(&Lfree, tmp);
+	}
+
+	if ( ((Nfd1 == -1) && Rxname) || (Nfd2 == -1) )
 		error(E_OPENBIND, EXIT);
 
 	logmessage("Net opened, names bound");
 }
+
+
+/*
+ * Following are some general queueing routines.  The call list head contains
+ * a pointer to the head of the queue and to the tail of the queue.  Normally,
+ * calls are added to the tail and removed from the head to ensure they are
+ * processed in the order received, however, because of the possible interruption
+ * of an acceptance with the resulting requeueing, it is necessary to have a
+ * way to do a "priority queueing" which inserts at the head of the queue for
+ * immediate processing
+ */
+
+/*
+ * queue:
+ *
+ * add calls to tail of queue
+ */
+
+
+void
+queue(head, cp)
+register struct call_list *head;
+register struct callsave *cp;
+{
+	if (head->cl_tail == (struct callsave *) NULL) {
+		cp->c_np = (struct callsave *) NULL;
+		head->cl_head = head->cl_tail = cp;
+	}
+	else {
+		cp->c_np = head->cl_tail->c_np;
+		head->cl_tail->c_np = cp;
+		head->cl_tail = cp;
+	}
+}
+
+
+/*
+ * pqueue:
+ *
+ * priority queuer, add calls to head of queue
+ */
+
+void
+pqueue(head, cp)
+register struct call_list *head;
+register struct callsave *cp;
+{
+	if (head->cl_head == (struct callsave *) NULL) {
+		cp->c_np = (struct callsave *) NULL;
+		head->cl_head = head->cl_tail = cp;
+	}
+	else {
+		cp->c_np = head->cl_head;
+		head->cl_head = cp;
+	}
+}
+
+
+/*
+ * dequeue:
+ *
+ * remove a call from the head of queue
+ */
+
+
+struct callsave *
+dequeue(head)
+register struct call_list *head;
+{
+	register struct callsave *ret;
+
+	if (head->cl_head == (struct callsave *) NULL)
+		error(E_CANT_HAPPEN, EXIT);
+	ret = head->cl_head;
+	head->cl_head = ret->c_np;
+	if (head->cl_head == (struct callsave *) NULL)
+		head->cl_tail = (struct callsave *) NULL;
+	return(ret);
+}
+
 
 /*
  * open_bind:
@@ -545,14 +630,17 @@ net_open()
  */
 
 int
-open_bind(name,qlen, clen)
-	char *name;
-	int qlen;
-	int clen;
+open_bind(name, qlen, clen, conp)
+char *name;
+int qlen;
+int clen;
+unsigned int *conp;
 {
 	register fd;
 	struct t_info t_info;
 	extern int t_errno, errno;
+	unsigned int ret;
+	extern unsigned int bind();
 
 	fd = t_open(Provider, NETOFLAG, &t_info);
 	if (fd < 0)  {
@@ -567,19 +655,26 @@ open_bind(name,qlen, clen)
 
 	DEBUG((7,"fd %d opened",fd));
 
-	return(bind(fd, name, qlen, clen));
+	ret = bind(fd, name, qlen, clen);
+	if (conp)
+		*conp = ret;
+	return(fd);
 }
 
 
+unsigned int
 bind(fd, name, qlen, clen)
-	register fd;
-	char *name;
-	int qlen;
-	register int clen;
+register fd;
+char *name;
+int qlen;
+register int clen;
 {
 	register struct t_bind *req = (struct t_bind *)0;
 	register struct t_bind *ret = (struct t_bind *)0;
+	register char *p, *q;
+	unsigned int retval;
 	extern char *t_alloc();
+	extern void nlsaddr2c();
 	extern int memcmp();
 	extern int errno;
 	extern char *memcpy();
@@ -591,7 +686,7 @@ bind(fd, name, qlen, clen)
 #ifdef	CHARADDR
 	char pbuf[NAMEBUFSZ + 1];
 #endif
-	char scratch[256];
+	char scratch[BUFSIZ];
 
 	DEBUG((9,"in bind, clen = %d", clen));
 	
@@ -670,9 +765,19 @@ bind(fd, name, qlen, clen)
 
 
 	if (clen)  {
-
+		retval = ret->qlen;
 		if ( (ret->addr.len != req->addr.len) ||
 		     (memcmp( req->addr.buf, ret->addr.buf, req->addr.len)) )  {
+			p = (char *) malloc(((ret->addr.len) << 1) + 1);
+			q = (char *) malloc(((req->addr.len) << 1) + 1);
+			if (p && q) {
+				nlsaddr2c(p, ret->addr.buf, ret->addr.len);
+				nlsaddr2c(q, req->addr.buf, req->addr.len);
+				sprintf(scratch, "attempted to bind address \\x%s", q);
+				logmessage(scratch);
+				sprintf(scratch, "actually bound address \\x%s", p);
+				logmessage(scratch);
+			}
 			error(E_BIND_REQ, EXIT | NOCORE);
 		}
 
@@ -681,8 +786,9 @@ bind(fd, name, qlen, clen)
 
 		if ( t_free(ret, T_BIND) )
 			tli_error(E_T_FREE, EXIT);
+		return(retval);
 	}
-	return(fd);
+	return((unsigned int) 0);
 }
 
 
@@ -756,6 +862,7 @@ divorce_parent()
 
 }
 
+
 /*
  * close_files:
  *		Close all files except what we opened explicitly
@@ -768,7 +875,8 @@ divorce_parent()
 
 close_files()
 {
-	register i;
+	register int i;
+	register int ndesc;
 
 	fclose(stdin);
 	fclose(stdout);
@@ -780,13 +888,11 @@ close_files()
 		sys_error(E_SYS_ERROR, EXIT | NOCORE);
 	}
 
-	for (i = 3; i < NOFILE; i++)  {	/* leave stdout, stderr open	*/
+	ndesc = ulimit(4, 0L);	/* get value for NOFILE */
+	for (i = 3; i < ndesc; i++)  {	/* leave stdout, stderr open	*/
 		fcntl(i, F_SETFD, 1);	/* set close on exec flag*/
 	}
 }
-
-
-
 
 
 /*
@@ -831,6 +937,7 @@ rst_signals()
 	errno = 0;	/* SIGWIND and SIGPHONE only on UNIX PC */
 }
 
+
 /*
  * sigterm:	Clean up and exit.
  */
@@ -838,14 +945,9 @@ rst_signals()
 void
 sigterm()
 {
-	extern void exit();
-
 	signal(SIGTERM, SIG_IGN);
 	error(E_SIGTERM, EXIT | NORMAL | NOCORE);	/* calls cleanup */
-	exit(0);
-
 }
-
 
 
 /*
@@ -853,175 +955,255 @@ sigterm()
  */
 
 static struct pollfd pollfds[2];
+static struct t_discon *disc;
 
 listen()
 {
-	register fd, pid, i, tl;
-	register struct t_call *call;
+	register fd, i;
+	int count;
 	register struct pollfd *sp;
-	char scratch[256];
-	unsigned sleep();
-	extern void exit();
+	struct call_list *fhead, *phead; /* free and pending heads */
 
 	DEBUG((9,"in listen"));
-
-	pollfds[0].fd = Nfd1;	/* tells poll() what to do		*/
-	pollfds[1].fd = Nfd2;
-	pollfds[0].events = pollfds[1].events = POLLIN;
-
+	if (Rxname) {
+		count = 2;	/* how many fd's are we listening on */
+		pollfds[0].fd = Nfd1;	/* tells poll() what to do		*/
+		pollfds[1].fd = Nfd2;
+		pollfds[0].events = pollfds[1].events = POLLIN;
+	}
+	else {
+		count = 1;
+		pollfds[0].fd = Nfd2;
+		pollfds[0].events = POLLIN;
+	}
 	errno = t_errno = 0;
-	while (!(call = (struct t_call *)t_alloc(Nfd1,T_CALL,T_ALL)) ) {
+
+/*
+ * for receiving disconnects allocate one and be done with it
+ */
+
+	while (!(disc = (struct t_discon *)t_alloc(Nfd2,T_DIS,T_ALL)) ) {
 		if ((t_errno != TSYSERR) || (errno != EAGAIN))
 			tli_error(E_T_ALLOC, EXIT);
 		else
 			tli_error(E_T_ALLOC, CONTINUE);
 	}
 
-	for (;;)  {
+	for (;;) {
+		DEBUG((9,"listen(): TOP of loop"));
+		if (Rxname) {
+			pollfds[0].revents = pollfds[1].revents = 0;
+		}
+		else {
+			pollfds[0].revents = 0;
+		}
+		DEBUG((7,"waiting for a request (via poll)"));
 
-	    DEBUG((9,"listen(): TOP of loop"));
-
-	    pollfds[0].revents = pollfds[1].revents = 0;
-
-	    DEBUG((7,"waiting for a request (via poll)"));
-
-	    if (poll(pollfds, 2, -1) == -1)
-		sys_error(E_POLL, EXIT);
-
-	    for (i = 0, sp = pollfds; i < 2; i++, sp++)
-	      if (sp->revents)  {
-
-		DEBUG((5,"fd %d poll revents: %x", sp->fd,
-			sp->revents));
-		fd = sp->fd;
-
-		if (sp->revents != POLLIN)
+		if (poll(pollfds, count, -1) == -1)
 			sys_error(E_POLL, EXIT);
 
-		if (t_listen(fd, call)) {
-			DEBUG((9,"t_listen got t_errno = %d", t_errno));
-			if ((t_errno == TLOOK) && ((tl = t_look(fd)) >= 0)) {
-				sprintf(scratch, 
-					"t_listen error: t_look(fd) = %d", tl);
-				logmessage(scratch);
-			}
-			tli_error(E_T_LISTEN, CONTINUE);
-			continue;
-		}
-
-		sprintf(scratch,"Connect pending on fd %d",fd);
-		logmessage(scratch);
-
-		close(0);
-
-		SPLhi();
-
-		if ((Nfd3 = open_bind(Nodename,0,0)) != 0)  {
-			error(E_OPENBIND, CONTINUE);
-			if (t_snddis(fd, call))  {
-				DEBUG((1,"snddis failed, errno %d, t_errno %d",
-					errno, t_errno));
-				logmessage("t_snddis failed, exiting");
-				error(E_OPENBIND, EXIT | NO_MSG | NOCORE);
-			}
-			goto lclean;
-		}
-
-		SPLlo();
-
-		if (t_accept(fd, Nfd3, call)) {
-			DEBUG((9,"t_accept got t_errno = %d", t_errno));
-			if ((t_errno == TLOOK) && ((tl = t_look(fd)) >= 0)) {
-				if (tl == T_DISCONNECT)
-					(void) t_rcvdis(fd, NULL);
-				sprintf(scratch, 
-					"t_accept error: t_look(fd) = %d", tl);
-				logmessage(scratch);
-			}
-			tli_error(E_T_ACCEPT, CONTINUE);
-		}
-
-		else  {
-			sprintf(scratch, 
-				"Accepted connection request on fd %d",Nfd3);
-			logmessage(scratch);
-
-
-			/*
-			 * check if the data base is current, before forking
-			 */
-
-			(void) check_dbf();
-
-			/*
-			 * fork now, to minimize the window in which connection
-			 * requests are ignored.If we can't fork, we end up just
-			 * doing an abortive close.
-			 */
-
-			if ( (pid = fork()) == -1)  {
-				log( E_FORK_SERVICE );
-			}
-
-			else if (!pid)  {	/* child -- do the work	*/
-
-				setpgrp();	/* make child independent */
-				Child = 1;	/* flag for exit rtns	*/
-				if (fd == Nfd1)	/* request on nodename? */
-					login(Nfd3,call);   /* nodename	*/
-				else
-					process(Nfd3,call);  /* netnodename*/
-
-				/*
-				 * if login() or process() returns, an error
-				 * was encountered.  Errors should be logged
-				 * by the subroutines -- exit done here.
-				 * (Subroutines shouldn't care if they are
-				 * a parent/child/whatever.)
-				 *
-				 * NOTE: timeout() is an exception; 
-				 * it does an exit.
-				 * There can be no TLI calls after this point.
-				 * (non-tli modules may have been pushed)
-				 *
-				 */
-
-
-#ifdef	COREDUMP
-				abort();
-#endif
-				exit(1);
+		for (i = 0, sp = pollfds; i < count; i++, sp++) {
+			switch (sp->revents) {
+			case POLLIN:
+				fd = sp->fd;
+				if (fd == Nfd1) {
+					/* This can't happen if no remote login is
+					   available (Rxname == NULL, count == 1,
+					   Nfd1 == -1) */
+					fhead = &Rfree;
+					phead = &Rpend;
+				}
+				else {
+					fhead = &Lfree;
+					phead = &Lpend;
+				}
+				doevent(fhead, phead, fd);
+				trycon(fhead, phead, fd);
+				break;
+			case 0:
+				break;
+			/* distinguish the various errors for the user */
+			case POLLERR:
+				logmessage("poll() returned POLLERR");
+				error(E_SYS_ERROR, EXIT | NO_MSG);
+			case POLLHUP:
+				logmessage("poll() returned POLLHUP");
+				error(E_SYS_ERROR, EXIT | NO_MSG);
+			case POLLNVAL:
+				logmessage("poll() returned POLLNVAL");
+				error(E_SYS_ERROR, EXIT | NO_MSG);
+			case POLLPRI:
+				logmessage("poll() returned POLLPRI");
+				error(E_SYS_ERROR, EXIT | NO_MSG);
+			case POLLOUT:
+				logmessage("poll() returned POLLOUT");
+				error(E_SYS_ERROR, EXIT | NO_MSG);
+			default:
+				logmessage("poll() returned unrecognized event");
+				error(E_SYS_ERROR, EXIT | NO_MSG);
 			}
 		}
-
-lclean:
-
-		(void) memset(call->addr.buf, (char)0, call->addr.maxlen);
-		(void) memset(call->opt.buf, (char)0, call->opt.maxlen);
-		(void) memset(call->udata.buf, (char)0, call->udata.maxlen);
-		call->addr.len = 0;
-		call->opt.len = 0;
-		call->udata.len = 0;
-
-		if (Nfd3 >= 0) {
-
-			DEBUG((7,"listen(): closing fd %d",Nfd3));
-
-			t_close(Nfd3);
-		}
-
-		SPLhi();
-
-		if (dup(1) != 0)
-			logmessage("Trouble duping fd 0");
-
-		SPLlo();
-
-	    }
 	}
 }
 
 
+/*
+ * doevent:	handle an asynchronous event
+ */
+
+doevent(fhead, phead, fd)
+struct call_list *fhead;
+struct call_list *phead;
+int fd;
+{
+	register struct callsave *current;
+	register struct t_call *call;
+	char scratch[BUFSIZ];
+
+	DEBUG((9, "in doevent"));
+	switch (t_look(fd)) {
+	case 0:
+		sys_error(E_POLL, EXIT);
+		/* no return */
+	case T_LISTEN:
+		current = dequeue(fhead);
+		call = current->c_cp;
+		if (t_listen(fd, call) < 0) {
+			tli_error(E_T_LISTEN, CONTINUE);
+			return;
+		}
+		queue(phead, current);
+		sprintf(scratch, "Connect pending on fd %d, seq # %d", fd, call->sequence);
+		logmessage(scratch);
+		DEBUG((9, "incoming call seq # %d", call->sequence));
+		break;
+	case T_DISCONNECT:
+		if (t_rcvdis(fd, disc) < 0) {
+			tli_error(E_T_RCVDIS, EXIT);
+			/* no return */
+		}
+		sprintf(scratch, "Disconnect on fd %d, seq # %d", fd, disc->sequence);
+		logmessage(scratch);
+		DEBUG((9, "incoming disconnect seq # %d", disc->sequence));
+		pitchcall(fhead, phead, disc);
+		break;
+	default:
+		tli_error(E_T_LOOK, CONTINUE);
+		break;
+	}
+}
+
+
+/*
+ * trycon:	try to accept a connection
+ */
+
+trycon(fhead, phead, fd)
+struct call_list *fhead;
+struct call_list *phead;
+int fd;
+{
+	register struct callsave *current;
+	register struct t_call *call;
+	int pid;
+	char scratch[BUFSIZ];
+
+	DEBUG((9, "in trycon"));
+	while (!EMPTY(phead)) {
+		current = dequeue(phead);
+		call = current->c_cp;
+		DEBUG((9, "try to accept #%d", call->sequence));
+		close(0);
+		SPLhi();
+		if ((Nfd3 = open_bind(NULL, 0, 0, (unsigned int *) 0)) != 0) {
+			error(E_OPENBIND, CONTINUE);
+			clr_call(call);
+			queue(fhead, current);
+			continue;	/* let transport provider generate disconnect */
+		}
+		SPLlo();
+		if (t_accept(fd, Nfd3, call) < 0) {
+			if (t_errno == TLOOK) {
+				t_close(Nfd3);
+				SPLhi();
+				if (dup(1) != 0)
+					logmessage("Trouble duping fd 0");
+				SPLlo();
+				logmessage("t_accept collision");
+				DEBUG((9, "save call #%d", call->sequence));
+				pqueue(phead, current);
+				return;
+			}
+			else {
+				t_close(Nfd3);
+				SPLhi();
+				if (dup(1) != 0)
+					logmessage("Trouble duping fd 0");
+				SPLlo();
+				tli_error(E_T_ACCEPT, CONTINUE);
+				clr_call(call);
+				queue(fhead, current);
+				return;
+			}
+		}
+		sprintf(scratch, "Accepted request on fd %d, seq # %d", Nfd3, call->sequence);
+		logmessage(scratch);
+		DEBUG((9, "Accepted call %d", call->sequence));
+		check_dbf();
+		if ((pid = fork()) < 0)
+			log(E_FORK_SERVICE);
+		else if (!pid) {
+			startit(Nfd3, call, (fd == Nfd1 ? LOGIN : GEN));
+			/* no return */
+		}
+		clr_call(call);
+		t_close(Nfd3);
+		queue(fhead, current);
+		SPLhi();
+		if (dup(1) != 0)
+			logmessage("Trouble duping fd 0");
+		SPLlo();
+	}
+}
+
+
+/*
+ * startit:	start up a server
+ */
+
+startit(fd, call, servtype)
+int fd;
+struct t_call *call;
+int servtype;
+{
+	DEBUG((9, "in startit"));
+	setpgrp();
+	Child = 1;
+	if (servtype == LOGIN)
+		login(fd, call);
+	else
+		process(fd, call);
+
+/*
+ * if login() or process() returns, an error
+ * was encountered.  Errors should be logged
+ * by the subroutines -- exit done here.
+ * (Subroutines shouldn't care if they are
+ * a parent/child/whatever.)
+ *
+ * NOTE: timeout() is an exception; 
+ * it does an exit.
+ * There can be no TLI calls after this point.
+ * (non-tli modules may have been pushed)
+ *
+ */
+
+	DEBUG((9, "return in startit"));
+#ifdef	COREDUMP
+	abort();
+#endif
+	exit(1); /* server failed, don't log */
+}
 
 
 /*
@@ -1030,8 +1212,8 @@ lclean:
  */
 
 process(fd, call)
-	register fd;
-	struct t_call *call;
+register fd;
+struct t_call *call;
 {
 	register size;
 	char buf[RCVBUFSZ];
@@ -1048,9 +1230,9 @@ process(fd, call)
 		return(-1);
 	}
 
-	if (size < MINMSGSZ)  {
-		DEBUG((7,"process(): msg size (%d) too small",size));
-		logmessage("process(): Message size too small");
+	if (size < 0)  {
+		DEBUG((7,"process(): Error returned from getrequest()" ));
+		logmessage("process(): Error returned from getrequest()");
 		return(-1);
 	}
 
@@ -1101,7 +1283,6 @@ process(fd, call)
 }
 
 
-
 /*
  * getrequest:	read in a full message.  Timeout, in case the client died.
  *		returns: -1 = timeout or other error.
@@ -1110,32 +1291,204 @@ process(fd, call)
 
 int
 getrequest(fd, bp)
-	register fd;
-	register char *bp;
+register fd;
+register char *bp;
 {
 	register size;
+	register char *tmp = bp;
 	int flags;
 	extern void timeout();
 	extern unsigned alarm();
+	unsigned short cnt;
 
 	DEBUG((9,"in getrequest"));
 
 	signal(SIGALRM, timeout);
 	(void)alarm(ALARMTIME);
 
-	size = l_rcv(fd, bp, RCVBUFSZ, &flags);
+	/* read in MINMSGSZ to determine type of msg */
+	if ((size = l_rcv(fd, bp, MINMSGSZ, &flags)) != MINMSGSZ) {
+		DEBUG((9, "getrequest: l_rcv returned %d", size));
+		tli_error(E_RCV_MSG, CONTINUE);
+		return(-1);
+	}
+	tmp += size;
+
+	/*
+	 * if message is NLPS protocol...
+	 */
+
+	if ((!strncmp(bp,NLPSIDSTR,NLPSIDSZ))  && 	/* NLPS request	*/
+	    (*(bp + NLPSIDSZ) == NLPSSEPCHAR)) {
+
+		do {
+			if (++size > RCVBUFSZ) {
+				logmessage("Getrequest(): recieve buffer not large enough");
+				return(-1);
+			}
+
+			if (t_rcv(fd, tmp, sizeof(char), &flags) != sizeof(char)) {
+				tli_error(E_RCV_MSG, CONTINUE);
+				return(-1);
+			}
+
+		} while (*tmp++ != '\0');
+
+
+
+	/*
+	 * else if message is for the MS-NET file server...
+	 */
+
+	} else if ( (*bp == (char)0xff) && (!strncmp(bp+1,SMBIDSTR,SMBIDSZ)) )  {
+
+		/* read in 28 more bytes to get count of paramter words */
+		if (l_rcv(fd, tmp, 28, &flags) != 28) {
+			tli_error(E_RCV_MSG, CONTINUE);
+			return(-1);
+		}
+		tmp += 28;
+		size += 28;
+
+		/*
+		 * read amount of paramater words plus word for
+                 * the number of data bytes to follow (2 bytes/word)
+                 */
+		cnt = (int)*(tmp - 1) * 2 + 2;
+
+		if ((size += cnt) > RCVBUFSZ) {
+			logmessage("Getrequest(): recieve buffer not large enough");
+			return(-1);
+		}
+
+		if (l_rcv(fd, tmp, cnt, &flags) != cnt) {
+			tli_error(E_RCV_MSG, CONTINUE);
+			return(-1);
+		}
+		tmp += cnt;
+
+		getword(tmp - 2, &cnt);
+
+		if ((size += cnt) > RCVBUFSZ) {
+			logmessage("Getrequest(): recieve buffer not large enough");
+			return(-1);
+		}
+
+		if (l_rcv(fd, tmp, cnt, &flags) != cnt) {
+			tli_error(E_RCV_MSG, CONTINUE);
+			return(-1);
+		}
+
+		nullfix(fd);
+
+	/*
+	 * else, message type is unknown...
+	 */
+
+	} else  {
+		logmessage("Getrequest(): Unknown service request (ignored)");
+		DEBUG((7,"msg size: %d; 1st four chars (hex) %x %x %x %x",
+			*bp, *(bp+1), *(bp+2), *(bp+3)));
+		return(-1);
+	}
 
 	(void)alarm(0);
 	signal(SIGALRM, SIG_IGN);
 
-	DEBUG((7,"t_rcv returned %d, flags: %x, errno = %d, t_errno = %d\n",size,flags,errno,t_errno));
-
-	if (size < 0)  {
-		tli_error(E_RCV_MSG, CONTINUE);
-		return(size);
-	}
+	DEBUG((7,"t_rcv returned %d, flags: %x",size,flags));
 
 	return(size);
+}
+
+
+/*
+ * The following code is for patching a 6300 side bug.  The original
+ * message that comes over may contain 2 null bytes which aren't
+ * part of the message, and if left on the stream, will poison the
+ * server.  Peek into the stream and snarf up those bytes if they
+ * are there.  If anything goes wrong with the I_PEEK, just continue,
+ * if the nulls weren't there, it'll work, and if they were, all that
+ * will happen is that the server will fail.  Just note what happened
+ * in the log file.
+ */
+
+nullfix(fd)
+int fd;
+{
+	struct strpeek peek;
+	register struct strpeek *peekp;
+	char scratch[BUFSIZ];
+	char junk[2];
+	int flags;
+	int ret;
+
+	peekp = &peek;
+	peekp->flags = 0;
+	/* need to ask for ctl info to avoid bug in I_PEEK code */
+	peekp->ctlbuf.maxlen = 1;
+	peekp->ctlbuf.buf = junk;
+	peekp->databuf.maxlen = 2;
+	peekp->databuf.buf = junk;
+	ret = ioctl(fd, I_PEEK, &peek);
+	if (ret == -1) {
+		sprintf(scratch, "nullfix(): unable to PEEK, errno is %d", errno);
+		DEBUG((9, "nullfix(): I_PEEK failed, errno is %d", errno));
+		logmessage(scratch);
+	}
+	else if (ret == 0) {
+		DEBUG((9, "nullfix(): no messages on stream to PEEK"));
+	}
+	else {
+		if (peekp->databuf.len == 2) {
+			/* Note: junk contains "peeked" data */
+			DEBUG((9, "peeked <%x> <%x>", junk[0], junk[1]));
+			if ((junk[0] == 0) && (junk[1] == 0)) {
+				/* pitch the nulls */
+				DEBUG((9, "pitching 2 nulls from first peek"));
+				l_rcv(fd, junk, 2, &flags);
+			}
+		}
+
+		/*
+		 * this represents a somewhat pathological case where
+		 * the "2 nulls" are broken across message boundaries.
+		 * Pitch the first and hope the next one is there
+		 */
+
+		else if (peekp->databuf.len == 1) {
+			DEBUG((9, "peeked <%x>", junk[0]));
+			if (junk[0] == 0) {
+				/* pitch the first */
+				DEBUG((9, "split nulls, pitching first"));
+				l_rcv(fd, junk, 1, &flags);
+				peekp->databuf.maxlen = 1;
+				ret = ioctl(fd, I_PEEK, &peek);
+				if (ret == -1) {
+					sprintf(scratch, "nullfix(): unable to PEEK second time, errno is %d", errno);
+					DEBUG((9, "second peek failed, errno %d", errno));
+					logmessage(scratch);
+				}
+				else if (ret == 0) {
+					DEBUG((9, "no messages for 2nd peek"));
+				}
+				else {
+					if (peekp->databuf.len == 1) {
+						DEBUG((9, "2nd peek <%x>", junk[0]));
+						if (junk[0] == 0) {
+							/* pitch the second */
+							DEBUG((9, "pitching 2nd single null"));
+							l_rcv(fd, junk, 1, &flags);
+						}
+						else {
+							/* uh oh, server will most likely fail */
+							DEBUG((9, "2nd null not found"));
+							logmessage("nullfix(): threw away a valid null byte");
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 
@@ -1148,6 +1501,7 @@ getrequest(fd, bp)
 void
 timeout()
 {
+	DEBUG((9, "TIMEOUT"));
 	error(E_RCV_TMO, EXIT | NOCORE);
 }
 
@@ -1161,9 +1515,9 @@ timeout()
  *	returns only if there was an error (either msg format, or couldn't exec)
  */
 
-static char *badversion = 
+static char *badversion =
 	"Unknown version of an NLPS service request: %d:%d";
-static char *disabledmsg = 
+static char *disabledmsg =
 	"Request for service code <%s> denied, service is disabled";
 static char *nlsunknown =
 	"Request for service code <%s> denied, unknown service code";
@@ -1178,9 +1532,9 @@ static int Nlsversion = -1;	/* protocol version	*/
 
 int
 nls_service(fd, bp, size, call)
-	int fd, size;
-	char *bp;
-	struct t_call *call;
+int fd, size;
+char *bp;
+struct t_call *call;
 {
 	int low, high;
 	char svc_buf[64];
@@ -1240,8 +1594,8 @@ nls_service(fd, bp, size, call)
  */
 
 nls_chkmsg(bp, size, lowp, highp, svc_code_p)
-	char *bp, *svc_code_p;
-	int size, *lowp, *highp;
+char *bp, *svc_code_p;
+int size, *lowp, *highp;
 {
 
 	/* first, make sure bp is null terminated */
@@ -1255,6 +1609,7 @@ nls_chkmsg(bp, size, lowp, highp, svc_code_p)
 
 }
 
+
 /*
  * nls_reply:	send the "service request response message"
  *		when appropriate.  (Valid if running version 2 or greater).
@@ -1267,8 +1622,8 @@ nls_chkmsg(bp, size, lowp, highp, svc_code_p)
 static char *srrpprot = "%d:%d:%s";
 
 nls_reply(code, text)
-	register code;
-	register char *text;
+register code;
+register char *text;
 {
 	char scratch[256];
 
@@ -1291,31 +1646,39 @@ nls_reply(code, text)
  */
 
 start_server(netfd, dbp, o_argv, call)
-	int  netfd;
-	register dbf_t *dbp;
-	register char **o_argv;
-	struct t_call *call;
+int netfd;
+register dbf_t *dbp;
+register char **o_argv;
+struct t_call *call;
 {
 	char *path;
 	char **argvp;
+	extern char **environ;
+	extern struct passwd *getpwnam();
+	extern void endpwent();
+	extern struct group *getgrgid();
+	register struct passwd *pwdp;
+	struct group *grpp;
 	char msgbuf[256];
-	extern svr_environ();
-
+	register dbf_t *wdbp = dbp;
 
 	/*
 	 * o_argv is set during SMB service setup only, in
 	 * which case dbp is NULL.
 	 */
 
-	if (o_argv)
+	if (o_argv) {
 		argvp = o_argv;
+		if ((wdbp = getdbfentry(DBF_SMB_CODE)) == NULL) {
+			/* this shouldn't happen because at this point we've
+			   already found it once */
+			logmessage("SMB message, missing data base entry");
+			exit(2); /* server, don't log */
+		}
+	}
 	else
 		argvp = mkdbfargv(dbp);
 	path = *argvp;
-
-	if (senviron(call))  {
-		logmessage("Can't expand server's environment");
-	}
 
 	/* set up stdout and stderr before pushing optional modules */
 
@@ -1324,7 +1687,7 @@ start_server(netfd, dbp, o_argv, call)
 
 	if (dup(0) != 1 || dup(0) != 2) {
 		logmessage("Dup of fd 0 failed");
-		exit(2);
+		exit(2); /* server, don't log */
 	}
 
 	sprintf(msgbuf,"Starting server (%s)",path);
@@ -1335,11 +1698,51 @@ start_server(netfd, dbp, o_argv, call)
 
 	if (dbp && pushmod(netfd, dbp->dbf_modules)) {
 		logmessage("Can't push server's modules: exit");
-		exit(2);
+		exit(2); /* server, don't log */
 	}
 
 	rst_signals();
-	execve(path, argvp, Nenviron);
+	if (wdbp == NULL) {
+		logmessage("No database entry");
+		exit(2); /* server, don't log */
+	}
+
+	if ((pwdp = getpwnam(wdbp->dbf_id)) == NULL) {
+		sprintf(msgbuf, "Missing or bad passwd entry for <%s>", wdbp->dbf_id);
+		logmessage(msgbuf);
+		exit(2); /* server, don't log */
+	}
+
+	if (setgid(pwdp->pw_gid)) {
+		if ((grpp = getgrgid(pwdp->pw_gid)) == NULL) {
+			sprintf(msgbuf, "No group entry for %d", pwdp->pw_gid);
+			logmessage(msgbuf);
+			exit(2); /* server, don't log */
+		}
+		sprintf(msgbuf, "Cannot set group id to %s", grpp->gr_name);
+		logmessage(msgbuf);
+		exit(2); /* server, don't log */
+	}
+
+	if (setuid(pwdp->pw_uid)) {
+		sprintf(msgbuf, "Cannot set user id to %s", wdbp->dbf_id);
+		logmessage(msgbuf);
+		exit(2); /* server, don't log */
+	}
+
+	if (chdir(pwdp->pw_dir)) {
+		sprintf(msgbuf, "Cannot chdir to %s", pwdp->pw_dir);
+		logmessage(msgbuf);
+		exit(2); /* server, don't log */
+	}
+
+	DEBUG((9, "New uid %d New gid %d", getuid(), getgid()));
+	if (senviron(call, pwdp->pw_dir))  {
+		logmessage("Can't expand server's environment");
+	}
+	endpwent();
+
+	execve(path, argvp, environ);
 
 	/* exec returns only on failure!		*/
 
@@ -1348,6 +1751,7 @@ start_server(netfd, dbp, o_argv, call)
 	return(-1);
 }
 
+
 /*
  * senviron:	Update environment before exec-ing the server:
  *		The callers logical address is placed in the
@@ -1355,24 +1759,56 @@ start_server(netfd, dbp, o_argv, call)
  *
  * Note:	no need to free the malloc'ed buffers since this process
  *		will either exec or exit.
- *
- *		If you add additional parameters, be sure to increase
- *		NENVIRON.
  */
 
 static char provenv[2*PATHSIZE];
+static char homeenv[BUFSIZ];
+static char tzenv[BUFSIZ];
+
+#define TIMEZONE	"/etc/TIMEZONE"
+#define TZSTR	"TZ="
 
 int
-senviron(call)
-	register struct t_call *call;
+senviron(call, home)
+register struct t_call *call;
+register char *home;
 {
 	register char *p;
-	register char **np = Nenviron;
+	char scratch[BUFSIZ];
 	extern void nlsaddr2c();
-	extern char *mkenv();
+	extern char *getenv();
+	char *parse();
+	FILE *fp;
 
-	if (p = mkenv(HOME))
-		*np++ = p;
+	sprintf(homeenv, "HOME=%s", home);
+	putenv(homeenv);
+
+/*
+ * The following code handles the case where the listener was started with
+ * no environment.  If so, supply a reasonable default path and find out
+ * what timezone we're in so the log file is consistent.
+ */
+
+	if (getenv("PATH") == NULL)
+		putenv("PATH=/bin:/etc:/usr/bin");
+	if (getenv("TZ") == NULL) {
+		fp = fopen(TIMEZONE, "r");
+		if (fp) {
+			while (fgets(tzenv, BUFSIZ, fp)) {
+				if (scratch[strlen(tzenv) - 1] == '\n')
+					tzenv[strlen(tzenv) - 1] = '\0';
+				if (!strncmp(TZSTR, tzenv, strlen(TZSTR))) {
+					putenv(parse(tzenv));
+					break;
+				}
+			}
+			fclose(fp);
+		}
+		else {
+			sprintf(scratch, "couldn't open %s, default to GMT", TIMEZONE);
+			logmessage(scratch);
+		}
+	}
 
 	if ((p = (char *)malloc(((call->addr.len)<<1) + 18)) == NULL)
 		return(-1);
@@ -1380,7 +1816,7 @@ senviron(call)
 	strcat(p, "=");
 	nlsaddr2c(p + strlen(p), call->addr.buf, call->addr.len);
 	DEBUG((7, "Adding %s to server's environment", p));
-	*np++ = p;
+	putenv(p);
 
 	if ((p = (char *)malloc(((call->opt.len)<<1) + 16)) == NULL)
 		return(-1);
@@ -1388,14 +1824,14 @@ senviron(call)
 	strcat(p, "=");
 	nlsaddr2c(p + strlen(p), call->opt.buf, call->opt.len);
 	DEBUG((7, "Adding %s to server's environment", p));
-	*np++ = p;
+	putenv(p);
 
 	p = provenv;
 	strcpy(p, NLSPROVIDER);
 	strcat(p, "=");
 	strcat(p, Netspec);
 	DEBUG((7, "Adding %s to environment", p));
-	*np++ = p;
+	putenv(p);
 
 	if ((p = (char *)malloc(((call->udata.len)<<1) + 20)) == NULL)
 		return(-1);
@@ -1404,52 +1840,58 @@ senviron(call)
 	if ((int)call->udata.len >= 0)
 		nlsaddr2c(p + strlen(p), call->udata.buf, call->udata.len);
 	DEBUG((7, "Adding %s to server's environment", p));
-	*np++ = p;
-
-	if (p = mkenv(PATH))
-		*np++ = p;
-
-	*np = (char *)0;
+	putenv(p);
 	return (0);
 }
 
 
 /*
- * mkenv:	malloc space for a new copy of an existing environ
- *		varaible.  Special code for HOME to use current directory.
+ * parse:	Parse TZ= string like init does for consistency
+ *		Work on string in place since result will
+ *		either be the same or shorter.
  */
 
 char *
-mkenv(s)
-	register char *s;
+parse(s)
+char *s;
 {
-	register char *p, *m;
-	extern char *getenv();
+	register char *p;
+	register char *tp;
+	char scratch[BUFSIZ];
+	int delim;
 
-	if (!strcmp(s, HOME))
-		p = Home;
-	else if (!(p = getenv(s)))  {
-		DEBUG((7, "mkenv: getenv(%s) failed", s));
-		goto fail;
+	tp = p = s + strlen("TZ=");	/* skip TZ= in parsing */
+	if ((*p == '"') || (*p == '\'')) {
+		/* it is quoted */
+		delim = *p++;
+		for (;;) {
+			if (*p == '\0') {
+				/* etc/TIMEZONE ill-formed, go without TZ */
+				sprintf(scratch, "%s ill-formed", TIMEZONE);
+				logmessage(scratch);
+				strcpy(s, "TZ=");
+				return(s);
+			}
+			if (*p == delim) {
+				*tp = '\0';
+				return(s);
+			}
+			else {
+				*tp++ = *p++;
+			}
+		}
 	}
-
-	if (m = (char *)malloc((unsigned)(strlen(s)+strlen(p)+2)))  {
-		strcpy(m, s);
-		strcat(m,"=");
-		strcat(m, p);
-		DEBUG((7,"mkenv: %s", m));
-		return(m);
+	else { /* look for comment or trailing whitespace */
+		for ( ; *p && !isspace(*p) && *p != '#'; ++p)
+			;
+		/* if a comment or trailing whitespace, trash it */
+		if (*p) {
+			*p = '\0';
+		}
+		return(s);
 	}
-#ifdef	DEBUGMODE
-	else  {
-		DEBUG((7,"mkenv: malloc(%d) failed", strlen(s)+strlen(p)+2));
-	}
-#endif
-
-fail:
-	DEBUG((7, "mkenv(%s) failed", s));
-	return ((char *)0);
 }
+
 
 /*
  * login:	Start the intermediary process that handles
@@ -1457,8 +1899,8 @@ fail:
  */
 
 login(fd, call)
-	register fd;
-	struct t_call *call;
+register fd;
+struct t_call *call;
 {
 	register dbf_t *dbp;
 
@@ -1486,7 +1928,7 @@ login(fd, call)
 
 int
 isdigits(p)
-	register char *p;
+register char *p;
 {
 	register int flag = 1;
 
@@ -1575,16 +2017,87 @@ int *flagp;
 	register int count = bytes;
 	register char *bp = bufp;
 
+	DEBUG((9, "in l_rcv"));
 
 	do {
 		*flagp = 0;
 		n = t_rcv(fd, bp, count, flagp);
-		if (n < 0)
+		if (n < 0) {
+			DEBUG((9, "l_rcv, t_errno is %d", t_errno));
+#ifdef DEBUGMODE
+			if (t_errno == TLOOK) {
+				DEBUG((9, "l_rcv, t_look returns %d", t_look(fd)));
+			}
+#endif
 			return(n);
+		}
 		count -= n;
 		bp += n;
-	} while (((*flagp) & T_MORE) && (count > 0));
+	} while (count > 0);
 
 	return(bp - bufp);
 }
 
+
+/*
+ * clr_call:	clear out a call structure
+ */
+
+clr_call(call)
+struct t_call *call;
+{
+	call->sequence = 0;
+	call->addr.len = 0;
+	call->opt.len = 0;
+	call->udata.len = 0;
+	memset(call->addr.buf, 0, call->addr.maxlen);
+	memset(call->opt.buf, 0, call->opt.maxlen);
+	memset(call->udata.buf, 0, call->udata.maxlen);
+}
+
+
+/*
+ * pitchcall: remove call from pending list
+ */
+
+pitchcall(free, pending, disc)
+struct call_list *free;
+struct call_list *pending;
+struct t_discon *disc;
+{
+	register struct callsave *p, *oldp;
+
+	DEBUG((9, "pitching call, sequence # is %d", disc->sequence));
+	if (EMPTY(pending)) {
+		disc->sequence = -1;
+		return;
+	}
+	p = pending->cl_head;
+	oldp = (struct callsave *) NULL;
+	while (p) {
+		if (p->c_cp->sequence == disc->sequence) {
+			if (oldp == (struct callsave *) NULL) {
+				pending->cl_head = p->c_np;
+				if (pending->cl_head == (struct callsave *) NULL) {
+					pending->cl_tail = (struct callsave *) NULL;
+				}
+			}
+			else if (p == pending->cl_tail) {
+				oldp->c_np = p->c_np;
+				pending->cl_tail = oldp;
+			}
+			else {
+				oldp->c_np = p->c_np;
+			}
+			clr_call(p->c_cp);
+			queue(free, p);
+			disc->sequence = -1;
+			return;
+		}
+		oldp = p;
+		p = p->c_np;
+	}
+	logmessage("received disconnect with no pending call");
+	disc->sequence = -1;
+	return;
+}

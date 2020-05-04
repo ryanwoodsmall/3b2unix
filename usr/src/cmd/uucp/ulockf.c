@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:ulockf.c	2.5"
+#ident	"@(#)uucp:ulockf.c	2.7"
 
 #include "uucp.h"
 
@@ -316,17 +316,34 @@ char *s;
 
 
 /*
- * create system lock
+ * create system or device lock
  * return:
  *	0	-> success
  *	FAIL	-> failure
  */
-mlock(sys)
-char *sys;
+mlock(name)
+char *name;
 {
 	char lname[MAXNAMESIZE];
 
-	(void) sprintf(lname, "%s.%s", LOCKPRE, BASENAME(sys, '/'));
+	/*
+	 * if name has a '/' in it, then it's a device name and it's
+	 * not in /dev (i.e., it's a remotely-mounted device or it's
+	 * in a subdirectory of /dev).  in either case, creating our normal 
+	 * lockfile (/usr/spool/locks/LCK..<dev>) is going to bomb if
+	 * <dev> is "/remote/dev/tty14" or "/dev/net/foo/clone", so never 
+	 * mind.  since we're using advisory filelocks on the devices 
+	 * themselves, it'll be safe.
+	 *
+	 * of course, programs and people who are used to looking at the
+	 * lockfiles to find out what's going on are going to be a trifle
+	 * misled.  we really need to re-consider the lockfile naming structure
+	 * to accomodate devices in directories other than /dev ... maybe in
+	 * the next release.
+	 */
+	if ( strchr(name, '/') != NULL )
+		return(0);
+	(void) sprintf(lname, "%s.%s", LOCKPRE, name);
 	BASENAME(lname, '/')[MAXBASENAME] = '\0';
 	return(ulockf(lname, SLCKTIME) < 0 ? FAIL : 0);
 }
@@ -403,3 +420,66 @@ char *tempfile, *name;
 	}
 	return(0);
 }
+
+#ifdef ATTSV
+
+/*
+ * filelock(fd)	sets advisory file lock on file descriptor fd
+ *
+ * returns SUCCESS if all's well; else returns value returned by fcntl()
+ *
+ * needed to supplement /usr/spool/locks/LCK..<device> because can now
+ * have remotely-mounted devices using RFS.  without filelock(), uucico's
+ * or cu's on 2 different machines could access the same remotely-mounted 
+ * device, since /usr/spool/locks is purely local. 
+ *		
+ */
+
+int
+filelock(fd)
+int	fd;
+{
+	register int lockrtn, locktry = 0;
+	struct flock lck;
+
+	lck.l_type = F_WRLCK;	/* setting a write lock */
+	lck.l_whence = 0;	/* offset l_start from beginning of file */
+	lck.l_start = 0L;
+	lck.l_len = 0L;		/* until the end of the file address space */
+
+	/*	place advisory file locks	*/
+	while ( (lockrtn = fcntl(fd, F_SETLK, &lck)) < 0 ) {
+
+		DEBUG(7, "filelock: F_SETLK returns %d\n", lockrtn);
+
+		switch (lockrtn) {
+#ifdef EACCESS
+		case EACCESS:	/* already locked */
+				/* no break */
+#endif /* EACCESS */
+		case EAGAIN:	/* already locked */
+			if ( locktry++ < MAX_LOCKTRY ) {
+				sleep(2);
+				continue;
+			}
+			logent("filelock","F_SETLK failed - lock exists");
+			return(lockrtn);
+			break;
+		case ENOLCK:	/* no more locks available */
+			logent("filelock","F_SETLK failed -- ENOLCK");
+			return(lockrtn);
+			break;
+		case EFAULT:	/* &lck is outside program address space */
+			logent("filelock","F_SETLK failed -- EFAULT");
+			return(lockrtn);
+			break;
+		default:
+			logent("filelock","F_SETLK failed");
+			return(lockrtn);
+			break;
+		}
+	}
+	DEBUG(7, "filelock: ok\n", "");
+	return(SUCCESS);
+}
+#endif /* ATTSV */

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/fio.c	10.8"
+#ident	"@(#)kern-port:os/fio.c	10.8.3.1"
 #include "sys/types.h"
 #include "sys/sysmacros.h"
 #include "sys/param.h"
@@ -20,9 +20,9 @@
 #include "sys/user.h"
 #include "sys/file.h"
 #include "sys/conf.h"
-#include "sys/fstyp.h"
 #include "sys/nami.h"
 #include "sys/inode.h"
+#include "sys/fstyp.h"
 #include "sys/region.h"
 #include "sys/proc.h"
 #include "sys/mount.h"
@@ -40,11 +40,11 @@
  */
 struct file *
 getf(f)
-register int f;
+register unsigned int f;
 {
 	register struct file *fp;
 
-	if (0 <= f && f < v.v_nofiles) 
+	if (f < v.v_nofiles) 
 		if ((fp = u.u_ofile[f]) != NULL) 
 			return(fp);
 	u.u_error = EBADF;
@@ -71,7 +71,7 @@ register struct file *fp;
 	if (fp == NULL || (fp->f_count) <= 0)
 		return;
 	plock(ip = fp->f_inode);
-	FS_CLOSEI(ip, fp->f_flag, fp->f_count, fp->f_offset);
+	CLOSEI(ip, fp->f_flag, fp->f_count, fp->f_offset);
 	if ((unsigned)fp->f_count > 1) {
 		fp->f_count--;
 		prele(ip);

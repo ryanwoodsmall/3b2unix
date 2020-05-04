@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/recover.h	10.9"
+#ident	"@(#)kern-port:sys/recover.h	10.10"
 extern struct rd_user * cr_rduser();
 extern void del_rduser();
 extern void clean_GEN_rd();
@@ -23,6 +23,7 @@ extern void cleanup();
 #define  DISCONN	0x002
 #define  RFSKILL	0x004
 #define  FUMOUNT	0x008
+#define  DEADLOCK	0x010
 
 /* active general and specific RDs */
 #define ACTIVE_GRD(R) 	((R->rd_stat & RDUSED) && \

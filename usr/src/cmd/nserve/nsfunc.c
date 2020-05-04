@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)nserve:nsfunc.c	1.14"
+#ident	"@(#)nserve:nsfunc.c	1.14.1.2"
 #include <stdio.h>
 #include <string.h>
 #include <sys/utsname.h>
@@ -155,8 +155,12 @@ int		pd;
 		return(nreq);
 	case NS_BYMACHINE:
 	case NS_QUERY:
-		if (type == NS_QUERY)
-			rlist = findrr(qp->q_name,qp->q_type);
+		if (type == NS_QUERY) {
+			if (Primary && domauth(dom))
+				rlist = findrr(qp->q_name,qp->q_type);
+			else
+				rlist=NULL; /* addind() below will get addrs */
+		}
 		else
 			rlist = iquery(dom,qp->q_type,qp->q_name);
 
@@ -687,7 +691,7 @@ char *newpass, *mach, *dom;
 		fclose(fp);
 		fclose(fp_t);
 
-		if (unlink(filename) || link(tempfile, filename) || unlink(tempfile))
+		if (unlink(filename) || link(tempfile, filename) || unlink(tempfile) || chmod(filename, 00600))
 			return(R_EPASS);
 	}
 	return(ret);

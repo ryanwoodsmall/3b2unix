@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:com/head.h	1.12"
+#ident	"@(#)sdb:com/head.h	1.14"
 
 /*  
  *  Prefixed all definitions with 'extern'
@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <termio.h>
 
+#define MAXNLIB	8	/* max number of shared libs */
 #define FDTTY	1	/*  file desc for saving/restoring tty state */
 #define FDIN	0	/*  for fcntl save/restore */
 #define FPRT1	stdout		/*  sdb fprint error output */
@@ -105,20 +106,29 @@ extern ADDR adsubn, adsubc;		/* addresses of __dbsubn, __dbsubc */
 extern int adargs;			/* address of __dbargs */
 
 /* symbol table info */
-extern long	ststart;		/* offset of symbol table in a.out */
-extern struct brbuf sbuf;		/* buffer for symbol table entries */
+extern int	nshlib;		/* number of shared libraries */
+extern int	libn;			/* library number */
+extern char	slnames[MAXNLIB][128];		/* shared libs paths */
+extern long	ststart[];		/* offset of symbol table in a.out */
+extern struct brbuf sbuf[];		/* buffer for symbol table entries */
 					/*    also for line number entries */
-extern long	extstart;		/* offset of first external in a.out */
-/*extern	char	*strtab;		 String table array. */
+extern long	extstart[];		/* offset of first external in a.out */
+/*extern	char	*strtab;		  String table array. */
+
+struct branchtbl {		/* start address and size off barnch tables */
+	ADDR start;
+	ADDR size;
+	};
+extern struct branchtbl brtbl[];
 
 /* address info */
 extern ADDR	dot;			/* current address */
 
 /* setup information */
-extern STRING	symfil, corfil;		/* file names */
-extern INT	fsym, fcor;		/* file descriptors */
+extern STRING	symfil[], corfil;		/* file names */
+extern INT	fsym[], fcor;		/* file descriptors */
 extern INT	fakecor;		/* 1 iff user "core" not really core */
-extern MAP	txtmap, datmap;		/* maps */
+extern MAP	txtmap[], datmap;	/* maps */
 extern INT	argcount;		/* number of arguments to sdb */
 
 /* process info */
@@ -154,6 +164,7 @@ extern time_t	symtime;		/* modification time of symfil */
 extern ADDR	exactaddr, lnfaddr;	/* set by adrtolineno() */
 extern ADDR	firstdata;		/* lowest address of data */
 
+#define	MAXPRLEN	256	/* max length of print name used by outvar */
 #define	WINDOW	10		/* window size for display commands */
 #define	COMMANDS	"\004\"+-=!</?BCDIMQRSTVXYabcdegiklmpqrstvwxz"
 				/* each sdb command must appear here */
@@ -185,6 +196,8 @@ struct proct {
 	char	notstab;	/* 1 if not a stab entry */
 	char	entrypt;	/* 1 iff a F77 entry */
 	char	inline;		/* 1 iff .ef is inline expanded */
+	ushort	lib;		/* in which exec file the text resides */
+				/* (for shared libraries) */
 };
 extern struct proct *procs, *badproc;
 

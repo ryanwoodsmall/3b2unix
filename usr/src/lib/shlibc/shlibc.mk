@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)shlibc:shlibc.mk	1.13"
+#ident	"@(#)shlibc:shlibc.mk	1.19"
 #
 #
 # makefile for shared libc
@@ -54,11 +54,14 @@ NONSH1=\
 ../port/stdio/getpass.o	../port/stdio/popen.o	../port/stdio/rew.o	\
 ../port/stdio/scanf.o	../port/stdio/setvbuf.o	../port/stdio/system.o	\
 ../port/stdio/tempnam.o	../port/stdio/tmpfile.o	../port/stdio/tmpnam.o	\
-../port/sys/lockf.o
+../port/sys/lockf.o	../port/gen/dup2.o	../port/gen/crypt.o	\
+../port/gen/cftime.o	\
+../port/gen/time_comm.o ../port/gen/tolower.o	../port/gen/toupper.o
 
 # List of non-shared objects from libc-m32
+#	(fpstart0.o omitted on purpose)
 NONSH2=\
-../m32/crt/mcount.o	../m32/fp/fpstart.o	../m32/fp/fpstart0.o	\
+../m32/crt/mcount.o	../m32/fp/fpstart.o	\
 ../m32/fp/getflth1.o	../m32/gen/fptrap.o	../m32/gen/cuexit.o	\
 ../m32/gen/fakcu.o	../m32/gen/setjmp.o	../m32/print/vfprintf.o	\
 ../m32/print/vprintf.o	../m32/print/vsprintf.o	../m32/sys/acct.o	\
@@ -113,6 +116,8 @@ mixed:
 	# reorder the objects in the same way they are in libc.a
 	#
 	$(AR) -x ../host
+	# remove special case objects needed for backwards compatibility
+	-rm -f old_toupper.o old_tolower.o
 	#
 	# copy to the current directory the non-shared object files
 	cp $(NONSH1) .
@@ -122,7 +127,6 @@ mixed:
 	mv cuexit.o             cuexit.x
 	mv fakcu.o   		fakcu.x
 	mv fpstart.o            fpstart.x
-	mv fpstart0.o	        fpstart0.x
 	mv signal.o             signal.x
 	mv getflth0.o 	        getflth0.x
 	mv getflth1.o	        getflth1.x
@@ -136,7 +140,6 @@ mixed:
 	mv cuexit.x	        cuexit.o
 	mv fakcu.x 		fakcu.o
 	mv fpstart.x 		fpstart.o
-	mv fpstart0.x 		fpstart0.o
 	mv signal.x 		signal.o
 	mv getflth0.x 		getflth0.o
 	mv getflth1.x 		getflth1.o
@@ -149,8 +152,8 @@ mixed:
 	# create mixed archive
 	-rm -f ../libc_s.a
 	$(AR) q ../libc_s.a  getflth1.o `cat objlist`  \
-	signal.o fpstart.o fpstart0.o getflth0.o getflts1.o fpsetmask.o \
-	kill.o getpid.o cerror.o gen_def.o cuexit.o fakcu.o hst*
+	signal.o fpstart.o getflth0.o getflts1.o fpsetmask.o \
+	kill.o getpid.o cerror.o gen_def.o cuexit.o fakcu.o X*
 	# clean up
 move:
 	# First change the name of the old shared library target 
@@ -167,7 +170,7 @@ install:all move
 clean:
 	#
 	# remove intermediate files
-	-rm -rf *.o hst* *.x objlist 
+	-rm -rf *.o X* *.x objlist 
 	cd port ;  make clean
 	if u3b15 || u3b5 || u3b2 ;   then cd m32 ;   make clean ; fi
 	#
@@ -177,7 +180,7 @@ clobber:
 	#
 	-rm -rf $(SHLIB)/libc_s-* 
 	-rm -rf target libc_s.a
-	-rm -rf *.o lib*.libc lib*.contents obj* hst* *.x
+	-rm -rf *.o lib*.libc lib*.contents obj* X* *.x
 	cd port; make clobber;
 	if u3b15 || u3b5 || u3b2; then cd m32 ; make clobber ; fi
 	# done

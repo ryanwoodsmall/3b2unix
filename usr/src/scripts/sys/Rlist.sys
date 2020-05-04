@@ -139,7 +139,6 @@
 /usr/include/sys/utsname.h
 /usr/include/sys/var.h
 /usr/include/sys/vtoc.h
-/usr/include/sys/fs/prfcntl.h
 /usr/include/sys/fs/s5fblk.h
 /usr/include/sys/fs/s5dir.h
 /usr/include/sys/fs/s5filsys.h

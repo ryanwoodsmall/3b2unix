@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libns:nsports.c	1.11"
+#ident	"@(#)libns:nsports.c	1.11.4.1"
 #include <stdio.h>
 #include "fcntl.h"
 #include "sys/types.h"
@@ -227,6 +227,7 @@ int	size;
 		*bptr++ = *ptr++;
 
 	for (j=2; j <= total && read(fd,pk,PK_MAXSIZ) != -1; j++) {
+		fcanon(HDR_FMT, &(pk->pk_hd), &(pk->pk_hd));
 		LOG3(L_COMM,"(%d) nsread: reading pkt # %d\n",Logstamp,j);
 		if (j != pk->pk_index) {
 			LOG4(L_COMM,"(%5d) nsread: expect index %d, got %d\n",

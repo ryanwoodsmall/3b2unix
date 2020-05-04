@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libns:idload.h	1.2"
+#ident	"@(#)libns:idload.h	1.4.1.1"
 #include <sys/param.h>
 #include <sys/types.h>
 #include <sys/idtab.h>
@@ -37,6 +37,7 @@ struct lname {
 struct mach {
 	struct lname	*m_name;
 	int		 m_def;
+	int		 m_defname[MAX_USERNAME];
 	int		 m_count;
 	struct nmlist	*m_nmlist;
 	struct mach	*m_next;
@@ -60,8 +61,9 @@ struct mach {
 #define	COMMENT_CHR	'#'
 
 #define	DEF_PASSDIR	"/usr/nserve/auth.info"
-#define	DEF_USR_RULES	"/usr/nserve/auth.info/uid.rules"
-#define	DEF_GRP_RULES	"/usr/nserve/auth.info/gid.rules"
+#define	OFF_USR_RULES	"/usr/nserve/auth.info/.<uid.rules>"
+#define	OFF_GRP_RULES	"/usr/nserve/auth.info/.<gid.rules>"
+
 /*
  *	Parse errors.
  */
@@ -85,3 +87,5 @@ struct mach {
 #define	P_EXOVER	17
 #define	P_DEFORD	18
 #define	P_EXORD		19
+#define	P_TOOBIG	20
+#define	P_LINE2BIG	21

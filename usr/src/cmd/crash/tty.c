@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)crash-3b2:tty.c	1.8"
+#ident	"@(#)crash-3b2:tty.c	1.8.1.1"
 /*
  * This file contains code for the crash function tty.
  */
@@ -130,7 +130,9 @@ gettty()
 					prtty(all,full,slot,phys,addr,
 						type,heading);
 				}
-			slot = addr = arg1 = arg2 = -1;
+			slot = arg1 = arg2 = -1;
+			if(strcmp(type,""))
+				addr = getaddr(type);
 			}while(args[++optind]);
 		}
 		else for(slot = 0; slot < count; slot++)
@@ -148,8 +150,9 @@ char *heading;
 {
 	struct tty tbuf;
 	long base;
+	int count;
 
-	if(phys || !Virtmode)
+	if((phys || !Virtmode) && (slot == -1))
 		readmem(addr&~MAINSTORE,0,-1,(char *)&tbuf,sizeof tbuf,
 			"tty structure");
 	else if(slot == -1)
@@ -159,12 +162,13 @@ char *heading;
 			(char *)&tbuf,sizeof tbuf,"tty structure");
 	if(!tbuf.t_state && !all)
 		return;
-	if((slot == -1) && (strcmp(type,""))){
-		base = getaddr(type);
-		slot = getslot(addr,base,sizeof tbuf,phys);
-	}
 	if(full)
 		fprintf(fp,"%s",heading);
+	if((slot == -1) && (strcmp(type,""))){
+		base = getaddr(type);
+		count = getcount(type);
+		slot = getslot(addr,base,sizeof tbuf,phys,count);
+	}
 	if(slot == -1)
 		fprintf(fp,"  - ");
 	else fprintf(fp,"%4d", slot);

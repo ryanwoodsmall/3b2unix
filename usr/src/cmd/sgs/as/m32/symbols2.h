@@ -5,13 +5,12 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:m32/symbols2.h	1.5"
+#ident	"@(#)as:m32/symbols2.h	1.5.1.1"
 /*
 */
 
 /*
  *	NINSTRS	= number of legal assembler instructions (from ops.out)
- *	NHASH	= the size of the hash symbol table
  *	NSYMS	= the number of symbols allowed in a user program
  */
 
@@ -22,9 +21,7 @@
 #endif
 
 #if	pdp11
-#define NHASH	1693
+#define NSYMS	1693
 #else
-#define	NHASH	4999
+#define	NSYMS	1009
 #endif
-
-#define	NSYMS	(NHASH - NINSTRS)

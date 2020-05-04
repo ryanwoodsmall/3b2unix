@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)crash-3b2:crash.mk	1.11"
+#ident	"@(#)crash-3b2:crash.mk	1.11.1.1"
 STRIP = 
 DBO = -DDBO
 MAKE = make "AS=$(AS)" "CC=$(CC)" "LD=$(LD)"
@@ -16,7 +16,7 @@ INSDIR = $(ROOT)/etc
 INS = install -n $(INSDIR)
 LDFLAGS = -s
 INCRT=$(ROOT)/usr/include
-COMFLAGS = -I$(INCRT) -I. -Uvax -Uu3b -Updp11 -Uu3b5 -Du3b2 $(DBO)
+COMFLAGS = -I$(INCRT) -I. -Uvax -Uu3b -Updp11 -Uu3b15 -Du3b2 $(DBO)
 CFLAGS= $(COMFLAGS) 
 FRC =
 

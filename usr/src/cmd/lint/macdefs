@@ -1,4 +1,4 @@
-#ident	"@(#)lint:macdefs	1.4"
+#ident	"@(#)lint:macdefs	1.6"
 # define makecc(val,i)  lastcon |= val<<(8*i);  /* pdp-11 womp next char  */
 
 # define  ARGINIT 288 /* initial offset for arguments */

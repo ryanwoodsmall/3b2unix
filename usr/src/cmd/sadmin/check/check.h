@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sadmin:check/check.h	1.3"
+#ident	"@(#)sadmin:check/check.h	1.4"
 /*
 	global variables for chk* commands
 */
@@ -25,7 +25,6 @@ extern char	*defaultstr;	/* default value returned for empty input */
 extern int	echo;		/* flag for printing of answer */
 extern int	errcode;	/* error exit code */
 extern int	esc;		/* flag to allow escape to shell */
-extern int	force;		/* flag to insist on correct answer */
 extern char	*helpstr;	/* this string gives help */
 extern char	*helpmsg;	/* this string is help message */
 extern char	*killpid;	/* kill this process ID upon quit */

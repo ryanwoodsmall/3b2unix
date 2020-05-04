@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)attwin:cmd/layers/wtinit/makefile	1.5"
+#ident	"@(#)attwin:cmd/layers/wtinit/makefile	1.6"
 #
 #		Copyright 1985 AT&T
 #
@@ -19,7 +19,7 @@ STRIP = strip
 all:	wtinit
 
 wtinit:	wtinit.o proto.o pcheck.o
-	$(CC) $(CFLAGS) -o wtinit wtinit.o proto.o pcheck.o
+	$(CC) $(CFLAGS) -o wtinit wtinit.o proto.o pcheck.o $(LDLIBS)
 
 wtinit.o:	wtinit.c
 wtinit.o:	$(INC)/fcntl.h

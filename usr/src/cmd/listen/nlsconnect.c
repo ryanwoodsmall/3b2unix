@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)listen:nlsconnect.c	1.4"
+#ident	"@(#)listen:nlsconnect.c	1.6"
 
 /*
  *		 Network listener process "start server" library routines
@@ -71,19 +71,18 @@ extern struct t_call *_nlscall;	/* used during t_connect to server	*/
 
 static void
 logmessage(s)
-	char *s;
+char *s;
 {
 	if (_nlslog)
 		fprintf(stderr,s);
 }
 
 
-
 int
 nlsconnect(remote, net_device, svc_code)
-	char *remote;
-	char *net_device;
-	int  svc_code;
+char *remote;
+char *net_device;
+int  svc_code;
 {
 	int	netfd = -1;
 	int	len, err;
@@ -96,6 +95,11 @@ nlsconnect(remote, net_device, svc_code)
 
 	t_errno = 0;		/* indicates a 'name' problem	*/
 	buf[0] = 0;
+
+	if (strlen(remote) > sizeof(utsname.nodename))  {
+		sprintf(buf,"remote name (%s) is too long",remote);
+		goto error;
+	}
 
 	if (!(namep = nlsname(remote)))
 		goto error;
@@ -183,4 +187,3 @@ error:
 
 	return(-1);
 }
-

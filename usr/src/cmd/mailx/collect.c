@@ -5,8 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:collect.c	1.11"
-#
+#ident	"@(#)mailx:collect.c	1.16"
 
 /*
  * mailx -- a modified version of a University of California at Berkeley
@@ -19,8 +18,7 @@
 
 #include "rcv.h"
 #include <sys/stat.h>
-typedef	int	(*sigtype)();
-extern sigtype m_sigset();
+typedef	SIG	(*sigtype)();
 
 /*
  * Read a message from standard output and return a read file to it
@@ -35,10 +33,10 @@ extern sigtype m_sigset();
  * mailx if stdio allowed simultaneous read/write access.
  */
 
-static	int	(*savesig)();		/* Previous SIGINT value */
-static	int	(*savehup)();		/* Previous SIGHUP value */
+static	SIG	(*savesig)();		/* Previous SIGINT value */
+static	SIG	(*savehup)();		/* Previous SIGHUP value */
 # ifdef VMUNIX
-static	int	(*savecont)();		/* Previous SIGCONT value */
+static	SIG	(*savecont)();		/* Previous SIGCONT value */
 # endif /* VMUNIX */
 static	FILE	*newi;			/* File for saving away */
 static	FILE	*newo;			/* Output side of same */
@@ -55,7 +53,7 @@ collect(hp)
 	FILE *ibuf, *fbuf, *obuf;
 	int lc, cc, escape, collrub(), intack(), collhup, collcont(), eof;
 	register int c, t;
-	char linebuf[LINESIZE], *cp;
+	char linebuf[LINESIZE], *cp, *getline();
 	extern char tempMail[];
 	int notify();
 	extern collintsig(), collhupsig();
@@ -68,14 +66,14 @@ collect(hp)
 		hf = 0;
 	hadintr = 0;
 # ifdef VMUNIX
-	if ((savesig = m_sigset(SIGINT, SIG_IGN)) != SIG_IGN)
-		m_sigset(SIGINT, hf ? intack : collrub), m_sighold(SIGINT);
-	if ((savehup = m_sigset(SIGHUP, SIG_IGN)) != SIG_IGN)
-		m_sigset(SIGHUP, collrub), m_sighold(SIGHUP);
-	savecont = m_sigset(SIGCONT, collcont);
+	if ((savesig = sigset(SIGINT, SIG_IGN)) != SIG_IGN)
+		sigset(SIGINT, hf ? intack : collrub), sighold(SIGINT);
+	if ((savehup = sigset(SIGHUP, SIG_IGN)) != SIG_IGN)
+		sigset(SIGHUP, collrub), sighold(SIGHUP);
+	savecont = sigset(SIGCONT, collcont);
 # else /* VMUNIX */
-	savesig = m_sigset(SIGINT, SIG_IGN);
-	savehup = m_sigset(SIGHUP, SIG_IGN);
+	savesig = sigset(SIGINT, SIG_IGN);
+	savehup = sigset(SIGHUP, SIG_IGN);
 # endif /* VMUNIX */
 	newi = NULL;
 	newo = NULL;
@@ -126,8 +124,8 @@ collect(hp)
 	for (;;) {
 		setjmp(coljmp);
 # ifdef VMUNIX
-		m_sigrelse(SIGINT);
-		m_sigrelse(SIGHUP);
+		sigrelse(SIGINT);
+		sigrelse(SIGHUP);
 # else /* VMUNIX */
 		if (savesig != (sigtype) SIG_IGN)
 			signal(SIGINT, hf ? intack : collintsig);
@@ -135,7 +133,7 @@ collect(hp)
 			signal(SIGHUP, collhupsig);
 # endif /* VMUNIX */
 		flush();
-		if (fgets(linebuf,LINESIZE,stdin) == NULL) {
+		if (getline(linebuf,LINESIZE,stdin) == NULL) {
 			if (intty && value("ignoreeof") != NOSTR) {
 				if (++eof > 35)
 					break;
@@ -299,6 +297,8 @@ collect(hp)
 		case '<':
 		case 'r': {
 			int	ispip;
+			int	savegid, setgid();
+			unsigned short	getegid();
 			/*
 			 * Invoke a file:
 			 * Search for the file name,
@@ -307,6 +307,7 @@ collect(hp)
 			 * if name begins with '!', read from a command
 			 */
 
+			savegid=getegid();
 			cp = &linebuf[2];
 			while (any(*cp, " \t"))
 				cp++;
@@ -327,11 +328,13 @@ collect(hp)
 				if (cp == NOSTR)
 					break;
 				if (isdir(cp)) {
-					printf("%s: directory\n");
+					printf("%s: directory\n",cp);
 					break;
 				}
+				setgid(getgid());
 				if ((fbuf = fopen(cp, "r")) == NULL) {
 					perror(cp);
+					setgid(savegid);
 					break;
 				}
 			}
@@ -346,6 +349,7 @@ collect(hp)
 						pclose(fbuf);
 					else
 						fclose(fbuf);
+					setgid(savegid);
 					goto err;
 				}
 				cc += t;
@@ -356,6 +360,7 @@ collect(hp)
 				fclose(fbuf);
 			printf("%d/%d\n", lc, cc);
 			fflush(obuf);
+			setgid(savegid);
 			break;
 			}
 
@@ -469,10 +474,10 @@ eofl:
 	}
 	fclose(obuf);
 	rewind(ibuf);
-	m_sigset(SIGINT, savesig);
-	m_sigset(SIGHUP, savehup);
+	sigset(SIGINT, savesig);
+	sigset(SIGHUP, savehup);
 # ifdef VMUNIX
-	m_sigset(SIGCONT, savecont);
+	sigset(SIGCONT, savecont);
 # endif /* VMUNIX */
 	noreset = 0;
 	return(ibuf);
@@ -482,10 +487,10 @@ err:
 		fclose(ibuf);
 	if (obuf != NULL)
 		fclose(obuf);
-	m_sigset(SIGINT, savesig);
-	m_sigset(SIGHUP, savehup);
+	sigset(SIGINT, savesig);
+	sigset(SIGHUP, savehup);
 # ifdef VMUNIX
-	m_sigset(SIGCONT, savecont);
+	sigset(SIGCONT, savecont);
 # endif /* VMUNIX */
 	noreset = 0;
 	return(NULL);
@@ -497,10 +502,10 @@ err:
 
 psig(n)
 {
-	register (*wassig)();
+	register SIG (*wassig)();
 
-	wassig = m_sigset(n, SIG_IGN);
-	m_sigset(n, wassig);
+	wassig = sigset(n, SIG_IGN);
+	sigset(n, wassig);
 	return((int) wassig);
 }
 
@@ -566,14 +571,15 @@ mesedit(ibuf, obuf, c)
 	int pid, s;
 	FILE *fbuf;
 	register int t;
-	int (*sig)(), (*scont)(), foonly();
+	SIG (*sig)(), (*scont)(); 
+	int foonly();
 	struct stat sbuf;
 	register char *edit;
 	char ecmd[BUFSIZ];
 
-	sig = m_sigset(SIGINT, SIG_IGN);
+	sig = sigset(SIGINT, SIG_IGN);
 # ifdef VMUNIX
-	scont = m_sigset(SIGCONT, foonly);
+	scont = sigset(SIGCONT, foonly);
 # endif /* VMUNIX */
 	if (stat(tempEdit, &sbuf) >= 0) {
 		printf("%s: file exists\n", tempEdit);
@@ -600,13 +606,29 @@ mesedit(ibuf, obuf, c)
 	fclose(fbuf);
 	if ((edit = value(c == 'e' ? "EDITOR" : "VISUAL")) == NOSTR)
 		edit = c == 'e' ? EDITOR : VISUAL;
-	sprintf(ecmd, "exec %s %s", edit, tempEdit);
-	if (system(ecmd) & 0377) {
-		printf("Fatal error in \"%s\"\n", edit);
+
+	/*
+	 * Fork/execlp the editor on the edit file
+	*/
+
+	pid = vfork();
+	if ( pid == -1 ) {
+		perror("fork");
 		remove(tempEdit);
 		goto out;
 	}
-
+	if ( pid == 0 ) {
+		sigchild();
+		setuid(getuid());
+		setgid(getgid());
+		if ( sig != (sigtype) SIG_IGN )
+			sigsys(SIGINT, SIG_DFL);
+		execlp(edit, edit, tempEdit, 0);
+		perror(edit);
+		_exit(1);
+	}
+	while (wait((int *)0) != pid)
+		;
 	/*
 	 * Now switch to new file.
 	 */
@@ -631,9 +653,9 @@ fix:
 	perror(tempEdit);
 out:
 # ifdef VMUNIX
-	m_sigset(SIGCONT, scont);
+	sigset(SIGCONT, scont);
 # endif /* VMUNIX */
-	m_sigset(SIGINT, sig);
+	sigset(SIGINT, sig);
 	newi = ibuf;
 	return(obuf);
 }
@@ -641,7 +663,7 @@ out:
 /*
  * Currently, Berkeley virtual VAX/UNIX will not let you change the
  * disposition of SIGCONT, except to trap it somewhere new.
- * Hence, m_sigset(SIGCONT, foonly) is used to ignore continue signals.
+ * Hence, sigset(SIGCONT, foonly) is used to ignore continue signals.
  */
 foonly() {}
 
@@ -659,7 +681,7 @@ mespipe(ibuf, obuf, cmd)
 {
 	register FILE *ni, *no;
 	int pid, s;
-	int (*savesig)();
+	SIG (*savesig)();
 	char *Shell;
 
 	newi = ibuf;
@@ -674,7 +696,7 @@ mespipe(ibuf, obuf, cmd)
 		return(obuf);
 	}
 	remove(tempEdit);
-	savesig = m_sigset(SIGINT, SIG_IGN);
+	savesig = sigset(SIGINT, SIG_IGN);
 	fflush(obuf);
 	rewind(ibuf);
 	if ((Shell = value("SHELL")) == NULL || *Shell=='\0')
@@ -718,13 +740,13 @@ mespipe(ibuf, obuf, cmd)
 	newi = ni;
 	fclose(ibuf);
 	fclose(obuf);
-	m_sigset(SIGINT, savesig);
+	sigset(SIGINT, savesig);
 	return(no);
 
 err:
 	fclose(no);
 	fclose(ni);
-	m_sigset(SIGINT, savesig);
+	sigset(SIGINT, savesig);
 	return(obuf);
 }
 
@@ -863,7 +885,7 @@ collrub(s)
 		clrbuf(stdout);
 		printf("\n(Interrupt -- one more to kill letter)\n");
 # ifdef VMUNIX
-		m_sigrelse(s);
+		sigrelse(s);
 # endif /* VMUNIX */
 		longjmp(coljmp, 1);
 	}
@@ -880,10 +902,10 @@ collrub(s)
 
 done:
 	fclose(newi);
-	m_sigset(SIGINT, savesig);
-	m_sigset(SIGHUP, savehup);
+	sigset(SIGINT, savesig);
+	sigset(SIGHUP, savehup);
 # ifdef VMUNIX
-	m_sigset(SIGCONT, savecont);
+	sigset(SIGCONT, savecont);
 # endif /* VMUNIX */
 	if (rcvmode) {
 		if (s == SIGHUP)
@@ -906,6 +928,34 @@ intack(s)
 	fflush(stdout);
 	clearerr(stdin);
 	longjmp(coljmp,1);
+}
+
+/* Read line from stdin and ignore any NULL characters */
+
+char *
+getline(line,size,f)
+char *line;
+int size;
+FILE *f;
+
+{
+	int i, ch;
+	for ( i=0; (ch=getc(f)) != EOF && i < size; )
+		if ( ch != '\0' )
+			if ((line[i++] = ch) == '\n') break;
+	line[i] = '\0';
+	if ( i > 0 )
+		return(line);
+	return(NULL);
+}
+
+savedead(s)
+int s;
+
+{
+	hadintr++;
+	collrub(SIGINT);
+	exit(1);
 }
 
 /*
@@ -971,8 +1021,8 @@ xhalt()
 {
 	fclose(newo);
 	fclose(newi);
-	m_sigset(SIGINT, savesig);
-	m_sigset(SIGHUP, savehup);
+	sigset(SIGINT, savesig);
+	sigset(SIGHUP, savehup);
 	if (rcvmode)
 		stop(0);
 	exit(1);

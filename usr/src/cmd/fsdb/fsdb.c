@@ -5,11 +5,11 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)fsdb:fsdb.c	1.8"
+#ident	"@(#)fsdb:fsdb.c	1.9"
 
 	/*  fsdb - file system debugger    */
 
-#if	u370 || u3b || u3b5
+#if	u370 || u3b || u3b15
 #define loword(X)	(((ushort *)&X)[1])
 #define lobyte(X)	(((unsigned char *)&X)[1])
 #endif
@@ -177,7 +177,7 @@ printf("trying to make node %s %d %d %ld\n",devnam,maj,min,blk);
 		}
 		break;
 	case Fs2b:
-#ifdef u3b5
+#ifdef u3b15
 		printf("%s(%s): 2K byte Block File System\n", argv[1], S.s_fname);
 #else
 		printf("%s(%s): 1K byte Block File System\n", argv[1], S.s_fname);

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/rfsys.c	1.11"
+#ident	"@(#)kern-port:nudnix/rfsys.c	1.11.2.1"
 /*
  *  Miscellaneous system calls for file sharing.
  */
@@ -55,7 +55,8 @@ rfsys ()
 
 	uap = (struct uap *) u.u_ap;
 	DUPRINT1 (DB_RFSYS, "rfsys system call\n");
-	if (uap->opcode != RF_GETDNAME && !suser())
+	if (uap->opcode != RF_GETDNAME
+	 && uap->opcode != RF_RUNSTATE && !suser())
 		return;
 
 	switch (uap->opcode) {
@@ -251,6 +252,11 @@ rfsys ()
                 } /* end switch */
 		break;
 		}
+	case RF_RUNSTATE:		/* return the value of bootstate */
+		{
+		u.u_rval1 = bootstate;  
+		break;
+		}
 	default:
 		DUPRINT2 (DB_RFSYS, "illegal opcode %d \n", uap->opcode);
 		u.u_error = EINVAL;
@@ -387,3 +393,4 @@ gotbuf:
 	--rfmsgcnt;
 	freemsg (bp);
 }
+

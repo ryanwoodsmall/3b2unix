@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:boot/lboot/subr.c	10.3"
+#ident	"@(#)kern-port:boot/lboot/subr.c	10.4"
 
 #include <sys/types.h>
 #include <a.out.h>
@@ -16,7 +16,7 @@
 #include <ctype.h>
 #include "error.h"
 
-#ifdef u3b5
+#ifdef u3b15
 #include <sys/cc.h>
 #endif
 
@@ -199,7 +199,7 @@ findsystem()
 		default:
 			while (TRUE)
 				{
-#ifdef u3b5
+#ifdef u3b15
 				printf("\nEnter path name of system file: ");
 #endif
 #ifdef u3b2
@@ -446,7 +446,7 @@ static struct syntax syntax[] ={
 			{ "BOOT", do_boot, 0 },
 			{ "EXCLUDE", do_exclude, 0 },
 			{ "INCLUDE", do_include, 0 },
-#ifdef u3b5
+#ifdef u3b15
 			{ "DUMPDEV", do_device, (char*) &dumpdev },
 #endif
 			{ "ROOTDEV", do_device, (char*) &rootdev },
@@ -1620,7 +1620,7 @@ exit1:	close(fdclose(stream));
  */
  void
 edtscan(base, lba, function)
-#ifdef u3b5
+#ifdef u3b15
 	register struct edts *base;
 #endif
 #ifdef u3b2
@@ -1643,7 +1643,7 @@ edtscan(base, lba, function)
 		}
 #endif
 
-#if u3b5
+#if u3b15
 	edtp = base->edtx;
 
 	for (i=0; i<base->number; ++i, ++edtp)

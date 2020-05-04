@@ -5,19 +5,19 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/erasechar.c	1.1.1.1"
+#ident	"@(#)curses:screen/erasechar.c	1.1.1.4"
 /*
  * Routines to deal with setting and resetting modes in the tty driver.
  * See also setupterm.c in the termlib part.
  */
-#include "curses.ext"
+#include "curses_inc.h"
 
 char
 erasechar()
 {
 #ifdef SYSV
-	return SHELLTTY.c_cc[VERASE];
+    return (SHELLTTY.c_cc[VERASE]);
 #else
-	return SHELLTTY.sg_erase;
+    return (SHELLTTY.sg_erase);
 #endif
 }

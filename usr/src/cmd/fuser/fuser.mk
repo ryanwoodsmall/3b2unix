@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)fuser:fuser.mk	1.1"
+#ident	"@(#)fuser:fuser.mk	1.1.1.1"
 
 #	Makefile for fuser
 
@@ -92,7 +92,7 @@ clean:
 	rm -f $(OBJECTS)
 
 clobber:
-	rm -f $(OBJECTS)
+	rm -f $(OBJECTS) fuser
 
 newmakefile:
 	makefile -m -f $(MAKEFILE)  -s INC $(INC)

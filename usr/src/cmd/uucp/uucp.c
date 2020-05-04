@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:uucp.c	2.7"
+#ident	"@(#)uucp:uucp.c	2.9"
 
 #include "uucp.h"
 
@@ -165,7 +165,7 @@ char	**envp;
 			break;
 
 		default:
-			printf("unknown flag %s\n", argv[1]);
+			usage();
 			break;
 		}
 	}
@@ -194,8 +194,7 @@ char	**envp;
 	DEBUG(4, "UID %d, ", Uid);
 	DEBUG(4, "User %s\n", User);
 	if (argc - optind < 2) {
-		(void) fprintf(stderr, "usage uucp from ... to\n");
-		cleanup(-2);
+		usage();
 	}
 
 	/*
@@ -447,7 +446,15 @@ char *s1, *f1, *s2, *f2;
 			    "can't copy file (%s) errno %d\n", file2, errno);
 			return(5);
 		}
-		(void) chmod(file2, (int) (stbuf.st_mode | 0666));
+		/*
+		 * doing ((mode & 0777) | 0666) so that file mode will be
+		 * 666, but setuid bit will NOT be preserved.  if do only
+		 * (mode | 0666), then a local uucp of a setuid file will
+		 * create a file owned by uucp with the setuid bit on
+		 * (lesson 1: how to give away your Systems file . . .).
+		 */
+		(void) chmod(file2, (int) ((stbuf.st_mode & 0777) | 0666));
+
 		/*
 		 * if user specified -m, notify "local" user
 		 */
@@ -687,4 +694,15 @@ char *rmt, *sys1, *file1, *sys2, *fwd2, *file2;
     logent(cmd, "QUEUED");
     system(cmd);
     return;
+}
+
+static
+usage()
+{
+
+	(void) fprintf(stderr,
+"Usage:  %s [-c|-C] [-d|-f] [-gGRADE] [-j] [-m] [-nUSER]\\\n\
+	[-r] [-sFILE] [-xDEBUG_LEVEL] source-files destination-file\n",
+	Progname);
+	cleanup(-2);
 }

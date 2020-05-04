@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:lock.c	1.4"
+#ident	"@(#)mailx:lock.c	1.5"
 #
 
 /*
@@ -83,7 +83,9 @@ char *file;
 			if (write(filedes,buf,len) != len) {
 				close(filedes);
 				perror("Error writing lock pid");
-				return;
+				if ( unlink(curlock) != 0 ) 
+					perror("Couldn't unlink lock file");
+				exit(1);
 			}
 			close(filedes);
 			locked = 1;

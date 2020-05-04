@@ -5,8 +5,10 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:sigretro.c	1.5"
+#ident	"@(#)mailx:sigretro.c	1.6"
 #
+
+#ifdef SIGRETRO
 
 #include <signal.h>
 #include <errno.h>
@@ -14,7 +16,8 @@
 #include "sigretro.h"
 #include <stdio.h>
 typedef	int	(*sigtype)();
-extern sigtype m_sigset();
+
+extern sigtype sigset();
 
 /*
  * mailx -- a modified version of a University of California at Berkeley
@@ -37,7 +40,7 @@ extern sigtype m_sigset();
  *		child process after fork(2)
  */
 
-sigtype	sigdisp(), m_sighold(), m_sigignore();
+sigtype	sigdisp(), sighold(), sigignore();
 int	_Sigtramp();
 
 /*
@@ -79,13 +82,14 @@ sigsys(sig, func)
 	return(old);
 }
 
+
 /*
  * Set the (permanent) disposition of a signal.
  * If the signal is subsequently (or even now) held,
  * the action you set here can be enabled using sigrelse().
  */
 sigtype
-m_sigset(sig, func)
+sigset(sig, func)
 	sigtype func;
 {
 	sigtype old;
@@ -100,7 +104,7 @@ m_sigset(sig, func)
 	 * Does anyone actually call sigset with SIG_HOLD!?
 	 */
 	if (func == (sigtype) SIG_HOLD) {
-		m_sighold(sig);
+		sighold(sig);
 		return(old);
 	}
 	sigtable[sig].s_flag |= SSET;
@@ -135,7 +139,7 @@ m_sigset(sig, func)
  * In that case, we still catch the signal so we can note it
  */
 sigtype
-m_sighold(sig)
+sighold(sig)
 {
 	sigtype old;
 	extern int errno;
@@ -164,7 +168,7 @@ m_sighold(sig)
  * If the signal occurred while we had it held, cause the signal.
  */
 sigtype
-m_sigrelse(sig)
+sigrelse(sig)
 {
 	sigtype old;
 	extern int errno;
@@ -193,10 +197,10 @@ m_sigrelse(sig)
  * Ignore a signal.
  */
 sigtype
-m_sigignore(sig)
+sigignore(sig)
 {
 
-	return(m_sigset(sig, SIG_IGN));
+	return(sigset(sig, SIG_IGN));
 }
 
 /*
@@ -206,7 +210,7 @@ m_sigignore(sig)
  * occurred.  It will actually cause something when
  * the signal is released.
  */
-m_sigpause(sig)
+sigpause(sig)
 {
 	extern int errno;
 
@@ -234,6 +238,7 @@ sigchild()
 		if (sigtable[i].s_flag & SHELD)
 			signal(i, SIG_IGN);
 }
+
 
 /*
  * Return the current disposition of a signal
@@ -339,3 +344,4 @@ top:
 	if (sigtable[sig].s_flag & SDEFER)
 		goto top;
 }
+#endif /* SIGRETRO */

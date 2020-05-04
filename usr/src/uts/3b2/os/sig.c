@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/sig.c	10.15"
+#ident	"@(#)kern-port:os/sig.c	10.15.4.14"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/psw.h"
@@ -40,34 +40,29 @@
 #define	IPCPRI	PZERO
 
 /*
- * Tracing variables.
- * Used to pass trace command from
- * parent to child being traced.
- * This data base cannot be
- * shared and is locked
- * per user.
+ * Tracing variables.  Used to pass trace command from parent
+ * to child being traced.  This data base cannot be shared and
+ * is locked per user.
  */
 
-struct
-{
+struct {
 	int	ip_lock;
 	int	ip_req;
 	int	*ip_addr;
 	int	ip_data;
 } ipc;
 
+#define	sigbit(n)	(1L << ((n) - 1))
+
 /*
- * Send the specified signal to
- * all processes with 'pgrp' as
- * process group.
- * Called by tty.c for quits and
- * interrupts.
+ * Send the specified signal to all processes with 'pgrp' as
+ * process group.  Called by tty.c for quits and interrupts.
  */
 
 signal(pgrp, sig)
 register pgrp;
 {
-	register struct proc *p;
+	register proc_t *p;
 
 	if (pgrp == 0)
 		return;
@@ -77,26 +72,26 @@ register pgrp;
 }
 
 /*
- * Send the specified signal to
- * the specified process.
+ * Send the specified signal to the specified process.
  */
 
 psignal(p, sig)
-register struct proc *p;
-int sig;
+register proc_t *p;
+register int sig;
 {
-	register s = sig - 1;	/* s is used as index into the
-				signal array */
-	if (s < 0 || s >= NSIG-1)
+	if (sig <= 0 || sig >= NSIG)
 		return;
-	p->p_sig |= 1L << s;
+	p->p_sig |= sigbit(sig);
 	if (p->p_stat == SSLEEP && ((p->p_flag & SNWAKE) == 0)) {
-		if(!(p->p_hold & (1L<<s)))
+		if (!(p->p_hold & sigbit(sig)))
 			setrun(p);
 	} else if (p->p_stat == SSTOP) {
-		if (sig == SIGKILL)
+		if (sig == SIGKILL
+		  && ((p->p_flag & STRC) == 0 || p->p_whystop != SIGNALLED)) {
+			p->p_whystop = 0;
+			p->p_whatstop = 0;
 			setrun(p);
-		else if (p->p_wchan && ((p->p_flag & SNWAKE) == 0))
+		} else if (p->p_wchan && ((p->p_flag & SNWAKE) == 0))
 			/*
 			 * If process is in the sleep queue at an
 			 * interruptible priority but is stopped,
@@ -109,116 +104,185 @@ int sig;
 }
 
 /*
- * Returns true if the current
- * process has a signal to process,
- * and the signal is not held.
- * This is asked at least once
- * each time a process enters the
- * system.
- * A signal does not do anything
- * directly to a process; it sets
- * a flag that asks the process to
- * do something to itself.
+ * Returns true if the current process has a signal to process, and
+ * the signal is not held.  The signal to process is put in p_cursig.
+ * This is asked at least once each time a process enters the system
+ * (though this can usually be done without actually calling issig by
+ * checking the pending signal masks).  A signal does not do anything
+ * directly to a process; it sets a flag that asks the process to do
+ * something to itself.
+ *
+ * The "why" argument indicates the allowable side-effects of the call:
+ *
+ * FORREAL:  Extract the next pending signal from p_sig into p_cursig;
+ * stop the process if a stop has been requested or if a traced signal
+ * is pending.
+ *
+ * JUSTLOOKING:  Don't stop the process, just indicate whether or not
+ * a signal is pending.
+ *
+ * The following side-effects always result from calling issig(),
+ * regardless of the "why" argument: (1) if the process has received
+ * SIGCLD and is ignoring that signal, then its zombie children are
+ * laid to rest; (2) both SIGPWR and SIGCLD are cancelled unless they're
+ * being explicitly caught; (3) any signal which is being ignored and
+ * not traced is cleared from the pending-signal mask.
  */
 
-issig()
+int
+issig(why)
+register int why;
 {
-	register n;
-	register struct proc *p, *q;
+	register int n;
+	register proc_t *p = u.u_procp, *q;
 
-	p = u.u_procp;
-	if(!(p->p_sig & ~p->p_hold))
-		return(0);
-	while (n=fsig(p)) {
+	if (p->p_cursig)
+		return(p->p_cursig);
+findsig:
+	if (why == FORREAL && (p->p_flag & SPRSTOP)) {
+		p->p_flag &= ~SPRSTOP;
+		p->p_whystop = REQUESTED;
+		p->p_whatstop = 0;
+		stop(p);
+		swtch();
+		/*
+		 * If the debugger wants us to take a signal it will
+		 * leave it in p->p_cursig.
+		 */
+		if ((n = p->p_cursig) && u.u_signal[n-1] != SIG_IGN
+		  && ((n!=SIGCLD && n!=SIGPWR) || u.u_signal[n-1]!=SIG_DFL)) {
+			if (p->p_hold & sigbit(n))
+				p->p_sig |= sigbit(n);
+			else
+				return(n);
+		}
+		p->p_cursig = 0;
+	}
+	/*
+	 * Loop on the pending signal mask until we find a non-ignored,
+	 * non-held, non-traced signal.
+	 */
+	while (n = fsig(p)) {
 		if (n == SIGCLD) {
 			if (u.u_signal[SIGCLD-1] == SIG_IGN) {
 				for (q = p->p_child; q; q = q->p_sibling)
 					if (q->p_stat == SZOMB)
 						freeproc(q, 0);
 			} else if (u.u_signal[SIGCLD-1])
-				return(n);
+				break;
 		} else if (n == SIGPWR) {
-			if (u.u_signal[SIGPWR-1] && 
-				(u.u_signal[SIGPWR-1] != SIG_IGN))
-				return(n);
-		} else if ((u.u_signal[n-1] != SIG_IGN) || 
-			(p->p_flag&STRC))
-			return(n);
-		p->p_sig &= ~(1L<<(n-1));
+			if (u.u_signal[SIGPWR-1]
+			  && u.u_signal[SIGPWR-1] != SIG_IGN)
+				break;
+		} else if ((u.u_signal[n-1] != SIG_IGN)
+		  || (p->p_flag & STRC)
+		  || (p->p_sigmask & sigbit(n)))
+			break;
+		p->p_sig &= ~sigbit(n);
 	}
-	return(0);
+	if (n && why == FORREAL) {
+		p->p_sig &= ~sigbit(n);
+		p->p_cursig = n;
+	}
+	if (n && why == FORREAL
+	  && ((p->p_flag & STRC) || (p->p_sigmask & sigbit(n)))) {
+		/*
+		 * If tracing, stop.  If tracing via ptrace(2),
+		 * call procxmt() repeatedly until released by
+		 * debugger.
+		 */
+		do {
+			if ((p->p_flag & STRC) && p->p_ppid == 1) {
+				/*
+				 * Parent of ptraced child has died; arrange
+				 * for child to die.
+				 */
+				p->p_flag |= SPTRX;
+				if (p->p_cursig == 0)
+					p->p_cursig = SIGKILL;
+				return(p->p_cursig);
+			}
+			p->p_whystop = SIGNALLED;
+			p->p_whatstop = n;
+			stop(p);
+			swtch();
+		} while ((p->p_flag & STRC) && (p->p_ppid == 1 || !procxmt()));
+		/*
+		 * If a ptrace "exit" request has been issued,
+		 * return immediately.
+		 */
+		if (p->p_flag & SPTRX)
+			return(p->p_cursig);
+		/*
+		 * If the debugger wants us to take a signal it will
+		 * leave it in p->p_cursig.  If p_cursig has been
+		 * cleared or if it's being ignored, we loop around
+		 * again looking for another signal.  Otherwise we
+		 * return the specified signal.
+		 */
+		if ((n = p->p_cursig) == 0 || u.u_signal[n-1] == SIG_IGN
+		  || ((n==SIGCLD || n==SIGPWR) && u.u_signal[n-1]==SIG_DFL)
+		  || (p->p_hold & sigbit(n))) {
+			if (n && (p->p_hold & sigbit(n)))
+				p->p_sig |= sigbit(n);
+			/* No signal, or ignored signal; go look for more. */
+			p->p_cursig = 0;
+			goto findsig;
+		}
+	}
+	/*
+	 * Return found signal.
+	 */
+	return(n);
 }
 
 /*
- * Put the argument process into the stopped state and notify the
- * parent and other interested parties via wakeup and/or signal.
- * 
+ * Put the argument process into the stopped state and notify
+ * tracers via wakeup.
  */
 
 stop(p)
-struct proc *p;
+register proc_t *p;
 {
-	register struct proc *cp, *pp;
-
-	cp = p;
-	pp = cp->p_parent;
-	if (cp->p_ppid == 1  ||  cp->p_ppid != pp->p_pid)
-		exit(fsig(cp));
-	cp->p_stat = SSTOP;
-	cp->p_flag &= ~SWTED;
-	wakeup((caddr_t)pp);
-	if (cp->p_trace)
+	p->p_stat = SSTOP;
+	if ((p->p_flag & STRC) && p->p_whystop == SIGNALLED)	/* ptrace */
+		wakeup((caddr_t)p->p_parent);
+	if (p->p_trace)						/* /proc */
 		wakeup((caddr_t)p->p_trace);
 }
 
 /*
- * Perform the action specified by
- * the current signal.
+ * Perform the action specified by the current signal.
  * The usual sequence is:
- *	if (issig())
- *		psig();
+ * 	if (issig())
+ * 		psig();
+ * The signal bit has already been cleared by issig,
+ * and the current signal number stored in p->p_cursig.
  */
 
 psig()
 {
-	register n, mask;
-	register struct proc *rp = u.u_procp;
-	void(*p)();
+	register int n;
+	register proc_t *p = u.u_procp;
+	void (*func)();
 
-	if (rp->p_flag & SPRSTOP) {
-		rp->p_flag &= ~SPRSTOP;
-		stop(rp);
-		swtch();
+	ASSERT(p->p_cursig);
+	n = p->p_cursig;
+	p->p_cursig = 0;
+	/* Exit immediately on a ptrace exit request. */
+	if (p->p_flag & SPTRX) {
+		p->p_flag &= ~SPTRX;
+		exit(n);
 	}
-	if ((rp->p_flag & STRC)
-	  || ((rp->p_flag & SPROCTR)
-	    && (n = fsig(rp)) && (rp->p_sigmask & (1L<<(n-1))))) {
-		/*
-		 * If traced, always stop, and stay
-		 * stopped until released by parent or tracer.
-		 * If tracing via /proc, do not call procxmt.
-		 */
-		do {
-			stop(rp);
-			swtch();
-		} while ((rp->p_flag&SPROCTR) == 0
-		  && !procxmt() && (rp->p_flag & STRC));
-	} 
-	if ((n = fsig(rp)) == 0)
-		return;
-	mask = (1L << (n-1));
-	rp->p_sig &= ~mask;
-	if ((p = u.u_signal[n-1]) != SIG_DFL) {
-		if (p == SIG_IGN)
-			return;
+	if ((func = u.u_signal[n-1]) != SIG_DFL) {
+		ASSERT(func != SIG_IGN);
 		u.u_error = 0;
-		/* if it is sigset, turn on p_hold bit */
-		if(rp->p_chold & mask)
-			rp->p_hold |= mask;
-		else
-			if(n != SIGILL && n != SIGTRAP && n != SIGPWR)
-				u.u_signal[n-1] = SIG_DFL;
-		sendsig(p);
+		/* For sigset(2), turn on p_hold bit. */
+		if (p->p_chold & sigbit(n))
+			p->p_hold |= sigbit(n);
+		else if (n != SIGILL && n != SIGTRAP && n != SIGPWR)
+			u.u_signal[n-1] = SIG_DFL;
+		sendsig(func);
 		return;
 	}
 	switch (n) {
@@ -232,34 +296,37 @@ psig()
 	case SIGBUS:
 	case SIGSEGV:
 	case SIGSYS:
+		u.u_sysabort = n;	/* record reason for core */
 		if (core())
 			n += 0200;
+		u.u_sysabort = 0;	/* undue caution */
 	}
 	exit(n);
 }
 
 /*
- * find the unhold signal in bit-position
- * representation in p_sig.
+ * Find the next unheld signal in bit-position representation in p_sig.
  */
 
+int
 fsig(p)
-struct proc *p;
+register proc_t *p;
 {
 	register i;
 	register n;
 
-	n = p->p_sig & ~p->p_hold;
-	for (i=1; i<NSIG; i++) {
-		if (n & 1L)
-			return(i);
-		n >>= 1;
+	if (n = (p->p_sig & ~p->p_hold)) {
+		for (i = 1; i < NSIG; i++) {
+			if (n & 1L)
+				return(i);
+			n >>= 1;
+		}
 	}
 	return(0);
 }
 
 /*
- * Create a core image on the file "core"
+ * Create a core image on the file "core".
  *
  * It writes USIZE block of the
  * user.h area followed by the entire
@@ -292,8 +359,8 @@ core()
 
 	if (!FS_ACCESS(ip, IWRITE) && ip->i_ftype == IFREG) {
 
-		/*	Put the region sizes into the u-block for the
-		 *	dump.
+		/*
+		 * Put the region sizes into the u-block for the dump.
 		 */
 		pp = u.u_procp;
 		if (prp = findpreg(pp, PT_TEXT))
@@ -301,83 +368,82 @@ core()
 		else
 			u.u_tsize = 0;
 		
-		/*	In the following, we do not want to write
-		**	out the gap but just the actual data.  The
-		**	caluclation mirrors that in loadreg and
-		**	mapreg which allocates the gap and the
-		**	actual space separately.  We have to watch
-		**	out for the case where the entire data region
-		**	was given away by a brk(0).
-		*/
+		/*
+		 * In the following, we do not want to write
+		 * out the gap but just the actual data.  The
+		 * caluclation mirrors that in loadreg and
+		 * mapreg which allocates the gap and the
+		 * actual space separately.  We have to watch
+		 * out for the case where the entire data region
+		 * was given away by a brk(0).
+		 */
 
 		if (prp = findpreg(pp, PT_DATA)) {
 			u.u_dsize = prp->p_reg->r_pgsz;
-		gap = btoct((caddr_t)u.u_exdata.ux_datorg - prp->p_regva);
-		if (u.u_dsize > gap)
-			u.u_dsize -= gap;
-		else
+			gap = btoct((caddr_t)u.u_exdata.ux_datorg
+			  - prp->p_regva);
+			if (u.u_dsize > gap)
+				u.u_dsize -= gap;
+			else
+				u.u_dsize = 0;
+		} else
 			u.u_dsize = 0;
-		} else {
-			u.u_dsize = 0;
-		}
 
-		if (prp = findpreg(pp, PT_STACK)) {
+		if (prp = findpreg(pp, PT_STACK))
 			u.u_ssize = prp->p_reg->r_pgsz;
-		} else {
+		else
 			u.u_ssize = 0;
-		}
 
-		/*	Check the sizes against the current ulimit and
-		**	don't write a file bigger than ulimit.  If we
-		**	can't write everything, we would prefer to
-		**	write the stack and not the data rather than
-		**	the other way around.
+		/*
+		 * Check the sizes against the current ulimit and
+		 * don't write a file bigger than ulimit.  If we
+		 * can't write everything, we would prefer to
+		 * write the stack and not the data rather than
+		 * the other way around.
 		*/
 
 		if (USIZE + u.u_dsize + u.u_ssize > (uint)dtop(u.u_limit)) {
 			u.u_dsize = 0;
 			if (USIZE + u.u_ssize > (uint)dtop(u.u_limit))
-			u.u_ssize = 0;
+				u.u_ssize = 0;
 		}
 
 		/*
-		 *	Save MAU status and write the u-block to
-		 *	the dump file.
+		 * Save MAU status and write the u-block to
+		 * the dump file.
 		 */
 		if (mau_present)
 			mau_save();
 
-		FS_ITRUNC(ip);
+		ITRUNC(ip);
 		u.u_offset = 0;
 		u.u_base = (caddr_t)&u;
 		u.u_count = ctob(USIZE);
 		u.u_segflg = 1;
 		u.u_fmode = FWRITE;
-		FS_WRITEI(ip);
+		WRITEI(ip);
 
-		/*	Write the data and stack to the dump file.
-		 */
+		/* Write the data and stack to the dump file. */
 		
 		u.u_segflg = 0;
 		if (u.u_dsize) {
 			u.u_base = (caddr_t)u.u_exdata.ux_datorg;
 			u.u_count = ctob(u.u_dsize) - poff(u.u_base);
-			FS_WRITEI(ip);
+			WRITEI(ip);
 			u.u_offset = ctob(btoc(u.u_offset));
 		}
 		if (u.u_ssize) {
 			u.u_base = (caddr_t)userstack;
 			u.u_count = ctob(u.u_ssize);
-			FS_WRITEI(ip);
+			WRITEI(ip);
 		}
 
-	} else {
-		printf("sig access error\n");
+	} else
 		u.u_error = EACCES;
-	}
 	iput(ip);
 	return(u.u_error==0);
 }
+
 /*
  * sys-trace system call.
  */
@@ -396,16 +462,17 @@ ptrace()
 	if (uap->req <= 0) {
 		u.u_procp->p_flag |= STRC;
 
-		/* disable possible fast interface to illegal
-		** op-code handler
-		*/
+		/*
+		 * Disable possible fast interface to illegal
+		 * op-code handler.
+		 */
 
 		u.u_iop = NULL;
 		return;
 	}
 	for (p = u.u_procp->p_child; p; p = p->p_sibling)
-		if (p->p_stat == SSTOP
-		 && p->p_pid == uap->pid)
+		if (p->p_stat == SSTOP && p->p_pid == uap->pid
+		  && (p->p_flag & STRC) && p->p_whystop == SIGNALLED)
 			goto found;
 	u.u_error = ESRCH;
 	return;
@@ -421,9 +488,9 @@ ptrace()
 	setrun(p);
 	while (ipc.ip_req > 0)
 		sleep((caddr_t)&ipc, IPCPRI);
-	if (ipc.ip_req < 0) {
+	if (ipc.ip_req < 0)
 		u.u_error = EIO;
-	} else
+	else
 		u.u_rval1 = ipc.ip_data;
 	ipc.ip_lock = 0;
 	wakeup((caddr_t)&ipc);
@@ -443,6 +510,7 @@ procxmt()
 	register int i;
 	psw_t pswsave;
 	register *p;
+	int s;
 
 	i = ipc.ip_req;
 	ipc.ip_req = 0;
@@ -451,8 +519,8 @@ procxmt()
 	case 1: /* read user I */
 	case 2: /* read user D */
 
-		if ((int)ipc.ip_addr & (NBPW-1) ||
-		   (ipc.ip_data = fuword((caddr_t)ipc.ip_addr)) == -1)
+		if ((int)ipc.ip_addr & (NBPW-1)
+		  || copyin((caddr_t)ipc.ip_addr, &ipc.ip_data, sizeof(int)))
 			goto error;
 		break;
 
@@ -466,17 +534,14 @@ procxmt()
 		}
 
 		p = (int *)i;
-		for (i = 0  ;  i < sizeof(ipcreg)/sizeof(ipcreg[0])  ;
-		    i++) {
+		for (i = 0; i < sizeof(ipcreg)/sizeof(ipcreg[0]); i++) {
 			if (p == &u.u_ar0[ipcreg[i]]) {
 				ipc.ip_data = *p;
 				goto ok3;
 			}
 		}
 		goto error;
-
-		ok3:
-
+	ok3:
 		break;
 
 	case 4: /* write user I */
@@ -525,22 +590,21 @@ procxmt()
 
 	case 6: /* write u */
 
-		p = (int *)((int)ipc.ip_addr & ~NBPW);
-		for (i = 0  ;  i < sizeof(ipcreg)/sizeof(ipcreg[0])  ;
-		    i++) {
+		if ((i = (int)ipc.ip_addr) >= 0 && i < ctob(USIZE))
+			p = (int *)(((caddr_t)&u) + i);
+		else
+			p = ipc.ip_addr;
+		p = (int *)((int)p & ~(NBPW-1));
+		for (i = 0; i < sizeof(ipcreg)/sizeof(ipcreg[0]); i++)
 			if (p == &u.u_ar0[ipcreg[i]])
 				goto ok6;
-		}
 		goto error;
-
-		ok6:
-
+	ok6:
 		if (ipcreg[i] == PS) {
 			pswsave =  *(psw_t *)(&ipc.ip_data);
 			ipc.ip_data = u.u_pcb.regsave[K_PS];
 			((psw_t *)&ipc.ip_data)->NZVC = pswsave.NZVC;
-		}
-		if (ipcreg[i] == SP)
+		} else if (ipcreg[i] == SP)
 			ipc.ip_data &= ~(NBPW - 1);
 		*p = ipc.ip_data;
 		break;
@@ -549,32 +613,34 @@ procxmt()
 
 		u.u_pcb.psw.TE = 1;
 
-		/*	Note fall-thru.		*/
+		/* Note fall-through. */
 
 	case 7: /* set signal and continue */
 
 		if ((int)ipc.ip_addr != 1)
 			u.u_pcb.regsave[K_PC] = (int)ipc.ip_addr;
-		spl7();
-		u.u_procp->p_sig = 0L;
-		spl0();
-		i = ipc.ip_data;
-		if (i < 0 || i >= NSIG)
+		if ((unsigned int)ipc.ip_data >= NSIG)
 			goto error;
-		if (i)
-			psignal(u.u_procp, i);
-		wakeup(&ipc);
+		s = splhi();
+		u.u_procp->p_cursig = ipc.ip_data;
+		u.u_procp->p_whystop = 0;
+		u.u_procp->p_whatstop = 0;
+		splx(s);
+		wakeup((caddr_t)&ipc);
 		return(1);
 
 	case 8: /* force exit */
 
-		wakeup(&ipc);
-		exit(fsig(u.u_procp));
+		wakeup((caddr_t)&ipc);
+		u.u_procp->p_flag |= SPTRX;
+		if (u.u_procp->p_cursig == 0)
+			u.u_procp->p_cursig = SIGKILL;
+		return(1);
 
 	default:
 	error:
 		ipc.ip_req = -1;
 	}
-	wakeup(&ipc);
+	wakeup((caddr_t)&ipc);
 	return(0);
 }

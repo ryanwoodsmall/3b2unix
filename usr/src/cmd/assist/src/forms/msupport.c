@@ -5,8 +5,9 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)forms:msupport.c	1.27"
+#ident	"@(#)forms:msupport.c	1.28"
 
+/* msupport.c -- contains routines used by mforms, not by tforms */
 
 #include "muse.h"
 #include "mmuse.h"
@@ -17,6 +18,10 @@ char *leftform = " CURRENT FORM: ";
 char *chelp = "HELP: ^A";
 char *fchelp = "HELP: f8 OR ^A";
 
+/*
+ * Display top line of menu of command form.
+ * Somewhat tricky computation of x-coordinates for centering and truncating.
+ */
 VOID show_header()
 {  char center[128], right[128], left[128];
    int xcenter, llength, clength, lrlength;
@@ -69,6 +74,9 @@ VOID show_header()
 
 
 
+/*
+ * Get into/out of "curses" state.
+ */
 VOID curses(flag)
 int flag;
 {  extern int idone();
@@ -99,18 +107,29 @@ int flag;
 }
 
 
+/*
+ * routine used to execute command lines,mscript and shell escape comamnds.
+ * k=0: invoked by function key, k=1: control key.
+ * flag: 0: no "EXECUTING" message (not used) 1: EXECUTING message AND cd 
+ * executed as chdir(), umask as umask() -- normal command line execution; 
+ * 2: cd executed as cd, umask as umask -- shell escape execution.
+ * str: command line.
+ */
 int exec_cmd(k,str,flag)
 char *str;
 int k, flag;
 {  register int c;
    char key[5], *getenv();
 
+/* key label processing -- note redundant "else" */
    if (k==0) strcpy(key,f[4]);
    else 
    {
       if (k==1) strcpy(key,"^R");
       else strcpy(key,"f4");
    }
+
+/* Prepare screen for command output */
    clear();
    move (0,0); 
    refresh(); 
@@ -122,6 +141,7 @@ int k, flag;
    saveterm(); resetterm();
    updatetty(&termbuf);
 
+/* Special processing of "cd" and "umask", but not for shell escape cd's */
    if ((equal(str,"cd") || equaln(str,"cd ",3)) && flag!=2)  
    {
       if (strlen(str)>3) 
@@ -134,6 +154,7 @@ int k, flag;
       system(str);
 
 
+/* Post-command-line-execution processing */
    if (flag)
    {
       printf("\n\r\n\rSTRIKE RETURN TO GO BACK TO ");
@@ -154,8 +175,10 @@ int k, flag;
       refresh();
       c=getch();
       clear();
-      if (c==CTRL(E)) return(c);
-      if (c==CTRL(D))
+
+/* Now determine what screen to go to */
+      if (c==CTRL(E)) return(c); /* Shell escape */
+      if (c==CTRL(D))  /* Exit ASSIST */
       {
          status=0;
          done();
@@ -164,7 +187,7 @@ int k, flag;
    
       if (c==CTRL(R) || c==KEY_F(4)) next_screen("",BACK);
    
-      if (equaln(lab_pt->files_name,"UNIX",4))
+      if (equaln(lab_pt->files_name,"UNIX",4))  /* Exit ASSIST */
       {
          curses(OFF); status=0; done();
       }
@@ -181,6 +204,13 @@ int k, flag;
 
 
 
+/*
+ * Routine that finds the next non-header field up (down) from the
+ * current field, and sets the global current field pointer,
+ * Field_pt, to this field.  Wrap-around for up from first field 
+ * (first_f_pt), down from last field (last_f_pt).
+ * Also sets globals Row, Col, and Segm_pt.
+ */
 int find_field(up_down,first_f_pt,last_f_pt)
 register int up_down;
 register struct field *first_f_pt, *last_f_pt;
@@ -211,6 +241,10 @@ register struct field *first_f_pt, *last_f_pt;
 }
 
 
+/*
+ * Parallel routine to find_field: find field by first letter (letter),
+ * ignoring case.
+ */
 int gotofield(letter,first_f_pt,last_f_pt)
 register struct field *first_f_pt, *last_f_pt;
 char letter;
@@ -222,7 +256,7 @@ char letter;
 
    i = last_f_pt-first_f_pt+1;
    if ((f_pt=Field_pt+1) > last_f_pt) f_pt=first_f_pt;
-   letter |= 040;
+   letter |= 040; /* Ignore case */
 
    while (i-- && found==0)
    {
@@ -231,9 +265,10 @@ char letter;
            s_pt->word!=NULL && *(c_pt=s_pt->word)!=null)
       {
          letter0 =  *c_pt;
+         /* Skip spaces and stars */
          if (letter0==SPACE || letter0=='*')
             while ((letter0 = *++c_pt) == SPACE || letter0 == '*');
-         letter0 |= 040;
+         letter0 |= 040; /* Ignore case */
          if (letter==letter0) found=1;
       }
       if (++f_pt>last_f_pt) f_pt=first_f_pt;
@@ -246,20 +281,24 @@ char letter;
       Row = Segm_pt->row;
       Col = Segm_pt->col;
    }
-   return(found);
+   return(found);  /* Error message will be generated if not foud */
 }
 
 
 
 
+/*
+ * Switch on (off) highlighting of caption or segment.
+ */
 VOID highlight(s_pt,on_off,f_pt)
 struct segment *s_pt;
 struct field *f_pt;
 int on_off;
 {  register struct field *f1_pt;
    register struct segment *s0_pt;
-   if (on_off)
+   if (on_off)   /* Switch highlighting ON */
    {
+      /* First: ">" processing */
       REV;
       if (mode==MENU && s_pt!=NULL)
       {
@@ -283,8 +322,10 @@ int on_off;
       else
          *arrow_buff.word = null;
       show((&arrow));
+      /* Now do reverse video */
       for (s0_pt=s_pt; s0_pt!=NULL; s0_pt=s0_pt->next)
          if (s0_pt->word!=NULL && *(s0_pt->word)!=null) show(s0_pt);
+       /* Some special processing for multi-line descriptions */
       if (f_pt!=NULL)
       {
          mvaddstr(f_pt->row-Stdscr_loc,f_pt->col,f_pt->caption);
@@ -295,7 +336,7 @@ int on_off;
       }
       NREV;
    }
-   else
+   else /* Switch highlighting OFF */
    {
       if (arrow_buff.row-Stdscr_loc>1 && 
           arrow_buff.row-Stdscr_loc<=SCRLINES)
@@ -314,6 +355,10 @@ int on_off;
 }
 
 
+/*
+ * Routine that displays an (almost) arbitrary-length command ilne
+ * on the bottom of the command form
+ */
 VOID show_cmd(s)
 register char *s;
 {  
@@ -323,11 +368,15 @@ register char *s;
    char temp[10][CAPSIZE];
 
    move(SCRLINES+1,0); clrtoeol();
-   SCRLINES = LINES-5;
 
-   move(LINES-3,0); clrtoeol();
+/* Reset main body size */
+   SCRLINES = LINES-5;  
+
+/* Clear command line display area */
+   move(LINES-3,0); clrtoeol(); 
    mvaddstr(LINES-3,0,init_cmd);
 
+/* Main loop: truncate and store command line in temp[][] */
    if (*s!=null) 
    {
 
@@ -365,6 +414,7 @@ register char *s;
       temp[0][0]=null;
    }
    
+/* Display temp[][], using (adjusted) value of SCRLINES */
    move(SCRLINES+2,0); clrtoeol();
    mvaddstr(SCRLINES+2,0,init_cmd);
    mvaddstr(SCRLINES+2,cmd_col,temp[0]);
@@ -375,10 +425,13 @@ register char *s;
    }
 
 
+/* Display bottom two horizontal lines */
    ALT;
    mvaddstr(LINES-2,0,stripes);
    mvaddstr(SCRLINES+1,0,stripes);
    NALT;
+
+/* Re-compute and display page number */
    maxpage = (last_field_pt->last_row-1)/(SCRLINES-2) + 1;
    if (maxpage>1)
       mvprintw(SCRLINES+1,COLS-13," PAGE %1d OF %1d ", page,maxpage);
@@ -386,6 +439,10 @@ register char *s;
 }
 
 
+/*
+ * Routine that manages screen labels, fs file names, and
+ * selected items, stored in labels[].
+ */
 VOID next_screen(c_pt,flag)
 char *c_pt;
 int flag;
@@ -411,7 +468,7 @@ int flag;
       break;
    case NEW:
       if (lab_pt < labels + NLEVELS - 1) lab_pt++;
-      else
+      else /* Push all labels one up to make room */
          for (lab=labels;lab<lab_pt;lab++)
          {
             free(lab_pt->files_name);
@@ -430,6 +487,9 @@ int flag;
    }
 }
 
+/*
+ * Move cursor to next/previous segment in current field.
+ */
 VOID next_segment(c_move)
 int c_move;
 {  
@@ -447,7 +507,7 @@ int c_move;
 
 
 /*
- * First deal with "normal" cases: there is a next (previous) segment.
+ * First deal with "normal" cases: there IS a next (previous) segment.
  */
    if (c_move==1 && Segm_pt->next!=NULL)
    {
@@ -514,11 +574,21 @@ int c_move;
 
 
 
+/*
+ * Routine that wipes out a string (after hitting SPACE or
+ * a character in an input area already containing a
+ * string).  It sets "word" to NULL, but does not eliminate
+ * the segment.  If the user now types characters,
+ * Segm_pt->word will be allocated and the characters
+ * will be stored.  But if the user goes to another field
+ * or segment, the segment is eliminated altogether [in update()].
+ */
 VOID wipe_out()
 {  register char *c_pt;
    register int j;
    char *restore();
 
+/* First, blank out string on screen */
    if ((c_pt=Segm_pt->word)!=NULL && *c_pt)
    {
       mvaddch(Std_row,Segm_pt->col,SPACE);
@@ -526,6 +596,7 @@ VOID wipe_out()
       while (--j>0) addch(SPACE);
    }
 
+/* Handle default */
    if ((c_pt=restore(Field_pt)) == NULL || *c_pt==null)
       Segm_pt->word = NULL;
    else if (Segm_pt->word!=NULL && diff(Segm_pt->word,c_pt))
@@ -537,6 +608,9 @@ VOID wipe_out()
 
 
 
+/*
+ * Ad-hoc routine to download functon keys in dmd-netty windows 
+ */
 fkeys()
 {  char fk[500];
    strcpy(fk,"echo \"\033F@!\007!\"\n");
@@ -552,6 +626,9 @@ fkeys()
 
 
 
+/*
+ * Write <cmd>,assist with current command line (after ^K command).
+ */
 VOID write_file()
 {  char s[500];
 
@@ -591,6 +668,11 @@ VOID write_file()
 #define SKIP      3
 #define BACKSL    4
 
+/*
+ * Routine that interprets backslashes and quotes, and eliminates
+ * superfluous tabs and spaces.  Used for command line generation
+ * and in bottom_write() routine.
+ */
 rmblnks(s)
 register char *s;
 {
@@ -730,6 +812,10 @@ register char *s;
 }
 
 
+/*
+ * Routine that decides if there is an input string in a field that
+ * requires validation.
+ */
 int isset(f_pt,s_pt)
 register struct field *f_pt;
 register struct segment *s_pt;
@@ -741,7 +827,7 @@ register struct segment *s_pt;
 
    switch(f_pt->type)
    {
-      case 7:
+      case 7:   /* General field type (selectable/input area) */
          /* Never considered as set when empty */
          if (s_pt->word==NULL || *(s_pt->word)==null) 
             return(0);
@@ -768,7 +854,7 @@ register struct segment *s_pt;
          else
             return(0);
          break;
-      case 6:  /* Check whether string is NOT mapped onto null string */
+      case 6:  /* obsolete field type */
          p1_pt = f_pt->first_cpr_pt;
          for (p0_pt=f_pt->first_pr_pt; p0_pt!=NULL; p0_pt=p0_pt->next)
          {
@@ -779,20 +865,20 @@ register struct segment *s_pt;
          }
          return(0);
          break;
-      case 4:
+      case 4: /* obsolete field type */
          if (s_pt->word==NULL) return(0);
          return(equaln(s_pt->word,"y",1) ||  equaln(s_pt->word,"Y",1));
          break;
-      case 3:
+      case 3: /* obsolete field type */
          if (s_pt->word==NULL) return(0);
          return(s_pt->word!=NULL && diff(s_pt->word,f_pt->def_arg));
          break;
-      case 5:
-      case 2:
-      case 1:
+      case 5: /* obsolete field type */
+      case 2: /* obsolete field type */
+      case 1: /* obsolete field type */
          return(s_pt->word!=NULL && *(s_pt->word)!=null);
          break;
-      default:
+      default: /* Header fields */
          return(0);
          break;
    }
@@ -803,6 +889,7 @@ register struct segment *s_pt;
 /*
  * copies quoted "interior" of s into v.  E.g., if s is
  * "'"xxx"'" then v will be xxx.
+ * Used in most validation routines.
  */
 rmquotes(s,v)
 char *s, *v;
@@ -815,13 +902,14 @@ char *s, *v;
 
    if (s == NULL) return(0);
 
-   if (strlen(s)<2)
+   if (strlen(s)<2) /* Cannot contain quotes */
    {
       *v = *s;
       return(0);
    }
 
-   /* Point c_pt and c_last to first and last character of "interior".
+   /* Here is the actual quote removing:
+      Point c_pt and c_last to first and last character of "interior".
       Backslash-escaped quotes are not counted */
    c_last = s + strlen(s) - 1;
    while (*c_pt == *c_last && (*c_pt == '\'' || *c_pt == '\"'))
@@ -855,6 +943,9 @@ char *s, *v;
 
 
    
+/*
+ * Find default of field.  Used in wipe_out().
+ */
 char *restore(f_pt)
 register struct field *f_pt;
 {  register struct fix *p0_pt, *p1_pt;
@@ -862,7 +953,7 @@ register struct field *f_pt;
 
    switch(f_pt->type)
    {
-   case 7:
+   case 7:  /* Check whether string is NOT mapped onto null string */
       for (p0_pt=f_pt->first_cpo_pt; p0_pt!=NULL; p0_pt=p0_pt->next) {
             p1_pt = p0_pt->next;
             if ((c_pt = p1_pt->name)==NULL || *c_pt==null) break;
@@ -871,7 +962,7 @@ register struct field *f_pt;
       if (p0_pt==NULL) return(NULL);
       else return(p0_pt->name);
       break;
-   case 6:  /* Check whether string is NOT mapped onto null string */
+   case 6:  /* obsolete field type */
       for (p0_pt=f_pt->first_pr_pt; p0_pt!=NULL; p0_pt=p0_pt->next)
       {
          p1_pt = p0_pt->next;
@@ -881,16 +972,20 @@ register struct field *f_pt;
       if (p0_pt==NULL) return(NULL);
       else return(p0_pt->name);
       break;
-   case 3:
+   case 3: /* obsolete field type */
       return(f_pt->def_arg);
       break;
-   default:
+   default: /* Header field */
       return(NULL);
       break;
    }
    return(NULL); /* Should never get here */
 }
 
+/*
+ * Routine that executes chdir(), but knows about $CDPATH.
+ * Called from popup menu.
+ */
 int mchdir(s)
 char *s;
 {  register char **b;
@@ -920,6 +1015,9 @@ char *s;
 }
 
 
+/*
+ * Display of exit message.
+ */
 int pop_exit()
 {  int c;
    register int test=0;   /* Flag whether exit message must be given */
@@ -927,7 +1025,10 @@ int pop_exit()
    register struct segment *s_pt;
    int help();
 
+/* No exit message */
    if (exit_mess==NULL || *exit_mess==null) return(1);
+
+/* There IS an exit message */
    if (exit_field == -1)
        /* First case: no exit field given; then always
           give exit message */
@@ -956,9 +1057,11 @@ int pop_exit()
    
    if (test==0) return(1);
 
+/* Display message */
    help(exit_mess,Std_row);
    refresh();
 
+/* User input prompting */
    REV;
    mvprintw(LINES-1,23,
     " TYPE %s TO CONFIRM, %s TO CONTINUE WITH COMMAND FORM ",f[1],f[2]);
@@ -977,6 +1080,9 @@ int pop_exit()
    }
 }
 
+/*
+ * Display help message, of any size.
+ */
 int help(help_text,help_row)           /* 0: help message empty */
                                          /* 1: fits in dynamic window */
                                          /* 2: does not fit in dynamic 
@@ -992,6 +1098,9 @@ int help_row;
 
    lines = maxlength = j = 0 ;
 
+/*
+ * Measure number of lines and max line length.
+ */
    if (help_text!=NULL)
    {
       while (*c_pt)
@@ -1007,12 +1116,18 @@ int help_row;
       if (maxlength<j) maxlength=j;
    }
 
+/*
+ * Message (almost) empty.
+ */
    if (maxlength<=5 || help_text==NULL)
    {
       strcpy(error_mess," NO HELP AVAILABLE; ");
       return(0);
    }
 
+/*
+ * Now compute the corners of the box enclosing the message.
+ */
    col0 = 1;
    if (maxlength<=75)
       col1 = col0 + maxlength + 2;
@@ -1060,12 +1175,14 @@ int help_row;
 
    row1 = row0 + lines + 1;
 
+/* Blank out box */
    for (i=row0;i<=row1;i++)
    {
       move(i,j=col0-1);
       for (;j<=col1+1;j++) addch(SPACE);
    }
 
+/* Display box */
    ALT;
    mvaddch(row0,col0,TL);
    mvaddch(row0,col1,TR);
@@ -1085,6 +1202,8 @@ int help_row;
    j = 0;
    if (tflag) 
       strcpy(error_mess," MESSAGE TRUNCATED; ");
+
+/* Display message. ^B is a highlight flipflop */
    while ((c = *(help_text++)) != null)
    {
       switch(c)
@@ -1095,7 +1214,7 @@ int help_row;
             return(3);
          j = 0;
          break;
-      case CTRL(A):
+      case CTRL(A):   /* Obsolete way of indicating hiliting */
          A_flag=1;
          REV;
          break;
@@ -1113,6 +1232,10 @@ int help_row;
 }
 
 
+/*
+ * Run mecho on char *s; store result in s. Used in popup menu
+ * and in mchdir().
+ */
 VOID shexp(s)
 char *s;
 {  char *s1, *c_pt;

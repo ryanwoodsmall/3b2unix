@@ -5,12 +5,13 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)grpck:grpck.c	1.2"
+#ident	"@(#)grpck:grpck.c	1.3"
 #include <stdio.h>
 #include <ctype.h>
 #include <pwd.h>
 
 #define ERROR1 "Too many/few fields"
+#define ERROR1A "Line too long"
 #define ERROR2a "No group name"
 #define ERROR2b "Bad character(s) in group name"
 #define ERROR3  "Invalid GID"
@@ -18,8 +19,11 @@
 #define ERROR4b "Logname not found in password file"
 
 int eflag, badchar, baddigit,badlognam,colons,len,i;
-char buf[512];
-char tmpbuf[512];
+
+#define MYBUFSIZE	512	/* max line length including newline and null */
+
+char buf[MYBUFSIZE];
+char tmpbuf[MYBUFSIZE];
 
 struct passwd *getpwnam();
 char *strchr();
@@ -27,7 +31,7 @@ char *nptr;
 int setpwent();
 char *cptr;
 FILE *fptr;
-int delim[512];
+int delim[MYBUFSIZE];
 long gid;
 int error();
 
@@ -49,22 +53,31 @@ char *argv[];
 	exit(1);
   }
 
-  while(fgets(buf,512,fptr) != NULL )
+  while(fgets(buf,MYBUFSIZE,fptr) != NULL )
   {
 	if ( buf[0] == '\n' )    /* blank lines are ignored */
           continue;
 
-	for (i=0; buf[i]!=NULL; i++)
-	{
-	  tmpbuf[i]=buf[i];          /* tmpbuf is a work area */
-	  if (tmpbuf[i] == '\n')     /* newline changed to comma */  
-	    tmpbuf[i] = ',';
+	i = strlen(buf);
+	if ( (i == (MYBUFSIZE-1)) && (buf[i-1] != '\n') ) {  /* line too long */
+		buf[i-1] = '\n';	/* add newline for printing */
+		error(ERROR1A);
+		while(fgets(tmpbuf,MYBUFSIZE,fptr) != NULL )  {
+			i = strlen(tmpbuf);
+			if ( (i == (MYBUFSIZE-1)) && (tmpbuf[i-1] != '\n') ) 
+				/* another long line */
+				continue;
+			else
+				break;
+		}
+		/* done reading continuation line(s) */
+
+		strcpy(tmpbuf, buf);
+	} else {
+		strcpy(tmpbuf, buf);
+		tmpbuf[i-1] = ',';	/* change newline to comma for strchr */
 	}
 
-	for (i; i <= 512; ++i)     /* blanks out rest of tmpbuf */ 
-	{
-	  tmpbuf[i] = NULL;
-	}
 	colons=0;
 	eflag=0;
 	badchar=0;

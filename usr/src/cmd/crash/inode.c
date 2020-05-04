@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)crash-3b2:inode.c	1.14"
+#ident	"@(#)crash-3b2:inode.c	1.14.4.4"
 /*
  * This file contains code for the crash functions:  inode, file.
  */
@@ -31,11 +31,11 @@
 
 extern struct syment *Inode, *Streams, *Mount,	/* namelist symbol pointers */
 	*File, *Fsinfo, *Rcvd, *Nrcvd;
-struct syment *S5inode;
+struct syment *S5inode,*Ifreelist;
 
+struct inode ibuf;		/* buffer for inode */
 struct prinode {		/* declaration for /proc prinode is */
-	short pri_mode;		/* in /fs/proc/proca.c	 */
-	struct prinode *pri_next;
+	short pri_mode;		/* in fs/proc/proca.c	 */
 }pribuf;
 struct s5inode s5ibuf;		/* buffer for s5inode */
 struct fsinfo fsbuf;		/* buffer for fsinfo */
@@ -53,8 +53,12 @@ getinode()
 	long arg1 = -1;
 	long arg2 = -1;
 	int receive = 1;
+	int free = 0;
+	long next;
+	int list = 0;
+	struct ifreelist freebuf;
 	int c;
-	char *heading = "SLOT MAJ/MIN FS INUMB REF LINK  UID   GID    SIZE     MODE  MNT M/ST RCVD FLAGS\n";
+	char *heading = "SLOT MAJ/MIN FS INUMB RCNT LINK  UID   GID    SIZE     MODE  MNT M/ST RCVD FLAGS\n";
 
 	if(!Streams)
 		if(!(Streams = symsrch("streams")))
@@ -69,7 +73,7 @@ getinode()
 		if(!(Nrcvd = symsrch("nrcvd")))
 			receive = 0;
 	optind = 1;
-	while((c = getopt(argcnt,args,"efpw:")) !=EOF) {
+	while((c = getopt(argcnt,args,"efprlw:")) !=EOF) {
 		switch(c) {
 			case 'e' :	all = 1;
 					break;
@@ -77,43 +81,135 @@ getinode()
 					break;
 			case 'p' :	phys = 1;
 					break;
+			case 'r' :	free = 1;
+					break;
+			case 'l' :	list = 1;
+					break;
 			case 'w' :	redirect();
 					break;
 			default  :	longjmp(syn,0);
 		}
 	}
-	fprintf(fp,"INODE TABLE SIZE = %d\n",vbuf.v_inode);
-	if(!full)
-		fprintf(fp,"%s",heading);
-	if(args[optind]) {
-		all = 1;
-		do {
-			getargs(vbuf.v_inode,&arg1,&arg2);
-			if(arg1 == -1) 
-				continue;
-			if(arg2 != -1)
-				for(slot = arg1; slot <= arg2; slot++)
+	if(list)
+		listinode();
+	else {
+		fprintf(fp,"INODE TABLE SIZE = %d\n",vbuf.v_inode);
+		if(!full)
+			fprintf(fp,"%s",heading);
+		if(free) {
+			if(!Ifreelist)
+				if(!(Ifreelist = symsrch("ifreelist")))
+					error("ifreelist not found in symbol table\n");
+			readmem((long)Ifreelist->n_value,1,-1,(char *)&freebuf,
+			sizeof freebuf,"ifreelist buffer");
+			next = (long)freebuf.av_forw;
+			while(next) {
+				prinode(1,full,slot,phys,next,heading,receive);
+				next = (long)ibuf.av_forw;
+				if(next == (long)Ifreelist->n_value)
+					next = 0;
+			}
+		}	
+		else if(args[optind]) {
+			all = 1;
+			do {
+				getargs(vbuf.v_inode,&arg1,&arg2);
+				if(arg1 == -1) 
+					continue;
+				if(arg2 != -1)
+					for(slot = arg1; slot <= arg2; slot++)
+						prinode(all,full,slot,phys,addr,							heading, receive);
+				else {
+					if(arg1 < vbuf.v_inode)
+						slot = arg1;
+					else addr = arg1;
 					prinode(all,full,slot,phys,addr,heading,
 						receive);
-			else {
-				if(arg1 < vbuf.v_inode)
-					slot = arg1;
-				else addr = arg1;
-				prinode(all,full,slot,phys,addr,heading,
-					receive);
-			}
-			slot = addr = arg1 = arg2 = -1;
-		}while(args[++optind]);
+				}
+				slot = addr = arg1 = arg2 = -1;
+			}while(args[++optind]);
+		}
+		else for(slot = 0; slot < vbuf.v_inode; slot++)
+			prinode(all,full,slot,phys,addr,heading,receive);
 	}
-	else for(slot = 0; slot < vbuf.v_inode; slot++)
-		prinode(all,full,slot,phys,addr,heading,receive);
+}
+
+
+int
+listinode()
+{
+	char inodebuf[500];
+	int i,j;
+	long next;
+	struct ifreelist freebuf;
+
+	if(!Ifreelist)
+		if(!(Ifreelist = symsrch("ifreelist")))
+			error("ifreelist not found in symbol table\n");
+	for(i = 0; i < vbuf.v_inode; i++)
+		inodebuf[i] = 'n';
+	for(i = 0; i < vbuf.v_inode; i++) {
+		readmem((long)(Inode->n_value+i*sizeof ibuf),1,-1,
+			(char *)&ibuf,sizeof ibuf,"inode table");
+		if(ibuf.i_count != 0)
+			inodebuf[i] = 'u';
+	}
+	readmem((long)Ifreelist->n_value,1,-1,(char *)&freebuf,
+		sizeof freebuf,"ifreelist buffer");
+	next = (long)freebuf.av_forw;
+	while(next) {
+		i = getslot(next,(long)Inode->n_value,sizeof ibuf,0,vbuf.v_inode);
+		readmem((long)(Inode->n_value+i*sizeof ibuf),1,-1,
+			(char *)&ibuf,sizeof ibuf,"inode table");
+		inodebuf[i] = 'f';
+		if(ibuf.i_count != 0)
+			inodebuf[i] = 'b';
+		next = (long)ibuf.av_forw;
+		if(next == (long)Ifreelist->n_value)
+			next = 0;
+	}
+	fprintf(fp,"The following inodes are in use:\n");
+	for(i = 0,j = 0; i < vbuf.v_inode; i++) {
+		if(inodebuf[i] == 'u') {
+			if(j && (j % 10) == 0)
+				fprintf(fp,"\n");
+			fprintf(fp,"%3d    ",i);
+			j++;
+		}
+	}
+	fprintf(fp,"\n\nThe following inodes are on the freelist:\n");
+	for(i = 0,j=0; i < vbuf.v_inode; i++) {
+		if(inodebuf[i] == 'f') {
+			if(j && (j % 10) == 0)
+				fprintf(fp,"\n");
+			fprintf(fp,"%3d    ",i);
+			j++;
+		}
+	}
+	fprintf(fp,"\n\nThe following inodes are on the freelist but have non-zero reference counts:\n");
+	for(i = 0,j=0; i < vbuf.v_inode; i++) {
+		if(inodebuf[i] == 'b') {
+			if(j && (j % 10) == 0)
+				fprintf(fp,"\n");
+			fprintf(fp,"%3d    ",i);
+			j++;
+		}
+	}
+	fprintf(fp,"\n\nThe following inodes are in unknown states:\n");
+	for(i = 0,j = 0; i < vbuf.v_inode; i++) {
+		if(inodebuf[i] == 'n') {
+			if(j && (j % 10) == 0)
+				fprintf(fp,"\n");
+			fprintf(fp,"%3d    ",i);
+			j++;
+		}
+	}
+	fprintf(fp,"\n");
 }
 
 /* get inode mode according to file system switch type */
 short
-getimode(type,ibuf)
-short type;
-struct inode ibuf;
+getimode()
 {
 	char name[FSTYPSZ+1];
 
@@ -140,7 +236,6 @@ int all,full,slot,phys,receive;
 long addr;
 char *heading;
 {
-	struct inode ibuf;
 	short mode;
 	char ch;
 	int str_slot;
@@ -156,12 +251,15 @@ char *heading;
 		(char *)&fsbuf,sizeof fsbuf,"file system information table");
 	if(!ibuf.i_count && !all)
 			return ;
-	if(addr > -1) 
-		slot = getslot(addr,(long)Inode->n_value,sizeof ibuf,phys);
 	if(full)
 		fprintf(fp,"%s",heading);
-	fprintf(fp,"%4d %3u,%-3u %2d %5u %3d %4d %5d %5d %8ld",
-		slot,
+	if(addr > -1) 
+		slot = getslot(addr,(long)Inode->n_value,sizeof ibuf,phys,
+			vbuf.v_inode);
+	if(slot == -1)
+		fprintf(fp,"  - ");
+	else fprintf(fp,"%4d",slot);
+	fprintf(fp," %3u,%-3u %2d %5u  %3d %4d %5d %5d %8ld",
 		major(ibuf.i_dev),
 		minor(ibuf.i_dev),
 		ibuf.i_fstyp,
@@ -182,7 +280,7 @@ char *heading;
 	fprintf(fp," %c",ch);
 	if(ibuf.i_fstyp) {
 		if(ibuf.i_fsptr) {
-			mode = getimode(ibuf.i_fstyp,ibuf);
+			mode = getimode();
 			fprintf(fp,"%s%s%s%03o",
 				mode & ISUID ? "u" : "-",
 				mode & ISGID ? "g" : "-",
@@ -229,9 +327,9 @@ char *heading;
 		ibuf.i_flag & ISYN ? " sy" : "",
 		ibuf.i_flag & IADV ? " ad" : "",
 		ibuf.i_flag & IDOTDOT ? " dt" : "",
-		ibuf.i_flag & ILBIN ? " lb" : "",
 		ibuf.i_flag & IRMOUNT ? " rm" : "",
-		ibuf.i_flag & IISROOT ? " rt" : "");
+		ibuf.i_flag & IISROOT ? " rt" : "",
+		ibuf.i_flag & IWROTE ? " wr" : "");
 	if(!full)
 		return;
 	fprintf(fp,"\tFORW BACK AFOR ABCK\n");
@@ -251,17 +349,19 @@ char *heading;
 	if((slot >= 0) && (slot < vbuf.v_inode))
 		fprintf(fp," %4d\n",slot);
 	else fprintf(fp,"   - \n");
-	fprintf(fp,"\tRMAJ/MIN  FSTYPP   FSPTR   FILOCKS  FS\n");
+	fprintf(fp,"\tRMAJ/MIN  FSTYPP   FSPTR    FILOCKS    VCODE     WCNT  FS\n");
 	fprintf(fp,"\t %3u,%-3u",
 		major(ibuf.i_rdev),
 		minor(ibuf.i_rdev));
 #ifdef FSPTR
 	fstypp = (int)ibuf.i_fstypp,
 #endif
-	fprintf(fp," %8x %8x %8x",
+	fprintf(fp," %8x %8x %8x %8x %8x",
 		fstypp,
 		ibuf.i_fsptr,
-		ibuf.i_filocks);
+		ibuf.i_filocks,
+		ibuf.i_vcode,
+		ibuf.i_wcnt);
 	readmem((long)fsbuf.fs_name,1,-1,name,sizeof name,"fs_name");
 	fprintf(fp," %-20s\n",name);
 	if(!(strcmp(name,"S51K")))
@@ -325,8 +425,6 @@ ushort ftype;
 int
 prprocfs()
 {
-	fprintf(fp,"\n\tNEXT = %8x\n",
-		pribuf.pri_next);
 }
 
 
@@ -355,7 +453,7 @@ getfile()
 		}
 	}
 	fprintf(fp,"FILE TABLE SIZE = %d\n",vbuf.v_file);
-	fprintf(fp,"SLOT  REF  I/FL   OFFSET  FLAGS\n");
+	fprintf(fp,"SLOT  RCNT  I/FL   OFFSET  FLAGS\n");
 	if(args[optind]) {
 		all = 1;
 		do {
@@ -393,10 +491,12 @@ long addr;
 	if(!fbuf.f_count && !all)
 		return;
 	if(addr > -1) 
-		slot = getslot(addr,(long)File->n_value,sizeof fbuf,phys);
-	fprintf(fp,"%4d  %3d",
-		slot,
-		fbuf.f_count);
+		slot = getslot(addr,(long)File->n_value,sizeof fbuf,phys,
+			vbuf.v_file);
+	if(slot == -1)
+		fprintf(fp,"  - ");
+	else fprintf(fp,"%4d",slot);
+	fprintf(fp,"   %3d", fbuf.f_count);
 	inoslot = ((long)fbuf.f_inode - Inode->n_value)/(sizeof (struct inode));
 	if((inoslot >= 0) && (inoslot < vbuf.v_inode))
 		fprintf(fp,"  I%3d",inoslot);

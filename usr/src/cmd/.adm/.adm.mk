@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)adm:.adm.mk	1.18.1.2"
+#ident	"@(#)adm:.adm.mk	1.18.1.3"
 
 ROOT =
 LIB = $(ROOT)/usr/lib
@@ -100,8 +100,8 @@ bcheckrc::
 	then cd vax;\
 	elif pdp11;\
 	then cd pdp11;\
-	elif u3b5;\
-	then cd u3b5;\
+	elif u3b15;\
+	then cd u3b15;\
 	elif u3b;\
 	then cd u3b;\
 		cp bcheckrc.sh $(INSDIR)/bcheckrc;\
@@ -116,8 +116,8 @@ brc::
 	then cd vax;\
 	elif pdp11;\
 	then cd pdp11;\
-	elif u3b5;\
-	then cd u3b5;\
+	elif u3b15;\
+	then cd u3b15;\
 	elif u3b;\
 	then cd u3b;\
 		cp brc.sh $(INSDIR)/brc;\
@@ -128,7 +128,7 @@ brc::
 	fi
 
 checkall::
-	-if vax || pdp11 || u3b5 || u3b;\
+	-if vax || pdp11 || u3b15 || u3b;\
 	then\
 		cp checkall.sh $(INSDIR)/checkall;\
 		$(CH)chmod 744 $(INSDIR)/checkall;\
@@ -142,8 +142,8 @@ checklist::
 	then cd vax;\
 	elif pdp11;\
 	then cd pdp11;\
-	elif u3b5;\
-	then cd u3b5;\
+	elif u3b15;\
+	then cd u3b15;\
 	elif u3b;\
 	then cd u3b;\
 		cp checklist $(INSDIR)/checklist;\
@@ -158,8 +158,8 @@ filesave::
 	then cd vax;\
 	elif pdp11;\
 	then cd pdp11;\
-	elif u3b5;\
-	then cd u3b5;\
+	elif u3b15;\
+	then cd u3b15;\
 	elif u3b;\
 	then cd u3b;\
 		cp filesave.sh $(INSDIR)/filesave;\
@@ -174,8 +174,8 @@ gettydefs::
 	then cd vax;\
 	elif pdp11;\
 	then cd pdp11;\
-	elif u3b5;\
-	then cd u3b5;\
+	elif u3b15;\
+	then cd u3b15;\
 	elif u3b;\
 	then cd u3b;\
 	else cd u3b2;\
@@ -198,8 +198,8 @@ ioctl.syscon::
 	then cd vax;\
 	elif pdp11;\
 	then cd pdp11;\
-	elif u3b5;\
-	then cd u3b5;\
+	elif u3b15;\
+	then cd u3b15;\
 	elif u3b;\
 	then cd u3b;\
 	else cd u3b2;\
@@ -215,8 +215,8 @@ master::
 	then cd vax;\
 	elif pdp11;\
 	then cd pdp11;\
-	elif u3b5;\
-	then cd u3b5;\
+	elif u3b15;\
+	then cd u3b15;\
 	elif u3b;\
 	then cd u3b;\
 		cp master $(INSDIR)/master;\
@@ -230,8 +230,8 @@ motd::
 	then cd vax;\
 	elif pdp11;\
 	then cd pdp11;\
-	elif u3b5;\
-	then cd u3b5;\
+	elif u3b15;\
+	then cd u3b15;\
 	elif u3b;\
 	then cd u3b;\
 	else cd u3b2;\
@@ -246,8 +246,8 @@ passwd::
 	then cd vax;\
 	elif pdp11;\
 	then cd pdp11;\
-	elif u3b5;\
-	then cd u3b5;\
+	elif u3b15;\
+	then cd u3b15;\
 	elif u3b;\
 	then cd u3b;\
 	else cd u3b2;\
@@ -263,8 +263,8 @@ powerfail::
 	then cd vax;\
 	elif pdp11;\
 	then cd pdp11;\
-	elif u3b5;\
-	then cd u3b5;\
+	elif u3b15;\
+	then cd u3b15;\
 	elif u3b;\
 	then cd u3b;\
 		cp powerfail.sh $(INSDIR)/powerfail;\
@@ -279,8 +279,8 @@ rc::
 	then cd vax;\
 	elif pdp11;\
 	then cd pdp11;\
-	elif u3b5;\
-	then cd u3b5;\
+	elif u3b15;\
+	then cd u3b15;\
 	elif u3b;\
 	then cd u3b;\
 		cp rc.sh $(INSDIR)/rc;\
@@ -295,8 +295,8 @@ shutdown::
 	then cd vax;\
 	elif pdp11;\
 	then cd pdp11;\
-	elif u3b5;\
-	then cd u3b5;\
+	elif u3b15;\
+	then cd u3b15;\
 	elif u3b;\
 	then cd u3b;\
 		cp shutdown.sh $(INSDIR)/shutdown;\
@@ -311,8 +311,8 @@ tapesave::
 	then cd vax;\
 	elif pdp11;\
 	then cd pdp11;\
-	elif u3b5;\
-	then cd u3b5;\
+	elif u3b15;\
+	then cd u3b15;\
 	elif u3b;\
 	then cd u3b;\
 		cp tapesave.sh $(INSDIR)/tapesave;\

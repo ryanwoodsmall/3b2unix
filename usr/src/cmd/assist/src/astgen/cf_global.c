@@ -5,14 +5,14 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)tools:cf_global.c	1.25"
+#ident	"@(#)tools:cf_global.c	1.26"
 #include "../forms/muse.h"
 #include "tools.h"
 #include "vdefs.h"
 
-#define NEVER	4	/*num fields with no exit message*/
-#define	UNCOND	5	/*num fields with uncond exit message*/
-#define	COND	7	/*num fields with cond exit message*/
+#define NEVER	4	/*no exit message*/
+#define	UNCOND	5	/*uncond exit message*/
+#define	COND	7	/*cond exit message*/
 #define C_N	0 /*command name*/
 #define C_L_O	1 /*command line order*/
 #define C_F_H	2 /*command form help*/
@@ -20,6 +20,8 @@
 #define E_M	4 /*exit message*/
 #define C_F	5 /*conditional field*/
 #define C_E_V	6 /*conditional values*/
+/*routines in this file are used for setting global features of
+a command form*/
 
 char *ghelp="cf_g.help"; /*help message file*/
 				/*need to handle paths later*/
@@ -63,30 +65,31 @@ VOID gprompt()	/*display prompt that is appropriate for cur field*/
 } /*prompt*/
 			
 int verify_ex()	/*see if data structure is incomplete*/
+		/*called when user ready to leave screen*/
 {
 	int c;
 
-	glredisp();
-	if (numfields==NEVER)
-		exit_mess = NULL;
-	if (numfields!=COND)
-		exit_field = -1;
+	glredisp();	/*call routine that updates things*/
+	if (numfields==NEVER)	/*user doesn't want exit message, so*/
+		exit_mess = NULL; /*clear it out*/
+	if (numfields!=COND)	/*unconditional exit message, so*/
+		exit_field = -1; /*make sure no field is specified*/
 	if (numfields==COND && exit_field==-1) /*no exit field picked yet*/
-		{
+		{				/*but message is conditional*/
 		err_rpt(37,TRUE); 
 		show_cmd("",18);
 		move(gnames[cur_cfg].ylab,gnames[cur_cfg].xlab);
 		hilight(gnames[cur_cfg].ylab, gnames[cur_cfg].xlab,
 		gnames[cur_cfg].name);
 		refresh();
-		if ((c=getch())==CTRL(r) ||
+		if ((c=getch())==CTRL(r) || /*give user another chance*/
 		c == KEY_F(4))
 			return(0); /*top*/
 		err_rpt(0,FALSE);
 		return(1);
 		}
 	if (numfields != NEVER && gexit_lines == 0) /*no exit message*/
-		{
+		{				/*but user wants one*/
 		err_rpt(38,TRUE); 
 		show_cmd("",18);
 		move(gnames[cur_cfg].ylab,gnames[cur_cfg].xlab);
@@ -100,7 +103,7 @@ int verify_ex()	/*see if data structure is incomplete*/
 		return(1);
 		}
 	if (numfields == COND && gexit_vals == 0) /*no exit values*/
-		{
+		{				/*but exit is conditional*/
 		err_rpt(39,TRUE); 
 		show_cmd("",18);
 		move(gnames[cur_cfg].ylab,gnames[cur_cfg].xlab);
@@ -143,18 +146,19 @@ get_efield() /*this routine allows user to select conditional exit field*/
 			exit_field = (int)(fl->f_pt - fields);
 		else return(0);	/*user wants top menu*/
 	clear();
-	glredisp();
+	glredisp();	/*show updated screen*/
 	refresh();
 	return(1);
 }
 
 global()	/*main global screen routine*/
+		/*stay here until ^R or ^T*/
 {
 	int tmp,tmp1,c;
 	char *editstr(), *c_pt;
 	struct charstr *askstring(); 
 
-	clear();
+	clear();			/*set some reasonable defaults*/
 	if (exit_field != -1)
 		numfields = COND;	/*conditional stuff*/
 	else if (exit_mess != NULL)
@@ -168,12 +172,12 @@ global()	/*main global screen routine*/
 		switch (c) {
 		case KEY_F(7):
 		case CTRL(e):
-			if (cur_cfg == C_N)
+			if (cur_cfg == C_N) /*edit command name*/
 				{
 				c_pt = editstr(lab_pt->screen_name);
 				while ((tmp1=chckstr(c_pt,0)) != 0 || 
 				(tmp=lcheck(c_pt))!=0)
-				{
+				{	/*bad command name*/
 					move(gnames[C_N].ylab,gnames[C_N].xval);
 					clrtoeol();
 					dctrlshow(gnames[C_N].ylab,gnames[C_N].xval,79,c_pt);
@@ -196,7 +200,7 @@ global()	/*main global screen routine*/
 				}
 				strcpy(lab_pt->screen_name,c_pt);
 				if (strlen(lab_pt->screen_name)>17)
-					{
+					{	/*name too long*/
 					*(lab_pt->screen_name+17) = null;
 					err_rpt(50,TRUE);
 					}
@@ -206,7 +210,8 @@ global()	/*main global screen routine*/
 				79,lab_pt->screen_name);
 				refresh();
 				}
-			else
+			else	/*only command name can be edited on this
+				screen*/
 				{
 				err_rpt(5,TRUE);
 				refresh();
@@ -215,7 +220,7 @@ global()	/*main global screen routine*/
 		case KEY_F(1):
 		case CTRL(g):
 			switch(cur_cfg) {
-			case C_N:	/*edit command name*/ 
+			case C_N:	/*change command name*/ 
 				show_cmd("",8); /*insert prompt*/
 				mvaddstr(gnames[C_N].ylab,gnames[C_N].xval,"<empty>");
 				clrtoeol();
@@ -265,9 +270,10 @@ global()	/*main global screen routine*/
 					glredisp();
 					refresh();
 					break;
-			case C_F: if (get_efield()== 0)
+			case C_F: if (get_efield()== 0)	/*select exit field*/
 					{
-					clear();
+					clear(); /*user wants to abort and
+						return to TOP*/
 					if (verify_ex() == 0)
 						return(0); /*top*/
 					}
@@ -303,7 +309,7 @@ global()	/*main global screen routine*/
 					}
 				refresh();
 				break;
-			case C_F_H: /*form help*/
+			case C_F_H: /*wants to edit form help*/
 				form_help = editstr(form_help);
 				while ((tmp=helpchk(form_help)) != 0)
 					{
@@ -323,7 +329,7 @@ global()	/*main global screen routine*/
 				glredisp();
 				refresh();
 				break;
-			case E_M: /*exit message*/
+			case E_M: /*wants to edit exit message*/
 				exit_mess = editstr(exit_mess);
 				while ((tmp=helpchk(exit_mess)) != 0)
 					{
@@ -361,7 +367,7 @@ global()	/*main global screen routine*/
 			cur_cfg = nextvar(numfields,cur_cfg);
 			break;
 		case KEY_UP:
-		case CTRL(p):
+		case CTRL(p): /*previous item*/
 			mvaddstr(gnames[cur_cfg].ylab,
 			gnames[cur_cfg].xlab,gnames[cur_cfg].name);
 			cur_cfg = prevvar(numfields,cur_cfg);
@@ -375,12 +381,12 @@ global()	/*main global screen routine*/
 			if (verify_ex() == 0)
 				return(0); /*top*/
 			break;
-		case KEY_F(4):
+		case KEY_F(4):	/*return to previous screen: TOP*/
 		case CTRL(r):
 			if (verify_ex() == 0)
 				return(0); /*top*/
 			break;
-		default:
+		default:	/*check first letter match*/
 			if ((tmp=firstlet(gnames,numfields,c,cur_cfg)) == -1)
 				flushinp(); /*no first letter match*/
 			else 		 /*set location to letter*/
@@ -395,7 +401,7 @@ global()	/*main global screen routine*/
 	} /*while*/
 } /*procedure*/
 
-glredisp()
+glredisp()	/*show updated screen*/
 {
 	int i;
 	struct field *f_pt;
@@ -527,7 +533,8 @@ VOID fig_help_mess() /*count number of help message lines*/
 }
 
 /*This routine is used to determine that the name of an assist screen
-is not the "cd" or "umask" command names.*/
+is not the "cd" or "umask" command names.  These are special commands,
+since they have special-purpose command line generators in mforms*/
 int lcheck(str)
 char *str;	/*string to be checked*/
 {

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/swtch.c	10.9"
+#ident	"@(#)kern-port:os/swtch.c	10.11"
 #include "sys/types.h"
 #include "sys/param.h"
 #include "sys/psw.h"
@@ -120,7 +120,7 @@ loop:
 	spl1();
 
 	if (u.u_pcbp == &u.u_pcb
-	  && ((p->p_flag & SPRSTOP) || (p->p_sig && issig()))) {
+	  && ((p->p_flag & SPRSTOP) || ISSIG(p, JUSTLOOKING))) {
 		extern int	s_trap();
 
 		u.u_pcbp = (pcb_t *)&u.u_kpcb;

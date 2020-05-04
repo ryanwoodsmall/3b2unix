@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)lint:lint.sh	1.10"
+#ident	"@(#)lint:lint.sh	1.13"
 #
 #
 # New lint shell script.  Changed to make lint(1) act as much as is possible
@@ -63,7 +63,7 @@ do
 	-*)	OPT=`echo $OPT | sed s/-//p`
 		while [ "$OPT" ]
 		do
-			O=`echo $OPT | sed "s/\\(.\\).*/\\1/p"`
+			O=`echo $OPT | sed "s/\(.\).*/\1/p"`
 			OPT=`echo $OPT | sed s/.//p`
 			case $O in
 			p)	LINTF="$LINTF -p"

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:common/errors.c	1.8"
+#ident	"@(#)as:common/errors.c	1.9"
 
 /*
  *
@@ -47,7 +47,7 @@ char	cfile[15] = { "" }; /* name of `c' source file */
 
 FILE	*fderr;
 
-char	*filenames[NFILES - 1];
+char	*filenames[NFILES];
 
 #if M4ON
 short	rflag = NO; /* if set, remove (unlink) input when through */

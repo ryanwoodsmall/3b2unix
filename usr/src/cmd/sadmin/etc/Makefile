@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)sadmin:etc/Makefile	2.3"
+#ident	"@(#)sadmin:etc/Makefile	2.5"
 #	Makefile for etc
 #	Generated Thu Aug 22 10:25:13 EDT 1985 from skeleton makefile:
 #  sadmin:etc/SKELMakefile  2.1  /sccs/src/cmd/sadmin/etc/s.SKELMakefile
@@ -16,7 +16,7 @@ DIR = $(ROOT)/etc
 
 CMDS = savecpio 
 
-DIRS = rc.d save.d shutdown.d 
+DIRS = save.d
 
 PARTS = $(CMDS) TIMEZONE disketteparm profile rc.d/0_firstcheck rc.d/setup \
 save.d/except stdprofile 
@@ -24,7 +24,7 @@ save.d/except stdprofile
 ALL:		$(PARTS)
 
 install:	$(PARTS) $(DIR) remove
-	umask 022;  ls $(PARTS)  |  cpio -pdum $(DIR)
+	umask 022;  ls $(PARTS)  |  cpio -pdu $(DIR)
 	cd $(DIR);  chmod go-w,u+w $(PARTS)
 	cd $(DIR);  chmod +x $(CMDS)
 
@@ -33,7 +33,7 @@ $(DIR):
 
 remove:
 	cd $(DIR);  rm -f $(PARTS)
-	-cd $(DIR);  rmdir $(DIRS)
+	-cd $(DIR);  if test -d $(DIRS); then if test `ls $(DIRS) | wc -l` -eq 0; then rmdir $(DIRS); fi; fi
 
 partslist:
 	@echo Makefile SKELMakefile $(PARTS)  |  tr ' ' '\012'  |  sort

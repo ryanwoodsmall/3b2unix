@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mkshlib:common/hst.h	1.2"
+#ident	"@(#)mkshlib:common/hst.h	1.4.1.3"
 
 #define TRSIZ	503	/* size of hash table trgsymtab */
 #define OBSIZ	503	/* size of hash table objlst */
@@ -19,6 +19,7 @@
 typedef struct stab {
         char		*name; 		/* name of symbol */
 	long		absaddr;	/* absolute address of symbol */
+	long		sclass;		/* Storage class IN TARGET */
         struct stab     *next;
 } stab;
 
@@ -72,7 +73,6 @@ typedef struct strtbl {
 	long	strsize;	/* maximum size of the string table */
 } strtbl;
 
-
 /* Symbols defined in extn.c */
 extern char	*libdefsym,
 		*moddir,
@@ -91,7 +91,8 @@ extern void	archive();
 extern void	checkinits();
 extern void	creatobjs();
 extern long	getabs();
-extern char	*getdsuf();
+extern char	*getdpre();
+extern char	*getdefname();
 extern void	initpr();
 extern void	initsym();
 extern void	init_trgsymtab();
@@ -107,4 +108,6 @@ extern symlst	*newsymlst();
 extern void	prlal();
 extern void	readobj();
 extern void	refchain();
+extern char	*strbuild();
 extern void	writesym();
+

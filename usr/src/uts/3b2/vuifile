@@ -1,4 +1,4 @@
-/* #ident	"@(#)kern-port:vuifile	10.5" */
+/* #ident	"@(#)kern-port:vuifile	10.5.1.2" */
 
 MEMORY	{
 	KP_boot:	origin	= 0x2004000,	length	=   0x80000
@@ -6,14 +6,14 @@ MEMORY	{
 	KV_gate:	origin	=         0,	length	=     0x800
 	KV_demot:	origin	=   0x20000,	length  =   0x20000
 	KV_sbdint:	origin  =   0x40000,	length	=   0x20000
-	KV_text:	origin	= 0x40000000,	length	=   0x60000
-	KV_data:	origin	= 0x40060000,	length	=   0x20000
-	KV_bss:		origin	= 0x40080000,	length	=  0x160000
-	KV_sysseg:	origin  = 0x401e0000,	length 	=  0x1e0000
-	KV_windows:	origin	= 0x403c0000,	length  =   0x40000
+	KV_text:	origin	= 0x40000000,	length	=  0x160000
+	KV_data:	origin	= 0x40160000,	length	=   0x20000
+	KV_bss:		origin	= 0x40180000,	length	=  0x160000
+	KV_sysseg:	origin  = 0x402e0000,	length 	=  0x200000
+	KV_windows:	origin	= 0x404e0000,	length  =   0x40000
 
-	UV_ublock:	origin  =0xc0000000,	length =    0x20000
-	UV_stack:	origin  =0xc0020000,	length =    0xe0000
+	UV_ublock:	origin  = 0xc0000000,	length =    0x20000
+	UV_stack:	origin  = 0xc0020000,	length =    0xe0000
 	}
 
 SECTIONS {

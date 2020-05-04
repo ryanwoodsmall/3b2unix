@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/fumount.c	10.24"
+#ident	"@(#)kern-port:nudnix/fumount.c	10.24.1.2"
 /*
  *	Forced unmount - get rid of all remote users of a resource.
  *	Forced unmount is unusual because SERVER originates request.
@@ -131,7 +131,10 @@ fumount ()
 			} 
 			smp->sr_flags |= MINTER;
 			/* prevent new uses - checked by server */
-			cl_queue = sysid_to_queue (smp->sr_sysid);
+			if ((cl_queue = sysid_to_queue (smp->sr_sysid)) == NULL){
+				ASSERT(cl_queue);
+				continue;
+			}
 			sdp->sd_stat = SDUSED;
 			set_sndd (sdp, cl_queue, RECOVER_RD, RECOVER_RD);
 			wake_serve ((index_t) i);
@@ -215,8 +218,7 @@ sysid_t sysid;
 			return (gdpp->queue);
 		}
 	}
-
-	cmn_err (CE_PANIC,"sysid_to_queue: no match for sysid 0x%x", sysid);
+	return(NULL);
 }
 
 
@@ -263,6 +265,9 @@ index_t serv_index;	/* index into server mount table on server */
 	DUPRINT4 (DB_MNT_ADV,
 		"cl_fumount: queue %x, cl_indx %d, serv_indx %d\n",
 		fumount_q, cl_index, serv_index);
+	/* invalidate cache buffer */
+	if (mount[cl_index].m_rflags & MCACHE)
+		rmntinval((struct sndd *)mount[cl_index].m_mount->i_fsptr);
 
 	for (sd = sndd; sd < &sndd[nsndd]; sd++) 
 		if ((sd->sd_stat & SDUSED) &&

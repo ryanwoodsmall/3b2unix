@@ -5,9 +5,11 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/t_connect.c	1.4"
+#ident	"@(#)libnsl:nsl/t_connect.c	1.4.1.2"
 #include "sys/param.h"
+#include "sys/types.h"
 #include "sys/stropts.h"
+#include "sys/timod.h"
 #include "sys/tiuser.h"
 #include "fcntl.h"
 #include "sys/signal.h"
@@ -15,8 +17,9 @@
 
 extern snd_conn_req(), rcv_conn_con();
 extern t_errno;
+extern struct _ti_user *_t_checkfd();
 extern int fcntl();
-extern int (*sigset())();
+extern void (*sigset())();
 
 
 t_connect(fd, sndcall, rcvcall)
@@ -25,9 +28,10 @@ struct t_call *sndcall;
 struct t_call *rcvcall;
 {
 	int fctlflg;
-	int (*sigsave)();
+	register struct _ti_user *tiptr;
+	void (*sigsave)();
 
-	if (_t_checkfd(fd) == NULL)
+	if ((tiptr = _t_checkfd(fd)) == NULL)
 		return(-1);
 
 	if (_snd_conn_req(fd, sndcall) < 0)
@@ -39,13 +43,19 @@ struct t_call *rcvcall;
 	}
 
 	if (fctlflg&O_NDELAY) {
+		tiptr->ti_state = TLI_NEXTSTATE(T_CONNECT2, tiptr->ti_state);
 		t_errno = TNODATA;
 		return(-1);
 	}
 
 	if (_rcv_conn_con(fd, rcvcall) < 0) {
+		if (t_errno == TLOOK)
+			tiptr->ti_state = TLI_NEXTSTATE(T_CONNECT2, tiptr->ti_state);
+		else if (t_errno == TBUFOVFLW)
+			tiptr->ti_state = TLI_NEXTSTATE(T_CONNECT1, tiptr->ti_state);
 		return(-1);
 	}
 
+	tiptr->ti_state = TLI_NEXTSTATE(T_CONNECT1, tiptr->ti_state);
 	return(0);
 }

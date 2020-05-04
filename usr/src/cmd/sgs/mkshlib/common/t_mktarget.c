@@ -5,10 +5,11 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mkshlib:common/t_mktarget.c	1.3"
+#ident	"@(#)mkshlib:common/t_mktarget.c	1.5.1.1"
 
 #include <stdio.h>
 #include "filehdr.h"
+#include "syms.h"
 #include "ldfcn.h"
 #include "paths.h"
 #include "shlib.h"
@@ -18,6 +19,8 @@
 void
 mktarget()
 {
+	char *mkehsyms();
+
 	mkplt();	/* make the intermediate partially loaded target, tpltnam */
 
 	/* Build the branch table and create btname which will contain the branch
@@ -29,11 +32,28 @@ mktarget()
 	 */
 	mkbt();
 
+	/* Create ifile containing export and hide directives for loader */
+	ifil3name = mkehsyms();
+	
+	/* Find undefined symbols (uslst) in other shared libraries and create 
+	/* ifile with name=value; pairs	*/
+	if (usflag)	/* At least one undefined symbol exists */
+		mklib();
+
 	/* Create the target by loading pltname and btname together at the
 	 * addresses specified in ifil2name. */
-	if (execute(ldname,ldname,"-c","-o",trgname,ifil2name,btname,
-								pltname,(char *)0))
-		fatal("Internal %s invocation failed",ldname);
+	if (usflag)	/* ifil4name will exist */
+	{
+		if (execute(ldname,ldname,"-c","-o",trgname,ifil2name,btname,
+					pltname,ifil4name,ifil3name,(char *)0))
+			fatal("Internal %s invocation failed",ldname);
+	}
+	else
+	{
+		if (execute(ldname,ldname,"-c","-o",trgname,ifil2name,btname,
+					pltname,ifil3name,(char *)0))
+			fatal("Internal %s invocation failed",ldname);
+	}
 }
 
 
@@ -54,4 +74,54 @@ mkplt()
 
 	if (execute(ldname,ldname,"-r","-o",tpltnam, ifil1name,(char *)0))
 		fatal("Internal %s invocation failed",ldname);
+}
+
+/*  mkehsyms
+
+	Create separate ifile holding exported and hidden symbols.
+	This file is passed to ld in mktarget routine. 
+	Ifile will be saved for host processing.
+
+									*/
+char *mkehsyms()
+{
+	int 	e,h;
+	FILE	*ifil;
+
+	/* open ifil3name */
+
+	if ((nexpsyms > 0) || (nhidesyms > 0) || (allhide == TRUE) || (allexp == TRUE))
+	{
+		if ((ifil = fopen(ifil3name,"w")) == NULL)
+			fatal("Cannot open ifile for export and hide directives - temp file");
+	
+		/* Place all exported and hidden symbols in ifile.  This file */
+		/* will be saved and used to hide and export symbols in the host */
+
+		if (allexp == TRUE)
+		{
+			fprintf (ifil,"EXPORT { \* }\n");
+		}
+		for (e=0; e<nexpsyms; e++)
+		{
+			fprintf (ifil,"EXPORT { %s }\n", expsyms[e]);
+		}
+
+		if (allhide == TRUE)
+		{
+			fprintf (ifil,"HIDE { \* }\n");
+		}
+		for (h=0; h<nhidesyms; h++)
+		{
+			fprintf (ifil,"HIDE { %s }\n", hidesyms[h]);
+		}
+		(void)fclose(ifil);
+
+		return (ifil3name);	/* Return name of ifile */
+	}
+	else
+	{
+		return ((char *)0);	/* No ifile created, this will null */
+					/* terminate line early		    */
+	}
 }

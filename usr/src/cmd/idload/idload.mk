@@ -5,11 +5,11 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident "@(#)idload:idload.mk	1.3"
+#ident	"@(#)idload:idload.mk	1.4"
 ROOT =
 TESTDIR = .
 INSDIR = $(ROOT)/usr/bin
-INCRT = $(ROOT)/usr/include
+INC = $(ROOT)/usr/include
 INS = :
 CFLAGS = -O -s
 LDFLAGS = -lns $(LDLIBS)
@@ -18,7 +18,7 @@ FRC =
 all: idload
 
 idload: idload.c
-	$(CC) -I$(INCRT) $(CFLAGS) -o $(TESTDIR)/idload idload.c $(LDFLAGS)
+	$(CC) -I$(INC) $(CFLAGS) -o $(TESTDIR)/idload idload.c $(LDFLAGS)
 
 install: all
 	install -n $(INSDIR) $(TESTDIR)/idload

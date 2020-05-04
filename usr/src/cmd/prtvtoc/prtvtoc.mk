@@ -5,10 +5,10 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)prtvtoc:prtvtoc.mk	1.6"
+#ident	"@(#)prtvtoc:prtvtoc.mk	1.6.3.1"
 ROOT =
-INCRT = $(ROOT)/usr/include
-CFLAGS = -O -I$(INCRT) -Uu3b -Uvax -Updp11 -Uu3b5 -Du3b2
+INC = $(ROOT)/usr/include
+CFLAGS = -O -I$(INC)
 LDFLAGS = -s
 INS = install
 FRC =
@@ -34,10 +34,10 @@ FRC:
 #
 
 prtvtoc: prtvtoc.c \
-	$(INCRT)/errno.h \
-	$(INCRT)/fcntl.h \
-	$(INCRT)/sys/errno.h \
-	$(INCRT)/sys/stat.h \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/vtoc.h \
+	$(INC)/errno.h \
+	$(INC)/fcntl.h \
+	$(INC)/sys/errno.h \
+	$(INC)/sys/stat.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/vtoc.h \
 	$(FRC)

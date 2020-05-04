@@ -5,12 +5,12 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/ipc.c	10.3"
+#ident	"@(#)kern-port:io/ipc.c	10.4"
 #include	"sys/errno.h"
 #include	"sys/types.h"
 #include	"sys/sbd.h"
 #include	"sys/param.h"
-#if !defined(u3b5) && !defined(u3b2)
+#if !defined(u3b15) && !defined(u3b2)
 #include	"sys/seg.h"
 #endif
 #include	"sys/signal.h"

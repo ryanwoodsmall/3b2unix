@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:boot/olboot/lboot.c	10.8"
+#ident	"@(#)kern-port:boot/olboot/lboot.c	10.8.1.1"
 
 #include	"sys/types.h"
 #include	"sys/psw.h"
@@ -264,7 +264,7 @@ main()
 	WNVRAM((char *) &(ahp->entry), (char *) &(UNX_NVR->spmem), 4);
 
 	if (P_CMDQ->b_dev == FLOPDISK)
-		DISK_ACS(Fso+1, IOBASE, DISKRD, LAST);	/* dummy read to unlock floppy */
+		DISK_ACS(0, IOBASE, DISKRD, LAST);	/* dummy read to unlock floppy */
 
 
 	/* if (P_CMDQ->b_type == DEMANDBOOT) {

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)ct:ct.c	2.8"
+#ident	"@(#)ct:ct.c	2.13"
 
 /*
  *
@@ -105,11 +105,12 @@ char   *argv[];
             minutes = 0;	/* number of minutes to wait for dialer */
     int     fdl;
     struct termio   termio;
-    FILE * dfp;
-    typedef int (*save_sig)();
+    typedef void (*save_sig)();
     save_sig	save_hup,
 		save_quit,
 		save_int;
+    extern void	setservice(), devreset();
+    extern int sysaccess();
 
     save_hup = signal (SIGHUP, cleanup);
     save_quit = signal (SIGQUIT, cleanup);
@@ -117,8 +118,9 @@ char   *argv[];
     (void) signal (SIGTERM, cleanup);
     (void) strcpy (Progname, "ct");
 
-    if ((dfp = fopen (DEVICES, "r")) == NULL) {
-	(void) fprintf(stderr, "ct: can't open %s\n", DEVICES);
+    setservice("cu");
+    if ( sysaccess(EACCESS_DEVICES) != 0 ) {
+	(void) fprintf(stderr, "ct: can't access Devices file\n");
 	cleanup(101);
     }
 
@@ -202,7 +204,7 @@ char   *argv[];
 				 * time through the loop.
 				 * break will be used exit loop.
 				 */
-	if ( (found = gdev (dfp, _Flds)) > 0) {  /* found a dialer */
+	if ( (found = gdev (_Flds)) > 0) {  /* found a dialer */
 	    (void) fprintf(stdout, "Allocated dialer at %s baud\n",
 		_Flds[F_CLASS]);
 	    break;
@@ -277,11 +279,20 @@ char   *argv[];
         hangup = 0;
 
     if (hangup) {  /* -h option not specified */
-        (void) fputs ("Confirm hang-up? (y to hang-up): ", stdout);
-        if ((c = getchar ()) == EOF || tolower (c) != 'y')
-    	    cleanup(101);
-        while ( (c = getchar()) != EOF && c != '\n')
-    	    ;
+	while(1) {
+
+            (void) fputs ("Confirm hang-up? (y/n): ", stdout);
+            if ((c = getchar ()) == EOF || tolower (c) == 'n')
+    	    	cleanup(101);
+	    else if( tolower(c) == 'y') {	
+        	while ( (c = getchar()) != EOF && c != '\n')
+    	    		;
+		break;
+		}
+	    else
+		while( c != EOF || c != '\n')	
+		      c = getchar();
+	}
 
 	/* close 1; if stderr is not redirected, close 2 also */
 	(void) close(1);
@@ -297,13 +308,13 @@ char   *argv[];
         (void) sleep (5);
     }
 
-    (void) fclose (dfp);  /* close Devices file */
 
     /* Try each phone number until a connection is made, or non work */
     for (count = optind; count < argc; count++) {
 	/* call getto routine to make connection */
 	_Flds[F_PHONE] = argv[count];
 	rmlock(CNULL);	/* remove temporary lock set by gdev */
+	devreset();
 	fdl = getto(_Flds);
 	if (fdl > 0) {
 	    /*
@@ -489,15 +500,15 @@ register int    code;
 
 static
 int
-gdev (dfp, flds)
-FILE * dfp;
+gdev (flds)
 char   *flds[];
 {
     int	count = 0,
 	status;
+    extern void	devreset();
 
-    (void) fseek (dfp, (long) 0, 0);
-    while ((status = rddev (dfp, "ACU", _Dev, _Devbuf, D_MAX)) != FAIL) {
+    devreset();
+    while ((status = rddev ("ACU", _Dev, _Devbuf, D_MAX)) != FAIL) {
 	/* check caller type */
 	if (!EQUALS (flds[F_TYPE] /* "ACU" */, _Dev[D_TYPE]))
 	    continue;

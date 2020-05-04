@@ -5,7 +5,8 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/delay_out.c	1.3"
+#ident	"@(#)curses:screen/delay_out.c	1.6"
+
 /*
  * Code for various kinds of delays.  Most of this is nonportable and
  * requires various enhancements to the operating system, so it won't
@@ -13,8 +14,7 @@
  * interface, and so curses itself can use it for function keys.
  */
 
-
-#include "curses.ext"
+#include	"curses_inc.h"
 
 /*
  * Delay the output for ms milliseconds.
@@ -29,9 +29,9 @@
  * You can't get a decent pac-man game with this routine.
  */
 delay_output(ms)
-int ms;
+int	ms;
 {
-	extern int _outchar();		/* it's in putp.c */
+    extern	int	_outchar();
 
-	return _delay(ms*10, _outchar);
+    return (_delay(ms * 10, _outchar));
 }

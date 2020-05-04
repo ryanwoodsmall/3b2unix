@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)listen:nlsrequest.c	1.2"
+#ident	"@(#)listen:nlsrequest.c	1.4"
 
 /*
  *
@@ -45,8 +45,8 @@ static char _nlsbuf[256];
 
 int
 nlsrequest(fd, svc_code)
-	int  fd;
-	char *svc_code;
+int  fd;
+char *svc_code;
 {
 	int	len, err, flags;
 	char 	buf[256];
@@ -79,11 +79,23 @@ nlsrequest(fd, svc_code)
 		return(-1);
 	}
 
-	if (n_rcv(fd, _nlsbuf, sizeof(_nlsbuf), &flags) < 0) {
-		if (_nlslog)
-			t_error("t_rcv of listener response msg failed");
-		return(-1);
-	}
+	p = _nlsbuf;
+	len = 0;
+
+	do {
+		if (++len > sizeof(_nlsbuf)) {
+			if (_nlslog)
+				fprintf(stderr, "nlsrequest: _nlsbuf not large enough\n");
+			return(-1);
+		}
+		if (t_rcv(fd, p, sizeof(char), &flags) != sizeof(char)) {
+			if (_nlslog)
+				t_error("t_rcv of listener response msg failed");
+			return(-1);
+		}
+
+	} while (*p++ != '\0');
+
 
 	if ((p = strtok(_nlsbuf, ":")) == (char *)0)
 		goto parsefail;
@@ -97,33 +109,8 @@ nlsrequest(fd, svc_code)
 		fprintf(stderr, "%s\n", _nlsrmsg); /* debug only */
 	return(ret);
 
-
 parsefail:
 	if (_nlslog)
 		fprintf(stderr, "nlsrequest: failed parse of response message\n");
 	return(-1);
-
-}
-
-static int
-n_rcv(fd, bufp, bytes, flagp)
-int fd;
-char *bufp;
-int bytes;
-int *flagp;
-{
-	register int n;
-	register int count = bytes;
-	register char *bp = bufp;
-
-	do {
-		*flagp = 0;
-		n = t_rcv(fd, bp, count, flagp);
-		if (n < 0)
-			return(n);
-		count -= n;
-		bp += n;
-	} while (((*flagp) & T_MORE) && (count > 0));
-
-	return(bp - bufp);
 }

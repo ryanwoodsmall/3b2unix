@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:com/coff.h	1.13"
+#ident	"@(#)sdb:com/coff.h	1.14"
 
 /*		common object file format #include's */
 
@@ -15,6 +15,7 @@
 #define OMAGIC	AOUT1MAGIC	/* combined text and data segments */
 #define NMAGIC	AOUT2MAGIC	/* separate text and data segments */
 #define	PMAGIC	AOUT3MAGIC	/* Paging aout header magic number */
+#define	LMAGIC	AOUT4MAGIC	/* Shared libraries		   */	
 #endif
 
 #if vax

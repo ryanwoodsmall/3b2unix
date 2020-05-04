@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)pcc2:common/allo.c	10.2"
+#ident	"@(#)pcc2:common/allo.c	10.5"
 
 # include "mfile2.h"
 
@@ -87,7 +87,8 @@ register struct optab *q;
 #ifndef NODBG
 	if( rdebug > 1 )
 	{
-		fprintf(outfile, "allo( %d, %d ), %o", p-node, q->stinline, q->needs );
+		fprintf(outfile, "allo( %d, %d ), %o",
+				node_no(p), q->stinline, q->needs );
 		for( j=0; j<i; ++j )
 		{
 			if( resc[j].tn.op == REG )
@@ -114,7 +115,7 @@ register k;
 	*/
 #ifdef	CG
 			/*This has been obsoleted by next_temp*/
-	return next_temp( k*SZINT, (k>1 ? ALDOUBLE : ALINT) );
+	return next_temp( TINT, k*SZINT, (k>1 ? ALDOUBLE : ALINT) );
 #else
 
 # ifndef BACKTEMP
@@ -470,7 +471,7 @@ register rw, goal;
 #ifndef NODBG
 	if( rdebug )
 	{
-		fprintf(outfile, "reclaim( %d, ", p-node );
+		fprintf(outfile, "reclaim( %d, ", node_no(p) );
 		rwprint( rw );
 		PUTS( ", " );
 		prgoal( goal );
@@ -570,6 +571,7 @@ NODE * result;
     else
 	tfreebut( tree, result );	/* free all but result */
 
+    result->in.type = tree->in.type;	/* result type is tree type */
     trbusy( result );			/* mark scratch regs busy */
     *tree = *result;			/* copy over first node */
     result->in.op = FREE;		/* make old result node FREE */

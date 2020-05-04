@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)cron:cron.mk	1.16"
+#ident	"@(#)cron:cron.mk	1.18"
 
 INS=cpset
 
@@ -14,6 +14,7 @@ OL=$(ROOT)/
 ETC=$(OL)etc
 USR=$(OL)usr
 INSDIR=$(OL)usr/bin
+SPL=$(USR)/spool
 SPOOL=$(USR)/spool/cron
 LIB=$(USR)/lib
 
@@ -21,10 +22,10 @@ CRONLIB=$(LIB)/cron
 CRONSPOOL=$(SPOOL)/crontabs
 ATSPOOL=$(SPOOL)/atjobs
 
-XDIRS= $(ROOT) $(ETC) $(USR) $(INSDIR) $(LIB) $(SPOOL)\
+XDIRS= $(ROOT) $(ETC) $(USR) $(INSDIR) $(LIB) $(SPL) $(SPOOL)\
       $(CRONLIB) $(CRONSPOOL) $(ATSPOOL)
 
-DIRS= $(SPOOL) $(CRONLIB) $(CRONSPOOL) $(ATSPOOL)
+DIRS= $(SPL) $(SPOOL) $(CRONLIB) $(CRONSPOOL) $(ATSPOOL)
 
 CMDS= cron at crontab batch
 
@@ -59,7 +60,7 @@ cron:	cron.o funcs.o libelm.a
 	$(CC) $(CFLAGS) cron.o funcs.o libelm.a -o cron $(LDFLAGS) $(LDLIBS)
 
 crontab:	crontab.o permit.o funcs.o
-	$(CC) $(CFLAGS) crontab.o permit.o funcs.o -o crontab
+	$(CC) $(CFLAGS) crontab.o permit.o funcs.o -o crontab $(LDFLAGS)
 
 at:	at.o att1.o att2.o funcs.o permit.o
 	$(CC) $(CFLAGS) at.o att1.o att2.o funcs.o permit.o -o at $(LDFLAGS)

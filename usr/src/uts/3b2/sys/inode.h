@@ -5,17 +5,20 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/inode.h	10.5"
+#ident	"@(#)kern-port:sys/inode.h	10.5.8.1"
 #define FSPTR 1
 /*
- *	The I node is the focus of all
- *	file activity in unix. There is a unique
- *	inode allocated for each active file,
- *	each current directory, each mounted-on
- *	file, text file, and the root. An inode is 'named'
- *	by its dev/inumber pair. (iget/iget.c)
- *	Data, from mode on, is read in
- *	from permanent inode on volume.
+ *	The I node is the focus of all file activity in unix.
+ *	There is a unique inode allocated for each active file,
+ *	each current directory, each mounted-on file, text file,
+ *	and the root. An inode is 'named' by its dev/inumber
+ *	pair. (iget/iget.c) Data, from mode on, is read in from
+ *	permanent inode on volume.
+ *
+ *	WARNING: The offset of the i_flag field is hard-coded in
+ *	         the plock/prele routines in ml/misc.s . The
+ *	         priority passed to sleep(), PINOD - defined in
+ *	         param.h, is also hard-coded in those routines.
  */
 
 typedef	struct	inode
@@ -51,6 +54,8 @@ typedef	struct	inode
 #endif
 	long	*i_filocks;	/* pointer to filock (structure) list */
 	struct	rcvd	*i_rcvd;	/* receive descriptor */
+	unsigned long	i_vcode;	/* inode version code (RFS caching) */
+	ushort	i_wcnt;			/* open for write count (RFS caching) */
 } inode_t;
 
 extern struct inode inode[];	/* The inode table itself */
@@ -78,9 +83,9 @@ extern struct ifreelist ifreelist;
 #define ISYN	0x80		/* do synchronous write for iupdate */
 #define	IADV	0x100		/* advertised */
 #define	IDOTDOT	0x200		/* object of remote mount */
-#define	ILBIN	0x400		/* mounted remotely  */
 #define	IRMOUNT	0x800		/* remotely mounted	*/
 #define	IISROOT	0x1000		/* This is a root inode of an fs */
+#define IWROTE	0x2000		/* write has happened since open */
 
 /* file types */
 /* WARNING: The following defines should NOT change!If more */

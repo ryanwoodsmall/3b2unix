@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)listen:lsdata.c	1.4"
+#ident	"@(#)listen:lsdata.c	1.6"
 
 /*
  *	network listener process global initialized data
@@ -68,5 +68,10 @@ errlist err_list[] = {
 {"System error",					91},
 {"Cannot allocate enough memory for data base",		92},
 {"System error: poll failed",				93},
+{"cannot allocate enough memory",			36},
+{"TLI t_rcvdis failed",					111},
+{"TLI t_look failed",					38},
+{"Database file has been corrupted",			39},
+{"Database file is not at the current version",		40},
 };
 

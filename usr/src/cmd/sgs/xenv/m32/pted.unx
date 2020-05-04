@@ -1,4 +1,4 @@
-#ident	"@(#)xenv:m32/pted.unx	1.19"
+#ident	"@(#)xenv:m32/pted.unx	1.21"
 #
 #	Cross Pathedit for 3b15/3b5/3b2 SGS
 #
@@ -256,7 +256,7 @@ chmod 0644 ../../../../lib/lib.mk
 #
 echo "\n ******** Modifying optimizer makefile ********"
 OP=`uname -r | fgrep 5.0`
-if /bin/vax && [ "$OP" ]
+if ( /bin/vax && [ "$OP" ] ) || [ "uts" = "`uname`" ]
 then
 echo "Your optimizer will not be optimized \n"
 ed ../../optim/m32/makefile <<Z
@@ -294,7 +294,6 @@ q
 X
 
 echo "\n ******** Linking shared library source files ********"
-find ../../../../lib/shlibc -links 2 -type f -exec rm -f {} \;
 pted.shlink
 
 echo "\n ******** Installing header files ********"

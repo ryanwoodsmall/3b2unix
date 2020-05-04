@@ -5,12 +5,9 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sed:sed.h	1.5"
+#ident	"@(#)sed:sed.h	1.8"
 /*
  * sed -- stream  editor
- *
- * Copyright 1975 Bell Telephone Laboratories, Incorporated
- *
  */
 
 /*
@@ -31,7 +28,7 @@
 #define NLINES  256
 #define DEPTH   20
 #define PTRSIZE 200
-#define RESIZE  5000
+#define RESIZE  10000
 #define ABUFSIZE        20
 #define LBSIZE  4000
 #define ESIZE   256

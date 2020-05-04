@@ -1,15 +1,16 @@
-#ident	"@(#)terminfo:tektronix.ti	1.7"
+#ident	"@(#)terminfo:tektronix.ti	1.11"
 # # --------------------------------
 #
 # tektronix: TEKTRONIX
 #
 # Manufacturer:	TEKTRONIX
 # Class:	III
-tk|4105|4107|4109|tektronix terminals 4105 4107 4109,
+tek4107|tek4109|4107|4109|tektronix terminals 4107 4109,
+	am, mir, msgr, ul, xenl, xt, 
 	cvvis=\E%!3,
 	cnorm=\E%!0,
 	cr=^M, cud1=^J, ind=^J, bel=^G, cub1=^H, ed=\EJ, el=\EK,
-	clear=\ELZ, cup=\EY%p1%' '%+%c%p2%' '%+%c, cols#80, lines#24,
+	clear=\ELZ, cup=\EY%p1%' '%+%c%p2%' '%+%c, cols#79, lines#29,
 	cuf1=\EC, ht=^I, it#8, ri=\EI, cuu1=\EA,
 	kcuu1=\EA, kcud1=\EB, kcuf1=\EC, kcub1=\ED, kbs=^H,
 	smso=\E%!1\E[7;5m$<2>\E%!0,
@@ -22,6 +23,26 @@ tk|4105|4107|4109|tektronix terminals 4105 4107 4109,
 	dim=\E%!1\E[<0m$<2>\E%!0,
 	sgr0=\E%!1\E[m$<2>\E%!0,
 	sgr=\E%%!1\E[%?%p1%t;7%;%?%p2%t;4%;%?%p3%t;7%;%?%p4%t;5%;%?%p6%t;1%;m\E%%!0,
+tek4105|4105|tektronix 4105,
+	am, il1=\E[1L, ed=\E[J, el=\E[K, clear=\E[2J\E[H,
+	cup=\E[%i%p1%2d;%p2%2dH,
+	cols#79, lines#29,
+	dch1=\E[1P, dl1=\E[1M,
+	home=\E[H, smir=\E[4h, rmir=\E[4l, mir,
+	cuf1=\E[1C, cud1=\E[1B, cuu1=\E[1A,
+	smacs=\E[1m, rmacs=\E[0m, msgr,
+	rmso=\E[=0;<1m, smso=\E[=2;<3m,
+	ul, smul=\E[=5;<2m, rmul=\E[=0;<1m,
+	is1=\E%!1\E[0m,
+	rev=\E[=1;<3m, bold=\E[=7;<4m, invis=\E[=6;<5, dim=\E[=1;<6m,
+	blink=\E[=3;<7m, sgr0=\E[=0;<1m,
+	smcup=\E%!1\E[?6l\E[2J, xenl, xt,
+	msgr, mir, kbs=^h, kcuu1=\E[1A, kcud1=\E[1B,
+	kcub1=\E[1D, kcuf1=\E[1C,
+	is2=\E%!1\E[?6141\E[0m,
+	cbt=\E[Z, cr=^M, ri=\E[T, ind=\E[S, it#8,
+	tbc=\E[1g, ht=^I, bel=^G,
+
 tek|tek4012|4012|tektronix 4012,
 	cr=^M, cud1=^J, bel=^G, ff=^L$<1000>,
 	is2=\E^O, cub1=^H, clear=\E^L$<1000>, cols#75, lines#35, os,
@@ -163,3 +184,4 @@ ct8500|tektronix ct8500,
 	da, db, dch1=\E^],
 	dl1=\E^M, ich1=\E^\, lines#25, cuf1=\ES, ht=^I, ri=\E^A, rmso=\E ,
 	smso=\E$, rmul=\E , cuu1=\ER, smul=\E\041, is2=^_\EZ\Ek,
+	sgr0=\E\s,

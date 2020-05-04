@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:uugetty.c	2.3"
+#ident	"@(#)uucp:uugetty.c	2.4"
 
 #include	"uucp.h"
 
@@ -502,6 +502,32 @@ char **argv;
 		sleep(20);
 		exit(1);
 	}
+	/*
+	 * must check for lockfile *before* calling setupline()
+	 * since setupline() will re-set the termio structure and
+	 * this breaks the new modem control capabilities of uucico
+	 * (they involve setting CLOCAL, which setupline() promptly
+	 * clears).
+	 */
+	if (mlock(line)) { /*  There is a lock file already */
+	    /* some process is using the line for output */
+	    (void) fclose(stdin);
+	    (void) sprintf(lckname, "%s.%s", LOCKPRE, line);
+	    for (;;) {	/* busy wait for LCK..line to go away */
+		sleep(60);
+		if (checkLock(lckname) == 0) /* LCK..line gone */
+		    break;
+	    }
+	    exit(0);
+	}
+	/*
+	 * now remove just-created uugetty lockfile, since we may just
+	 * be looking at another uugetty. if we really have a login attempt,
+	 * we'll create the proper lockfile after the wait_read check
+	 * below.
+	 */
+	delock(line);
+	    
 	if (wait_read) {	  /* wait to read the first character */
 		/* Set the terminal type and line discipline. */
 		setupline(speedef,termtype,lined);

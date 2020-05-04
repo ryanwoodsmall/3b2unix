@@ -5,15 +5,14 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:lex.c	1.13"
+#ident	"@(#)mailx:lex.c	1.21"
 #
 
 #include <errno.h>
 #include "rcv.h"
 #include <sys/stat.h>
 #include <string.h>
-typedef	int	(*sigtype)();
-extern sigtype m_sigset();
+typedef	SIG	(*sigtype)();
 
 extern struct utimbuf {
 	time_t	actime;
@@ -58,6 +57,15 @@ setfile(name, isedit)
 			edstop();
 		else
 			quit();
+		rc=stat(mailname, &stbuf);
+		if ( rc != 0 )
+			if ( errno != ENOENT ){
+				perror(mailname);
+				exit(1);
+			} else
+				mailsize=0;
+		else
+			mailsize=stbuf.st_size;
 		relsesigs();
 	}
 
@@ -137,6 +145,10 @@ setfile(name, isedit)
 		fclose(itf);
 		fclose(otf);
 	}
+	if (shudclob) {
+		free(message);
+		space=0;
+	}
 	shudclob = 1;
 	edit = isedit;
 	strncpy(efile, name, 128);
@@ -175,15 +187,17 @@ commands()
 	register int n;
 	char linebuf[LINESIZE];
 	int hangup(), contin();
+	struct stat minfo;
+	FILE *ibuf;
 
 # ifdef VMUNIX
-	m_sigset(SIGCONT, SIG_DFL);
+	sigset(SIGCONT, SIG_DFL);
 # endif /* VMUNIX */
 	if (rcvmode && !sourcing) {
-		if (m_sigset(SIGINT, SIG_IGN) != (sigtype) SIG_IGN)
-			m_sigset(SIGINT, stop);
-		if (m_sigset(SIGHUP, SIG_IGN) != (sigtype) SIG_IGN)
-			m_sigset(SIGHUP, hangup);
+		if (sigset(SIGINT, SIG_IGN) != (sigtype) SIG_IGN)
+			sigset(SIGINT, stop);
+		if (sigset(SIGHUP, SIG_IGN) != (sigtype) SIG_IGN)
+			sigset(SIGHUP, hangup);
 	}
 	for (;;) {
 		setexit();
@@ -201,8 +215,33 @@ top:
 			if (prompt==NOSTR)
 				prompt = "? ";
 # ifdef VMUNIX
-			m_sigset(SIGCONT, contin);
+			sigset(SIGCONT, contin);
 # endif /* VMUNIX */
+			if (stat(mailname, &minfo) >=0 && minfo.st_size > mailsize) {
+				int OmsgCount, i;
+				OmsgCount = msgCount;
+				printf("New mail has arrived.\n");
+				fseek(otf, (long) 0, 2); /* points to end of file*/
+				lock(mailname);
+				holdsigs();
+				if ( (ibuf = fopen(mailname, "r")) == NULL ) {
+					fprintf(stderr,"Can't reopen %s\n",mailname);
+					exit(1);
+				}
+				fseek(ibuf, mailsize, 0);
+				setptr(ibuf);
+				setmsize(msgCount);
+				mailsize = minfo.st_size;
+				fclose(ibuf);
+				printf("Loaded %d new messages\n",msgCount-OmsgCount);
+				if ( value("header") != NOSTR ) 
+					for ( i = OmsgCount+1; i <= msgCount; i++) {
+						printhead(i);
+						sreset();
+					}
+				unlock(mailname);
+				relsesigs();
+			}
 			printf("%s", prompt);
 		}
 		flush();
@@ -242,7 +281,7 @@ top:
 			linebuf[n++] = ' ';
 		}
 # ifdef VMUNIX
-		m_sigset(SIGCONT, SIG_DFL);
+		sigset(SIGCONT, SIG_DFL);
 # endif /* VMUNIX */
 		if (execute(linebuf, 0))
 			return;
@@ -269,6 +308,7 @@ execute(linebuf, contxt)
         int i,j;
 	int muvec[2];
 	int edstop(), e;
+	int echo=0;
 
 	/*
 	 * Strip the white space away from the beginning
@@ -282,7 +322,7 @@ execute(linebuf, contxt)
 	cp = linebuf;
 	while (any(*cp, " \t"))
 		cp++;
-	if (*cp == '!' || (*cp == 'e' && *(cp+1)=='c')) {
+	if ((*cp == '!' ) || (*cp == 'e' && *(cp+1)=='c')) {
            if (*cp =='e')
               {
               /* get past command */ 
@@ -297,8 +337,9 @@ execute(linebuf, contxt)
               for (j=6; *(cp+i) !='\0'; i++) work[j++] = *(cp+i);
               work[j]='\0';
               cp=work;
+              echo++;
               }
-		if (sourcing) {
+		if (sourcing && !echo) {
 			printf("Can't \"!\" while sourcing\n");
 			unstack();
 			return(0);
@@ -357,7 +398,7 @@ execute(linebuf, contxt)
 		return(0);
 	}
 	if (!edit && com->c_func == edstop) {
-		m_sigset(SIGINT, SIG_IGN);
+		sigset(SIGINT, SIG_IGN);
 		return(1);
 	}
 
@@ -526,7 +567,10 @@ hangup()
 		edstop();
 	}
 	else
-		quit();
+		if (value("exit") != NOSTR)
+			exit(1);
+		else
+			quit();
 	exit(0);
 }
 
@@ -606,7 +650,12 @@ stop(s)
 	while (sourcing)
 		unstack();
 	getuserid((char *) -1);
-	for (fp = &_iob[0]; fp < &_iob[_NFILE]; fp++) {
+	if ( !maxfiles ) 
+		if ( (maxfiles=ulimit(4, 0)) < 0 ) {
+			perror("maxfiles");
+			exit(1);
+		}
+	for (fp = &_iob[0]; fp < &_iob[maxfiles]; fp++) {
 		if (fp == stdin || fp == stdout)
 			continue;
 		if (fp == itf || fp == otf)
@@ -628,9 +677,9 @@ stop(s)
 	if (s) {
 		printf("Interrupt\n");
 # ifdef VMUNIX
-		m_sigrelse(s);
+		sigrelse(s);
 # else
-		signal(s, stop);
+		sigset(s, stop); 
 # endif
 	}
 	reset(0);

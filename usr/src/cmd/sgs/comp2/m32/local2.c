@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)pcc2:m32/local2.c	10.2"
+#ident	"@(#)pcc2:m32/local2.c	10.3"
 /*	local2.c - machine dependent grunge for back end
  *
  *		Bellmac32
@@ -252,80 +252,15 @@ OPTAB *q;			/* not used in m32 zzzcode */
 
 
 	case 'S':		/* STASG */
-		if (istnode(pnode->in.left))
-			pl = pnode->in.left;
-		else
-		{
-			pl = &resc[1];
-			if (pnode->in.left->in.op == UNARY AND)
-				expand(pnode, FOREFF, "	movaw	A(LL),A2\n", q);
-			else
-				expand(pnode, FOREFF, "	movw	AL,A2\n", q);
-		}
-		if (istnode(pnode->in.right))
-			pr = pnode->in.right;
-		else
-		{
-			pr = &resc[0];
-			if (pnode->in.right->in.op == UNARY AND)
-				expand(pnode, FOREFF, "	movaw	A(RL),A1\n", q);
-			else
-				expand(pnode, FOREFF, "	movw	AR,A1\n", q);
-		}
-		if ((i = pnode->stn.stsize / SZINT) <= STHRESH)
-			while (i--)
-				printf("\tmovw\t%d(%s),%d(%s)\n", i << 2,
-				    rnames[pr->tn.rval], i << 2,
-				    rnames[pl->tn.rval]);
-		else
-		{
-			int lastlab = getlab();
-
-			printf("	movw	&%d,", i);
-			expand(pnode, FOREFF, "A3\n.\\L", q);
-			printf("%d:\tmovw\t0(%s),0(%s)\n\taddw2\t&4,%s\n\taddw2\t&4,%s\n",
-			    lastlab, rnames[pr->tn.rval], rnames[pl->tn.rval],
-			    rnames[pr->tn.rval], rnames[pl->tn.rval]);
-			expand(pnode,FOREFF, "\tsubw2\t&1,A3\n\tjpos\t.\\L", q);
-			printf("%d\n", lastlab);
-		}
+printf("#STASG**************:\n");
+		stasg(pnode, (*++(*ppc) == '1'), q);
+printf("#End STASG^^^^^^^^^^^^^^:\n");
 		break;
 
 	case 's':		/* STARG */
-		if (istnode(pnode->in.left))
-			pl = pnode->in.left;
-		else
-		{
-			pl = &resc[0];
-			if (pnode->in.left->in.op == UNARY AND)
-				expand(pnode, FOREFF, "	movaw	A(LL),A1\n", q);
-			else
-				expand(pnode, FOREFF, "	movw	AL,A1\n", q);
-		}
-		printf("	addw2	&%d,%%sp\n	movaw	-%d(%%sp),",
-			pnode->stn.stsize / SZCHAR, pnode->stn.stsize / SZCHAR);
-		expand(pnode, FOREFF, "A2\n", q);
-		if ((i = pnode->stn.stsize / SZINT) <= STHRESH)
-			while (i--)
-			{
-				printf("	movw	%d(%s),%d(", i << 2,
-				    rnames[pl->tn.rval], i << 2);
-				expand(pnode, FOREFF, "A2)\n", q);
-			}
-		else
-		{
-			int lastlab = getlab();
-
-			printf("	movw	&%d,", i);
-			expand(pnode, FOREFF, "A3\n.\\L", q);
-			printf("%d:\tmovw\t0(%s),0(", lastlab,
-			    rnames[pl->tn.rval]);
-			expand(pnode, FOREFF, "A2)\n\taddw2\t&4,", q);
-			printf("%s\n\taddw2\t&4,", rnames[pl->tn.rval]);
-			expand(pnode, FOREFF,
-			    "A2\n\tsubw2\t&1,A3\n\tjpos\t.\\L", q);
-			printf("%d\n", lastlab);
-		}
+printf("#STARG**************:\n");
+		starg(pnode,q);
+printf("#End STARG^^^^^^^^^^^^^^:\n");
 		break;
 
 	default:

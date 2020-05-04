@@ -12,5 +12,5 @@ Description:
      programs to identify the type of computer being used.  It insures that the
      system executes the machine-specific lines that are appropriate to the
      pdp-11/45 or pdp-11/70.  See also:  false(1), test(1), true(1), u370(1),
-     u3b(1), u3b2(1), u3b5(1), and vax(1) for commands with functions similar  
+     u3b(1), u3b2(1), u3b15(1), and vax(1) for commands with functions similar  
      to \Spdp11\S, and make(1) for a command that might be used with \Spdp11\S.

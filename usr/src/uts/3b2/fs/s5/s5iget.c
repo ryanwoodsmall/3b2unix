@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:fs/s5/s5iget.c	10.7"
+#ident	"@(#)kern-port:fs/s5/s5iget.c	10.9"
 #include "sys/types.h"
 #include "sys/sysmacros.h"
 #include "sys/param.h"
@@ -30,6 +30,7 @@
 #include "sys/var.h"
 #include "sys/conf.h"
 #include "sys/region.h"
+#include "sys/proc.h"
 #include "sys/debug.h"
 #include "sys/cmn_err.h"
 
@@ -67,8 +68,10 @@ register struct inode *ip;
 	ip->i_gid = dp->di_gid;
 	ip->i_size = dp->di_size;
 	if (ip->i_fsptr == NULL) {
-		/* get next entry from free list. */
-		/* Lock table before doing so */
+		/*
+		 * Get next entry from free list.
+		 * Lock table before doing so.
+		 */
 		if ((s5ip = s5ifreelist) == NULL) {
 			printf("System V inode table overflow\n");
 			u.u_error = ENFILE;
@@ -95,9 +98,11 @@ register struct inode *ip;
 		*p1++ = *p2++;
 		*p1++ = *p2++;
 	}
-	/* set rdev.  For portability the independent portion of the */
-	/* inode needs to have its own copy */
-	/* While we are in the switch, initialize the FIFO semaphores */
+	/*
+	 * Set rdev.  For portability the independent portion of the
+	 * inode needs to have its own copy.  While we are in the switch,
+	 * initialize the FIFO semaphores.
+	 */
 	switch (s5ip->s5i_mode & IFMT) {
 	case IFCHR:
 	case IFBLK:
@@ -141,10 +146,11 @@ register struct inode *ip;
 		s5ifree(ip);
 	}
 
-	/* If a block number list was allocated for this file
+	/*
+	 * If a block number list was allocated for this file
 	 * (because it is a 413), then free the space now 
 	 * if the file has been modified. 
-	 * See the code in mmgt/region.c/mapreg.
+	 * See the code in region.c/mapreg.
 	 */
 
 	if ((ip->i_flag & IUPD) 
@@ -152,13 +158,13 @@ register struct inode *ip;
 		s5freemap(ip);
 
 	if (ip->i_flag & (IACC|IUPD|ICHG))
-
-		/* Only call iupdat if an ifree has not been	*/
-		/* done; this avoids a race whereby an ifree	*/
-		/* could put an inode on the freelist, the inode*/
-		/* could be allocated, and then the iupdat could*/
-		/* put outdated information into the disk inode */
-
+		/*
+		 * Only call iupdat if an ifree has not been done; this
+		 * avoids a race whereby an ifree could put an inode on
+		 * the freelist, the inode could be allocated, and then
+		 * the iupdat could put outdated information into the
+		 * disk inode.
+		 */
 		s5iupdat(ip, &time, &time);
 }
 
@@ -176,12 +182,8 @@ time_t *ta, *tm;
 	register char *p2;
 	register unsigned i;
 
-	if (ip->i_mntdev->m_flags & MRDONLY) {
-		if (ip->i_flag & (IUPD|ICHG))
-			u.u_error = EROFS;
-		ip->i_flag &= ~(IACC|IUPD|ICHG|ISYN);
+	if (rdonlyfs(ip->i_mntdev))
 		return;
-	}
 	i = ip->i_mntdev->m_bsize;
 	bp = bread(ip->i_dev, FsITOD(i, ip->i_number), FsBSIZE(i));
 	if (bp->b_flags & B_ERROR) {
@@ -237,10 +239,11 @@ time_t *ta, *tm;
 }
 
 /*
- * Free all the disk blocks associated with the specified inode structure.
- * The blocks of the file are removed in reverse order. This FILO
- * algorithm will tend to maintain
- * a contiguous free list much longer than FIFO.
+ * Free all the disk blocks associated with the specified inode
+ * structure.  The blocks of the file are removed in reverse order.
+ * This FILO algorithm will tend to maintain a contiguous free list
+ * much longer than FIFO.
+ *
  * Update inode first with zero size and block addrs to ensure sanity.
  * Save blocks addrs locally to free.
  */
@@ -320,7 +323,8 @@ daddr_t bn;
 		nb = bap[i];
 		if (nb == (daddr_t)0)
 			continue;
-		/* move following 2 lines out of "if" so that buffer
+		/*
+		 * Move following 2 lines out of "if" so that buffer
 		 * guaranteed to be released before calling mfree, thus
 		 * avoiding the rare deadlock whereby we would have a
 		 * buffer locked here but couldn't get the super block lock,
@@ -354,8 +358,10 @@ s5init()
 		s5ip->s5i_flags = S5IFREE;
 		s5ip->s5i_next = s5ip + 1;
 	}
-	/* Ensure last element has NULL pointer to indicate end of */
-	/* list and mark last element as free */
+	/*
+	 * Ensure last element has NULL pointer to indicate end of
+	 * list and mark last element as free.
+	 */
 	s5ip->s5i_next = NULL;
 	s5ip->s5i_flags = S5IFREE;
 	s5_1024mnt.m_bsize = 1024;

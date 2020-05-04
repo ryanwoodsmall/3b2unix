@@ -1,4 +1,4 @@
-#ident	"@(#)pkg.sccs:sccs/INSTALL	1.5"
+#ident	"@(#)pkg.sccs:sccs/INSTALL	1.5.1.1"
 #
 # INSTALL script for the Source Code Control Utility Package.
 #
@@ -7,8 +7,8 @@ INSPATH=/install/new
 PKGNAME=`cat ${INSPATH}/usr/options/sccs.name`
 
 echo "Installing the ${PKGNAME}."
-echo "Copyright (c) 1984 AT&T Technologies, Inc."
-echo "All Rights Reserved"
+echo "Copyright (c) 1984 AT&T."
+echo "All Rights Reserved."
 
 #
 # Check that the necessary package has already been installed.

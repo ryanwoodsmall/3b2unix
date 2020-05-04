@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/rmove.c	10.16"
+#ident	"@(#)kern-port:nudnix/rmove.c	10.16.2.3"
 /*  remote copyin
  *  Remote copyin function to bring data from the remote system
  *  (client side) to the local system (server side).
@@ -45,7 +45,7 @@ int	n;
 
 	/*  client may have stashed some data with the request  */
 	if (u.u_copybp)  {
-		copyin = (struct request *)PTOMSG(u.u_copybp->b_rptr);
+		copyin = (struct request *)u.u_copybp;
 		size = (copyin->rq_prewrite<n) ? copyin->rq_prewrite:n;
 		/* protect against an external memory fault
 		   if a fault occurs control will return to rcopyfault in
@@ -61,9 +61,11 @@ int	n;
 		copyin->rq_prewrite -= size;
 		n -= size;
 		if (copyin->rq_prewrite == 0) {
-			if (u.u_syscall == DUWRITE || u.u_syscall == DUWRITEI)
-				freemsg(u.u_copybp);
 			u.u_copybp = NULL;
+			if (u.u_gift->sd_temp != NULL) {
+				freemsg((mblk_t *)u.u_gift->sd_temp);
+				u.u_gift->sd_temp = NULL;
+			}
 		}
 		if (n == 0)
 			return (0);

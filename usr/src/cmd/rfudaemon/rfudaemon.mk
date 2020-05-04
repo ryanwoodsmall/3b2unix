@@ -5,10 +5,10 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)rfudaemon:rfudaemon.mk	1.1"
+#ident	"@(#)rfudaemon:rfudaemon.mk	1.1.1.2"
 ROOT =
 TESTDIR = .
-INSDIR = $(ROOT)/usr/bin
+INSDIR = $(ROOT)/usr/nserve
 INCRT = $(ROOT)/usr/include
 INS = :
 CFLAGS = -O -s
@@ -20,7 +20,7 @@ rfudaemon: rfudaemon.c
 	$(CC) -I$(INCRT) $(CFLAGS) -o $(TESTDIR)/rfudaemon rfudaemon.c
 
 install: all
-	install -n $(INSDIR) $(TESTDIR)/rfudaemon
+	install -f $(INSDIR) $(TESTDIR)/rfudaemon
 
 clean:
 	rm -f *.o

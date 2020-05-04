@@ -5,11 +5,12 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)tools:pick_val.c	1.34"
+#ident	"@(#)tools:pick_val.c	1.35"
 #include "../forms/muse.h"
 #include "tools.h"
 #include "vdefs.h"
 
+/*local validation numbers.  these are not the same as mforms numbers*/
 #define NUMVALS	17
 #define PERMS	0
 #define	EXIST	1
@@ -34,6 +35,7 @@ int b_t_TOP = 1; /* Wants-to-go-back-to-TOP flag (if 0) */
 
 /*indices to "map" are assist validation numbers.  Values are */
 /*local validation numbers used in these routines*/
+/*-1 means that the mforms validation does not appear on this screen*/
 int map[] = {-1,LENGTH,EXIST,OVERW,MATCH,-1,-1,NOTSAME,FORMAT,OWNFILE,
 		-1,-1,NEXIST,-1,-1,EXSTR,-1,BEGEND,NBEGEND,-1,-1,-1,
 		-1,-1,NMATCH,-1,REGEXP,QUOTE,-1,-1,-1,-1,SHELLVAL,-1,PERMS,
@@ -42,6 +44,7 @@ int map[] = {-1,LENGTH,EXIST,OVERW,MATCH,-1,-1,NOTSAME,FORMAT,OWNFILE,
 		/*array with indices of muse validation numbers
 			that contains local number, or -1 if not used (including
 			incomp, requires, etc. */
+/*used for navigation on the screen*/
 struct coord {
 	int left;
 	int right;
@@ -70,8 +73,8 @@ struct coord dirs[] = {	/*for each val, where to go for L, R, U, and D*/
 
 struct val_info {		/*info about each validation*/
 	int map; /*number known to muse*/
-	int prefix; /*num pref: 0=max, 1=1, -1=none*/
-	int suffix; /*num post: 0=max, 1=1, -1=none*/
+	int prefix; /*number of prefixes: 0=max, 1=1, -1=none*/
+	int suffix; /*number of  suffixes: 0=max, 1=1, -1=none*/
 	int picked; /*selected: 0=not, 1=selected*/
 	char *pre;  /*title for prefix screen*/
 	char *post; /*title for suffix screen*/
@@ -190,7 +193,7 @@ struct field *f_pt;
 	else return(3); /*try again*/
 }
 
-check_post()	/*figures if all ok for post*/
+check_post()	/*figures if all ok for suffixes*/
 {
 
 	if (haspost(v_sel[cur_val]) != 0) /*0 means suffix entered by user */
@@ -203,9 +206,6 @@ check_post()	/*figures if all ok for post*/
 			case FORMAT: /*no postfix, and ^P used*/
 				err_rpt(12,TRUE);
 				break;
-			/*case LIST: no list entered
-				err_rpt(30,TRUE);
-				break; */
 			default:	break;
 		} /*switch*/
 		show_cmd("",24);	/*allow user to try again*/
@@ -223,7 +223,10 @@ get_pref(v_pt,f_pt)		/*specify prefixes, if val takes any*/
 struct vfunc *v_pt;
 struct field *f_pt;
 {
-	char *ret_msg;
+	char *ret_msg;	/*ret_msg is the action of ^R, as displayed on
+			the prefix field.  It will either be "validation"
+			when there are no suffixes, or "suffix" when
+			there are*/
 
 
 	while(TRUE)
@@ -245,7 +248,7 @@ struct field *f_pt;
 		} /*while*/
 }
 
-get_post(v_pt,f_pt)
+get_post(v_pt,f_pt)	/*now allow the user to specify suffixes*/
 struct vfunc *v_pt;
 struct field *f_pt;
 {
@@ -300,11 +303,12 @@ struct field *f_pt;
 struct vfunc *v_pt;
 {
 	switch(cur_val)	{
-		case PERMS:
+		case PERMS:	/*call special routine for permissions*/
 			b_t_TOP = set_perms(f_pt,v_pt);
 			if (b_t_TOP == 0) return(b_t_TOP);
 			break;
-		case FORMAT:
+		case FORMAT: /*FORMAT takes a prefix, but only takes a suffix
+				if a ^P entered in prefix*/
 			switch(get_pref(v_pt,f_pt))	{
 				case 0: b_t_TOP = 0;
 					return(1);
@@ -321,7 +325,7 @@ struct vfunc *v_pt;
 					 return(1);
 			} /*switch*/
 			break;
-		default:
+		default: /*all other validations*/
 			if (info[cur_val].prefix != -1) /*-1 = no args*/
 				{
 				switch(get_pref(v_pt,f_pt))	{
@@ -372,7 +376,7 @@ struct field *f_pt;
 				/*erase arrow next to validation*/
 }
 
-d_addval(f_pt)
+d_addval(f_pt) /*add a new validation*/
 struct field *f_pt;
 {
 	struct vfunc *addval(), *v_pt;
@@ -399,7 +403,7 @@ struct field *f_pt;
 	return(b_t_TOP);
 }
 
-VOID do_arrow(y,x)
+VOID do_arrow(y,x) /*draw the > arrow*/
 int x,y;
 {
 	int i;
@@ -429,7 +433,7 @@ struct field *f_pt;	/*validations have been selected*/
 /*	refresh();	*/
 }
 
-selectval(f_pt)
+selectval(f_pt) /*main validation routine. Stay here till ^T or ^R*/
 struct field *f_pt;
 {	
 int i,c,tmp;
@@ -515,7 +519,7 @@ while (c=getch())
 	} /*while*/
 } /*procedure*/
 
-buildscreen(f_pt)
+buildscreen(f_pt) /*show updated screen*/
 struct field *f_pt;
 {
 	int i;

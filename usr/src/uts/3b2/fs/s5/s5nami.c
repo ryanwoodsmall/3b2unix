@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:fs/s5/s5nami.c	10.19"
+#ident	"@(#)kern-port:fs/s5/s5nami.c	10.19.1.5"
 #include "sys/types.h"
 #include "sys/param.h"
 #include "sys/fstyp.h"
@@ -27,6 +27,9 @@
 #include "sys/errno.h"
 #include "sys/buf.h"
 #include "sys/var.h"
+#include "sys/region.h"
+#include "sys/proc.h"
+#include "sys/sysmacros.h"
 #include "sys/debug.h"
 #include "sys/conf.h"
 
@@ -53,8 +56,6 @@ register struct argnamei *flagp;
 	struct direct x[2];
 	off_t saveoff;
 	int dotflag = 0;
-	int dot = 0;
-	int dotdot = 0;
 	int emptflags;
 
 	comp = p->comp;
@@ -67,15 +68,16 @@ register struct argnamei *flagp;
 		goto symlink;
 #endif
 	if (*comp == '\0') {
-		if (flagp) {
-			/*
-			 * This branch is executed when a rmdir (NI_RMDIR)
-			 * or unlink (NI_DEL) is executed on a remotely
-			 * mounted directory.
-			 */
-			u.u_error = EBUSY;
-			goto fail;
-		}
+		if (flagp)
+			if (flagp->cmd == NI_RMDIR || flagp->cmd == NI_DEL) {
+				/*
+				 * This branch is executed when a rmdir
+				 * (NI_RMDIR) or unlink (NI_DEL) is executed
+				 * on a remotely mounted directory.
+				 */
+				u.u_error = EBUSY;
+				goto fail;
+			}
 		dir.d_ino = dp->i_number;
 		goto pass;
 	}
@@ -206,12 +208,6 @@ skip:
 		}
 	case NI_CREAT:	/* create a new file */
 		if (found) {
-			/* Trying to creat an existing directory - */
-			/* error */
-			if (dp->i_number == dir.d_ino) {
-				u.u_error = EISDIR;
-				goto fail;
-			}
 			mp = dp->i_mntdev;
 			iput(dp);
 			if ((dp = iget(mp, dir.d_ino)) == NULL)
@@ -279,6 +275,7 @@ skip:
 		saveoff = u.u_offset;
 		u.u_offset = 0;
 		u.u_segflg = 1;
+		u.u_fmode = FWRITE | FSYNC;
 		s5writei(dip);
 		if (u.u_error) {
 			dip->i_nlink = 0;
@@ -286,16 +283,20 @@ skip:
 			goto fail;
 		}
 		dir.d_ino = dip->i_number;
-		dip->i_flag |= ISYN;
-		s5iupdat(dip, &time, &time);
-		iput(dip);
 		u.u_offset = saveoff;
 		u.u_base = (caddr_t)&dir;
 		u.u_count = sizeof(struct direct);
+		u.u_fmode = FWRITE | FSYNC;
 		s5writei(dp);
+		if (u.u_error) {
+			dip->i_nlink = 0;
+			iput(dip);
+			goto fail;
+		}
 		dp->i_nlink++;	/* update link count for .. */
-		dp->i_flag |= ICHG;
+		dp->i_flag |= ICHG|ISYN;
 		iput(dp);
+		iput(dip);
 		goto null;
 
 
@@ -352,7 +353,7 @@ skip:
 			}
 			cp = bp->b_un.b_addr;
 			/*
-			 * Emptblk returns 1 if the directory is not empty.
+			 * Emptblk returns -1 if the directory is not empty.
 			 * If it contains nothing different from . and ..
 			 * then the return value indicates whether .
 			 * and .. are actually present.
@@ -370,24 +371,26 @@ skip:
 				u.u_count -= u.u_pbsize;
 			}
 		}
-		if (dotflag & DOT)
-			dot++;
-		if (dotflag & DOTDOT)
-			dotdot++;
-		if (dotdot)
-			dp->i_nlink--;
-		if (dot)
-			dip->i_nlink -= 2;
-		else
-			dip->i_nlink--;
-		dip->i_flag |= ICHG;
 		dir.d_ino = 0;
 		u.u_count = sizeof(struct direct);
 		u.u_base = (caddr_t)&dir;
 		u.u_fmode = FWRITE | FSYNC;
 		u.u_offset = saveoff;
 		s5writei(dp);
+		if (u.u_error) {
+			iput(dip);
+			goto fail;
+		}
+		if (dotflag & DOTDOT) {
+			dp->i_nlink--;
+			dp->i_flag |= ICHG;
+		}
 		iput(dp);
+		if (dotflag & DOT) 
+			dip->i_nlink -= 2;
+		else
+			dip->i_nlink--;
+		dip->i_flag |= ICHG;
 		iput(dip);
 		goto null;
 	case NI_DEL:
@@ -476,7 +479,7 @@ register struct argnamei *flagp;
 
 	if (u.u_uid != ip->i_uid && !suser())
 		return(0);
-	if (ip->i_mntdev->m_flags & MRDONLY) {
+	if (rdonlyfs(ip->i_mntdev)) {
 		u.u_error = EROFS;
 		return(0);
 	}

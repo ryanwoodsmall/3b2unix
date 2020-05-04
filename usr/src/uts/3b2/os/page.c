@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/page.c	10.8"
+#ident	"@(#)kern-port:os/page.c	10.9"
 #include "sys/types.h"
 #include "sys/param.h"
 #include "sys/psw.h"
@@ -414,19 +414,22 @@ register dbd_t	*dbd;
 		dev = effdev(ip);
 		inumber = ip->i_number;
 
-		/*	The following kludge is because of the
-		 *	overlapping text and data block in a 413
-		 *	object file.  We hash shared pages on the
-		 *	first of the 2 or 4 blocks which make up
-		 *	the page and private pages on the second
-		 *	block.  This means that the block which
-		 *	has the end of the text and the beginning
-		 *	of the data will be in the hash twice,
-		 *	once as text and once as data.  This is
-		 *	necessary since the two cannot be shared.
+		/*
+		 * The following kludge is because of the
+		 * overlapping text and data block in a 413
+		 * object file.  We hash shared pages (or
+		 * private copies of text pages generated
+		 * when a process is being traced) on the
+		 * first of the 2 or 4 blocks which make up
+		 * the page and private (data) pages on the
+		 * second block.  This means that the block
+		 * which has the end of the text and the
+		 * beginning of the data will be in the hash
+		 * twice, once as text and once as data.  This
+		 * is necessary since the two cannot be shared.
 		 */
 
-		if (rp->r_type == RT_PRIVATE)
+		if (rp->r_type == RT_PRIVATE && !(rp->r_flags & RG_WASTEXT))
 			blkno = dbd->dbd_blkno + 1;
 		else
 			blkno = dbd->dbd_blkno;
@@ -483,27 +486,30 @@ register pfd_t	*pfd;
 		inumber = ip->i_number;
 		dev = effdev(ip);
 
-		/*	The following kludge is because of the
-		 *	overlapping text and data block in a 413
-		 *	object file.  We hash shared pages on the
-		 *	first of the 2 or 4 blocks which make up
-		 *	the page and private pages on the second
-		 *	block.  This means that the block which
-		 *	has the end of the text and the beginning
-		 *	of the data will be in the hash twice,
-		 *	once as text and once as data.  This is
-		 *	necessary since the two cannot be shared.
+		/*
+		 * The following kludge is because of the
+		 * overlapping text and data block in a 413
+		 * object file.  We hash shared pages (or
+		 * private copies of text pages generated
+		 * when a process is being traced) on the
+		 * first of the 2 or 4 blocks which make up
+		 * the page and private (data) pages on the
+		 * second block.  This means that the block
+		 * which has the end of the text and the
+		 * beginning of the data will be in the hash
+		 * twice, once as text and once as data.  This
+		 * is necessary since the two cannot be shared.
 		 */
 
-		if (rp->r_type == RT_PRIVATE)
+		if (rp->r_type == RT_PRIVATE && !(rp->r_flags & RG_WASTEXT))
 			blkno = dbd->dbd_blkno + 1;
 		else
 			blkno = dbd->dbd_blkno;
 
 		/*
-		 *	If blkno is zero, then we can't hash the page.
-		 *	This happens for the last data page of a stripped
-		 *	a.out that is an odd number of blocks long.
+		 * If blkno is zero, then we can't hash the page.
+		 * This happens for the last data page of a stripped
+		 * a.out that is an odd number of blocks long.
 		 */
 
 		if (blkno == 0)
@@ -793,22 +799,26 @@ pbrmcnt++;
 		dev = effdev(ip);
 		inumber = ip->i_number;
 
-		/*	The following kludge is because of the
-		 *	overlapping text and data block in a 413
-		 *	object file.  We hash shared pages on the
-		 *	first of the 2 or 4 blocks which make up
-		 *	the page and private pages on the second
-		 *	block.  This means that the block which
-		 *	has the end of the text and the beginning
-		 *	of the data will be in the hash twice,
-		 *	once as text and once as data.  This is
-		 *	necessary since the two cannot be shared.
+		/*
+		 * The following kludge is because of the
+		 * overlapping text and data block in a 413
+		 * object file.  We hash shared pages (or
+		 * private copies of text pages generated
+		 * when a process is being traced) on the
+		 * first of the 2 or 4 blocks which make up
+		 * the page and private (data) pages on the
+		 * second block.  This means that the block
+		 * which has the end of the text and the
+		 * beginning of the data will be in the hash
+		 * twice, once as text and once as data.  This
+		 * is necessary since the two cannot be shared.
 		 */
 
-		if (rp->r_type == RT_PRIVATE)
+		if (rp->r_type == RT_PRIVATE && !(rp->r_flags & RG_WASTEXT))
 			blkno = dbd->dbd_blkno + 1;
 		else
 			blkno = dbd->dbd_blkno;
+
 		if (blkno == 0)
 			return(0);
 	}
@@ -890,6 +900,7 @@ register struct inode *ip;
 
 	dbd.dbd_type = DBD_FILE;
 	reg.r_iptr = ip;
+	reg.r_flags = 0;
 	bsize = FSBSIZE(ip);
 	nblks = (ip->i_size + bsize - 1)/bsize;
 	blkspp = NBPP/bsize;
@@ -897,24 +908,25 @@ register struct inode *ip;
 	memlock();
 	for (i = 0  ;  i < nblks  ;  i += blkspp) {
 
-		/*	Note the following grossness.  When we
-		**	inserted these pages, we used either
-		**	the first or the second block number
-		**	to hash on depending on whether the
-		**	page was private or shared.  Now we
-		**	don't know which it is so we must do
-		**	the page.  Note that the page which
-		**	contains both text and data could
-		**	be in the table twice so we must do
-		**	both pbremove's even if the first
-		**	one succeeds.
-		*/
+		/*
+		 * Note the following grossness.  When we
+		 * inserted these pages, we used either
+		 * the first or the second block number
+		 * to hash on depending on whether the
+		 * page was private (data) or shared.  Now
+		 * we don't know which it is so we must do
+		 * the page.  Note that the page which
+		 * contains both text and data could
+		 * be in the table twice so we must do
+		 * both pbremove's even if the first
+		 * one succeeds.
+		 */
 		
 		dbd.dbd_blkno = i;
 		reg.r_type = RT_PRIVATE;
-		pbremove(&reg, &dbd);
+		(void) pbremove(&reg, &dbd);
 		reg.r_type = RT_STEXT;
-		pbremove(&reg, &dbd);
+		(void) pbremove(&reg, &dbd);
 	}
 	memunlock();
 }

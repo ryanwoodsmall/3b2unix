@@ -1,10 +1,11 @@
-#ident	"@(#)pkg.perf:perf/setup	1.4"
+#ident	"@(#)pkg.perf:perf/setup	1.5"
 #
 # Install profiler driver and create the node for it
 #
 DRVPATH=/boot
 MAJOR=`/etc/drvinstall -d $DRVPATH/prf.o -v 1.0`
 rm -f $DRVPATH/prf.o
+rm -f /dev/prf
 /etc/mknod /dev/prf c $MAJOR 0
 #
 # Restrict write permission on profiling to root

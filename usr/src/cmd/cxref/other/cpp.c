@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)cpp:common/cpp.c	1.37"
+#ident	"@(#)cpp:common/cpp.c	1.41"
 
 
 #ifdef FLEXNAMES
@@ -531,8 +531,11 @@ refill( p )
 						plvl = 0;
 					return( p );
 				}
-				if ( incomm )
+				if ( incomm ) {
 					pperror( "Unexpected EOF in comment" );
+					/* undo flslvl bump when comment started */
+					if (flslvl) --flslvl;
+				}
 				if ( trulvl +flslvl > 0 )
 					pperror( "Unexpected EOF within #if, #ifdef or #ifndef" );
 				inp = p;
@@ -1093,7 +1096,9 @@ doincl( p )
 	}
 	else
 	{
-		pperror( "bad include syntax", 0 );
+		int ppwarn(), pperror();
+		/* This is a warning if we're skipping, error if not. */
+		(*(flslvl ? ppwarn : pperror))( "bad include syntax", 0 );
 		inctype = 2;
 	}
 	/* flush current file to \n , then write \n */
@@ -1503,7 +1508,7 @@ control( p )		/* find and handle preprocessor control lines */
 			else
 				++flslvl;
 			if ( trulvl + flslvl >= MAX_DEPTH )
-				pperror( "#if,ifdef,ifndef nesting to deep" );
+				pperror( "#if,ifdef,ifndef nesting too deep" );
 			else
 				ifelstk[trulvl + flslvl] =
 					flslvl ? 0 : TRUE_ELIF;
@@ -1520,7 +1525,7 @@ control( p )		/* find and handle preprocessor control lines */
 			else
 				++flslvl;
 			if ( trulvl + flslvl >= MAX_DEPTH )
-				pperror( "#if,ifdef,ifndef nesting to deep" );
+				pperror( "#if,ifdef,ifndef nesting too deep" );
 			else
 				ifelstk[trulvl + flslvl] =
 					flslvl ? 0 : TRUE_ELIF;
@@ -1960,11 +1965,13 @@ subst( p, sp )
 	if ( 0 != ( params = *--vp & 0xFF ) )	/*definition calls for params */
 	{
 		register char **pa;
+		int dparams;		/* parameters in definition */
 
 		ca = acttxt;
 		pa = actual;
 		if ( params == 0xFF )	/* #define foo() ... */
 			params = 0;
+		dparams = params;
 		sloscan();
 		++flslvl; /* no expansion during search for actuals */
 		plvl = -1;
@@ -2051,7 +2058,8 @@ subst( p, sp )
 			}
 			*--p = warnc;
 		}
-		if ( params != 0 )
+		/* def with one arg and use with zero args is special ok case */
+		if ( params < 0 || (params > 0 && dparams != 1) )
 			ppwarn( match, sp->name );
 		while ( --params >= 0 )
 			*pa++ = "" + 1;	/* null string for missing actuals */

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sh:args.c	1.8"
+#ident	"@(#)sh:args.c	1.10"
 
 /*
  *	UNIX shell
@@ -305,6 +305,16 @@ clearup()
 	 */
 	while (pop())
 		;
+
+	/* 
+	 * Clean up pipe file descriptor
+	 * from command substitution
+	 */
+	
+	if(savpipe != -1) {
+		close(savpipe);
+		savpipe = -1;
+	}
 
 	/*
 	 * clean up tmp files

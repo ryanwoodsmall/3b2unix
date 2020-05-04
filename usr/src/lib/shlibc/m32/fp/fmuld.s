@@ -6,7 +6,7 @@
 #	actual or intended publication of such source code.
 
 	.file	"fmuld.s"
-.ident	"@(#)libc-m32:fp/fmuld.s	1.8"
+.ident	"@(#)libc-m32:fp/fmuld.s	1.9"
 
 #	Multiplication of two IEEE double precision arguments.
 #	double _fmuld(src1,src2)
@@ -104,7 +104,7 @@ _fmuld:
 	.align	4
 .software:
 	save	&6
-	addw2	local_var,%sp
+	addw2	&local_var,%sp
 
 	movw	0(%ap),%r3		# get argument 1 high word
 	extzv	&EXP_OFFSET,&EXP_WIDTH,%r3,%r0	# operand 1 exponent

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/sxt.c	10.8"
+#ident	"@(#)kern-port:io/sxt.c	10.9.1.1"
 /*
  * SXT --  Driver for shell layers
  */
@@ -19,7 +19,7 @@
 #ifdef vax
 #include "sys/page.h"
 #endif
-#if vax || u3b5 || u3b2
+#if vax || u3b15 || u3b2
 #include "sys/sysmacros.h"
 #else
 #include "sys/macro.h"
@@ -776,7 +776,7 @@ register struct tty *vtp;
 			(*lp->line->t_proc)(lp->line, T_RFLUSH);
 		break;
 
-#if vax || u3b5 || u3b2
+#if vax || u3b15 || u3b2
 	case T_SWTCH:
 		lp = linkTable[vtp->t_link];
 		/* change control to channel 0 */
@@ -832,6 +832,12 @@ struct tty *tp;
 	int retn;
 	
 	lp = linkTable[tp->t_link];
+
+/*
+ * Check for initialization
+ */
+	if ( lp == NULL )
+		return 0;
 
 #if	SXTRACE == 1
 	if (tracing)
@@ -1081,8 +1087,8 @@ sxtalloc(arg)
 
 
 
-/***************************** 3b5 ******************************/
-#if u3b5
+/***************************** 3b15 ******************************/
+#if u3b15
 
 sxtinit()
 {

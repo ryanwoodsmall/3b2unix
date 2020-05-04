@@ -5,11 +5,13 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libc-port:stdio/ungetc.c	2.6"
+#ident	"@(#)libc-port:stdio/ungetc.c	2.7"
 /*	3.0 SID #	1.3	*/
 /*LINTLIBRARY*/
 #include "shlib.h"
 #include <stdio.h>
+
+extern _findbuf();
 
 int
 ungetc(c, iop)
@@ -23,6 +25,8 @@ register FILE *iop;
 			++iop->_ptr;
 		else
 			return(EOF);
+if (iop->_base == NULL)
+	_findbuf(iop);
 	*--iop->_ptr = c;
 	++iop->_cnt;
 	return(c);

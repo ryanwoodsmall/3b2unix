@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)nserve:nsdb.c	1.9"
+#ident	"@(#)nserve:nsdb.c	1.10"
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
@@ -231,8 +231,8 @@ char	*name;
 int	type;
 struct domain	*d;
 {
-
-	static	struct res_rec	*rrlist[MAXREC];
+	static	int rrsize = 0;
+	static	struct res_rec	**rrlist = NULL;
 	int	trrec = 0;
 	int	i;
 	int	nstype;
@@ -242,6 +242,13 @@ struct domain	*d;
 		Logstamp,name,getctype(type),d);
 
 	nstype = (type == NSTYPE)?NSTYPE:0;
+
+	if (rrsize < d->d_size)
+		/* expand rrlist */
+		if (!(rrlist = (rrlist == NULL) ?
+			(struct res_rec **)malloc((rrsize = d->d_size) * sizeof(struct res_rec *)) :
+			(struct res_rec **)realloc(rrlist, (rrsize = d->d_size) * sizeof(struct res_rec *))))
+			return NULL;
 
 	for (i=0, rp=d->d_rec[0]; i < d->d_size && rp != NULL; rp=d->d_rec[++i])
 		if ((type == ANYTYPE || type == rp->rr_type || nstype & rp->rr_type) &&
@@ -328,13 +335,15 @@ findns(name,domain)
 char	*name;
 struct domain *domain;
 {
+	static	int reclen = 0;	
 	int	i, tot;
 	char	*r;
 	char	sname[BUFSIZ];
 	struct domain	*d;
+	
 	struct res_rec	**trec=NULL;
 	struct res_rec	**recptr=NULL;
-	static struct res_rec	*rec[MAXREC];
+	static struct res_rec	**rec=NULL;
 	char	*rtoken();
 
 	LOG4(L_DB,"(%5d) findns: name=%s, domain=%d\n",
@@ -346,12 +355,18 @@ struct domain *domain;
 	strcpy(sname,name);
 
 	for (r=rtoken(sname), d=domain; r != NULL; r=rtoken(NULL)) {
-		i=0;
 		if ((trec=findrec(r,NSTYPE,d)) != NULL) {
-			for (recptr=rec; trec[i] != NULL && i < MAXREC; i++)
-				rec[i] = trec[i];
-			rec[i] = NULL;
+			for (i=0; trec[i] != NULL; i++);
+			if (i >= reclen) {
+				reclen = i + 1;
+				rec = (rec == NULL) ?
+				(struct res_rec **)malloc((i + 1) * sizeof(struct res_rec *)) :
+				(struct res_rec **)realloc(rec, (i + 1) * sizeof(struct res_rec *));
+			}
 			tot = i;
+			for (;i >= 0; --i)
+				rec[i] = trec[i];
+			recptr = rec;
 		}
 		if ((trec=findrec(r,DOM,d)) != NULL)
 			d = trec[0]->rr_dom;
@@ -476,10 +491,11 @@ char	*domain;
 int	type;
 char	*name;
 {
+	static int reclen = 0;
 	struct res_rec	**list;
 	int	i,j;
 	char	*str;
-	static struct res_rec	*rlist[MAXREC];
+	static struct res_rec	**rlist;
 	char	*dompart();
 	char	*namepart();
 	char	qname[2];
@@ -508,7 +524,7 @@ char	*name;
 		return(NULL);
 	}
 
-	for (i=0, j=0; i < MAXREC && list[i] != NULL; i++) {
+	for (i=0, j=0; list[i] != NULL; i++) {
 		LOG3(L_DB,"(%5d) iquery: checks record %s\n",
 			Logstamp,prec(list[i]));
 		switch (type) {
@@ -525,7 +541,10 @@ char	*name;
 			continue;
 
 		LOG2(L_DB,"(%5d) iquery: record matches\n",Logstamp);
-
+		if (j >= reclen)
+			rlist = (rlist == NULL) ?
+				(struct res_rec **)malloc((1+ ++reclen) * sizeof(struct res_rec *)) :
+				(struct res_rec **)realloc(rlist, (1+ ++reclen) * sizeof(struct res_rec *));
 		rlist[j++] = list[i];
 	}
 
@@ -744,7 +763,9 @@ int	override;
 				file,i,type);
 			continue;
 		}
-		if ((rdata = strtok(NULL,"\n")) == NULL) {
+		rdata = type + 2;
+		rdata += strspn(rdata,WHITESP);
+		if ((rdata = strtok(rdata, "\n")) == NULL) {
 			PLOG4("Warning: file %s, line %d incomplete '%s'\n",
 			    file,i,buf);
 			continue;
@@ -848,7 +869,7 @@ int	override;
 			if ((tlist = iquery(dompart(name),NSTYPE,res->rr_data))
 			     != NULL) {
 			    found = FALSE;
-			    for (k=0; tlist[k] && k < MAXREC; k++) {
+			    for (k=0; tlist[k]; k++) {
 				LOG4(L_COMM,"(%5d) readfile: check %s and %s\n",
 					Logstamp, namepart(name),tlist[k]->rr_name);
 				if (!strcmp(namepart(name),tlist[k]->rr_name)) {
@@ -927,7 +948,7 @@ struct res_rec	**list;
 	if (!list)
 		return;
 
-	for (i=0; list[i] && i < MAXREC; i++)
+	for (i=0; list[i]; i++)
 		freerec(list[i]);
 
 	free(list);
@@ -1149,7 +1170,7 @@ struct res_rec	**list;
 	if (!list)
 		return((struct res_rec **) NULL);
 
-	for (i=0; list[i] && i < MAXREC; i++)
+	for (i=0; list[i]; i++)
 			;
 	count = i;
 

@@ -31,6 +31,7 @@
 /etc/drvinstall
 /etc/errdump
 /etc/finc
+/etc/fltboot
 /etc/fmtflop
 /etc/fmthard
 /etc/frec
@@ -46,7 +47,6 @@
 /etc/hdelogger
 /etc/helpadm
 /etc/init
-/etc/init.d/acct
 /etc/init.d/perf
 /etc/install
 /etc/ldsysdump
@@ -87,15 +87,18 @@
 /etc/vtoc/hd9dft
 /etc/whodo
 /lib/lboot
+/lib/libfm.a
 /lib/mboot
 /lib/olboot
-/shilb/libnsl_s
+/shlib/libnsl_s
 /usr/bin/300
 /usr/bin/300s
 /usr/bin/4014
 /usr/bin/450
 /usr/bin/adv
 /usr/bin/asa
+/usr/bin/assist
+/usr/bin/astgen
 /usr/bin/banner
 /usr/bin/bc
 /usr/bin/bfs
@@ -144,12 +147,11 @@
 /usr/bin/rfpasswd
 /usr/bin/rfstart
 /usr/bin/rfstop
-/usr/bin/rfuadmin
-/usr/bin/rfudaemon
 /usr/bin/rmntstat
 /usr/bin/sadp
 /usr/bin/sag
 /usr/bin/sar
+/usr/bin/sar3.0
 /usr/bin/sdb
 /usr/bin/sdiff
 /usr/bin/shl
@@ -159,6 +161,7 @@
 /usr/bin/strclean
 /usr/bin/strerr
 /usr/bin/timex
+/usr/bin/timex3.0
 /usr/bin/tplot
 /usr/bin/tr
 /usr/bin/unadv
@@ -172,9 +175,8 @@
 /usr/lbin/devinfo
 /usr/lbin/fsinfo
 /usr/lbin/getedt
-/usr/lbin/ignore
-/usr/lbin/mklost+found
 /usr/lbin/optparttn
+/usr/lbin/rfsrunning
 /usr/lbin/rmkdir
 /usr/lbin/rrmdir
 /usr/lbin/vmkfs
@@ -208,6 +210,12 @@
 /usr/lib/acct/startup
 /usr/lib/acct/turnacct
 /usr/lib/acct/wtmpfix
+/usr/lib/assist/bin/mecho
+/usr/lib/assist/bin/mforms
+/usr/lib/assist/bin/mscript
+/usr/lib/assist/bin/msearch
+/usr/lib/assist/bin/msetup
+/usr/lib/assist/bin/tforms
 /usr/lib/calprog
 /usr/lib/ctrace/runtime.c
 /usr/lib/diff3prog
@@ -246,6 +254,7 @@
 /usr/lib/sa/sa1
 /usr/lib/sa/sa2
 /usr/lib/sa/sadc
+/usr/lib/sa/sadc3.0
 /usr/lib/sdbp
 /usr/lib/sdbs
 /usr/lib/spell/compress
@@ -263,3 +272,7 @@
 /usr/lib/vplot
 /usr/lib/yaccpar
 /usr/net/nls/listen
+/usr/nserve/nserve
+/usr/nserve/rfuadmin
+/usr/nserve/rfudaemon
+

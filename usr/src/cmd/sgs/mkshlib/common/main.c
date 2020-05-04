@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mkshlib:common/main.c	1.4"
+#ident	"@(#)mkshlib:common/main.c	1.6.1.3"
 
 #include <stdio.h>
 #include <signal.h>
@@ -29,6 +29,11 @@ char	**argv;
 	asname= concat(prefix,"as");
 
 	cmdline(argc, argv);	/* process the command line */
+	adddir(LIBDIR);
+#ifdef LLIBDIR1
+	adddir(LLIBDIR1);
+#endif	/* LLIBDIR1 */
+
 	mktmps();		/* get names of all temporary files */
 	catchsigs();		/* catch signals to prevent leaving temp files */
 	rdspec();		/* read shared lib. specification file */
@@ -55,8 +60,9 @@ char	**namev;
 		tflag=FALSE,
 		nflag=FALSE;
 
+				
 	/* process command line and set specfnam */
-	while ((c = getopt(namec, namev, "s:t:h:nq")) != EOF)
+	while ((c = getopt(namec, namev, "s:t:h:L:nq")) != EOF)
 		switch (c) {
 			case 's':
 				sflag=TRUE;
@@ -69,6 +75,9 @@ char	**namev;
 			case 'h':
 				makehost= TRUE;
 				hstname= optarg;
+				break;
+			case 'L':
+				adddir(optarg);
 				break;
 			case 'n':
 				nflag=TRUE;
@@ -101,6 +110,6 @@ char	**namev;
 void
 usagerr()
 {
-	(void)fprintf(stderr,"usage: %smkshlib -s specfil -t target [-h host] [-n]\n", prefix);
+	(void)fprintf(stderr,"usage: %smkshlib -s specfil -t target [-q] [-h host] [-n] [-L dir [...]]\n", prefix);
 	exit(1);
 }

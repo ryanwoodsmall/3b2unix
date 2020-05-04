@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)stincc:scommon/match.c	10.1"
+#ident	"@(#)stincc:scommon/match.c	10.5"
 
 # include "mfile2.h"
 # ifdef SDB
@@ -143,7 +143,7 @@ register OPTAB *q;
 
 # ifndef NODBG
 	if( sdebug ) {
-		fprintf(outfile, "match tree %d, op %s\n", p-node, opst[pop] );
+		fprintf(outfile, "match tree %d, op %s\n", node_no(p), opst[pop] );
 	}
 # endif
 	for( ; q ; q = q->nextop ){
@@ -173,6 +173,21 @@ register OPTAB *q;
 			continue;
 		}
 
+#ifdef CG
+			/*nodes that need exceptions need the right template*/
+		if( ( (p->in.strat & EXHONOR) && (q->needs & NO_HONOR) )
+		  || ( (p->in.strat & EXIGNORE) && (q->needs & NO_IGNORE) ) )
+		{
+#  ifndef NODBG
+			if (sdebug) {
+				fprintf(outfile,
+				"\tentry line %d fails exceptions, %o vs %o\n",
+				q->stinline, p->in.strat, q->needs);
+			}
+#  endif
+			continue;
+		}
+#endif
 			/*Set flag to indicate whether shapes must be result*/
 		if ( p->in.goal != CEFF)
 		{
@@ -194,10 +209,10 @@ register OPTAB *q;
 		if( q->lshape ){
 			if (q->needs & LMATCH)	/* exact match */
 			    /* left side must be TEMP if template is asgop,
-			    ** tree is not; note whether ASSIGN
+			    ** tree is not; note whether ASGOP in tree
 			    */
 			    leftshape =
-				mexact(q->lshape, l, (!lflg && asgop(q->op)), pop == ASSIGN);
+				mexact(q->lshape, l, (!lflg && asgop(q->op)), lflg);
 			else if( !lflg && asgop(q->op) ){
 				/* q->op is an assignment op, pop isn't */
 				/* thus, the lhs => a register or temp */
@@ -213,7 +228,7 @@ register OPTAB *q;
 # ifndef NODBG
 		if( sdebug ) {
 			fprintf(outfile, "table line %d matches tree %d\n",
-						q->stinline, p-node );
+						q->stinline, node_no(p) );
 		}
 # endif
 
@@ -287,7 +302,7 @@ int tempdeep;				/* non-zero if TEMP only allowed deep
     if (sdebug > 1)
 	fprintf(outfile,
 	"	mexact called with node %d, shape list %d, templeaf = %d, tempdeep = %d\n",
-					p-node, shplist-pshape, templeaf, tempdeep);
+					node_no(p), shplist-pshape, templeaf, tempdeep);
 #endif
 
     /* quick check for impossible matches;
@@ -368,7 +383,7 @@ NODE * p;
 	switch( optype( sop ) ) {	/* OPs matched */
 	case BITYPE:
 	    /* right sides must match */
-	    if (! smexact( s->sr, p->in.right, 0)) break;
+	    if (! smexact( s->sr, p->in.right)) break;
 	    /*FALLTHRU*/
 	
 	case UTYPE:
@@ -410,7 +425,7 @@ again:
 	if( sdebug>1 )
 	{
 		fprintf(outfile,  "			smspine(%d[%s], %d[%s])\n",
-					s-shapes, opst[sop], p-node, opst[pop] );
+					s-shapes, opst[sop], node_no(p), opst[pop] );
 	}
 # endif
 
@@ -487,7 +502,7 @@ int op;
 	if( sdebug ) 
 	{
 		fprintf(outfile,  "\tmspine( %d, %d, %d )\n",
-					ps-pshape, p-node, flag );
+					ps-pshape, node_no(p), flag );
 	}
 # endif
 	pop = p->tn.op;			/* current op in tree */
@@ -538,7 +553,7 @@ int op;
 			{
 				fprintf(outfile, 
 				"\t\tmspine( %d[%s], %d[%s] ), matches\n",
-				s-shapes, opst[s->op], p-node, opst[pop] );
+				s-shapes, opst[s->op], node_no(p), opst[pop] );
 			}
 # endif
 
@@ -592,7 +607,7 @@ int op;
 			{
 				fprintf(outfile,
 					"\t\tmspine( %d[%s], %d[%s] ), matches\n",
-					s-shapes, opst[s->op], p-node, opst[pop] );
+					s-shapes, opst[s->op], node_no(p), opst[pop] );
 			}
 # endif
 
@@ -690,6 +705,11 @@ OPTAB *q;
 /* ====== END DEBUG */
 #endif
 
+#ifdef CG
+#  ifdef EX_BEFORE
+	EX_BEFORE(p, goal, q);
+#  endif
+#endif
 	for( ; *cp; ++cp )
 	{
 		switch( *cp )
@@ -806,6 +826,9 @@ cream:
 # ifdef RTOLBYTES
 			fldshf = UPKFOFF(q1->tn.rval);
 # else
+#  ifdef SZFIELD
+			fldshf = SZFIELD - fldsz - UPKFOFF(q1->tn.rval);
+#  else
 			t = q1->tn.type;
 			if( t & (TLONG|TULONG) )
 			{
@@ -820,6 +843,7 @@ cream:
 				fldshf = SZCHAR - fldsz - UPKFOFF(q1->tn.rval);
 			}
 			else fldshf = SZINT - fldsz - UPKFOFF(q1->tn.rval);
+#  endif /* def SZFIELD */
 # endif /* def RTOLBYTES */
 			if( c == 'h' ) 
 			{
@@ -889,6 +913,11 @@ cream:
 
 		}
 	}
+#ifdef CG
+#  ifdef EX_AFTER
+	EX_AFTER(p, goal, q);
+#  endif
+#endif
 }
 
 NODE *
@@ -989,7 +1018,7 @@ NODE *p;
 # ifndef NODBG
 		if( sdebug )
 			fprintf(outfile,
-			    "SPTYPE(%d, %o), ttype=%o\n", p-node, sh, p->tn.type );
+			    "SPTYPE(%d, %o), ttype=%o\n", node_no(p), sh, p->tn.type );
 # endif
 
 		if( sh & p->tn.type ) return( 1 );

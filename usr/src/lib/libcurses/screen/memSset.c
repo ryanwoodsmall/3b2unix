@@ -5,10 +5,10 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/memSset.c	1.7.1.1"
+#ident	"@(#)curses:screen/memSset.c	1.7.1.5"
 #include "curses.h"
 /*
- * additional memory routine to deal with memory areas in units of shorts.
+ * additional memory routine to deal with memory areas in units of chtypes.
  */
 
 void memSset (s, c, n)
@@ -75,6 +75,9 @@ register int n;
 /* The vax block copy command doesn't work the way I want. */
 /* If anyone finds a version that does, I'd like to know. */
 #if __bad__vax__
+
+/* this is the code within memcpy which shows how to do a block copy */
+
 memcpy(to, from, count)
 
 	char *to, *from;

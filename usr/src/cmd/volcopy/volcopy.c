@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)volcopy:volcopy.c	4.33"
+#ident	"@(#)volcopy:volcopy.c	4.33.1.6"
 /*	Copyright (c) 1984 AT&T	*/
 /*	  All Rights Reserved  	*/
 
@@ -14,6 +14,7 @@
 /*	actual or intended publication of such source code.	*/
 /*	volcopy	COMPILE:	cc -O volcopy.c -s -i -o volcopy	*/
 /*	u370	COMPILE:	cc -O -b1,1 volcopy.c -s -i -o volcopy	*/
+/*	Modified to add 3B15 16K block size option		*/
 
 #define LOG
 #define AFLG 0 
@@ -39,9 +40,29 @@
 #define	T_TYPE	0xfd187e20	/* like FsMAGIC */
 #define EQ(X,Y,Z) !strncmp(X,Y,Z)
 #define NOT_EQ(X,Y,Z) strncmp(X,Y,Z)
+#if defined(u3b15)
+/*
+ * For volcopy to work on 3B[5|15] and especially on Apache,
+ * it should recognize all valid path names for tape.  The string
+ * "rmt/" is the common string in path names on all these machines.
+ * We will also check for the "rtp/" string for compatibility.
+ */
+IFTAPE(dev_name)
+register char * dev_name;
+{
+	register int length;
+
+	for(length = strlen(dev_name); length > 4; length--, dev_name++)
+		if(strncmp(dev_name, "rmt/", 4) == 0 ||
+		   strncmp(dev_name, "rtp/", 4) == 0)
+			return(1);
+	return(0);
+}
+#else
 #define IFTAPE(s) (EQ(s,"/dev/rmt",8)||EQ(s,"rmt",3)\
 ||EQ(s,"/dev/rtp",8)||EQ(s,"rtp",3))
 	/* the tp is there for upwards compatibility with the old usage */
+#endif	/* u3b15 */
 #ifdef	u370
 #define BLKSIZ	4096
 #else
@@ -57,12 +78,37 @@
 #define Ft800x10	15L
 #define Ft1600x4	22L
 #define Ft1600x10	28L
+#define Ft1600x16	30L
 #define Ft1600x32	32L
 #define Ft6250x10	90L
+#define Ft6250x16	95L
 #define Ft6250x32	115L
 #define Ft6250x50	120L
 #endif
 
+#ifdef u3b15
+/*
+ * Read 1 big block from disk and break up into transfer_ratio smaller
+ * blocks, which the tape can handle, to write to tape.  transfer_ratio
+ * of greater than 1 should not be used when reading from tape.
+ */
+int transfer_ratio = 1;	/* Same size read and write by default.	*/
+#endif	/* u3b15 */
+#if defined(u3b15)
+/*
+ * Should we ask the user if he/she wants shell to be invoked after
+ * hitting break or delete?  The "-nosh" option, which sets the
+ * noshell_flag to 1, should be used as a security precaution when
+ * the user should not be allowed to get shell through volcopy.
+ */
+int noshell_flag = 0;	/* Allow shell by default.	*/
+#endif	/* u3b15 */
+/*
+ * If either of the volume arguments in the command line is '-', we
+ * need a place to store the volume name that is read from the device.
+ */
+#define VOLUME_NAME_LENGTH	6
+char to_vol[VOLUME_NAME_LENGTH + 1], from_vol[VOLUME_NAME_LENGTH + 1];	
 struct Tphdr {
 	char	t_magic[8];
 	char	t_volume[6];
@@ -80,8 +126,9 @@ struct Tphdr {
 
 int	K_drive = 0;	/* 3B20 Kennedy tape drive (4 blks/rec max) */
 int	T_drive = 0;	/* 3B20 Tape File Controller (50 blks/rec) */
-#ifdef u3b15
-int	A_drive = 0;	/* 3B5/3B15 Accellerated Tape Ctlr (32 blks/rec) */
+#if defined(u3b15)
+int	A_drive = 0;	/* 3B15 Accellerated Tape Ctlr (32 blks/rec) */
+int	C_drive = 0;	/* 3B15 Compatibilty Mode (10 blks/rec) */
 #endif
 int	first = 0;
 char	**args;
@@ -129,6 +176,19 @@ options are:
 	In this example, dashed volume args mean "use label that's there."
 
  */
+#if defined(u3b15)
+/*
+	-block NUM - Set the transfer block size to NUM physical blocks (512
+		bytes on 3B2 and 3B15).  Note that an arbitrary block size might
+		or might not work on a given system.  Also, the block size
+		read from the header of an input tape silently overrides this.
+	-nosh - Don't offer the user a shell after hitting break or delete.
+		Only works on 3B15.
+	-r NUM - Read NUM transfer blocks from the disk at once and write it
+		to the output device one block at a time.  Intended only to
+		boost the 3B15 EDFC disk to tape performance.  Disabled on 3B2.
+*/
+#endif	/* u3b15 */
 
 long	Block;
 char *Totape, *Fromtape;
@@ -139,7 +199,7 @@ long	tvec;
 
 struct filsys	Superi, Supero, *Sptr;
 
-extern unsigned	read(), write();
+extern int	read(), write();
 char *tapeck();
 
 sigalrm()
@@ -150,13 +210,17 @@ sigalrm()
 sigint()
 {
 	extern char **environ;
-	int stat, tmpflg;
+	int tmpflg;
 	int i = 0, ps1 = -1, ps2 = -1;
 
 	tmpflg = yesflg;	/* override yesflg for interrupts */
 	yesflg = 0;		/* cuz it's obviously an exception */
 	if(pid != 1) {
+#ifdef u3b15
+		if( !noshell_flag && asks("Want Shell?   ")) {
+#else
 		if(asks("Want Shell?   ")) {
+#endif	/* u3b15 */
 			if(!fork()) {	/* setting the secondary prompt
 					** only works if PS1 and PS2
 					** are both exported */
@@ -172,7 +236,7 @@ sigint()
 				execl("/bin/sh", "/bin/sh", 0);
 			}
 			else
-				wait(stat);
+				wait((int *)0);
 		}
 		else if(asks("Want to quit?    ")) {
 			if(pid) kilchld();
@@ -182,6 +246,7 @@ sigint()
 	signal(SIGINT, sigint);
 	yesflg = tmpflg;		/* reset it */
 }
+
 kilchld()
 {
 	kill(pid -1,9);
@@ -233,15 +298,15 @@ main(argc, argv) char **argv;
 {
 	int	fsi, fso;
 	struct	stat statb;
-	int	i, altflg = AFLG;
-	FILE	*fb, *popen();
+	int	altflg = AFLG;
+	FILE	*popen();
 	char	vol[12], dev[12], c;
 
 	signal(SIGALRM, sigalrm);
 
 	while(argv[1][0] == '-') {
 		if(EQ(argv[1], "-bpi", 4))
-			if((c = argv[1][4]) >= '0' & c <= '9')
+			if((c = argv[1][4]) >= '0' && c <= '9')
 				Bpi = getbpi(&argv[1][4]);
 			else {
 				++argv;
@@ -249,7 +314,7 @@ main(argc, argv) char **argv;
 				Bpi = getbpi(&argv[1][0]);
 			}
 		else if(EQ(argv[1], "-feet", 5))
-			if((c = argv[1][5]) >= '0' & c <= '9')
+			if((c = argv[1][5]) >= '0' && c <= '9')
 				Reelsize = atoi(&argv[1][5]);
 			else {
 				++argv;
@@ -257,13 +322,47 @@ main(argc, argv) char **argv;
 				Reelsize = atoi(&argv[1][0]);
 			}
 		else if(EQ(argv[1],"-reel",5))
-			if((c = argv[1][5]) >= '0' & c <= '9')
+			if((c = argv[1][5]) >= '0' && c <= '9')
 				reel = atoi(&argv[1][5]);
 			else {
 				++argv;
 				--argc;
 				reel = atoi(&argv[1][0]);
 			}
+#ifdef u3b15
+		else if(EQ(argv[1], "-r", 2))	{
+			if((c = argv[1][2]) >= '0' & c <= '9')
+				transfer_ratio = atoi(&argv[1][2]);
+			else {
+				++argv;
+				--argc;
+				transfer_ratio = atoi(&argv[1][0]);
+			}
+			if(transfer_ratio == 0)	{
+				fprintf(stderr,"volcopy: Need a non-zero value for the -r option\n");
+				exit(1);
+			}
+		}
+#endif	/* 3b15 */
+#if defined(u3b15)
+		else if(EQ(argv[1], "-block", 6))	{
+			if((c = argv[1][6]) >= '0' & c <= '9')
+				Nblocks = atoi(&argv[1][6]);
+			else {
+				++argv;
+				--argc;
+				Nblocks = atoi(&argv[1][0]);
+			}
+			if(Nblocks == 0)	{
+				fprintf(stderr,"volcopy: Need a non-zero value for the -block option\n");
+				exit(1);
+			}
+		}
+#endif /* u3b15 */
+#ifdef u3b15
+		else if(EQ(argv[1],"-nosh",5))
+			noshell_flag++;
+#endif	/* u3b15 */
 		else if(EQ(argv[1],"-buf",4))
 			bufflg++;
 		else if(EQ(argv[1],"-a",2))
@@ -291,6 +390,23 @@ main(argc, argv) char **argv;
 		exit (9);
 	}
 
+	/*
+	* Argv[TO_VOL] may be as short as one character, viz., '-'.  If so,
+ 	* the volume name, which can be 6 characters long, is read from the
+ 	* device itself and stored in argv[TO_VOL] which obviously has room
+ 	* for only one character.  So as not to overwrite other data, we'll
+ 	* make argv[TO_VOL] point to a 7-character array.  Same thing is
+	* done for argv[FROM_VOL].  NOTE: Volume names specified as command
+	* line arguments are silently truncated to 6 charcters.
+ 	*/
+	strncpy(to_vol, argv[TO_VOL], VOLUME_NAME_LENGTH);
+	/* Null-terminate the string in case strncpy has not.	*/
+	to_vol[VOLUME_NAME_LENGTH] = '\0';
+	argv[TO_VOL] = &to_vol[0];
+	strncpy(from_vol, argv[FROM_VOL], VOLUME_NAME_LENGTH);
+	from_vol[VOLUME_NAME_LENGTH] = '\0';
+	argv[FROM_VOL] = &from_vol[0];
+
 	if((fsi = open(argv[DEV_FROM],0)) < 1)
 		fprintf(stderr, "%s: ",argv[DEV_FROM]), err("cannot open");
 	if((fso = open(argv[DEV_TO],0)) < 1)
@@ -311,56 +427,69 @@ main(argc, argv) char **argv;
 	Buf = (short *)malloc(BLKSIZ*(Nblocks+1));
 	/* Force buffer to page boundary */
 	Buf = (short *)((int)((char *)Buf+BLKSIZ) & ~(BLKSIZ-1));
-
-	if((int)Buf <= 1) {
-		fprintf(stderr, "Not enough memory--get help\n");
-		exit(1);
-	}
 #else
-
-#if u3b || u3b5
+#if u3b
 	if(K_drive)
 		Nblocks = 4;
 	else
 		Nblocks = ((Totape||Fromtape)&&(Bpi!=6250))? 10:152;
-#else
-#if u3b15
-	if (A_drive)
-		Nblocks = 32;
-	else
-		Nblocks = (Totape||Fromtape)? 10:152;
-#else
-	Nblocks = ((Totape||Fromtape)&&(Bpi!=6250))? 10:88;
-#endif	/* u3b15 */
-#endif	/* u3b */
-#if u3b
 	if(Bpi == 6250)
 		if(T_drive)
 			Nblocks = 50;
  		else
 			Nblocks = 10;
+	Buf = (short *)malloc(BLKSIZ*Nblocks);
+	if((int)Buf == -1 && Nblocks == 152) {
+		Nblocks = 32;
+		Buf = (short *)malloc(BLKSIZ*Nblocks);
+	}
 #else
-#if u3b15
-	/* Nblocks @ 6250 computed above */
+#if defined(u3b15)
+	if(Nblocks == 0) {
+		if(A_drive)
+			Nblocks = 32;
+		else
+			if(C_drive)
+				Nblocks = 10;
+			else
+				Nblocks = (Totape||Fromtape)? 16:152;
+	}
+#ifdef u3b15
+	/*
+	 * This line was dropped from the 3b15 part of the code when three
+	 * sets of ifdefs were consolidated.  Also, the argument to malloc()
+	 * was modified to get transfer_ratio blocks instead of 1 block.
+	 */
+	Buf = (short *)malloc( (BLKSIZ*Nblocks) * transfer_ratio);
+	if(Buf == (short *) NULL)	{
+		fprintf(stderr,"volcopy: cannot allocate %d * %d * %d = %d bytes for buffer.\n", Nblocks, BLKSIZ, transfer_ratio, Nblocks * BLKSIZ * transfer_ratio);
 #else
+	Buf = (short *)malloc(BLKSIZ*Nblocks);
+	if(Buf == (short *) NULL)	{
+		fprintf(stderr,"volcopy: cannot allocate %d * %d = %d bytes for buffer.\n", Nblocks, BLKSIZ, Nblocks * BLKSIZ);
+#endif	/* u3b15 */
+		fprintf(stderr,"Try specifying a smaller block size using the -block option.\n");
+		exit(9);
+	}
+	if((int)Buf == -1 && Nblocks == 152) {
+		Nblocks = 32;
+		Buf = (short *)malloc(BLKSIZ*Nblocks);
+	}
+#else
+	Nblocks = ((Totape||Fromtape) && (Bpi!=6250))? 10:88;
 	if(Bpi == 6250) Nblocks = 50;
+	Buf = (short *)malloc(BLKSIZ*Nblocks);
+	if((int)Buf == -1 && Nblocks == 88) {
+		Nblocks = 22;
+		Buf = (short *)malloc(BLKSIZ*Nblocks);
+	}
 #endif	/* u3b15 */
 #endif	/* u3b */
-	Buf = (short *)sbrk(BLKSIZ*Nblocks);
-#if u3b || u3b15
-	if((int)Buf == -1 && Nblocks ==152) {
-		Nblocks = 32;
-#else
-	if((int)Buf == -1 && Nblocks ==88) {
-		Nblocks = 22;
-#endif	/* u3b || u3b15 */
-		Buf = (short *)sbrk(BLKSIZ*Nblocks);
-	}
+#endif	/* u370 */
 	if((int)Buf == -1) {
 		fprintf(stderr, "Not enough memory--get help\n");
 		exit(1);
 	}
-#endif	/* u370 */
 	Sptr = (struct filsys *)&Buf[BLKSIZ/2];
 	if(!Fromtape && !Totape) reel = 1;
 	if((reel == 1) || !Fromtape) {
@@ -377,7 +506,7 @@ main(argc, argv) char **argv;
 			Fs = Sptr->s_fsize;
 			break;
 		case Fs2b:
-#if u3b5 || u3b15
+#if u3b15
 			Fstype = 4;
 			Fs = Sptr->s_fsize * 4;
 #else
@@ -395,7 +524,7 @@ main(argc, argv) char **argv;
 
 	if(read(fso, Buf, 2*BLKSIZ) < 2*BLKSIZ) {
 		fprintf(stderr,"Read error on output\n");
-		if(!Totape | !altflg) ask();
+		if(!Totape || !altflg) ask();
 	}
 	strncpy(Supero.s_fname, Sptr->s_fname,6);
 	strncpy(Supero.s_fpack, Sptr->s_fpack,6);
@@ -411,7 +540,7 @@ main(argc, argv) char **argv;
 		strncpy(Superi.s_fpack,argv[FROM_VOL],6);
 	}
 	if(Totape) {
-		Reels = Fs / Reelblks + ((Fs % Reelblks) && 1);
+		Reels = Fs / Reelblks + ((Fs % Reelblks) ? 1 : 0);
 		printf("You will need %d reels.\n", Reels);
 		printf("(\tThe same size and density");
 		printf(" is expected for all reels)\n");
@@ -436,19 +565,19 @@ main(argc, argv) char **argv;
 	if(NOT_EQ(argv[FILE_SYS],Superi.s_fname, 6)) {
 		printf("arg. (%.6s) doesn't agree with from fs. (%.6s)\n",
 			argv[FILE_SYS],Superi.s_fname);
-		if(!Totape | !altflg) ask();
+		if(!Totape || !altflg) ask();
 	}
 	if(NOT_EQ(argv[FROM_VOL],"-", 6) &&
 	   NOT_EQ(argv[FROM_VOL],Superi.s_fpack, 6)) {
 		printf("arg. (%.6s) doesn't agree with from vol.(%.6s)\n",
 			argv[FROM_VOL],Superi.s_fpack);
-		if(!Totape | !altflg) ask();
+		if(!Totape || !altflg) ask();
 	}
 
 	if(argv[FROM_VOL][0]=='-') argv[FROM_VOL] = Superi.s_fpack;
 	if(argv[TO_VOL][0]=='-') argv[TO_VOL] = Supero.s_fpack;
 
-	if((reel == 1) & (Supero.s_time+_2_DAYS > Superi.s_time)) {
+	if((reel == 1) && (Supero.s_time+_2_DAYS > Superi.s_time)) {
 		printf("%s less than 48 hours older than %s\n",
 			argv[DEV_TO], argv[DEV_FROM]);
 		printf("To filesystem dated:  %s", ctime(&Supero.s_time));
@@ -501,7 +630,7 @@ main(argc, argv) char **argv;
 	}
 	if(reel > 1) {
 		Fs = (reel -1) * Reelblks + Nblocks;
-		lseek(Totape ? fsi : fso,(unsigned)(Fs * BLKSIZ),0);
+		lseek(Totape ? fsi : fso,(long)(Fs * BLKSIZ),0);
 		Sptr = Totape? &Superi: &Supero;
 		Fs = (Sptr->s_fsize * Fstype) - Fs;
 	}
@@ -526,9 +655,32 @@ main(argc, argv) char **argv;
 copy(fsi,fso)
 int fsi,fso;
 {
-	int i, cnt, pos;
+	int i, cnt;
 	int p1[2], p2[2];
 	char buf[20];
+#ifdef u3b15
+	/*
+	 * This code fixes the problem of slow 3B15 disk, which doesn't
+	 * keep the tape streaming.  If the -r transfer_ratio command line
+	 * argument is used, multiply Nblocks by that transfer ratio, so
+	 * we read a large chunk from the disk to get better performance.
+	 * Since tapes have a limit on the size of I/O jobs, if the FROM
+	 * device is a tape, don't do this buffering.  Also, if the TO
+	 * device is a tape, use the original Nblocks in writes.
+         */
+	int Nblocks_for_writes;
+	/* Xfer_count keeps track of the # of physical blocks written.	*/
+	int xfer_count = 0;
+
+	if ( !Totape && !Fromtape )
+	/* If a disk to disk transfer, writes can be as big as reads	*/
+		Nblocks_for_writes = Nblocks * transfer_ratio;
+	else
+		Nblocks_for_writes = Nblocks;
+
+	if(!Fromtape)
+		Nblocks = Nblocks * transfer_ratio;
+#endif	/* u3b15 */
 
 #ifdef u3b
 	if(T_drive) {
@@ -541,7 +693,7 @@ int fsi,fso;
 	saveFs = Fs;
 	pid = -1;
 	if(bufflg && (Bpi >= 1600)) {
-		if( pipe(p1) | pipe(p2)) {
+		if( pipe(p1) || pipe(p2)) {
 			printf("\volcopy: cannot open pipe, err = %d\n",errno);
 			exit(1);
 		}
@@ -566,6 +718,16 @@ int fsi,fso;
 		/* copy from fsi to fso */
 
 	while((Fs > 0) && (rblock < Reelblks)) {
+#ifdef u3b15
+		/* 
+	 	* Are we going to write too many blocks?  That is, there
+	 	* might be enough room left on the tape for one or more
+	 	* write-sized blocks, but not as many as we read in one LARGE
+	 	* read-sized block.  If so, reduce the size of the read block.
+	 	*/
+		while((rblock + Nblocks - Nblocks_for_writes) >= Reelblks)
+			Nblocks -= Nblocks_for_writes;
+#endif	/* u3b15 */
 		Nblocks = Fs > Nblocks ? Nblocks : Fs;
 
 		if(pid) {
@@ -577,7 +739,7 @@ int fsi,fso;
 				Nblocks = Fs > Nblocks ? Nblocks : Fs;
 			}
 			cnt = read(p_in,buf,1);
-			if(cnt < 0 | buf[0] != 'r') {
+			if(cnt < 0 || buf[0] != 'r') {
 			   if(pid == 1) {
 				write(p_out,"R",1);
 				exit(1);
@@ -588,8 +750,7 @@ int fsi,fso;
 			}
 		}
 
-		if((sts = read(fsi, Buf, BLKSIZ * Nblocks)) 
-		    != BLKSIZ * Nblocks) {
+		if((sts = read(fsi, Buf, BLKSIZ * Nblocks)) != BLKSIZ * Nblocks) {
 			printf("Read error on block %ld...\n", Block);
 			perror();
 			for(i=0; i != Nblocks * (BLKSIZ/2); ++i) Buf[i] = 0;
@@ -611,7 +772,7 @@ int fsi,fso;
 		if(pid) {
 			write(p_out,"r",1);	/* signal read complete */
 			cnt = read(p_in,buf,1);
-			if(cnt < 0 | buf[0] != 'w') {
+			if(cnt < 0 || buf[0] != 'w') {
 				if(pid == 1) {
 					write(p_out,"W",1);
 					exit(1);
@@ -620,7 +781,17 @@ int fsi,fso;
 			}
 		}
 
+#ifdef u3b15
+		while  ( xfer_count < Nblocks )	/* More small blocks to write */
+		{
+		if ( ( xfer_count + Nblocks_for_writes ) > Nblocks )
+		/* Transfering a partial block at the end of the file system. */
+	       		Nblocks_for_writes =  Nblocks - xfer_count;
+		/* Buf is an array of shorts, hence the division by 2	*/
+		if((sts = write(fso, &Buf[(BLKSIZ * xfer_count)/2], BLKSIZ*Nblocks_for_writes)) != BLKSIZ*Nblocks_for_writes) {
+#else
 		if((sts = write(fso, Buf, BLKSIZ*Nblocks)) != BLKSIZ*Nblocks) {
+#endif	/* u3b15 */
 			printf("Write error %d, block %ld...\n",
 				errno,Block);
 			if(Totape) {
@@ -628,7 +799,7 @@ int fsi,fso;
 					write(p_out,"Tape error",10);
 					exit(1);
 				}
-		oterr:		if(asks("Want to try another tape?   ")) {
+				if(asks("Want to try another tape?   ")) {
 					asks("Type `y' when ready:   ");
 					--reel;
 					Block = reeloff;
@@ -640,6 +811,11 @@ int fsi,fso;
 				exit(9);
 			}
 		}
+#ifdef u3b15
+		xfer_count += Nblocks_for_writes;
+		}
+		xfer_count = 0;
+#endif	/* u3b15 */
 
 		if(pid) {
 			write(p_out,"w",1);	/* signal write complete */
@@ -656,24 +832,24 @@ int fsi,fso;
 	}
 	if(pid == 1) {
 cfin:		write(p_out,"Done",4);
-		while (cnt < 0 | buf[0] != 'D') {
+		while (cnt < 0 || buf[0] != 'D') {
 			cnt = read(p_in,buf,1);
 		}
 		exit(0);
 	}
 	else if(pid) {
-pfin:		cnt = read(p_in,buf,1);
+		cnt = read(p_in,buf,1);
 /*
- * Ihcc code debugs some end condition problems
+ * resolve some end condition problems
  */
 		if((Fs + Nblocks) > 0) {
-			if(cnt < 0 | buf[0] != 'r') piperr(buf);
+			if(cnt < 0 || buf[0] != 'r') piperr(buf);
 			cnt = read(p_in, buf, 1);
-			if(cnt < 0 | buf[0] != 'w') piperr(buf);
+			if(cnt < 0 || buf[0] != 'w') piperr(buf);
 			cnt = read(p_in, buf, 1);
 		}
 /***/
-		if(cnt < 0 | buf[0] != 'D') piperr(buf);
+		if(cnt < 0 || buf[0] != 'D') piperr(buf);
 		write(p_out,"Done",4);
 		close(p_in);
 		close(p_out);
@@ -703,19 +879,39 @@ char *inp;
 		inp[4] = '\0';
 	}
 #endif
-#if u3b15
+#if defined(u3b15)
 /*
- *	Kludge to recognized Accellerated Tape Controller usage from
+ *	Kludge to recognize Accellerated Tape Controller usage from
  *	   letter 'a' or 'A' following density given by user.
  */
 	if (inp[4] == 'a' || inp[4] == 'A') 
 	{	A_drive++;
 		inp[4] = '\0';
 	}
+/*
+ *	Kludge to recognize 3B15 Compatibility Mode from
+ *	   letter 'c' or 'C' following density given by user.
+ */
+	if (inp[4] == 'c' || inp[4] == 'C') 
+	{	C_drive++;
+		inp[4] = '\0';
+	}
 #endif
 	return(atoi(inp));
 }
+#if defined(u3b15)
+int
+physical_blocks_per_ft(discount)
+double discount;
+{
+	double d_Nblocks = Nblocks;
+	double d_Bpi = Bpi;
+	double d_BLKSIZ = BLKSIZ;
+	double d_gap = 0.3;	/* Inter-block gap is 0.3 in.	*/
 
+	return((int) ((d_Nblocks/((((d_Nblocks*d_BLKSIZ)/d_Bpi)+d_gap)/12.0))*discount));
+}
+#endif	/* u3b15 */
 
 char *
 tapeck(dev, vol, fd, ioflg)
@@ -767,7 +963,7 @@ tapein:
 		Reels = Tape_hdr.t_reels;
 		Reelsize = Tape_hdr.t_length;
 		Bpi = Tape_hdr.t_dens;
-#if u3b || u3b5
+#if u3b
 		if(Tape_hdr.t_type == T_TYPE) {
 			if(Tape_hdr.t_nblocks == 4)
 				K_drive++; /* use Kennedy tapedrive limit */
@@ -777,14 +973,25 @@ tapein:
 		} else
 			K_drive++;
 #endif
-#if u3b15
+#if defined(u3b15)
 		if (Tape_hdr.t_type == T_TYPE) {
+			if (Tape_hdr.t_nblocks == 0) {
+				Nblocks = 10;
+				C_drive++;
+			}
+			else
+				Nblocks = Tape_hdr.t_nblocks;
 			if (Tape_hdr.t_nblocks == 32)
 				A_drive++; /* use Accellerated Controller limit */
-			else	A_drive = 0;
-		} else
+			else
+				A_drive = 0;
+		}
+		else {
 			A_drive = 0;
-#endif
+			Nblocks = 10;
+			C_drive++;
+		}
+#endif	/* u3b15 */
 	}
 	else{
 		Reels = 0;
@@ -807,17 +1014,55 @@ tapein:
 	if(Bpi == 800)
 		Reelblks = Ft800x10 * Reelsize;
 	else if(Bpi == 1600) {
-#if u3b || u3b5
+#if u3b
 		if(K_drive)
 			Reelblks = Ft1600x4 * Reelsize;
 		else
-#endif
-#if u3b15
-		if (A_drive)
-			Reelblks = Ft1600x32 * Reelsize;
-		else
-#endif
 			Reelblks = Ft1600x10 * Reelsize;
+#elif defined(u3b15)
+		switch (Nblocks) {
+
+		case 0:
+			/* Must be writing a new tape since Nblocks not set */
+			if (A_drive)
+				Reelblks = Ft1600x32 * Reelsize;
+			else
+				if (C_drive)
+					Reelblks = Ft1600x10 * Reelsize;
+				else
+					Reelblks = Ft1600x16 * Reelsize;
+			break;
+
+		case 32:
+			Reelblks = Ft1600x32 * Reelsize;
+			break;
+
+		case 16:
+			Reelblks = Ft1600x16 * Reelsize;
+			break;
+
+		case 10:
+			Reelblks = Ft1600x10 * Reelsize;
+			break;
+		default:
+			/* 
+			 * Arbitrary block sizes.  Figure out the right number
+			 * of physical blocks that can be written into 1 ft.
+			 * of tape discounting for the inter-block gap and a
+			 * possibly short tape.  Assume the usable part of the
+			 * tape is 0.85 of its length for small block sizes and
+			 * 0.88 of it for large block sizes.
+			 */
+			if(Nblocks < 32)
+				Reelblks = physical_blocks_per_ft(0.85) * Reelsize;
+			else
+				Reelblks = physical_blocks_per_ft(0.88) * Reelsize;
+			break;
+		}
+
+#else
+		Reelblks = Ft1600x10 * Reelsize;
+#endif /* u3b15 */
 	}
 	else if(Bpi == 6250)
 #if u3b
@@ -827,17 +1072,43 @@ tapein:
 		else
 			Reelblks = Ft6250x10 * Reelsize;
 	     }
-#else
-#if u3b15
-	     { 
-		if(A_drive)
+#elif defined(u3b15)
+	{
+		switch (Nblocks) {
+
+		case 0:
+			/* Must be writing a new tape since Nblocks not yet set */
+			if (A_drive)
+				Reelblks = Ft6250x32 * Reelsize;
+			else
+				if (C_drive)
+					Reelblks = Ft6250x10 * Reelsize;
+				else
+					Reelblks = Ft6250x16 * Reelsize;
+			break;
+
+		case 32:
 			Reelblks = Ft6250x32 * Reelsize;
-		else
+			break;
+
+		case 16:
+			Reelblks = Ft6250x16 * Reelsize;
+			break;
+
+		case 10:
 			Reelblks = Ft6250x10 * Reelsize;
-	     }
+			break;
+		default:
+			/* See the comment for the 1600 bpi case.	*/
+			if(Nblocks < 32)
+				Reelblks = physical_blocks_per_ft(0.85) * Reelsize;
+			else
+				Reelblks = physical_blocks_per_ft(0.88) * Reelsize;
+			break;
+		}
+	}
 #else
 		Reelblks = Ft6250x50 * Reelsize;
-#endif	/* u3b15 */
 #endif	/* u3b */
 	else {
 		fprintf(stderr, "Bpi must be 800, 1600, or 6250\n");
@@ -851,15 +1122,15 @@ tapein:
 	printf(", %d BPI\n",Bpi);
 	return dev;
 }
+
 hdrck(fd, tvol)
 char *tvol;
 {
 	struct Tphdr *thdr;
-	int siz;
 
 	thdr = (struct Tphdr *) Buf;
 	alarm(15);	/* dont scan whole tape for label */
-	if((siz = read(fd, thdr, sizeof Tape_hdr)) != sizeof Tape_hdr) {
+	if((read(fd, thdr, sizeof Tape_hdr)) != sizeof Tape_hdr) {
 		alarm(0);
 		fprintf(stderr, "Cannot read header\n");
 		if(Totape) {
@@ -890,6 +1161,7 @@ char *tvol;
 	}
 	return 1;
 }
+
 mklabel()
 {
 	int i;
@@ -898,6 +1170,7 @@ mklabel()
 		Tape_hdr.t_magic[i] = '\0';
 	strncpy(Tape_hdr.t_magic,"Volcopy\0",8);
 }
+
 rprt(vol)
 char *vol;
 {
@@ -929,7 +1202,8 @@ char *argv[];
 	system("rm /tmp/FSJUNK");
 	exit(0);
 }
-#endif
+#endif	/* LOG */
+
 chgreel(fs,dev,vol)
 int fs;
 char *dev, *vol;
@@ -999,6 +1273,7 @@ again:
 	rprt(vol);
 	return(fs);
 }
+
 piperr(pbuff)
 char pbuff[];
 {

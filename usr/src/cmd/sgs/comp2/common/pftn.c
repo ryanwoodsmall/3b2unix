@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)pcc2:common/pftn.c	1.31"
+#ident	"@(#)pcc2:common/pftn.c	1.42"
 
 # include "mfile1.h"
 
@@ -20,30 +20,43 @@ struct instk
 	int in_d;    /* dimoff */
 	TWORD in_t;    /* type */
 	int in_id;   /* stab index */
-	int in_fl;   /* flag which says if this level is controlled by {} */
+	int in_fl;   /* flag:  number of {'s remaining open at this level */
 	OFFSZ in_off;  /* offset of the beginning of this level */
-}instack[10],*pstk;
+};
 
-struct symtab *relook();
+static struct instk * pstk;
+/* static */ struct instk instk_init[INI_INSTK];
+
+#ifndef STATSOUT
+static
+#endif
+	TD_INIT(td_instack, INI_INSTK, sizeof(struct instk),
+		TD_ZERO, instk_init, "initialization stack");
+
+#define instack ((struct instk *)td_instack.td_start)
 
 int ddebug = 0;
 
 struct symtab * mknonuniq();
+static unsigned short st_hash[HASHTSZ];	/* symbol hash buckets */
+/* hash function based on name pointer */
+#define st_hashf(p) /* (char *) p */ (((unsigned long) (p)) % HASHTSZ)
 
 defid( q, class )
 register NODE *q; 
 {
 	register struct symtab *p;
- 	extern struct symtab *scopestack[];
 	int idp;
 	register TWORD type;
 	register TWORD stp;
 	register scl;
 	register dsym, ddef;
 	register slev, temp;
+	int wantedclass = class;	/* class originally wanted */
 
 	if( q == NIL ) return;  /* an error was detected */
-	if( q < node || q >= &node[TREESZ] ) cerror( "defid call" );
+	if (class == LABEL || class == ULABEL)
+	    q->tn.rval = looklab(q->tn.rval);	/* re-lookup as label */
 	idp = q->tn.rval;
 	if( idp < 0 ) cerror( "tyreduce" );
 	p = &stab[idp];
@@ -267,16 +280,41 @@ mismatch:
 		p = mknonuniq( &idp ); /* update p and idp to new entry */
 		goto enter;
 	}
-	if( blevel > slev && class != EXTERN && class != FORTRAN &&
-#ifdef IN_LINE
-	    class != INLINE &&
-#endif
-	    class != UFORTRAN && !( class == LABEL && slev >= 2 ) )
-	{
-		q->tn.rval = idp = hide( p );
-		p = &stab[idp];
-		goto enter;
+	/* let slev reflect what level will be after this block's exit
+	** to gauge redeclaration correctly
+	*/
+	switch (p->sclass) {
+	case LABEL:
+	case ULABEL:
+	    slev = 2;
+	    break;
+
+	case EXTERN:
+	case UFORTRAN:
+	case FORTRAN:
+	    slev = 0;
+	    break;
 	}
+
+	/* check whether a hiding definition is appropriate */
+	switch (class) {
+#ifdef IN_LINE
+	case INLINE:	break;		/* asm func. can't use same name */
+#endif
+
+	case LABEL:
+	    if (slev >= 2) break;	/* error if old def. is within func. */
+
+	default:
+	    if (blevel <= slev) break;	/* error if at same or lower level */
+
+	    q->tn.rval = idp = hide( idp );
+	    if (class == EXTERN)
+		checkext(idp, type);	/* check for duplicate extern */
+	    p = &stab[idp];
+	    goto enter;
+	}
+
 	uerror( "redeclaration of %s", p->sname );
 	if( class==EXTDEF && ISFTN(type) ) curftn = idp;
 	return;
@@ -290,6 +328,9 @@ enter:  /* make a new entry */
 	p->slevel = blevel;
 	p->offset = NOOFFSET;
 	p->suse = lineno;
+	if (wantedclass == REGISTER && class != REGISTER)
+	    p->sflags |= SISREG;	/* note decl. was for REG */
+
 	if( class == STNAME || class == UNAME || class == ENAME ) 
 	{
 		p->sizoff = curdim;
@@ -370,28 +411,15 @@ enter:  /* make a new entry */
 #endif
 		FIXDEF(p);
 # endif
- 	if (blevel >= MAXNEST)
- 	{
- 		cerror("too many nesting levels");
- 		/*NOTREACHED*/
- 	}
- 	p->scopelink = scopestack[slev = p->slevel];
- 	scopestack[slev] = p;
-	/* change level of outerscope identifiers first appearing in
-	/* inner scopes
-	*/
-	switch( class )
-	{
- 		case ULABEL:
- 		case LABEL:
- 			p->slevel = 2;
- 			break;
-		case EXTERN:
-		case UFORTRAN:
-		case FORTRAN:
-			p->slevel = 0;
-			break;
-	}
+ 	if (blevel >= MAXNEST)		/* expand table as needed */
+	    td_enlarge(&td_scopestack, blevel+1);
+#ifdef STATSOUT
+	if (td_scopestack.td_max < blevel) td_scopestack.td_max = blevel;
+#endif
+
+ 	p->st_scopelink = scopestack[slev = p->slevel];
+ 	scopestack[slev] = idp;
+
 # ifndef NODBG
 	if( ddebug )
 		printf( "	dimoff, sizoff, offset: %d, %d, %d\n",
@@ -401,20 +429,26 @@ enter:  /* make a new entry */
 
 asave( i )
 {
-	if( argno >= ARGSZ )
-	{
-		cerror( "too many arguments");
+	if( argno >= ARGSZ ) {
+	    /* expand the three args-related tables */
+	    td_enlarge(&td_argstk, 0);
+	    td_enlarge(&td_argsoff, 0);
+	    td_enlarge(&td_argty, 0);
 	}
 	argstk[ argno++ ] = i;
+#ifdef STATSOUT
+	if (td_argstk.td_max < argno) td_argstk.td_max = argno;
+#endif
 }
 
 psave( i )
 {
 	if( paramno >= PARAMSZ )
-	{
-		cerror( "parameter stack overflow");
-	}
+	    td_enlarge(&td_paramstk,0);
 	paramstk[ paramno++ ] = i;
+#ifdef STATSOUT
+	if (td_paramstk.td_max < paramno) td_paramstk.td_max = paramno;
+#endif
 }
 
 /* maximium size of outgoing arguments */
@@ -462,17 +496,17 @@ ftnend()
 	argno = 0;
 	if( nerrors == 0 )
 	{
-		if( psavbc != & asavbc[0] ) cerror("bcsave error");
+		if( psavbc != 0 ) cerror("bcsave error");
 		if( paramno != 0 ) cerror("parameter reset error");
-		if( swx != 0 ) cerror( "switch error");
+		if( sw_beg != 0 ) cerror( "switch error");
 	}
-	psavbc = &asavbc[0];
+	psavbc = 0;
 	paramno = 0;
 	autooff = AUTOINIT;
 	maxarg = 0;
 	reached = 1;
-	swx = 0;
-	swp = swtab;
+	sw_beg = 0;
+	swidx = 0;
 	locctr(DATA);
 }
 
@@ -565,6 +599,7 @@ dclargs()
 	/* code for the case where returning a structure uses a static */
 	if( strftn ) 
 	{
+		NODE * regnode;
 # ifdef STATSRET
 		  /* scalars ok */
 		/* define something the proper size */
@@ -585,8 +620,9 @@ dclargs()
 		q = bdty(NAME, NIL, idname);
 		q->tn.type = PTR|STRTY;
 		++blevel; defid(q, AUTO); --blevel; /* sleazy, aren't we? */
-		ecomp(buildtree(ASSIGN, buildtree(NAME, NIL, NIL),
-		   block(REG, NIL, AUXREG, PTR|STRTY, q->fn.cdim, q->fn.csiz)));
+		regnode = block(REG, NIL, NIL, PTR|STRTY, q->fn.cdim, q->fn.csiz);
+		regnode->tn.rval = AUXREG;	/* set register number */
+		ecomp(buildtree(ASSIGN, buildtree(NAME, NIL, NIL),regnode));
 		q->tn.op = FREE;
 # endif
 	}
@@ -750,7 +786,7 @@ register oparam;
 # ifndef NODBG
 	if( ddebug )
 	{
-		printf( "dclstruct( %szindex = %d\n",
+		printf( "dclstruct( %s, szindex = %d\n)",
 			(i>=0)? stab[i].sname : "??", szindex );
 	}
 # endif
@@ -853,7 +889,6 @@ yyaccpt()
 /* storage file by squirrelmacro().  inlargs[] will also be used
 /* to read the formal parameter names back in when an asm call is expanded.
 */
-char inlargs[ BUFSIZ ] = "" ;
 int ninlargs = 0;
 #endif
 
@@ -876,8 +911,12 @@ register idn;
 		/* the name of this function matches parm */
 		/* fall thru */
 	default:
-		idn = hide(p);
+		idn = hide(idn);
 		p = &stab[idn];
+		/* Eventually defid() gets called with this ID at blevel
+		** 1, and it then gets linked onto scopestack at that
+		** level.  Linking it now leads to a mess.
+		*/
 		break;
 	case TNULL:
 		/* unused entry, fill it */
@@ -893,10 +932,19 @@ register idn;
 */
 	if (curclass == INLINE)
 	{
-	    if ( strlen(inlargs) + strlen(p->sname) > BUFSIZ -2 )
-		cerror( " out of room for asm argument storage ");
-	    strcat( inlargs, p->sname);
-	    strcat( inlargs, "#");
+	    /* Want to create:
+	    **	<oldnames> # <newname> NUL
+	    */
+	    int needsize = sz_inlargs + 1 + strlen(p->sname) + 1;
+	    if ( needsize > SZINLARGS )
+		td_enlarge(&td_inlargs, needsize - SZINLARGS);
+	    
+	    sprintf( &inlargs[sz_inlargs], "%s#", p->sname);
+	    sz_inlargs = needsize - 1;	/* don't include NUL here */
+#ifdef	STATSOUT
+	    if (needsize > td_inlargs.td_max)
+		td_inlargs.td_max = needsize;
+#endif
 	    ninlargs++;
 	}
 #endif
@@ -973,6 +1021,7 @@ register TWORD ty;
 
 	register i;
 	register OFFSZ mult;
+	OFFSZ size;
 
 	mult = 1;
 
@@ -999,7 +1048,13 @@ register TWORD ty;
 		uerror( "unknown size");
 		return( SZINT );
 	}
-	return( dimtab[ s ] * mult );
+	size = dimtab[ s ] * mult;
+	/* check for size overflow (array too large) */
+	if (size/dimtab[s] != mult) {
+	    uerror("array too large");
+	    return( SZINT );
+	}
+	return( size );
 }
 
 inforce( n )
@@ -1020,7 +1075,7 @@ register OFFSZ n;
 		**
 		** former message: "initialization alignment error"
 		*/
-		uerror("too many initializers");
+		uerror("too many initializers; missing } ?");
 		inoff = n;		/* make alignment look okay */
 		return;
 	}
@@ -1069,8 +1124,6 @@ vfdalign( n )
 #ifndef NODBG
 extern int idebug;
 #endif
-
-int ibseen = 0;  /* the number of } constructions which have been filled */
 
 int iclass;  /* storage class of thing being initialized */
 
@@ -1129,7 +1182,6 @@ beginit(curid)
 	}
 
 	inoff = 0;
-	ibseen = 0;
 
 	pstk = 0;
 
@@ -1144,73 +1196,65 @@ register TWORD t;
 {
 	/* make a new entry on the parameter stack to initialize id */
 
-	register struct symtab *p;
-
 	if (t == STRTY && dimtab[s] == 0) {
 	    uerror( "undefined structure" );
 	    return;
 	}
 	    
-	for(;;)
-	{
+
+	/* save information on the stack */
+
+	if( !pstk ) pstk = instack;
+	else if (++pstk >= &instack[td_instack.td_allo]) {
+	    int oldindex = pstk-instack;
+
+	    td_enlarge(&td_instack, 0);	/* enlarge table */
+	    pstk = &instack[oldindex];	/* reset pointer */
+	}
+#ifdef STATSOUT
+	if (pstk-instack > td_instack.td_max)	/* track max. value */
+	    td_instack.td_max = pstk-instack;
+#endif
+
 # ifndef NODBG
-		if( idebug ) printf( "instk((%d, %o,%d,%d, %d)\n", id, t, d, s, off );
+	if( idebug ) {
+	    printf( "instk(), level %d, offset %d, symbol %s, type ",
+		pstk-instack, off, stab[id].sname);
+	    tprint(t);
+	    printf(", dim %d, siz %d\n", d, s);
+	}
 # endif
 
-		/* save information on the stack */
-
-		if( !pstk ) pstk = instack;
-		else ++pstk;
-
-		pstk->in_fl = 0;	/* { flag */
-		pstk->in_id =  id ;
-		pstk->in_t =  t ;
-		pstk->in_d =  d ;
-		pstk->in_s =  s ;
-		pstk->in_n = 0;  /* number seen */
-		pstk->in_x =  t==STRTY ?dimtab[s+1] : 0 ;
-		pstk->in_off = off;  /* offset at beginning of this element */
-		/* if t is an array, DECREF(t) can't be a field */
-		/* INS_sz has size of array elements, and -size for fields */
-		if( ISARY(t) )
-		{
-			pstk->in_sz = tsize( DECREF(t), d+1, s );
-		}
-		else if( stab[id].sclass & FIELD )
-		{
-			pstk->in_sz = - ( stab[id].sclass & FLDSIZ );
-		}
-		else 
-		{
-			pstk->in_sz = 0;
-		}
-
-		if( (iclass==AUTO || iclass == REGISTER ) &&
-		    (ISARY(t) || t==STRTY) )
-			uerror( "no automatic aggregate initialization" );
-
-		/* now, if this is not a scalar, put on another element */
-
-		if( ISARY(t) )
-		{
-			t = DECREF(t);
-			++d;
-			continue;
-		}
-		else if( t == STRTY )
-		{
-			id = dimtab[pstk->in_x];
-			p = &stab[id];
-			if( p->sclass != MOS && !(p->sclass&FIELD) )
-				cerror( "insane structure member list" );
-			t = p->stype;
-			d = p->dimoff;
-			s = p->sizoff;
-			off += p->offset;
-			continue;
-		}
-		else return;
+	pstk->in_fl = 0;	/* { flag */
+	pstk->in_id =  id ;
+	pstk->in_t =  t ;
+	pstk->in_d =  d ;
+	pstk->in_s =  s ;
+	pstk->in_n = 0;  /* number seen */
+	pstk->in_x =  t == STRTY ? dimtab[s+1] : 0 ;
+	pstk->in_off = off;  /* offset at beginning of this element */
+	/* if t is an array, DECREF(t) can't be a field */
+	/* INS_sz has size of array elements, and -size for fields */
+	if( ISARY(t) )
+	{
+		pstk->in_sz = tsize( DECREF(t), d+1, s );
+		if (pstk->in_sz == 0)	/* sometimes happens on error */
+		    pstk->in_sz = 1;	/* prevent core on divide by zero */
 	}
+	else if( stab[id].sclass & FIELD )
+	{
+		pstk->in_sz = - ( stab[id].sclass & FLDSIZ );
+	}
+	else 
+	{
+		pstk->in_sz = 0;
+	}
+
+	if( (iclass==AUTO || iclass == REGISTER ) &&
+	    (ISARY(t) || t==STRTY) )
+		uerror( "no automatic aggregate initialization" );
+
+	return;
 }
 
 NODE *
@@ -1220,14 +1264,20 @@ getstr()
 	    and get the contents accordingly */
 	register l, temp;
 	register NODE *p;
+	TWORD t;
 
-	if( (iclass==EXTDEF||iclass==STATIC) &&
-	    (pstk->in_t == CHAR || pstk->in_t == UCHAR) &&
-	    pstk!=instack && ISARY( pstk[-1].in_t ) )
+	if (pstk) nextelem(0);		/* move to next scalar element if
+					** initializing
+					*/
+
+	if(    (iclass==EXTDEF||iclass==STATIC)
+	    && ((t = pstk->in_t) == CHAR || t == UCHAR)
+	    && ISARY( (pstk[-1].in_t) )
+	    )
 	{
 		/* treat "abc" as { 'a', 'b', 'c', 0 } */
 		strflg = 1;
-		ilbrace();  /* simulate { */
+		++pstk[-1].in_fl;	/* simulate { */
 		inforce( pstk->in_off );
 
 		/* if the array is inflexible (not top level), pass in the size
@@ -1235,7 +1285,7 @@ getstr()
 		*/
 
 		/* get the contents */
-		lxstr((pstk-1)!=instack?dimtab[(pstk-1)->in_d]:0);
+		lxstr( pstk != instack ? dimtab[pstk[-1].in_d]:0);
 		irbrace();  /* simulate } */
 		return( NIL );
 	}
@@ -1265,9 +1315,10 @@ putbyte( v )
 	 /* simulate byte v appearing in a list of integer values */
 	register NODE *p;
 	p = bcon(v);
+	nextelem(0);
 	incode( p, SZCHAR );
 	tfree( p );
-	gotscal();
+	endelem();
 }
 
 endinit()
@@ -1310,7 +1361,7 @@ endinit()
 			inforce( tsize( t, d, s ) );
 			n = d1;
 		}
-		if( d1!=0 && d1!=n ) uerror( "too many initializers");
+		if( d1!=0 && d1!=n ) uerror( "too many array initializers");
 		if( n==0 ) werror( "empty array declaration");
 		dimtab[d] = n;
 	}
@@ -1334,6 +1385,7 @@ endinit()
 	if ( ISARY(t) && defer_def >= 0)
 	    defnamdbg( &stab[defer_def] );
 
+	pstk = 0;			/* no init stack */
 }
 
 doinit( p )
@@ -1363,7 +1415,7 @@ register NODE *p;
 	if( iclass == AUTO || iclass == REGISTER )
 	{
 		/* do the initialization and get out, without regard 
-		** for filing out the variable with zeros, etc. 
+		** for filling out the variable with zeros, etc. 
 		*/
 		bccode();
 		idname = pstk->in_id;
@@ -1374,15 +1426,12 @@ register NODE *p;
 
 	if( p == NIL ) return;  /* throw away strings already made into lists */
 
-	if( ibseen )
-	{
-		uerror( "} expected");
-		goto leave;
-	}
 
 # ifndef NODBG
 	if( idebug > 1 ) printf( "doinit(%o)\n", p );
 # endif
+
+	nextelem(0);		/* get to next scalar */
 
 	t = pstk->in_t;  	/* type required */
 	d = pstk->in_d;
@@ -1449,115 +1498,152 @@ register NODE *p;
 			}
 		}
 
-	gotscal();
+	endelem();
 
 leave:
 	tfree(p);
 }
 
-gotscal()
+
+/* done initializing one scalar; adjust initialization stack */
+
+endelem()
 {
-	register t, ix;
-	register n, id;
-	register struct symtab *p;
-	register OFFSZ temp;
+    TWORD t;
 
-	for( ; pstk > instack; ) 
-	{
+#ifndef NODBG
+    if (idebug) printf("endelem() enter at level %d\n", pstk-instack);
+#endif
 
-		if( pstk->in_fl ) ++ibseen;
+    /* back up to last unfilled aggregate, but not past need for } */
+    while (pstk->in_fl == 0 && pstk > instack) {
+	--pstk;				/* back up stack */
+	t = pstk->in_t;
+	if (t == STRTY) {
+	    int ix = ++pstk->in_x;	/* bump structure member number */
 
-		--pstk;
-
-		t = pstk->in_t;
-
-		if( t == STRTY )
-		{
-			ix = ++pstk->in_x;
-			if( (id=dimtab[ix]) < 0 ) continue;
-
-			/* otherwise, put next element on the stack */
-
-			p = &stab[id];
-			instk( id, p->stype, p->dimoff, p->sizoff, p->offset+pstk->in_off );
-			return;
-		}
-		else if( ISARY(t) )
-		{
-			n = ++pstk->in_n;
-			if( n >= dimtab[pstk->in_d] && pstk > instack ) continue;
-
-			/* put the new element onto the stack */
-
-			temp = pstk->in_sz;
-			instk( pstk->in_id, (TWORD)DECREF(pstk->in_t), pstk->in_d+1, pstk->in_s,
-			pstk->in_off+n*temp );
-			return;
-		}
-
+	    if (dimtab[ix] >= 0) break;
 	}
+	else if (ISARY(t)) {
+	    int n = ++pstk->in_n;	/* bump array element number */
 
+	    if (n < dimtab[pstk->in_d]) break;
+	}
+	/* can never have backed up stack to scalar */
+    }
+
+#ifndef NODBG
+    if (idebug) printf("endelem() exit at level %d\n", pstk-instack);
+#endif
+    return;
+}
+    
+
+nextelem(onelevel)
+int onelevel;				/* non-zero to go down just one level */
+{
+
+
+    do {
+	TWORD t;
+	int id;
+	struct symtab *p;
+
+#ifndef NODBG
+	if (idebug) printf("nextelem() enter at level %d\n", pstk-instack);
+#endif
+
+	/* if nothing on stack */
+	if (pstk < instack)
+	    cerror("confused nextelem()");
+
+	t = pstk->in_t;
+
+	if( t == STRTY )
+	{
+	    /* next element of struct */
+	    if( (id=dimtab[pstk->in_x]) < 0 ) {
+		if (pstk->in_fl) {	/* awaiting } ? */
+		    uerror("too many struct initializers");
+		    break;
+		}
+		else if (pstk <= instack)
+		    break;		/* don't back up too far */
+		--pstk;			/* done struct */
+		continue;
+	    }
+
+	    /* otherwise, put next element on the stack */
+
+	    p = &stab[id];
+	    if (p->sclass != MOS && !(p->sclass&FIELD))
+		cerror("insane structure member list");
+
+	    instk( id, p->stype, p->dimoff, p->sizoff, p->offset + pstk->in_off );
+	}
+	else if( ISARY(t) )
+	{
+	    OFFSZ temp;
+	    int n;
+	    int dim;
+
+	    /* ready for n-th stack element (0-(n-1)) */
+	    n = pstk->in_n;
+	    dim = pstk->in_d;
+	    if( dimtab[dim] > 0 && n >= dimtab[dim] ) {
+		uerror("too many array(2) initializers");
+		break;
+	    }
+		
+	    /* put the new element onto the stack */
+
+	    temp = pstk->in_sz;
+	    instk( pstk->in_id, (TWORD)DECREF(pstk->in_t), dim+1,
+		pstk->in_s, pstk->in_off+n*temp );
+	}
+	else
+	    break;			/* done when hit scalar */
+    } while (!onelevel);
+#ifndef NODBG
+	if (idebug) printf("nextelem() exit at level %d\n", pstk-instack);
+#endif
+    return;
 }
 
 ilbrace()
 {
-	 /* process an initializer's left brace */
-	register t;
-	register struct instk *temp;
+#ifndef NODBG
+    if (idebug) printf("ilbrace() enter at level %d\n", pstk-instack);
+#endif
 
-	temp = pstk;
-
-	for( ; pstk > instack; --pstk )
-	{
-
-		t = pstk->in_t;
-		if( t != STRTY && !ISARY(t) ) continue; /* not an aggregate */
-		if( pstk->in_fl )
-		{
-			 /* already associated with a { */
-			if( pstk->in_n ) uerror( "illegal {");
-			continue;
-		}
-
-		/* we have one ... */
-		pstk->in_fl = 1;
-		break;
-	}
-
-	/* cannot find one */
-	/* ignore such right braces */
-
-	pstk = temp;
+    nextelem(1);			/* go down one level only */
+    ++pstk->in_fl;			/* bump flag at new level */
+#ifndef NODBG
+    if (idebug) printf("ilbrace() exit at level %d\n", pstk-instack);
+#endif
+    return;
 }
+
 
 irbrace()
 {
-	/* called when a '}' is seen */
+#ifndef NODBG
+    if (idebug) printf("irbrace() at level %d\n", pstk-instack);
+#endif
 
-# ifndef NODBG
-	if( idebug ) printf( "irbrace(): paramno = %d on entry\n", paramno );
-# endif
+    /* back up stack until a flagged { is found */
 
-	if( ibseen ) 
-	{
-		--ibseen;
-		return;
+    for (;;) {
+	if (pstk->in_fl) {
+	    --pstk->in_fl;		/* one less } to find */
+	    endelem();
+	    return;
 	}
-
-	for( ; pstk > instack; --pstk )
-	{
-		if( !pstk->in_fl ) continue;
-
-		/* we have one now */
-
-		pstk->in_fl = 0;  /* cancel { */
-		gotscal();  /* take it away... */
-		return;
-	}
-
-	/* these right braces match ignored left braces: throw out */
-
+	if (pstk <= instack) return;	/* don't back up beyond beginning */
+	--pstk;
+    }
 }
+
 
 upoff( size, alignment, poff )
 register alignment, *poff; 
@@ -2183,42 +2269,37 @@ register *idindex;
 	/* locate a symbol table entry for */
 	/* an occurrence of a nonunique structure member name */
 	/* or field */
-	register i;
-	register struct symtab * sp;
+	register struct symtab * new;
+	register struct symtab * old;
+	int i = st_getnew();
 
-	sp = & stab[ i= *idindex ]; /* position search at old entry */
-	while( sp->stype != TNULL )
-	{
-		 /* locate unused entry */
-		if( ++i >= SYMTSZ )
-		{
-			/* wrap around symbol table */
-			i = 0;
-			sp = stab;
-		}
-		else ++sp;
-		if( i == *idindex ) cerror("Symbol table full");
-	}
-	sp->sflags = SNONUNIQ | SMOS;
-	sp->sname = stab[*idindex].sname; /* old entry name */
-	*idindex = i;
+	new = &stab[ i ];		/* point at new entry */
+	old = &stab[ *idindex ];
+	new->sflags = SNONUNIQ | SMOS;
+	new->sname = old->sname;	/* old entry name */
 # ifndef NODBG
 	if( ddebug )
 	{
 		printf( "\tnonunique entry for %s from %d to %d\n",
-		sp->sname, *idindex, i );
+		new->sname, *idindex, i );
 	}
 # endif
-	return ( sp );
+	/* set up linkages */
+	new->st_next = *old->st_own;	/* link to beginning of chain */
+	*old->st_own = i;
+	new->st_own = old->st_own;
+	*idindex = i;
+	return ( new );
 }
 
 lookup( name, s)
 register char *name; 
 {
-	/* look up name: must agree with s w.r.t. STAG, SMOS and SHIDDEN */
+	/* look up name: must agree with s w.r.t. STAG and SMOS */
 
-	register i, ii;
+	register i;
 	register struct symtab *sp;
+	unsigned int hash = st_hashf(name);
 
 	/* compute initial hash index */
 # ifndef NODBG
@@ -2229,41 +2310,62 @@ register char *name;
 	}
 # endif
 
-	i = ((unsigned long) name) % SYMTSZ;
+	for ( i = st_hash[ hash ]; i > 0; i = sp->st_next ) {
+	    sp = &stab[i];
 
-	sp = &stab[ii=i];
-
-	for(;;)
-	{
-		 /* look for name */
-		if( sp->stype == TNULL )
-		{
-			 /* empty slot */
-			sp->sflags = s;  /* set STAG, SMOS if needed, turn off all others */
-			sp->sname = name;
-			sp->stype = UNDEF;
-			sp->sclass = SNULL;
-			return( i );
-		}
-		if( (sp->sflags & (STAG|SMOS|SHIDDEN)) != s ) goto next;
-		if ( sp->sname == name )
-			return( i );
-next:
-		if( ++i >= SYMTSZ )
-		{
-			i = 0;
-			sp = stab;
-		}
-		else ++sp;
-		if( i == ii ) cerror( "symbol table full" );
+	    /* look for name */
+	    if( (sp->sflags & (STAG|SMOS|SLABEL)) != s ) continue;
+	    if ( sp->sname == name )
+		return( i );
 	}
+	/* Entry not found:  get one, fill in partially.
+	** (Beware!! Must NOT do &stab[ i = st_getnew() ],
+	** because the value of "stab" could change with the
+	** st_getnew() ).
+	*/
+	i = st_getnew();
+	sp = &stab[ i ];
+
+	sp->sflags = s;  /* set STAG, SMOS if needed, turn off all others */
+	sp->sname = name;
+	sp->stype = UNDEF;
+	sp->sclass = SNULL;
+	/* link in on current chain */
+	sp->st_own = &st_hash[hash];
+	sp->st_next = st_hash[hash];
+	st_hash[hash] = i;
+	return( i );
 }
+
+/* Look up symbol as label.  Assume that we may be given a new
+** symbol table entry because the symbol wasn't found on the
+** previous lookup.  Free it, look for a symbol with flag SLABEL,
+** and return it.
+*/
+
+static int
+looklab(id)
+register int id;			/* stab id of original symbol */
+{
+    if (stab[id].sclass == SNULL) {	/* new entry? */
+	if (*stab[id].st_own != id)
+	    cerror("confused looklab()");
+	*stab[id].st_own = stab[id].st_next; /* unlink from bucket */
+	stab[id].stype = TNULL;		/* make entry available again */
+#ifdef STATSOUT
+	--td_stab.td_used;		/* one less entry used */
+#endif
+    }
+    /* look the symbol up as a label, and return result */
+    return( idname = lookup(stab[id].sname, SLABEL) );
+}
+
 
 #ifndef checkst
 /* if not debugging, make checkst a macro */
 checkst(lev)
 {
-	register int s, i, j;
+	register int i, j;
 	register struct symtab *p, *q;
 
 	for( i=0, p=stab; i<SYMTSZ; ++i, ++p )
@@ -2273,9 +2375,15 @@ checkst(lev)
 		if( j != i )
 		{
 			q = &stab[j];
-			if( q->stype == UNDEF ||
-			    q->slevel <= p->slevel )
+			if (   q->stype == UNDEF
+			    /* can have same structure/union member at same level */
+			    || (q->slevel <= p->slevel && !(p->sflags&q->sflags&SMOS))
+			    )
 			{
+				void st_print();
+#ifndef	NODBG
+				st_print();
+#endif
 				cerror( "check error: %s", q->sname );
 			}
 		}
@@ -2284,153 +2392,234 @@ checkst(lev)
 }
 #endif
 
-struct symtab *
-relook(p)
-register struct symtab *p; 
-
-{
-	  /* look up p again, and see where it lies */
-	register struct symtab *q;
-
-	/* I'm not sure that this handles towers of several hidden definitions in all cases */
-	q = &stab[lookup( p->sname, p->sflags&(STAG|SMOS|SHIDDEN) )];
-	/* make relook always point to either p or an empty cell */
-	if( q->stype == UNDEF )
-	{
-		q->stype = TNULL;
-		return(q);
-	}
-	while( q != p )
-	{
-		if( q->stype == TNULL ) break;
-		if( ++q >= &stab[SYMTSZ] ) q=stab;
-	}
-	return(q);
-}
 
 clearst( lev )
 {
-	 /* clear entries of internal scope  from the symbol table */
-	extern struct symtab *scopestack[];
-	register struct symtab *p, *q, *r;
+	/* clear entries of internal scope from the symbol table */
+	int i;
+	int savehead = 0;		/* list header of entries to move */
+
+	if (lev >= MAXNEST) return;	/* no symbols at this level yet */
 
 # ifdef STABS
 	/* do this first, so structure members don't get clobbered
 	** before they are printed out... 
 	*/
 	aobeg();
-	p = scopestack[blevel];
-	while (p)
-	{
-		aocode(p);
-		p = p->scopelink;
-	}
+	for ( i = scopestack[lev]; i > 0; i = stab[i].st_scopelink )
+		aocode(&stab[i]);
 	aoend();
 # endif
 
-	/* q is to collect enteries which properly belong to 
-	   an outer scope */
-	q = (struct symtab *) NULL;
-	/* first, find an empty slot to prevent newly hashed entries 
-	** from being slopped into... 
+	/* For each entry at a given scope level, go back to the owning
+	** hash table entry and eliminate all entries on that list that
+	** have scope >= the scope level in question.
+	** NOTE:  It is possible, with this algorithm, to free a symtab
+	** entry that is further along on the scopestack queue.  Since
+	** the various queue pointers remain intact, we can still follow
+	** the queue.
+	** C wart:  save function definitions and labels and move them to
+	** appropriate outer scopes.
 	*/
 
-	p = scopestack[lev];
-	while (p)
-	{
+	for (i = scopestack[lev]; i > 0; i = stab[i].st_scopelink) {
+	    int j;
+	    unsigned short * hashhead = stab[i].st_own;
+
+	    /* eat up entries at higher levels on this hash bucket */
+	    while ((j = *hashhead) > 0) {
+		register struct symtab * sp = &stab[j];
+
+		/* TNULL entries have already been eaten */
+		if (sp->stype != TNULL && sp->slevel < lev)
+		    break;
 # ifndef NODBG
 		if (ddebug)
-			printf("removing %s = stab[ %d], flags %o level %d\n",
-			    p->sname,p-stab,p->sflags,p->slevel);
+		    printf("removing %s = stab[ %d], flags %o level %d\n",
+				sp->sname, j, sp->sflags, sp->slevel);
 # endif
-		/* if this is still undefined, complain */
-		if (p->stype == UNDEF ||
-				( p->sclass == ULABEL && lev <=2) )  {
-			uerror("%s undefined", p->sname);
+		if (sp->stype == UNDEF)
+		    cerror("%s undefined", sp->sname);
+		if ( sp->sclass == ULABEL && lev <= 2)
+		    uerror("undefined label %s", sp->sname);
+		*hashhead = sp->st_next;
+
+		/* remember entries to move down the queue */
+		switch( sp->sclass ) {
+		case LABEL:
+		case ULABEL:
+		    sp->slevel = 2;
+		    break;
+
+		case EXTERN:
+		case UFORTRAN:
+		case FORTRAN:
+		    sp->slevel = 0;
+		    break;
 		}
-		if( p->sflags & SHIDES &&  lev <= p->slevel )
-			unhide(p);
-		if ( lev > p->slevel ) {
-		/* collect outer scope entries first 
-		   appearing in inner scope */
-			/* move stuff we plan to save */
-			if( (r=relook(p)) != p )
-				*r = *p;
-			r = p;
-			p = p->scopelink;
-			r->scopelink = q;
-			q = r;
-		} else {
-			p->stype = TNULL;
-			p = p->scopelink;
+		if (sp->slevel < lev) { /* changed the level above */
+		    sp->st_next = savehead;
+		    savehead = j;
 		}
-	}
-	scopestack[lev] = (struct symtab *) NULL;
-	/* move outer scope entries into holes, and up a level */
-	while( q )
-	{
-	    r = &stab[ lookup( q->sname, q->sflags&(STAG|SMOS|SHIDDEN) ) ];
-	    if ( r != q )
-	    {
-		*r = *q;
-		q->stype = TNULL;
+		else {
+#ifdef STATSOUT
+		    --td_stab.td_used;
+#endif
+		    sp->stype = TNULL;	/* make this entry free */
+		}
 	    }
-	    q = q->scopelink;
-	    r->scopelink = scopestack[ lev-1 ];
-	    scopestack[ lev-1 ] = r;
+	}
+	scopestack[lev] = 0;		/* empty scope list */
+
+	/* Now link in the proper place all of the entries we saved
+	** off to the side.  Note that we couldn't have done this at
+	** the same time we "removed" the entry because the linkages
+	** (mainly scopelink) would have gotten badly mangled.
+	*/
+	for (i = savehead; i > 0; ) {
+	    int j = i;			/* hang onto current entry number */
+	    struct symtab * sp = &stab[j];
+	    int slev = sp->slevel;	/* get this entry's level */
+	    unsigned short * behind;	/* back pointer for walking buckets */
+
+	    i = sp->st_next;		/* for the next iteration */
+
+	    /* thread on appropriate scope linkage */
+	    sp->st_scopelink = scopestack[slev];
+	    scopestack[slev] = j;
+
+	    /* thread on bucket list */
+	    for ( behind = &st_hash[st_hashf(sp->sname)]; *behind != 0; ) {
+		struct symtab * q = &stab[*behind];
+
+		if (q->slevel <= slev) break;
+		behind = &q->st_next;
+	    }
+	    /* *behind is either 0 or the pointed-to entry is lower (or same)
+	    ** scope level than the one we want to add.
+	    */
+	    sp->st_next = *behind;
+	    *behind = j;
 	}
 }
 
-hide( p )
-register struct symtab *p; 
+/* Hide an entry:  used only under error conditions.
+** Caller links on scopestack.
+*/
+
+static int
+hide( idn )
+int idn;				/* symbol table entry to hide */
 {
-	register struct symtab *q;
-	for( q=p+1; ; ++q )
-	{
-		if( q >= &stab[SYMTSZ] ) q = stab;
-		if( q == p ) cerror( "symbol table full" );
-		if( q->stype == TNULL ) break;
-	}
+	int new = st_getnew();		/* get another entry */
+	register struct symtab *p = &stab[idn]; 
+	register struct symtab *q = &stab[new];
+
 	*q = *p;
-	p->sflags |= SHIDDEN;
-	q->sflags = (p->sflags&(SMOS|STAG)) | SHIDES;
+	q->sflags &= ~SISREG;		/* new symbol isn't necessarily reg. */
+	/* link on appropriate bucket and scope list */
+	q->st_next = *p->st_own;
+	*p->st_own = new;
+
 	if( hflag ) werror( "%s redefinition hides earlier one", p->sname );
 # ifndef NODBG
 	if( ddebug ) printf( "	%d hidden in %d\n", p-stab, q-stab );
 # endif
-	return( idname = q-stab );
+	return( idname = new );
 }
 
-unhide( p )
-register struct symtab *p; 
+/* Check an entry for duplicate externs with a different type. */
+
+static
+checkext(idn, type)
+int idn;				/* new entry (at head of list */
+TWORD type;
 {
-	register struct symtab *q;
-	register s;
+    register struct symtab * pnew = &stab[idn];
+    register int i;
 
-	s = p->sflags & (SMOS|STAG);
-	q = p;
-
-	for(;;)
-	{
-
-		if( q == stab ) q = &stab[SYMTSZ-1];
-		else --q;
-
-		if( q == p ) break;
-
-		if( (q->sflags&(SMOS|STAG)) == s )
-		{
-			if ( p->sname == q->sname )
-			{
-				 /* found the name */
-				q->sflags &= ~SHIDDEN;
-# ifndef NODBG
-				if( ddebug ) printf( "unhide uncovered %d from %d\n", q-stab,p-stab);
-# endif
-				return;
-			}
-		}
-
+    for (i = pnew->st_next; i > 0; i = stab[i].st_next) {
+	/* stop at first extern of same name; warn if mismatch */
+	if (stab[i].sclass == EXTERN && stab[i].sname == pnew->sname) {
+	    if(stab[i].stype != type)
+		werror("inconsistent redeclaration of external %s\n",
+			pnew->sname);
+	    break;
 	}
-	cerror( "unhide fails" );
+    }
+    return;
 }
+
+/* get new symbol table entry */
+
+static int
+st_getnew()
+{
+    static int nextfree = 0;		/* place before place to check first */
+    int oldsize;
+
+    register int try = nextfree;
+
+    do {
+	/* never allocate table entry 0:  used as flag */
+	if (++try >= SYMTSZ) try = 1;
+	if (stab[try].stype == TNULL) {
+#ifdef STATSOUT
+	    if (td_stab.td_max < ++td_stab.td_used)
+		td_stab.td_max = td_stab.td_used;
+#endif
+	    return( nextfree = try );
+	}
+    } while (try != nextfree);
+
+    /* if enlarging works, will want to allocated one beyond current size */
+    nextfree = SYMTSZ;			/* value of SYMTSZ will change */
+    oldsize = td_enlarge(&td_stab,0);	/* enlarge symbol table */
+#if TNULL != 0
+    {					/* must make entries available */
+	int i;
+	for (i = oldsize+1; i < SYMTSZ; ++i)
+	    stab[i].stype = TNULL;
+    }
+#endif
+#ifdef STATSOUT
+    if (td_stab.td_max < ++td_stab.td_used)
+	td_stab.td_max = td_stab.td_used;
+#endif
+    return( nextfree);
+}
+
+/* print symbol table information for debugging purposes */
+
+#ifndef NODBG
+static void
+st_print()
+{
+    register int i;
+
+    printf("+++++++\n\n");
+
+    for (i = 0; i < MAXNEST; ++i) {
+	if (scopestack[i] != 0)
+	    printf("scopestack[%d]	%d\n", i, scopestack[i]);
+    }
+    putchar('\n');
+
+    for (i = 0; i < HASHTSZ; ++i) {
+	if (st_hash[i] != 0)
+	    printf("hash[%3d]	%d\n", i, st_hash[i]);
+    }
+    putchar('\n');
+
+    for (i = 0; i < SYMTSZ; ++i) {
+	if (stab[i].stype != TNULL) {
+	    struct symtab * sp = &stab[i];
+	    printf("stab[%3d]	level = %d, next = %d, scopelink = %d, own = %d, \
+\"%s\"\n",
+			i, sp->slevel, sp->st_next, sp->st_scopelink,
+			sp->st_own-st_hash, sp->sname);
+	}
+    }
+    printf("\n------\n");
+}
+#endif

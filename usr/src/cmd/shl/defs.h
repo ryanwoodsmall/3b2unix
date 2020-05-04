@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)shl:defs.h	1.8"
+#ident	"@(#)shl:defs.h	1.8.1.2"
 #include	<sys/types.h>
 #include	<sys/tty.h>
 #include	<sys/errno.h>
@@ -19,7 +19,7 @@
 #define		MAX_LAYERS	MAXPCHAN
 #define		NAMSIZ		8
 
-#ifdef	u3b5
+#ifdef	u3b15
 #define		set_dev(x)	if (cntlf[5] == 's') \
 							sprintf(&cntlf[9], "%03d", conv(x)); \
 						else \
@@ -59,7 +59,7 @@ extern int				uid;
 extern int				gid;
 
 char 					*strcpy();
-int						hangup();
-int						child_death();
+void						hangup();
+void						child_death();
 
 

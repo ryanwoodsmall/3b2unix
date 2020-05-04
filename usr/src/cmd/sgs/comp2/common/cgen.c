@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)pcc2:common/cgen.c	10.3"
+#ident	"@(#)pcc2:common/cgen.c	10.9"
 
 # include "mfile2.h"
 # define istnode(p) (p->in.op==REG && istreg(p->tn.rval))
@@ -46,7 +46,7 @@ NODE *p;
 	{
 
 	case FREE:
-		cerror( "rewcom(%d) is FREE", p-node );
+		cerror( "rewcom(%d) is FREE", node_no(p) );
 
 	case GENBR:
 		g1 = CCC;
@@ -110,9 +110,7 @@ NODE *p;
 	  rewrite it into a semi*/
 	if ( (last = lastl(p)) != NULL && last->in.op == COMOP)
 	{
-		last->in.op = SEMI;
-		last->in.strat = LTOR|PAREN;
-		return ;
+		uncomma(last);
 	}
 	/*If a comma is trying to go past a parened node, it gets just past,
 	  but use a LTOR, Parened semi instead of a comma. This prevents it
@@ -138,24 +136,30 @@ NODE *p;
 		l->in.left = qr;
 		p->in.right = l;
 		p->in.left = ql;
+		p->tn.op = COMOP;
 #ifdef CG
 		if ( paren_flag)
 		{
-			p->tn.op = SEMI;
-			p->in.strat = LTOR|PAREN;
+			uncomma(p);
 		}
-		else
-		{
-			p->tn.op = COMOP;
-			p->in.strat = 0;
-		}
-#else
-		p->tn.op = COMOP;
 #endif
 		rewcom( p, p->tn.goal );
 	}
-	if( ty == UTYPE ) return;
-	if( r->tn.op == COMOP && r->in.right->tn.op != GENBR ) 
+			/*The above rewrite might have put
+			  a COMOP in p; must check again*/
+	/* Can't rewrite right-side past the current node if the current
+	** node is a COMOP, COLON, or GENLAB, or if there's no right node.
+	*/
+	if (   ty == UTYPE
+	    || (o = p->in.op) == COMOP || o == COLON || o == GENLAB
+	   ) return;
+
+	/* Cheat a bit:  don't move COMOP on right side (ARG side)
+	** of CALL OPs; this permits side effects within ARGs to
+	** be done around the time the ARG is evaluated, since the
+	** ARG is always done for effect.
+	*/
+	if( r->tn.op == COMOP && r->in.right->tn.op != GENBR && !callop(o))
 	{
 		/* rewrite, again */
 		/* A op (B,C) => B,(A op C) */
@@ -163,19 +167,12 @@ NODE *p;
 		ql = r->in.left;
 		qr = r->in.right;
 		*r = *p;
+		p->tn.op = COMOP;
 #ifdef CG
 		if ( paren_flag)
 		{
-			p->tn.op = SEMI;
-			p->in.strat = LTOR|PAREN;
+			uncomma(p);
 		}
-		else
-		{
-			p->tn.op = COMOP;
-			p->in.strat = 0;
-		}
-#else
-		p->tn.op = COMOP;
 #endif
 		p->in.left = ql;
 		r->in.right = qr;
@@ -231,6 +228,9 @@ NODE *p;
 
 		t = talloc();
 		*t = *p->in.left;  /* copy contents, mainly for type, etc. */
+#ifdef CG
+		t->in.strat = 0;	/*clear p's strategy bits */
+#endif
 		q = talloc();
 		*q = *t;
 		t->tn.op = TEMP;
@@ -271,8 +271,15 @@ NODE *p;
 #endif
 	if( asgop(o) && o!=INCR && o!=DECR && lhsok( p->in.left ) ) {
 		/* x op= y turns into (x op= y), x */
+#ifdef CG
+		/*Exception: if OCOPY is set, must actually copy the subtree*/
+		if ((!(p->in.strat & OCOPY)) || p->in.left->in.op == TEMP
+		|| istnode(p->in.left) )
+#endif
+		{
 		rewlhs( p );
 		return( 1 );
+		}
 	}
 	ao = ASG o;
 	if( asgbinop(ao) ) 
@@ -349,6 +356,9 @@ NODE *p;
 	case EXCLEAR:
 	case EXTEST:
 	case EXRAISE:
+	case RREST:
+	case RSAVE:
+	case CAPRET:
 			return( 1 );
 	}
 #else
@@ -599,29 +609,20 @@ NODE *p;
 			/*Cannot match this node at all.
 			  CG has some last ditch stuff it can do:*/
 
-			/*if this is copy-only, rewrite it to temp;
-			  assume the copyonly prevented some matches*/
-
-		if ( p->in.strat & PAREN  || p->in.tnum & OCOPY)
-			rewrite = p;
-		else if ( (rewrite = firstl(p)) != NULL)
+		if ( (rewrite = firstl(p)) != NULL)
 		{
 			/*otherwise, if this is an ordered node, rewrite
 			  the first child to temp*/
 			unorder(p);
-		}
-
-		if (rewrite != NULL)
-		{
 #ifndef NODBG
 			if ( odebug)
 			{
-				fprintf(outfile, "Rewriting paren'ed  node");
+				fprintf(outfile, "Rewriting first side:\n");
 				e2print(p);
 			}
 #endif
-			rewsto(rewrite);
-			return REWROTE;	/*major rewrite*/
+			if (rewsto(rewrite))
+				return REWROTE;	/*major rewrite*/
 		}
 #endif
 			/*Give up!*/
@@ -867,7 +868,10 @@ again:
 	rewcom( p, CEFF );
 #ifdef	CG
 			/*Must do it again - we rewrote the tree*/
-	tnumbers(p);
+	if (tnumbers(p))
+		goto again;
+
+	cse_ptr = cse_list;
 #endif
 
 #ifndef NODBG
@@ -948,8 +952,9 @@ again:
 	    insprt();
 }
 
-INST inst[NINS];
-int nins;
+/* static */ INST inst_init[INI_NINS];
+
+TD_INIT(td_inst, INI_NINS, sizeof(INST), 0, inst_init, "instruction table");
 
 /* REGSET passes two extra arguments to cfix() */
 #ifdef	REGSET
@@ -1002,8 +1007,9 @@ insprt()
 		{
 		    /* handle asm inline calls here, don't use expand() */
 		    int n;
-		    INST savinst[NINS];
-		    char *memcpy();
+		    char * savinst;
+		    extern char *memcpy();
+		    extern char * malloc();
 
 		    /* have to preserve inst[] since 
 		    /* it may be overwritten when insout() is called
@@ -1011,7 +1017,9 @@ insprt()
 		    /* a real function call
 		    */
 		    n = sizeof(INST) * (ninsav-i);
-		    (void) memcpy( (char*)savinst, (char*)(pi), n);
+		    if (!(savinst = malloc((unsigned) n)))
+			cerror("can't save instructions for INCALL");
+		    (void) memcpy( savinst, (char*)(pi), n);
 
 		    if (genicall(p,c))
 		    	cerror("Can't expand asm function call");
@@ -1037,8 +1045,13 @@ insprt()
 		    }
 
 		    /* put everything back the way it was */
-		    (void) memcpy( (char*)(pi), (char*)savinst, n);
+		    free( savinst );
+		    (void) memcpy( (char*)(pi), savinst, n);
 		    nins = ninsav;  /* to be good and safe */
+		    /* reset "pi":  instruction generation may have resulted
+		    ** in reallocation of the instruction array
+		    */
+		    pi = &inst[i];
 
 		    allo( p, q );		/* safe to allocate now */
 
@@ -1056,7 +1069,7 @@ insprt()
 			  null left child, remove them from the tree*/
 
 		if ( (any_exact = pre_ex(p)) != 0)
-			protect();
+			protect(p);
 #endif
 
 # ifdef TMPSRET
@@ -1083,7 +1096,7 @@ insprt()
 
 #ifdef	CG
 		if ( any_exact)
-			unprot();
+			unprot(p);
 #endif
 		} /* end non-asm template expansion */
 

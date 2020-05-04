@@ -149,11 +149,11 @@ you should use it with caution.
 0705
 0735
 0805
-0832if [ "`echo $F08 | /bin/grep !`" = "$F08" ] ; then if /usr/bin/uuname | /bin/grep `/bin/expr $F08 : '\(.*\)!.*'`> /dev/null; then exit; else echo "$F08 DOES NOT CONTAIN A VALID SYSTEM NAME"; fi; else if [ "$F08" != "`/bin/grep $F08 /etc/passwd | /bin/sed \"s/\([^:]*\):.*/\1/\"`" ] ; then echo "$F08 IS NOT A VALID LOGIN NAME"; fi;fi;
+0832i="`echo $F08 | /bin/grep !`"; if [ -n "$i" ] ; then j=`echo $F08|cut -f1 -d'!'`; if [ -n "`uuname|grep \"^$j$\" `" ] ; then exit; else echo "$j IS NOT A KNOWN SYSTEM NAME"; fi; else if [ -z  "`/bin/grep \"^$F08:\" /etc/passwd `" ] ; then echo "$F08 IS NOT A VALID LOGIN NAME"; fi;fi;
 0835
 1019
 1005
-1032if [ "$F10" != "`/bin/grep $F10 /etc/passwd | /bin/sed \"s/\([^:]*\):.*/\1/\"`" ]; then echo "$F10 IS NOT A VALID LOGIN NAME"; fi;
+1032i="`echo $F10 | /bin/grep !`"; if [ -n "$i" ] ; then j=`echo $F10|cut -f1 -d'!'`; if [ -n "`uuname|grep \"^$j$\" `" ] ; then exit; else echo "$j IS NOT A KNOWN SYSTEM NAME"; fi; else if [ -z  "`/bin/grep \"^$F10:\" /etc/passwd `" ] ; then echo "$F10 IS NOT A VALID LOGIN NAME"; fi;fi;
 1105
 1104yYnN
 1204yYnN

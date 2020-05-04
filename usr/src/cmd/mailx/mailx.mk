@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)mailx:mailx.mk	1.14"
+#ident	"@(#)mailx:mailx.mk	1.17"
 #
 # mailx -- a modified version of a University of California at Berkeley
 #	mail program
@@ -14,13 +14,13 @@
 #
 
 ROOT=
-VERSION=3.0
+VERSION=3.1
 HDR=	hdr
 HELP=	help
 DESTDIR= $(ROOT)/usr/bin
 DESTLIB= $(ROOT)/usr/lib/mailx
 
-DEFINES= -DUSG -DUSG_TTY
+DEFINES= -DUSG -DUSG_TTY 
 CFLAGS=	-O -I$(HDR) $(DEFINES) 
 LDFLAGS= -n -i -s
 LIBES=
@@ -188,7 +188,7 @@ ckdirs:
 		mkdir $(MAILDIR)/:saved; \
 		echo; \
 	fi
-	chmod 775 $(MAILDIR);
-	chgrp mail $(MAILDIR);
-	chmod 775 $(MAILDIR)/:saved; 
-	chgrp  mail $(MAILDIR)/:saved;
+	$(CH)-chmod 775 $(MAILDIR);
+	$(CH)-chgrp mail $(MAILDIR);
+	$(CH)-chmod 775 $(MAILDIR)/:saved; 
+	$(CH)-chgrp  mail $(MAILDIR)/:saved;

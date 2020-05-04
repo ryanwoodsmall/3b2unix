@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/sysent.c	10.12"
+#ident	"@(#)kern-port:os/sysent.c	10.12.1.2"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/systm.h"
@@ -101,6 +101,8 @@ int	poll();
 int	putmsg();
 int	sys3b();
 int	uadmin();
+int	libattach();
+int	libdetach();
 
 struct sysent sysent[] =
 {
@@ -125,7 +127,7 @@ struct sysent sysent[] =
 	2, 1, stat,			/* 18 = stat */
 	3, 1, seek,			/* 19 = seek */
 	0, 1, getpid,			/* 20 = getpid */
-	4, 1, smount,			/* 21 = mount */
+	6, 1, smount,			/* 21 = mount */
 	1, 1, sumount,			/* 22 = umount */
 	1, 1, setuid,			/* 23 = setuid */
 	0, 1, getuid,			/* 24 = getuid */
@@ -199,8 +201,8 @@ struct sysent sysent[] =
 	1, 1, rmdir,			/* 79 = rmdir */
 	2, 1, mkdir,			/* 80 = mkdir */
 	4, 1, getdents,			/* 81 = getdents */
-	0, 1, nosys,			/* 82 = not used */
-	0, 1, nosys,			/* 83 = not used */
+	3, 1, libattach,		/* 82 = libattach */
+	1, 1, libdetach,		/* 83 = libdetach */
 	3, 1, sysfs,			/* 84 = sysfs */
 	4, 0, getmsg,			/* 85 = getmsg */
 	4, 0, putmsg,			/* 86 = putmsg */

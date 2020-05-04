@@ -5,9 +5,18 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)forms:read_in.c	1.12"
+#ident	"@(#)forms:read_in.c	1.13"
+
+/* read_in.c -- routine that reads an fs file and stores
+ * the info in the fields[] array.  This routine,
+ * after some initialziation, goes thru the fs file
+ * part by part (parts are separated by ^R's).  Before
+ * it does so, it reads the fs file, executes all ^Y-enclosed
+ * shell scripts, and stores the result in a buffer, "lbuffer".
+ */
 #include    "muse.h"
 
+/* Used for ^Y-enclosed shell script processing */
 #define     NOT_IN_SCRIPT      0
 #define     IN_SCRIPT          1
 
@@ -34,12 +43,7 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
    int ign_CR_flag = 0;
 
 
-/*
- *
- * Construct file names for input and output files. 
- *
- */
-
+/* Check if fs file is accessible.  */
    if (flag && implement(lab_pt->files_name,1)==0) {
       mvaddstr(LINES-2,0,error_mess);
       move(LINES-1,0);
@@ -48,6 +52,8 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
       exit(1);
    }
 
+/* Construct full .fs file name [a bit redundant, since
+   implement() does the same thing */
    if (files_name!=NULL) free(files_name);
    files_name = (char*)calloc((unsigned)(strlen(lab_pt->files_name)+
                                          strlen(fs_forms) + 10),
@@ -57,6 +63,9 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
    if (buffer!=NULL) free(buffer);
    if (lbuffer!=NULL) free(lbuffer);
 
+/* Set BUFSIZE to be a safe upper bound to the total number of
+   characters needed during and after fs file read-in.  When
+   the user is inputting text, buffer overflow is checked continually */
    BUFSIZE = 2 * (buf.st_size + 2);
    buf_pt = buffer = (char*)calloc((unsigned)BUFSIZE,sizeof(char));
    lbuf_pt = lbuffer = (char*)calloc((unsigned)BUFSIZE,sizeof(char));
@@ -72,6 +81,8 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
    maxpage = page = 1;
    maxrow = 0;
 
+/* Next 5 lines are a remnant of the past -- when only
+   structure actually used in the last screen were reset */
    last_field_pt = fields+MAXFIELDS-1;
    last_segm_pt = segments+MAXSEGMS-1;
    last_fi_pt = fixes+NFIX-1;
@@ -136,12 +147,7 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
    for (i=0;i<NRETS;i++)  rets[i] = -1;
    buf_pt++;
 
-/*
- *
- * Read in caption file:  "fftrrcc<caption>", ff:field#, t:type, rr:row
- * cc:col, and <caption> is caption; 
- *
- */
+/* ACTUAL READ BEGINS */
 
    fp = fopen(files_name,"r");
    if (fp==NULL)
@@ -152,15 +158,16 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
    
 /*
  * Now put information in temporary buffer lbuffer[].  Strip
- * text precedinf (first) ^E and coming after each ^R (but on same line).
- * Execute shell scripts, enclosed by ^Y's.  buffer[] is used to
- * store these scripts.
+ * text preceding (first) ^E and coming after each ^R (but on same line).
+ * Execute shell scripts, enclosed by ^Y's.  buffer[] is temporarily used
+ * to store these scripts.
  */
 
    state = NOT_IN_SCRIPT;
 
 /*
- * Store pre-^E stuff in comment[], but only if astgen is used.
+ * Store pre-^E stuff in comment[] if astgen is used [astgen
+ * uses read_in(0)], skip otherwise.
  */
    if (flag==0) {
       c_pt = comment;
@@ -170,10 +177,12 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
    }
    else while ((c=getc(fp))!=CTRL(E));
 
+/* Peek whether we have a menu here */
    *lbuf_pt++ = CTRL(E);
    mode = ((c=getc(fp))=='4') ? MENU : 0;
    ungetc(c,fp);
 
+/* ^Y-enclosed shell-script processing */
    j = 0;
    CR_flag = 0;
    while ((c=getc(fp))!=EOF && ++j < BUFSIZE-1)
@@ -191,11 +200,11 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
                                   /* Execute script; add result to lbuffer[] */
                CR_flag = 0;
                if (mode==MENU && ctrl_R>=1 && ctrl_R<=2) 
-                  ign_CR_flag = 1;
+                  ign_CR_flag = 1;  /* RETURN is ok if on help msg */
                else if (mode!=MENU && ctrl_R>=2 && ctrl_R<=4) 
-                  ign_CR_flag = 1;
+                  ign_CR_flag = 1;  /* RETURN is ok if on help msg */
                else
-                  ign_CR_flag = 0;
+                  ign_CR_flag = 0;  /* RETURN is never ok otherwise */
                PR_POPEN;
                fp0 = popen(buffer,"r"); 
                while ((k=getc(fp0))!=EOF && ++j < BUFSIZE-1) 
@@ -203,7 +212,7 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
                   if (k!=CTRL(Z) && k!=CTRL(R) && k!=CTRL(X) &&
                       (!CR_flag || ign_CR_flag ))
                      *lbuf_pt++ = k;   
-                  else 
+                  else   /* Exit if shell script generated illegal chars */
                   {
                      pclose(fp0);
                      PO_POPEN;
@@ -246,33 +255,34 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
       }
    fclose(fp);
 
-   if (j> BUFSIZE-3)
+   if (j> BUFSIZE-3)  /* Too many characters generated */
    {
       status = 15;
       done();
    }
 
+/* NOW PROCESS lbuffer -- CONTAINING THE FS FILE WITH EXECUTED SHELL
+   SCRIPTS */
    lbuf_pt = lbuffer;
    buf_pt = buffer;
    *buf_pt = null;
-/*
- * Header line first: ^Embb\n, where m is mode and bb is clt_code.   
- */
+
+/* Skip until (first) ^E */
    if (*lbuf_pt++!=CTRL(E))                 /* Read ^E */
    {
       status = 3;
       done();
    }
 
-   if ((c = *lbuf_pt++)>'0' && c<='9')            /* Read m */
+   if ((c = *lbuf_pt++)>'0' && c<='9')  /* Read MENU vs. CF index */
    {
       mode=MENU;   
-      SCRLINES = LINES-3;
+      SCRLINES = LINES-3;  /* Size of main body of screen */
    }
    else if (c=='0')
    {
       mode = NEWFIELD;
-      SCRLINES = LINES-5;
+      SCRLINES = LINES-5;  /* Size of main body of screen */
    }
    else 
    {
@@ -280,6 +290,8 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
       done();
    }
 
+/* Process clt_code --cf's that cannot be processed by the
+   generaal command line generator */
    if ((c = *lbuf_pt++)<'0' || c>'9')             /* Read b */
    {
       status = 3;
@@ -293,6 +305,7 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
    }
    else  clt_code += c-'0';
 
+/* Process rets[]  --- not used, but present in fs files */
    if (mode==MENU) c = *lbuf_pt++;
    else                               /* Read rets[] and \n               */
    {
@@ -312,6 +325,7 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
       }
    }
 
+/* Process screen name -- used in COMMAND LINE and CURRENT FORM/MENU */
    if (c!='\n')   
    {
       *(lab_pt->screen_name) = c;
@@ -321,6 +335,7 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
    }
    else *(lab_pt->screen_name) = null;
 
+/* Process first part -- captions and various digits */
    while ((c = *lbuf_pt++)!=CTRL(R))
    {
       switch(c)
@@ -342,44 +357,44 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
       default:                           /* Digit or caption character:       */
          switch(count)                   /* If count<5, c must be a digit:    */
          {
-         case 0:
+         case 0:        /* cols 0 and 1: field number */
             n = c-'0';
             break;
-         case 1:
+         case 1:        /* cols 0 and 1: field number */
             f_pt = fields + c-'0' + 10*n;
             last_field_pt = (last_field_pt>f_pt)? last_field_pt : f_pt;
             TOOMANY(8,last_field_pt+1,fields,MAXFIELDS);
             f_pt->caption = buf_pt;
             break;
-         case 2:                         /* type                              */
+         case 2:        /* col 2: type                              */
             f_pt->type = c-'0';
             break;
-         case 3:                         /* row                               */
+         case 3:        /* cols 3 and 4: row                               */
             f_pt->row = 10*(c-'0');
             break;
-         case 4:                         /* row                               */
+         case 4:        /* cols 3 and 4: row                               */
             f_pt->row += c-'0';
             f_pt->last_row = f_pt->row;
             break;
-         case 5:                         /* col                               */
+         case 5:        /* cols 5 and 6: col */
             f_pt->col = 10*(c-'0');
             break;
-         case 6:                         /* col                               */
+         case 6:        /* cols 5 and 6: col */
             f_pt->col += c-'0';
             break;
-         case 7:                         /* minfsegms                         */
+         case 7:        /* cols 7 and 8: minimum number of user input strings */
             f_pt->minfsegms = 10*(c-'0');
             break;
-         case 8:                         /* minfsegms                         */
+         case 8:        /* cols 7 and 8: minimum number of user input strings */
             f_pt->minfsegms += c-'0';
             break;
-         case 9:                         /* maxfsegms                         */
+         case 9:        /* cols 9 and 10: maximum number of user input strings */
             f_pt->maxfsegms = 10*(c-'0');
             break;
-         case 10:                         /* maxfsegms                         */
+         case 10:       /* cols 9 and 10: maximum number of user input strings */
             f_pt->maxfsegms += c-'0';
             break;
-         default:                        /* Caption character  if count>=5    */
+         default:                        /* Caption character  if count>10    */
             *buf_pt++ = c;
             break;
          }
@@ -390,9 +405,10 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
 
 
 /*
- *
- * Read in option specification file, for command forms only.
- *
+ * Read in option specifications part, for command forms only.
+ * This info is obsolete, except for "loc" and "bundle".
+ * Note that the "bundle" index is also used to indicate
+ * non-shell-expansion of user input.
  */
 
    if (mode!=MENU)
@@ -408,9 +424,9 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
       {
          switch(c)
          {
-         case '\n':                               /* End of input line: next field */
+         case '\n':   /* End of input line: next field */
             *buf_pt++ = null;
-            if (def_arg==1)
+            if (def_arg==1)   /* Next 9 lines obsolete:def_arg not used */
             {
                i = strlen(f_pt->def_arg);
                if (i && flag) 
@@ -432,23 +448,24 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
             {
                switch(count)
                {
-               case 0:
+               case 0:   /* cols 0 and 1: field number */
                   n = c-'0';
                   break;
-               case 1:
+               case 1:   /* cols 0 and 1: field number */
                   f_pt = fields + c-'0' + 10*n;
                   break;
-               case 2:                        /* Type of option                   */
+               case 2:   /* cols 2 and 3: relative location on command line */
                   n  = c-'0';
                   break;
-               case 3:                        /* Type of option                   */
+               case 3:   /* cols 2 and 3: relative location on command line */
                   f_pt->loc  = c-'0' + 10*n;
                   break;
-               case 4:                        /* Location of option in cmndline   */
+               case 4:   /* col 4: bundling 
+                            [0: no bundle, 1: bundle, 2: no shell expansion */
                   f_pt->bundle  = c-'0';
                   f_pt->op_name = buf_pt;
                   break;
-               default:                       /* Next char of option name         */
+               default:  /* Obsolete: only cols0-4 contain used info        */
                   *buf_pt++ = c;
                   break;
                }
@@ -462,7 +479,19 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
    }
 
 
+/* The closegaps() routine changes the "loc" values, preserving their
+   order but removing any gaps between successive values */
+
    if (flag!=0 && mode!=MENU) close_gaps();
+
+/* Process exit message, for command forms only.
+   Message has format:
+     <message>^Z<exit field number>^X<exit field values>^X...
+   If there is no ^Z, message is given unconditionally.
+   If there is a ^Z, but not ^X's, message is given when
+     the exit field has no user input (e.g., the cat commmand form).
+   If there are exit field values, the message is gievn iff the exit
+     field has input matching one of these values */
 
    if (mode!=MENU)
    {
@@ -516,9 +545,7 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
 
 
 /*
- *
  * Read in form help.
- *
  */
 
    if ((c = *lbuf_pt++)!='\n')
@@ -532,9 +559,9 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
 
 
 /*
- *
  * Read in item help.
- *
+ * Format:
+ *   <2-digit field number><multi-line help message>^Z
  */
 
    count=0;
@@ -555,15 +582,15 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
       default:
          switch(count)
          {
-            case 0:
+            case 0:   /* cols 0 and 1: field number */
                if (c!='\n') n = c-'0';  /* Tricky way to skip \n after $     */
                else count--;
                break;
-            case 1:
+            case 1:   /* cols 0 and 1: field number */
                f_pt = fields + c-'0' + 10*n;
                f_pt->help = buf_pt;
                break;
-            default:
+            default:   /* Remaining cols: text */
                if (f_pt->help<buf_pt || c!='\n') *buf_pt++ = c;
                break;
          }
@@ -576,9 +603,7 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
 
 
 /*
- *
  * Pairs of incompatible options, for command forms only.
- *
  */
 
    if (mode!=MENU)
@@ -600,14 +625,14 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
          default:
             switch(count)
             {
-            case 0:
+            case 0:    /* cols 0 and 1: field number */
                n = c-'0';
                break;
-            case 1:
+            case 1:    /* cols 0 and 1: field number */
                f_pt = fields + c-'0' + 10*n;
                break;
-            default:
-               switch(flip_flop)
+            default:   /* Remaining cols: numbers of incompatible fields */
+               switch(flip_flop)   /* 1st vs. 2nd digit of 2-digit number */
                {
                case 0:                    /* First digit of 2-digit funx indx */
                   TOOMANY(7,last_in_pt+1,indices,MAXINDICES);
@@ -631,7 +656,9 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
    }
 
 
-   if (mode!=MENU)   /* Conditionally mandatory options   */
+/* Conditionally mandatory options.  Process identical to incompat.   */
+
+   if (mode!=MENU)   
    {
       flip_flop = 0;
       count = 0;
@@ -683,17 +710,15 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
 
 
 /*
- *
- *  Read in input file:  "rrff<input>SPACErrff<...", where r is row, f is first 
- *  character column, and <input> is input string.   Length is computed. 
- *  First initialize pointers and counters and indices.
- *
+ * Default segments.  Code has provision for multiple segents -- separated by
+ * ^X's.
+ * Format:  <2-digit field number><row><col><segment text>^X<segment text>^X ...
  */
 
    f_pt = fields;
    count     = 0;
 
-   if ((c = *lbuf_pt++)!='\n') /* starts directly with real input; it ends on ^R     */
+   if ((c = *lbuf_pt++)!='\n') 
    {
       status = 3;
       done();
@@ -764,7 +789,8 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
    }
 
 /*
- * Set maxpage.
+ * Set maxpage on the basis of maxrow (computed from caption rows
+ * and segment rows).
  */
    maxpage = (maxrow-1)/(SCRLINES-2) + 1;
 
@@ -786,9 +812,10 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
 
 
 /*
- *
  * Read validation functions, for command forms only.
- *
+ *  Format: 
+ *   <2-digit field number><prefix>^X<prefix> ... ^Z<suffix>^X<suffix>^X ...
+ *  Consult with valid.c to see how pre- and suffixes are used.
  */
 
    if (mode!=MENU)
@@ -864,7 +891,10 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
 
 
 /*
- * Read action information, for menus only.
+ * Read- action information, for menus only.
+ *  Format:
+ *   <2-digit field number><action>
+ *   <action> can be:  <executable command line>, or ^X<>fs name>
  */
    if (mode==MENU)
    {
@@ -904,7 +934,7 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
 
 
 /*
- * Finally, read pre- and post-fixes needed for certain validation functions. 
+ * Obsolete: section is in fs file, but never used
  */
    if (mode!=MENU)
    {
@@ -956,7 +986,17 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
    }
 
 
-   if (mode!=MENU)     /* Read special command-line generation information */
+/*
+ * Command-line generation strings.
+ * Format:
+ * <2-digit field number><3-digit spacing pattern><flag>^X<prefix>^X<prefix>^X ...
+ *    ^Z<suffix>^X<suffix>^X ...
+ *  Here: 3-digit spacing pattern indicates whether there must be a space before, 
+ *  between, or following strings from the current field.
+ *  <flag> indicates whether user input MUSE match certain suffixes (specifically,
+ *  suffixes 0,, 2, ...).  Consult ASSIST Development Tools User Guide.
+ */
+   if (mode!=MENU)
    {
       if ((c = *lbuf_pt++)!='\n')
       {
@@ -1005,7 +1045,8 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
       }
    }
 
-   if (mode!=MENU)     /* At-least-one fields   */
+/* At-least-one fields Process identical to incompat.   */
+   if (mode!=MENU)     
    {
       flip_flop = 0;
       count = 0;
@@ -1055,7 +1096,7 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
    }
 
 
-   if (mode!=MENU)     /* Third placeholder control-R   */
+   if (mode!=MENU)     /* Placeholder control-R   */
    {
       if ((c = *lbuf_pt++)!='\n')
       {
@@ -1066,11 +1107,14 @@ int flag;      /* 0: do not execute shell scripts, 1: do ... */
    }
 
 
+/* POST-READ PROCESSING */
+
    if (lbuffer!=NULL) {
       free(lbuffer);
       lbuffer = NULL;
    }
 
+/* Check overflow -- redundant */
    TOOMANY(4,buf_pt+1,buffer,BUFSIZE);
    TOOMANY(5,last_segm_pt+1,segments,MAXSEGMS);
    TOOMANY(6,last_fi_pt+1,fixes,NFIX);

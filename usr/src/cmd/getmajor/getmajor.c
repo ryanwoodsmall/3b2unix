@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)getmajor:getmajor.c	1.2"
+#ident	"@(#)getmajor:getmajor.c	1.2.1.1"
 /*
  *		Copyright 1984 AT&T
  */
@@ -72,7 +72,7 @@ char	*argv[];
      	iname = argv[1];
 	if(isalpha((int)iname[0]) != 0)
 		{
-#ifdef u3b5
+#ifdef u3b15
 		if(islower((int)iname[0]) != 0)
 			{
 			for(i = 0; i < strlen(iname); ++i)

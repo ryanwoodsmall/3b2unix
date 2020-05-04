@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/t_snddis.c	1.4"
+#ident	"@(#)libnsl:nsl/t_snddis.c	1.4.1.2"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/errno.h"
@@ -21,7 +21,7 @@
 extern int t_errno;
 extern int errno;
 extern struct _ti_user *_t_checkfd();
-extern int (*sigset())();
+extern void (*sigset())();
 extern int ioctl(), putmsg();
 
 
@@ -33,7 +33,7 @@ struct t_call *call;
 	struct strbuf ctlbuf;
 	struct strbuf databuf;
 	register struct _ti_user *tiptr;
-	int (*sigsave)();
+	void (*sigsave)();
 
 
 	if ((tiptr = _t_checkfd(fd)) == NULL)
@@ -87,5 +87,16 @@ struct t_call *call;
 
 	tiptr->ti_flags &= ~MORE;
 	sigset(SIGPOLL, sigsave);
+
+	if (tiptr->ti_ocnt <= 1) {
+		if (tiptr->ti_state == T_INCON)
+			tiptr->ti_ocnt--;
+		tiptr->ti_state = TLI_NEXTSTATE(T_SNDDIS1, tiptr->ti_state);
+	}
+	else {
+		if (tiptr->ti_state == T_INCON)
+			tiptr->ti_ocnt--;
+		tiptr->ti_state = TLI_NEXTSTATE(T_SNDDIS2, tiptr->ti_state);
+	}	
 	return(0);
 }

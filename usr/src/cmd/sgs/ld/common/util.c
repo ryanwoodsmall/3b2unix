@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)ld:common/util.c	1.15"
+#ident	"@(#)ld:common/util.c	1.15.1.1"
 #include "system.h"
 
 #include <stdio.h>
@@ -366,10 +366,11 @@ copy_section( infile, infl, isp, osp, fdes, buffer, buf_size )
 {
 	register long	more;
 	register long	num_bytes;
-	int relcnt, offset;
+	int relcnt;
 	long shlibsize;
 	RELOC rentry;
 	long vaddiff, numshlibs = 0;
+	int offset = 0;
 	SLOTVEC	*svp;
 
 	more = isp->ishdr.s_size;
@@ -380,26 +381,21 @@ copy_section( infile, infl, isp, osp, fdes, buffer, buf_size )
 			|| fwrite( buffer, (int) num_bytes, 1, fdes ) != 1)
 			lderror( 2, 0, NULL, "cannot copy section %.8s of file %s", isp->ishdr.s_name, infl->flname);
 		more -= num_bytes;
+/*
+ * For now, we shouldn't ever execute the following code,
+ * but it's here in case someone needs to "copy_section"
+ * a ".lib" section.
+ *
+ * (.lib goes through "relocate" now.)
+ */
 		if (osp->oshdr.s_flags & STYP_LIB) {
-			if (numshlibs == 0) {
-				shlibsize = ((long *) buffer)[0];
-				numshlibs++;
-				}
-			offset = 0;
-			while (num_bytes) {
-				if (num_bytes > (shlibsize * sizeof(long))) {
-					numshlibs++;
-					offset += shlibsize;
-					num_bytes -= (shlibsize * sizeof(long));
-					shlibsize = ((long *) buffer)[offset];
-					}
-				else {
-					shlibsize -= (num_bytes/sizeof(long));
-					num_bytes = 0;
-					}
-				}
+			if (do_dotlib(&numshlibs, &offset, buffer, num_bytes))
+				lderror(2, 0, NULL, "Malformed %.8s section of file %s",
+					isp->ishdr.s_name, infl->flname);
 			}
 	}
+	if (offset != 0)	/* Huh? There was a truncated .lib entry! */
+		lderror(2, 0, NULL, "Truncated .lib entry in file %s", infl->flname);
 	if (rflag && (osp->oshdr.s_flags & STYP_COPY)) {
 		vaddiff = isp->isnewvad - isp->ishdr.s_vaddr;
 		fseek(infile, isp->ishdr.s_relptr + infl->flfiloff, 0);
@@ -420,4 +416,52 @@ copy_section( infile, infl, isp, osp, fdes, buffer, buf_size )
 		}
 	}
 	return(numshlibs);
+}
+
+/*
+ * Count the number of .lib entries in buffer pointed to
+ * by "bufp".
+ *
+ * That number is added to "*cntp"; non-zero return indicates
+ * a bad .lib section.
+ *
+ * "*offsetp" is assumed to contain the number of bytes left
+ * to go in the current entry; "*sectoffsetp" is the number of
+ * bytes (so far) into the section.
+ */
+struct dotlibentry {
+	unsigned long de_count;		/* Entry size */
+	unsigned long de_topath;	/* word count to pathname */
+	char de_data[1];
+};
+
+do_dotlib(cntp, offsetp, buf, nbytes)
+	long *cntp, *offsetp;
+	register char *buf;
+	register unsigned long nbytes;	/* Number of bytes in buffer */
+{
+	register struct dotlibentry *p;
+	register int bytes_to_go;
+	int count;
+
+	if (nbytes < sizeof(long))
+		return(1);
+
+	bytes_to_go = *offsetp;
+	count =  min(bytes_to_go, nbytes);
+	buf += count;
+	nbytes -= count;
+	bytes_to_go -= count;
+
+	for (; nbytes > 0; buf += count, nbytes -= count, bytes_to_go -= count)
+	{
+		p = (struct dotlibentry *) buf;
+		if (bytes_to_go == 0)
+			++(*cntp);
+		bytes_to_go = p->de_count * sizeof(long);
+		count = min(nbytes, bytes_to_go);
+	}
+
+	*offsetp = bytes_to_go;
+	return(0);
 }

@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 %{
-#ident	"@(#)stincc:scommon/sty.y	10.3"
+#ident	"@(#)stincc:scommon/sty.y	10.9"
 /*
 	This program turns machine descriptions into a table.c file
 */
@@ -48,6 +48,10 @@
 	$]	share right, RHS is preferred (if a temp register)
 	$l	left side is referenced once more
 	$r	right side is referenced once more
+	$H	can honor exceptions
+	$I	can ignore exceptions
+	!H	cannot honor exceptions
+	!I	cannot ignore exceptions
 	*/
 
 
@@ -197,6 +201,14 @@ static int	nrsbits = 0;	/* current number of entries in styrsbits[] */
 #define	iswildcard(o)	(o == REG || o == CCODES || o == FREE)
 
 extern void exit();
+#ifdef CG
+#define DEFAULT_NEEDS def_except
+int def_except = 0;
+#else
+#define DEFAULT_NEEDS 0
+#define NO_IGNORE 0
+#define NO_HONOR 0
+#endif
 
 %}
 
@@ -208,8 +220,10 @@ extern void exit();
 };
 
 %token STR DEF LPRF RPRF LSHR RSHR GOODCC NOVAL PNEED LRES RRES ERES
+%token EXHON EXIG NOEXHON NOEXIG
 %token LCOUNT RCOUNT
 %token USERCOST CONVAL NCONVAL POSRANGE SGRANGE NONAME DCOST SHAPES OPCODES
+%token EXCEPT
 %token <ival> OP NM DIG DIG_ALL STYPE RREG
 %left OP
 %left STYPE
@@ -218,6 +232,7 @@ extern void exit();
 %type <ival> opcost num slist nterm nterm1 opop shape newshape
 %type <ival> costnexp nexp cost cexpr cterm
 %type <ival> regno opnregshape
+%type <ival> excepts except
 %type <regset> reglist regterm opregset
 %type <shh> sref
 
@@ -272,6 +287,8 @@ opop	:	/* EMPTY */
 		    if ($1 == REG && pregset == 0)
 			/* default if no register bits is all registers */
 			pregset = RS_TOT;
+		    else if ($1 != REG && pregset != 0)
+			yyerror("register set specified for non-REG shape");
 		}
 	;
 
@@ -332,7 +349,8 @@ regno	:	num
 	;
 
 lops	:	/* EMPTY */
-		{	needs = op = rewrite = 0; }
+		{	op = rewrite = 0;
+			needs = DEFAULT_NEEDS; }
 	|	lops lop
 	;
 
@@ -342,7 +360,8 @@ lop	:	OP sref ',' sref ltail
 			op = $1;
 			tyop = TANY;
 			dotmplt(0);
-			tyop = needs = op = rewrite = 0;
+			tyop = op = rewrite = 0;
+			needs = DEFAULT_NEEDS;
 			rewregs = -1;
 		}
 	|	OP STYPE sref ',' sref ltail
@@ -351,7 +370,8 @@ lop	:	OP sref ',' sref ltail
 			op = $1;
 			tyop = $2;
 			dotmplt(0);
-			tyop = needs = op = rewrite = 0;
+			tyop = op = rewrite = 0;
+			needs = DEFAULT_NEEDS;
 			rewregs = -1;
 		}
 	|	OP sref ltail
@@ -361,7 +381,8 @@ lop	:	OP sref ',' sref ltail
 			op = $1;
 			tyop = TANY;
 			dotmplt(0);
-			tyop = needs = op = rewrite = 0;
+			tyop = op = rewrite = 0;
+			needs = DEFAULT_NEEDS;
 			rewregs = -1;
 		}
 	|	OP STYPE sref ltail
@@ -370,7 +391,8 @@ lop	:	OP sref ',' sref ltail
 			tyop = rshty.ty = $2;
 			op = $1;
 			dotmplt(0);
-			tyop = needs = op = rewrite = 0;
+			tyop = op = rewrite = 0;
+			needs = DEFAULT_NEEDS;
 			rewregs = -1;
 		}
 	|	sref ltail
@@ -378,10 +400,36 @@ lop	:	OP sref ',' sref ltail
 			lshty.sha = -1;
 			lshty.ty = TANY;
 			doltmplt();
-			tyop = needs = op = rewrite = 0;
+			tyop = op = rewrite = 0;
+			needs = DEFAULT_NEEDS;
 			rewregs = -1;
 			}
 	|	DCOST opcost ';'
+	|	EXCEPT ':' excepts
+		{
+#ifdef CG
+		def_except = $3;
+#endif
+		}
+	;
+
+excepts	:	/* EMPTY*/
+		{
+		$$ = 0;
+		}
+	|	excepts except
+		{
+		$$ = $1 | $2;
+		}
+	;
+except	:	EXHON
+		{ $$ = 0; }
+	|	NOEXHON
+		{ $$ = NO_HONOR; }
+	|	EXIG
+		{ $$ = 0; }
+	|	NOEXIG
+		{ $$ = NO_IGNORE; }
 	;
 
 /* the code to handle strings is really yuccky!  However, it makes
@@ -404,12 +452,14 @@ string	:	STR
 	;
 
 needs	:	/* EMPTY */
-		{	needs = 0; }
+		{
+			needs = DEFAULT_NEEDS;
+		}
 	|	'{' nlist '}'
 	;
 
 nlist	:	/* EMPTY */
-		{	needs = 0; }
+		{	needs = DEFAULT_NEEDS; }
 	|	nlist DIG opnregshape
 		{
 #ifdef	REGSET
@@ -442,6 +492,14 @@ nlist	:	/* EMPTY */
 		{	needs |= LSHARE; }
 	|	nlist PNEED
 		{	needs |= NPAIR; }
+	|	nlist EXHON
+		{	needs &= ~NO_HONOR; }
+	|	nlist NOEXHON
+		{	needs |= NO_HONOR; }
+	|	nlist EXIG
+		{	needs &= ~NO_IGNORE; }
+	|	nlist NOEXIG
+		{	needs |= NO_IGNORE; }
 	|	nlist GOODCC
 		{	rewrite |= RESCC; }
 	|	nlist NOVAL
@@ -548,20 +606,24 @@ costnexp:	nexp opregset opcost
 		    /* special case for alias for 'REG':  make new
 		    ** register-set node if needed
 		    */
-		    if (   shp[$1].sop == MANY
-			&& shp[$1].sright < 0
-			&& (s = shp[$1].sleft) >= 0
-			&& shp[s].sop == REG
-			&& $2 != 0
-			) {
-			/* if current REG node is "all regs", use existing
-			** version of a register-set specified node, if it
-			** exists, or make one.
-			*/
-			if (shp[s].sregset == RS_TOT)
-			    $$ = fillshape(REG, -1, -1, shp[s].ssh, $2);
+		    if ($2 != 0) {
+			if (
+			       shp[$1].sop == MANY
+			    && shp[$1].sright < 0
+			    && (s = shp[$1].sleft) >= 0
+			    && shp[s].sop == REG
+			    ) {
+				/* if current REG node is "all regs", use existing
+				** version of a register-set specified node, if it
+				** exists, or make one.
+				*/
+				if (shp[s].sregset == RS_TOT)
+				    $$ = fillshape(REG, -1, -1, shp[s].ssh, $2);
+				else
+				    yyerror("can't have overriding register set");
+			}
 			else
-			    yyerror("can't have overriding register set");
+			    yyerror("register set on non-REG shape");
 		    }
 		}
 	;
@@ -953,6 +1015,14 @@ int isleaf;
 			rewrite |= RLEFT;
 		}
 	}
+#ifdef CG
+			/*Only put the exception flags on
+			  templates dealing with exceptable nodes*/
+	if (!can_except(op))
+	{
+		needs &= ~(NO_IGNORE|NO_HONOR);
+	}
+#endif
 	if( !rewrite ) rewrite = RNULL;
 
 	if( !onebit( rewrite & (RNULL|RLEFT|RRIGHT|REITHER|RESC1|RESC2|RESC3) ) )
@@ -1286,6 +1356,8 @@ struct nam Ndnam[] = {
 	NameV(RPREF),
 	NameV(LMATCH),
 	NameV(RMATCH),
+	NameV(NO_IGNORE),
+	NameV(NO_HONOR),
 	0,	0,
 };
 
@@ -1753,9 +1825,12 @@ outshape()
 	STYSHP * p;
 	int pshpindex;
 	void saaddr();
+	void chkundef();
 	void chkdups();
 	void outshphd();
 	int outpshp();
+
+	chkundef();			/* check for undefined shapes */
 
 	printf( "\n# define SHNL ((SHAPE *)0)\n" );
 	printf( "# define S(x) (&shapes[x])\n" );
@@ -1763,8 +1838,6 @@ outshape()
 	printf( "\nSHAPE shapes[] = {\n" );
 	for( i=0, p=shp; i<nshp; ++i,++p )
 	{
-		if( p->sop < 0 )
-			yyerror( "undefined shape: %.*s", NSHNAME, p->shname );
 		printf( "/*%4d */ ", i);
 		printf( "%4d,\t",p->sop );
 		saaddr(p->sleft);
@@ -1803,6 +1876,28 @@ outshape()
 	}
 	printf( "};\n\n" );
 	return;
+}
+/* Check for undefined shapes.  At this stage we're looking for MANY
+** nodes that have any descendents whose sop field is < 0.
+*/
+
+static void
+chkundef()
+{
+    int i;
+
+    /* Just look at named MANY nodes.  Backward search is related to the
+    ** order of appearance in input.
+    */
+    for (i = NSTYSHPS-1; i > nmshp; --i) {
+
+	if (shp[i].sop >= 0 && shp[i].sop != MANY)
+	    yyerror("confused chkundef(), op %d, shape %d", shp[i].sop, i);
+	
+	if (shp[i].sop < 0)
+	    yyerror("undefined shape %.*s", NSHNAME, shp[i].shname);
+    }
+    return;
 }
 
 static void
@@ -2527,7 +2622,11 @@ int pindex;				/* starting pshp index in output */
     /* output the entries */
 
     for (i=0, count=0; i < index; i++) {
-	printf(" S(%d)", weights[i].shpno);
+	int w = weights[i].shpno;
+	if (w > nshp)
+	    yyerror("internal error in outpshp():  bad shape # %d\n", w);
+
+	printf(" S(%d)", w);
 	if (wdebug)
 	    printf(" /*(%d)*/", weights[i].shpwt);
 	printf(", ");
@@ -2919,6 +3018,17 @@ yylex()
 			case 'l':	return( LCOUNT );
 			case 'A':	yylval.ival = NRGS;
 					return( DIG_ALL );
+#ifdef CG
+			case 'H':	return( EXHON );
+			case 'I':	return( EXIG );
+			case '-':
+					switch(c = getchar())
+					{
+					case 'H':	return (NOEXHON);
+					case 'I':	return (NOEXIG);
+					}
+					yyerror( "$-%c illegal", c );
+#endif
 			}
 			yyerror( "$%c illegal", c );
 
@@ -3009,8 +3119,13 @@ int inquote;
 }
 
 /* all types we know about, except VOID */
+#ifdef	CG
+#define	TALL (TCHAR|TSHORT|TINT|TLONG|TUCHAR|TUSHORT|TUNSIGNED|TULONG|\
+		TFLOAT|TDOUBLE|TPOINT|TPOINT2|TSTRUCT|TFPTR)
+#else
 #define	TALL (TCHAR|TSHORT|TINT|TLONG|TUCHAR|TUSHORT|TUNSIGNED|TULONG|\
 		TFLOAT|TDOUBLE|TPOINT|TPOINT2|TSTRUCT)
+#endif
 tystr( p )
 register char *p;	/* pointer to name */
 {
@@ -3111,6 +3226,7 @@ struct nlist resw[] = {
 	NameV(POSRANGE),
 	NameV(SGRANGE),
 	NameV(NONAME),
+	NameV(EXCEPT),
 	"",	-1,
 };
 
@@ -3195,7 +3311,7 @@ int level;
     fprintf(dbg, "%c.%d) ", let, s);
     if (shape->shname[0] != '\0')
 	fprintf(dbg, "\"%.*s\" ", NSHNAME, shape->shname);
-    fprintf(dbg, "op = %s", opst[op]);
+    fprintf(dbg, "op = %s", op >= 0 ? opst[op] : "(undefined)");
 
     /* check for special shapes, types */
 
@@ -3773,7 +3889,7 @@ static int rsnnbit[NRGS];	/* needs' corresponding numbers of bits */
 static int nrsneed;		/* number of entries in two above tables */
 static int nrsstart;		/* start of current register scratch set */
 static int nrspair;		/* pairs-required flag */
-static RST rs_even;		/* bit mask of "even registers", if needed */
+static RST rs_even = RS_NONE;	/* bit mask of "even registers", if needed */
 static int rs_hadall;		/* non-zero if $A seen in current template */
 
 void nrstore();
@@ -3787,14 +3903,17 @@ begnrgen()
 {
 #ifndef	ODDPAIR
     /* first time, build a bit-vector representing even-numbered registers */
-    if (rs_even == 0) {
-	RST temp = 1;
-	while (rs_even != temp) {
-	    rs_even = temp;
-	    temp |= temp << 2;	/* add bits until no change */
-	}
+    if (rs_even == RS_NONE) {
+#ifdef RS_EVENREG
+	rs_even = RS_EVENREG;	/* use implementor-supplied mask */
+#else
+	int regno;
+
+	for (regno = 0; regno < TOTREGS; regno += 2)	/* even regs only */
+	    rs_even |= RS_BIT(regno);
+#endif /* def RS_EVENREG */
     }
-#endif
+#endif /* ndef ODDPAIR */
 
     nrsneed = 0;		/* initialize number of needs so far */
     rs_hadall = 0;		/* no $A seen yet */
@@ -4202,6 +4321,13 @@ outnr()
     }
 
     printf("\n};\n\n");
+
+    /* Also, output bit vector of even-numbered registers, if needed */
+
+#if !defined(ODDPAIR) && !defined(RS_EVENREG)
+    printf("RST rs_evenreg = %#o;\n\n", rs_even);
+#endif
+
     return;
 }
 
@@ -4216,3 +4342,39 @@ static void
 nrgen(a,b,c) { }
 
 #endif	/* def REGSET */
+#ifdef CG
+
+int
+can_except(op)
+int op;
+{
+	switch(op)
+	{
+	case UNARY MINUS:
+	case CONV:
+	case PLUS:
+	case ASG PLUS:
+	case MINUS:
+	case ASG MINUS:
+	case MUL:
+	case ASG MUL:
+	case DIV:
+	case ASG DIV:
+	case LS:
+	case ASG LS:
+	case INCR:
+	case DECR:
+	case CALL:
+	case UNARY CALL:
+	case STCALL:
+	case UNARY STCALL:
+	case ALLOC:
+	case CAPCALL:
+	case VLRETURN:
+	case RSAVE:
+		return 1;
+	default:
+		return 0;
+	}
+}
+#endif 	/*CG*/

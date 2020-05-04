@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/t_rcvuderr.c	1.3"
+#ident	"@(#)libnsl:nsl/t_rcvuderr.c	1.3.2.1"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/errno.h"
@@ -67,6 +67,8 @@ struct t_uderr *uderr;
 		rcvbuf.len = 0;
 		rcvbuf.buf = NULL;
 
+		flg = 0;
+
 		if ((retval = getmsg(fd, &ctlbuf, &rcvbuf, &flg)) < 0) {
 			t_errno = TSYSERR;
 			return(-1);
@@ -104,9 +106,13 @@ struct t_uderr *uderr;
 		memcpy(uderr->addr.buf, ctlbuf.buf +
 		       pptr->uderror_ind.DEST_offset,
 		       (int)pptr->uderror_ind.DEST_length);
+		uderr->addr.len = (unsigned int)pptr->uderror_ind.DEST_length;
 		memcpy(uderr->opt.buf, ctlbuf.buf +
 		       pptr->uderror_ind.OPT_offset,
 		       (int)pptr->uderror_ind.OPT_length);
+		uderr->opt.len = (unsigned int)pptr->uderror_ind.OPT_length;
 	}
+
+	tiptr->ti_state = TLI_NEXTSTATE(T_RCVUDERR, tiptr->ti_state);
 	return(0);
 }

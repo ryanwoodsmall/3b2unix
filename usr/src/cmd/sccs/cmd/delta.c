@@ -5,8 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sccs:cmd/delta.c	6.6"
-#ident	"@(#)sccs:cmd/delta.c	6.6"
+#ident	"@(#)sccs:cmd/delta.c	6.7"
 # include	"../hdr/defines.h"
 # include	"../hdr/had.h"
 # include       "sys/utsname.h"

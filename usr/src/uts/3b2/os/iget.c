@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/iget.c	10.16"
+#ident	"@(#)kern-port:os/iget.c	10.16.7.1"
 #include "sys/types.h"
 #include "sys/sysmacros.h"
 #include "sys/param.h"
@@ -31,6 +31,10 @@
 #include "sys/open.h"
 #include "sys/debug.h"
 #include "sys/cmn_err.h"
+#include "sys/fs/s5param.h"
+#include "sys/fs/s5macros.h"
+#include "sys/buf.h"
+#include "sys/rbuf.h"
 
 extern struct mount	*pipemnt;
 /*
@@ -156,10 +160,12 @@ loop:
 	 */
 
 	if (ip->i_fstyp) {
+		int flags;
 		FS_FREEMAP(ip);
-		if ((fsinfo[ip->i_fstyp].fs_flags & FS_NOICACHE) == 0
-	  	  && ip->i_fstyp != fstyp)
-			FS_IPUT(ip);
+		flags = fsinfo[ip->i_fstyp].fs_flags;
+		if ((flags & FS_NOICACHE) == 0
+		  && (ip->i_fstyp != fstyp || (flags & FS_RECYCLE)))
+			IPUT(ip);
 	}
 
 	hip->i_forw->i_back = ip;	/* insert into new hash list */
@@ -173,6 +179,9 @@ loop:
 	ip->i_fstyp = fstyp;
 	ip->i_number = ino;
 	ip->i_count = 1;
+	ip->i_rcvd = NULL;
+	ip->i_vcode = ++rfs_vcode;
+	ip->i_wcnt = 0;
 #ifdef FSPTR
 	ip->i_fstypp = &fstypsw[fstyp];
 #endif
@@ -252,14 +261,14 @@ found:
 				fstyp = ip->i_fstyp;
 				goto found;
 			} else {
-				ip = remote_call(mp->m_mount);
-				return(ip);
+				struct inode *rip;
+				rnamei1(mp->m_mount, &rip);
+				return(rip);
 			}
 		}
 		cmn_err(CE_PANIC,
 			"iget - mounted on inode not in mount table.");
-	} else if ((ip->i_flag & ILBIN) && server() && !riget(ip))
-		return(NULL);
+	} 
 
 	if (ip->i_count == 0) {
 		/* remove from freelist */
@@ -304,7 +313,7 @@ int *caller;
 		ip->i_flag &= ~ITEXT;
 		if (ip->i_ftype == IFCHR) ip->i_sptr = NULL;
 
-		FS_IPUT(ip);
+		IPUT(ip);
 
 		/*
 		 * Don't take ip off its current hash list unless the
@@ -452,10 +461,8 @@ register struct mount *mp;
  */
 iinit()
 {
-	(*bdevsw[bmajor(rootdev)].d_open)(minor(rootdev), 
-					FREAD|FWRITE,OTYP_LYR);
-	(*bdevsw[bmajor(pipedev)].d_open)(minor(pipedev), 
-					FREAD|FWRITE,OTYP_LYR);
+	(*bdevsw[bmajor(rootdev)].d_open)(rootdev,FREAD|FWRITE,OTYP_LYR);
+	(*bdevsw[bmajor(pipedev)].d_open)(pipedev,FREAD|FWRITE,OTYP_LYR);
 	srmountfun(1);
 }
 

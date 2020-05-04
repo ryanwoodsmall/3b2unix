@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:hdr/usg.local.h	1.3"
+#ident	"@(#)mailx:hdr/usg.local.h	1.4"
 /*
  * Declarations and constants specific to an installation.
  */
@@ -22,7 +22,7 @@
 
 #define MYDOMAIN	".uucp"		/* Appended to local host name */
 
-#define	MAIL		"/bin/mail"	/* Name of mail sender */
+#define	MAIL		"/bin/rmail"	/* Name of mail sender */
 /* #define DELIVERMAIL	"/usr/lib/sendmail"
 					/* Name of classy mail deliverer */
 #define	EDITOR		"ed"		/* Name of text editor */

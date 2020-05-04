@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libm:sin.c	1.15"
+#ident	"@(#)libm:sin.c	1.16"
 /*LINTLIBRARY*/
 /*
  *	sin and cos of double-precision argument.
@@ -34,50 +34,60 @@ int cosflag;
 	register double y;
 	register int neg = 0;
 	struct exception exc;
-	
+
+
 	exc.arg1 = x;
 	if (x < 0) {
 		x = -x;
 		neg++;
 	}
-	y = x;
-	if (cosflag) {
-		neg = 0;
-		y += M_PI_2;
+
+	if (cosflag)
 		exc.name = "cos";
-	} else
+	else
 		exc.name = "sin";
-	if (y > X_TLOSS) {
-		exc.type = TLOSS;
-		exc.retval = 0.0;
-		if (!matherr(&exc)) {
-			(void) write(2, exc.name, 3);
-			(void) write(2, ": TLOSS error\n", 14);
-			errno = ERANGE;
+
+	if (cosflag || x >= M_PI_2) { 	/* bypass range reduction if 
+					** |x| < (pi/2) and taking sin
+					*/	
+		y = x;
+		if (cosflag) {
+			neg = 0;
+			y += M_PI_2;
 		}
-		return (exc.retval);
-	}
-	y = y * M_1_PI + 0.5;
-	if (x <= MAXLONG) { /* reduce using integer arithmetic if possible */
-		register long n = (long)y;
+		if (y > X_TLOSS) {
+			exc.type = TLOSS;
+			exc.retval = 0.0;
+			if (!matherr(&exc)) {
+				(void) write(2, exc.name, 3);
+				(void) write(2, ": TLOSS error\n", 14);
+				errno = ERANGE;
+			}
+			return (exc.retval);
+		}
+		y = y * M_1_PI + 0.5;
+		if (x <= MAXLONG) { /* reduce using integer arithmetic if possible */
+			register long n = (long)y;
 
-		y = (double)n;
-		if (cosflag)
-			y -= 0.5;
-		_REDUCE(long, x, y, 3.1416015625, -8.908910206761537356617e-6);
-		neg ^= (int)n % 2;
-	} else {
-		extern double modf();
-		double dn;
+			y = (double)n;
+			if (cosflag)
+				y -= 0.5;
+			_REDUCE(long, x, y, 3.1416015625, -8.908910206761537356617e-6);
+			neg ^= (int)n % 2;
+		} else {
+			extern double modf();
+			double dn;
 
-		x = (modf(y, &dn) - 0.5) * M_PI;
-		if (modf(0.5 * dn, &dn))
+			x = (modf(y, &dn) - 0.5) * M_PI;
+			if (modf(0.5 * dn, &dn))
+				neg ^= 1;
+		}
+		if (x < 0) {
+			x = -x;
 			neg ^= 1;
+		}
 	}
-	if (x < 0) {
-		x = -x;
-		neg ^= 1;
-	}
+
 	if (x > X_EPS) { /* skip for efficiency and to prevent underflow */
 		static double p[] = {
 			 0.27204790957888846175e-14,

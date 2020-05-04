@@ -5,15 +5,15 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/baudrate.c	1.1"
+#ident	"@(#)curses:screen/baudrate.c	1.4"
 /*
  * Routines to deal with setting and resetting modes in the tty driver.
  * See also setupterm.c in the termlib part.
  */
-#include "curses.ext"
+#include "curses_inc.h"
 
 int
 baudrate()
 {
-	return SP->baud;
+    return (SP->baud);
 }

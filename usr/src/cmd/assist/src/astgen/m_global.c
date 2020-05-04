@@ -5,12 +5,13 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)tools:m_global.c	1.23"
+#ident	"@(#)tools:m_global.c	1.24"
 #include "../forms/muse.h"
 #include "tools.h"
 #include "vdefs.h"
 #define S_N 0 /*screen name*/
 #define H_M 1 /*form help message*/
+/*routines in this file are used for global attributes of menus*/
 
 char *mghelp="m_g.help"; /*help message file*/
 static int cur_mf = 0; /*current item in menu*/
@@ -29,7 +30,7 @@ VOID mgprompt()	/*display prompt that is appropriate for cur field*/
 	refresh();
 } /*prompt*/
 			
-mglobal()
+mglobal()	/*stay here until user enters ^T or ^R*/
 {
 	int tmp,c;
 	char *editstr(), *c_pt;
@@ -44,7 +45,7 @@ mglobal()
 		switch (c) {
 		case KEY_F(7):
 		case CTRL(e):
-			if (cur_mf == S_N)
+			if (cur_mf == S_N) /*allow edit of screen name*/
 				{
 				c_pt = editstr(lab_pt->screen_name);
 				while ((tmp=chckstr(c_pt,0)) != 0)
@@ -149,7 +150,7 @@ mglobal()
 			cur_mf = nextvar(2,cur_mf);
 			break;
 		case CTRL(p):
-		case KEY_UP:
+		case KEY_UP:	/*previous item*/
 			mvaddstr(gmenu[cur_mf].ylab,gmenu[cur_mf].xlab,
 			gmenu[cur_mf].name);
 			cur_mf = prevvar(2,cur_mf);
@@ -164,7 +165,7 @@ mglobal()
 		case CTRL(l): /*redraw screen*/
 			REDRAW;
 			break;
-		default:
+		default:	/*1st letter match*/
 			if ((tmp=firstlet(gmenu,2,c,cur_mf)) == -1)
 				flushinp(); /*no first letter match*/
 			else 
@@ -180,7 +181,7 @@ mglobal()
 } /*procedure*/
 
 
-VOID mglredisp()
+VOID mglredisp()	/*show updated screen*/
 {
 	int i;
 

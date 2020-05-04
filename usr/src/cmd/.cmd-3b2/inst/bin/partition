@@ -1,4 +1,4 @@
-#ident	"@(#)cmd-3b2:inst/bin/partition	1.8"
+#ident	"@(#)cmd-3b2:inst/bin/partition	1.8.1.1"
 #
 # partition
 #
@@ -21,7 +21,7 @@ myname="${0}"
 #	swapbase	Start sector of the swap partition
 #	swapmin		Minimum size of a swap partition in sectors
 #	usrmin		Minimum size of a usr partition in sectors
-#	diskmin		Minimum size of core system disk in sectors
+#	diskmin		Minimum size of system disk in sectors
 #*************************
 eval `fmthard -r ${RSIX_0}`
 
@@ -44,9 +44,9 @@ do
 	fi
 
 	# "fmthard -c[0-2]" where:
-	#	0 is single core disk
-	#	1 is first dual core disk
-	#	2 is second dual core disk
+	#	0 is single disk
+	#	1 is first dual disk
+	#	2 is second dual disk
 	# the "-p" returns several shell variable assignments:
 	#	rootsize
 	#	swapsize

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/message.h	10.17"
+#ident	"@(#)kern-port:sys/message.h	10.17.5.4"
 
 /*
  *	network message definitions
@@ -21,6 +21,7 @@
 
 #define REQ_MSG		1		/* request message type */
 #define RESP_MSG	2		/* response message type */
+#define NACK_MSG	3		/* RFS flow control nack message type */
 
 /* opcodes for remote service */
 #define	DUACCESS	33
@@ -66,13 +67,11 @@
 #define DUWRITEI	112
 #define DUREADI		113
 #define DULBMOUNT	115	/* lbin mount (second namei in smount)	*/
-#define DULBUMOUNT	116	/* lbin unmount			*/
 #define DURSIGNAL	119
 #define DUGDPACK	120
 #define DUGDPNACK	121
 #define DUSYNCTIME	122	/* date synchronization */
 #define DUDOTDOT	124	/* server sends this back to client */
-#define DULBIN		125	/* server sends this back to client */
 #define DUFUMOUNT	126	/* forced unmount */
 #define DUSENDUMSG	127	/* send message to remote user-level */
 #define DUGETUMSG	128	/* get message from remote user-level */
@@ -81,6 +80,7 @@
 #define DUIPUT		131
 #define DUIUPDATE	132
 #define DUUPDATE	133
+#define DUCACHEDIS	134	/* disable cache */
 
 
 /* to guarantee allignment for response and request structures, we
@@ -145,6 +145,11 @@ struct	request	{
 #define rq_link		rq_arg[0]
 #define rq_foffset      rq_arg[2]
 #define rq_synctime	rq_arg[2]
+#define rq_fhandle	rq_arg[0]	/* file handle for client caching */
+#define	rq_flags	rq_tmp[1]	/* request flags (see below)*/
+
+/* request flags (rq_flags) */
+#define	RQ_MNDLCK	0x1
 
 struct	response	{
 	struct common	rp;
@@ -176,7 +181,11 @@ struct	response	{
 #define rp_subyte	rp_tmp[0]
 #define rp_offset       rp_tmp[1]
 #define rp_synctime	rp_arg[2]
+#define rp_fhandle	rp_tmp[2]	/* file handle for client caching */
+#define rp_cache	rp_tmp[1]	/* cache flag for client caching */
 
+#define	RP_MNDLCK	0x8000		/* mandatory lock set (included with
+						client cache flags in rp_cache*/
 /* mntdata is used to store the uname and resname in rq_data
  * Later, it may also store domain name.
  */

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libc-port:gen/getcwd.c	1.8"
+#ident	"@(#)libc-port:gen/getcwd.c	1.10"
 /*LINTLIBRARY*/
 /*
  * Library routine to GET the Current Working Directory.
@@ -37,6 +37,10 @@ int	arg2;
 
 	if(arg2 == 0) {
 		errno = EINVAL;
+		return(0);
+	}
+	if(arg2 < 0) {
+		errno = ERANGE;
 		return(0);
 	}
 	if(arg1 == 0)

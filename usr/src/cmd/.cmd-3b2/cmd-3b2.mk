@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)cmd-3b2:cmd-3b2.mk	1.5"
+#ident	"@(#)cmd-3b2:cmd-3b2.mk	1.7"
 #
 # cmd-3b2.mk
 #
@@ -55,8 +55,8 @@ install:  all
 .c.o:
 	@-case $* in \
 		$(SHFILES))\
-			echo "\t$(CC) $(CFLAGS) $(LDFLAGS) $(LDLIBS) -o $* $<";\
-			$(CC) $(CFLAGS) $(LDFLAGS) $(LDLIBS) -o $* $<;\
+			echo "\t$(CC) $(CFLAGS) $(LDFLAGS) -o $* $< $(LDLIBS)";\
+			$(CC) $(CFLAGS) $(LDFLAGS) -o $* $< $(LDLIBS);\
 			;;\
 		$(NOSHFILES))\
 			echo "\t$(CC) $(CFLAGS) $(LDFLAGS) -o $* $<";\

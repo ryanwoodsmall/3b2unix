@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident "@(#)vi:port/ex_cmdsub.c	1.13"
+#ident "@(#)vi:port/ex_cmdsub.c	1.14"
 
 #include "ex.h"
 #include "ex_argv.h"
@@ -252,7 +252,7 @@ jnoop()
  */
 int	getcopy();
 
-move()
+vi_move()
 {
 	register line *adt;
 	bool iscopy = 0;

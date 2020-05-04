@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)stincc:m32/makefile	1.13"
+#ident	"@(#)stincc:m32/makefile	1.15"
 #
 #
 SGS=	m32
@@ -30,7 +30,7 @@ STINCCOM= ../scommon
 STYFLAGS=
 # Directory for sdb.h
 SDBINC=	.
-# Directory for paths.h
+# Directory for paths.h and sgs.h
 M32INC= ../../inc/m32
 
 FLEX=	-DFLEXNAMES
@@ -71,7 +71,7 @@ S=	$(STINCCOM)
 
 OFILES= cgram.o xdefs.o scan.o pftn.o trees.o optim.o local.o reader.o\
 	local2.o debug.o match.o allo.o comm1.o table.o cost.o cgen.o\
-	optdir.o fparith.o atof2.o $(INLINE.O)
+	optdir.o fparith.o atof2.o stasg.o $(INLINE.O)
 CFILES=	cgram.c $M/xdefs.c $M/scan.c $M/pftn.c $M/cgen.c $S/cost.c \
 	$M/trees.c $M/optim.c local.c $M/reader.c \
 	local2.c $M/debug.c $S/match.c $M/allo.c $M/comm1.c \
@@ -100,7 +100,8 @@ optim.o:	$M/manifest.h macdefs.h $M/mfile1.h $(SDBINC)/sdb.h $M/optim.c
 pftn.o:		$M/manifest.h macdefs.h $M/mfile1.h $(SDBINC)/sdb.h $M/pftn.c
 		$(CC_CMD) $M/pftn.c
 
-local.o:	$M/manifest.h macdefs.h $M/mfile1.h $(SDBINC)/sdb.h $(M32INC)/paths.h
+local.o:	$M/manifest.h macdefs.h $M/mfile1.h \
+			$(SDBINC)/sdb.h $(M32INC)/paths.h $(M32INC)/sgs.h
 		$(CC_CMD) -DCOMPVERS=$(COMPVERS) local.c
 
 scan.o:		$M/manifest.h macdefs.h $M/mfile1.h $(SDBINC)/sdb.h $M/scan.c
@@ -140,6 +141,9 @@ reader.o:	$M/manifest.h $M/mfile2.h macdefs.h $M/reader.c
 
 local2.o:	$M/manifest.h $M/mfile2.h macdefs.h
 		$(CC_CMD) local2.c
+
+stasg.o:	$M/manifest.h $M/mfile2.h macdefs.h 
+		$(CC_CMD) stasg.c
 
 debug.o:	$M/mfile1.h macdefs.h $(COMINC)/storclass.h $M/debug.c
 		$(CC_CMD) $M/debug.c

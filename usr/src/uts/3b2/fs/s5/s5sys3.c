@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:fs/s5/s5sys3.c	10.15"
+#ident	"@(#)kern-port:fs/s5/s5sys3.c	10.15.1.2"
 #include "sys/types.h"
 #include "sys/sysmacros.h"
 #include "sys/param.h"
@@ -120,6 +120,16 @@ off_t offset;
 	case F_CHKFL:
 		break;
 
+	case F_FREESP:
+		/* free file storage space */
+		if (copyin((caddr_t)arg, &bf, sizeof bf))
+			u.u_error = EFAULT;
+		else if ((i = convoff(ip, &bf, 0, offset)) != 0)
+			u.u_error = i;
+		else
+			s5freesp(ip, &bf, flag);
+		break;
+
 	default:
 		u.u_error = EINVAL;
 	}
@@ -146,13 +156,17 @@ int cmd, arg, flag;
 /*
  * the mount system call.
  */
-s5mount(bip, mp, rdonly)
+/* ARGSUSED */
+s5mount(bip, mp, flags, dataptr, datalen)
 register struct inode *bip;
 register struct mount *mp;
-register int rdonly;
+int flags;
+char *dataptr;
+int datalen;
 {
 	register dev_t dev;
 	register struct filsys *fp;
+	int rdonly;
 	extern short s5fstyp;
 
 	if (bip->i_ftype != IFBLK) {
@@ -166,7 +180,7 @@ register int rdonly;
 		}
 	}
 	dev = mp->m_dev;
-	rdonly &= MS_RDONLY;
+	rdonly = (flags & MS_RDONLY);
 	/* Why are FREAD and/or FWRITE passed to drivers...? */
  	(*bdevsw[bmajor(dev)].d_open)(dev, rdonly ? FREAD : FREAD|FWRITE,
  		OTYP_MNT);
@@ -569,3 +583,228 @@ out:
 	}
 }
 
+#define NIADDR	3		/* number of indirect block pointers */
+#define NDADDR	(NADDR-NIADDR)	/* number of direct block pointers */
+#define IB(i)	(NDADDR + (i))	/* index of i'th indirect block ptr */
+#define SINGLE	0		/* single indirect block ptr */
+#define DOUBLE	1		/* double indirect block ptr */
+#define TRIPLE	2		/* triple indirect block ptr */
+
+/*
+ * Free storage space associated with the specified inode.  The portion
+ * to be freed is specified by lp->l_start and lp->l_len (already
+ * normalized to a "whence" of 0).
+ * This is an experimental facility for SVR3.1 and WILL be changed
+ * in the next release.  Currently, we only support the special case
+ * of l_len == 0, meaning free to end of file.
+ *
+ * Blocks are freed in reverse order.  This FILO algorithm will tend to
+ * maintain a contiguous free list much longer than FIFO.
+ * See also s5itrunc() in s5iget.c.
+ *
+ * Bug:  unused bytes in the last retained block are not cleared.
+ * This may result in a "hole" in the file that does not read as zeroes.
+ */
+s5freesp(ip, lp, flag)
+register struct inode *ip;
+register struct flock *lp;
+int flag;
+{
+	register int i;
+	register struct s5inode *s5ip;
+	register struct mount *mp;
+	register daddr_t bn;
+	register daddr_t lastblock;
+	register long bsize;
+	long nindir;
+	daddr_t lastiblock[NIADDR];
+	daddr_t save[NADDR];
+
+	s5ip = (struct s5inode *)ip->i_fsptr;
+	ASSERT(s5ip != NULL);
+	ASSERT((s5ip->s5i_mode & IFMT) == IFREG);
+	ASSERT(lp->l_start >= 0);	/* checked by convoff */
+
+	if (lp->l_len != 0) {
+		u.u_error = EINVAL;
+		return;
+	}
+	if (ip->i_size <= lp->l_start)
+		return;
+
+	/*
+	 * Truncation honors mandatory record locking protocol
+	 * exactly as writing does.  See s5chklock() in s5rdwri.c.
+	 */
+
+	if (!s5access(ip, IMNDLCK)) {
+		lp->l_type = F_WRLCK;
+		i = (flag & FNDELAY) ? INOFLCK : SLPFLCK|INOFLCK;
+		if ((i = reclock(ip, lp, i, 0, lp->l_start)) != 0
+			|| lp->l_type != F_UNLCK) {
+			u.u_error = i ? i : EAGAIN;
+			return;
+		}
+	}
+
+	/*
+	 * Release the direct-load block map (if any).
+	 */
+
+	if (s5ip->s5i_map)
+		s5freemap(ip);
+
+	/*
+	 * Calculate index into inode's block list of last block
+	 * we want to keep.  Lastblock is -1 when the file is
+	 * truncated to 0.
+	 *
+	 * Think of the file as consisting of four separate lists
+	 * of data blocks:  one list of up to NDADDR blocks pointed
+	 * to directly from the inode, and three lists of up to
+	 * nindir, nindir**2 and nindir**3 blocks, respectively
+	 * headed by the SINGLE, DOUBLE and TRIPLE indirect block
+	 * pointers.  For each of the four lists, we're calculating
+	 * the index within the list of the last block we want to
+	 * keep.  If the index for list i is negative, it means
+	 * that said block is not in list i (but perhaps in list i-1),
+	 * hence all blocks in list i are to be discarded; if the
+	 * index is beyond the end of list i, it means that the
+	 * block is not in list i (but perhaps in list i+1), hence
+	 * all blocks in list i are to be kept.
+	 */
+
+	mp = ip->i_mntdev;
+	bsize = mp->m_bsize;
+	nindir = FsNINDIR(bsize);
+	lastblock = ((lp->l_start + FsBSIZE(bsize)-1) >> FsBSHIFT(bsize)) - 1;
+	lastiblock[SINGLE] = lastblock - NDADDR;
+	lastiblock[DOUBLE] = lastiblock[SINGLE] - nindir;
+	lastiblock[TRIPLE] = lastiblock[DOUBLE] - nindir*nindir;
+
+	/*
+	 * Update file size and block pointers in
+	 * disk inode before we start freeing blocks.
+	 * Also normalize lastiblock values to -1
+	 * for calls to s5indirtrunc below.
+	 */
+
+	for (i = NADDR-1; i >= 0; i--)
+		save[i] = s5ip->s5i_addr[i];
+
+	for (i = TRIPLE; i >= SINGLE; i--)
+		if (lastiblock[i] < 0) {
+			s5ip->s5i_addr[IB(i)] = 0;
+			lastiblock[i] = -1;
+		}
+
+	for (i = NDADDR-1; i > lastblock; i--)
+		s5ip->s5i_addr[i] = 0;
+
+	ip->i_size = lp->l_start;
+	ip->i_flag |= IUPD|ICHG|ISYN;
+	s5iupdat(ip, &time, &time);
+
+	/*
+	 * Indirect blocks first.
+	 */
+
+	for (i = TRIPLE; i >= SINGLE; i--) {
+		if ((bn = save[IB(i)]) != 0) {
+			s5indirtrunc(mp, bn, lastiblock[i], i);
+			if (lastiblock[i] < 0)
+				s5free(mp, bn);
+		}
+		if (lastiblock[i] >= 0)
+			return;
+	}
+
+	/*
+	 * Direct blocks.
+	 */
+
+	for (i = NDADDR-1; i > lastblock; i--) {
+		if ((bn = save[i]) != 0)
+			s5free(mp, bn);
+	}
+}
+
+s5indirtrunc(mp, bn, lastbn, level)
+register struct mount *mp;
+daddr_t bn, lastbn;
+int level;
+{
+	register int i;
+	register struct buf *bp, *copy;
+	register daddr_t *bap;
+	long bsize, factor;
+	long nindir;
+	daddr_t last;
+
+	/*
+	 * Calculate index in current block of last block (pointer) to be kept.
+	 * A lastbn of -1 indicates that the entire block is going away, so we
+	 * need not calculate the index.
+	 */
+
+	bsize = mp->m_bsize;
+	nindir = FsNINDIR(bsize);
+	factor = 1;
+	for (i = SINGLE; i < level; i++)
+		factor *= nindir;
+	last = lastbn;
+	if (lastbn > 0)
+		last /= factor;
+
+	/*
+	 * Get buffer of block pointers, zero those entries corresponding to
+	 * blocks to be freed, and update on-disk copy first.  (If the entire
+	 * block is to be discarded, there's no need to zero it out and
+	 * rewrite it, since there are no longer any pointers to it, and it
+	 * will be freed shortly by the caller anyway.)
+	 * Note potential deadlock if we run out of buffers.  One way to
+	 * avoid this might be to use statically-allocated memory instead;
+	 * you'd have to make sure that only one process at a time got at it.
+	 */
+
+	copy = geteblk();
+	bp = bread(mp->m_dev, bn, FsBSIZE(bsize));
+	if (bp->b_flags & B_ERROR) {
+		brelse(copy);
+		brelse(bp);
+		return;
+	}
+	bap = bp->b_un.b_daddr;
+	bcopy((caddr_t)bap, copy->b_un.b_addr, FsBSIZE(bsize));
+	if (last < 0)
+		brelse(bp);
+	else {
+		bzero((caddr_t)&bap[last+1],
+			(int)(nindir - (last+1)) * sizeof(daddr_t));
+		bwrite(bp);
+	}
+	bap = copy->b_un.b_daddr;
+
+	/*
+	 * Recursively free totally unused blocks.
+	 */
+
+	for (i = nindir-1; i > last; i--)
+		if ((bn = bap[i]) != 0) {
+			if (level > SINGLE)
+				s5indirtrunc(mp, bn, (daddr_t)-1, level-1);
+			s5free(mp, bn);
+		}
+
+	/*
+	 * Recursively free last partial block.
+	 */
+
+	if (level > SINGLE && lastbn >= 0) {
+		last = lastbn % factor;
+		if ((bn = bap[i]) != 0)
+			s5indirtrunc(mp, bn, last, level-1);
+	}
+
+	brelse(copy);
+}

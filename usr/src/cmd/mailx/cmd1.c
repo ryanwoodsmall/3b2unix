@@ -5,14 +5,13 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:cmd1.c	1.6"
+#ident	"@(#)mailx:cmd1.c	1.7"
 #
 #include "rcv.h"
 #include <sys/stat.h>
 #include <ctype.h>
 #include <string.h>
-typedef	int	(*sigtype)();
-extern sigtype m_sigset();
+typedef	SIG	(*sigtype)();
 
 extern	char *strrchr();
 
@@ -329,7 +328,7 @@ type1(msgvec, doign)
 	int c, nlines;
 	int brokpipe();
 	FILE *ibuf, *obuf;
-	int (*saveint)();
+	void (*saveint)();
 
 	saveint = signal(SIGINT, SIG_IGN);
 	obuf = stdout;
@@ -351,7 +350,7 @@ type1(msgvec, doign)
 			}
 			else {
 				pipef = obuf;
-				m_sigset(SIGPIPE, brokpipe);
+				sigset(SIGPIPE, brokpipe);
 			}
 		} else
 			signal(SIGINT, saveint);
@@ -369,7 +368,7 @@ type1(msgvec, doign)
 		pclose(obuf);
 	}
 ret0:
-	m_sigset(SIGPIPE, SIG_DFL);
+	sigset(SIGPIPE, SIG_DFL);
 	signal(SIGINT, saveint);
 	return(0);
 }
@@ -382,7 +381,7 @@ ret0:
 brokpipe()
 {
 # ifdef VMUNIX
-	m_sigrelse(SIGPIPE);
+	sigrelse(SIGPIPE);
 # else
 	signal(SIGPIPE, brokpipe);
 # endif

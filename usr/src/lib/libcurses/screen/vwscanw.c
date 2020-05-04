@@ -5,13 +5,13 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/vwscanw.c	1.2"
+#ident	"@(#)curses:screen/vwscanw.c	1.5"
 /*
  * scanw and friends
  *
  */
 
-# include	"curses.ext"
+# include	"curses_inc.h"
 # include	<varargs.h>
 
 /*
@@ -23,6 +23,7 @@
  *	such a routine becomes available.
  */
 
+/*VARARGS2*/
 vwscanw(win, fmt, ap)
 WINDOW	*win;
 char *fmt;

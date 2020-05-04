@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:common/pass2.c	1.18"
+#ident	"@(#)as:common/pass2.c	1.19.1.2"
 
 #include <stdio.h>
 #include <signal.h>
@@ -163,7 +163,7 @@ extern int
 	onintr();
 
 extern upsymins
-	*lookup();
+	lookup();
 
 #if FLEXNAMES
 extern long	currindex;
@@ -173,9 +173,8 @@ extern char	*strtab;
 BYTE	*longsdi;
 
 #if ONEPROC
-extern char islongsdi[];
+extern char *islongsdi;
 #endif
-
 unsigned short
 	relent;
 
@@ -209,6 +208,7 @@ FILE
 extern FILE
 	*perfile;	/* performance data file descriptor */
 #endif
+extern short tstlookup;
 
 long	symbent = 0L,
 	gsymbent = 0L;
@@ -441,7 +441,7 @@ aspass2()
 	if (filecnt < NFILES)
 		aerror("Illegal Argument Count");
 	getstab(filenames[4]);
-	ptr = (*lookup("(sdicnt)",N_INSTALL,USRNAME)).stp;
+	ptr = lookup("(sdicnt)",N_INSTALL,USRNAME).stp;
 	if (ptr != NULLSYM && (sdicnt = (unsigned)(ptr->value)) != 0) {
 		if ((fdsect = fopen(filenames[5],"r")) == NULL)
 			aerror("Cannot open temporary (sdi) file");
@@ -469,7 +469,7 @@ aspass2()
 
 	siz = 0;
 	for (i = 1, sect = &sectab[1], seci = &secdat[1]; i <= seccnt; i++, sect++, seci++) {
-		ptr = (*lookup(sect->s_name,N_INSTALL,USRNAME)).stp;
+		ptr = lookup(sect->s_name,N_INSTALL,USRNAME).stp;
 		ptr->value = 0L;	/* has s_flags, needed for pass1; clear
 						before fixstab() below */
 		if (seci->s_up = sect->s_size % SCTALIGN) {
@@ -601,7 +601,6 @@ aspass2()
 			fclose(perfile);
 		}
 	}
-
 #endif
 
 	if (!anyerrs) {
@@ -632,14 +631,14 @@ aspass2()
 		 * End of removal code
 		*/
 #else
-		copysect(filenames[7]);	/* append symbol table */
+		copysect(filenames[3]);	/* append symbol table */
 #endif
 #if FLEXNAMES
 		if (currindex > 4)	/* Does a string table exist?	*/
 		{
 			fseek( fdout, 0L, 2 );	/* write at the end of the symbol table */
 			fwrite((char *)&currindex,sizeof(long),sizeof(char),fdout);
-			fwrite(&strtab[4],sizeof(char),currindex-4,fdout);
+			fwrite(&strtab[4],sizeof(char),(int)(currindex-4),fdout);
 		}
 #endif
 		fflush(fdout);
@@ -651,6 +650,42 @@ aspass2()
 		if (testas != TESTVAL + 1)
 #endif
 			deltemps();
+#if STATS
+{
+	extern char *firstbrk;
+	extern char *sbrk();
+	extern char *brk();
+	extern unsigned long
+		tablesize,
+		numids,
+		numins,
+		numlnksins,
+		numretr,
+		numlnksretr,
+		numreallocs,
+		inputsz;
+	extern char cfile[];
+	extern unsigned short sdicnt;
+	extern short maxssentctr, maxlabctr;
+	long growth;
+	FILE *fdstat;
+	char *msgfile;
+	growth = (long) (sbrk(0) - firstbrk);
+	if (cfile[0] == '\0')
+		msgfile = filenames[0];
+	else
+		msgfile = cfile;
+	if ((fdstat = fopen(STATPATH,"a")) == NULL)	
+		fprintf(stderr,"Cannot open statistics file %s to append\n",STATPATH);
+	else {
+	fprintf(fdstat,"%lu\t%lu\t%lu\t%ld\t%lu\t%lu\t%lu\t%lu\t%lu\t%s\t%d\t%d\t%d\n",
+		inputsz,tablesize,numids,growth,numretr,numlnksretr,
+		numins,numlnksins,numreallocs,msgfile,
+		sdicnt, maxssentctr, maxlabctr);
+	fclose(fdstat);
+	}
+}
+#endif
 #if ONEPROC
 		return(0);
 #else

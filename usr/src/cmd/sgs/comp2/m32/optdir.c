@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)pcc2:m32/optdir.c	1.8"
+#ident	"@(#)pcc2:m32/optdir.c	1.10"
 /* optdir.c
 **
 **	Optimization Director
@@ -67,8 +67,13 @@ int sizeopt = 0;	/* signal for size optimization.  set in local.c main() */
 #define BRWEIGHT	10	/* weight to de-emphasize code in branches */
 #define HIGHSZ		20	/* size of table for sorting estimators */
 
-int	estimtab[SYMTSZ];	/* payoff estimator for each variable, 
+static int etab_init[INI_SYMTSZ];	/* payoff estimator for each variable, 
 				** set to -1 if address of variable is taken */
+static TD_INIT(td_estimtab, INI_SYMTSZ, sizeof(int),
+			0, etab_init, "estimator table");
+#define estimtab ((int *)td_estimtab.td_start)
+#define estimsize (td_estimtab.td_allo)
+
 NODE 	*lastp;			/* pointer to last NAME node processed */
 int	lastid;			/* index to symbol table for last NAME node */
 int	dblflg = 0;		/* flag indicating presence of doubles */
@@ -87,6 +92,8 @@ struct hinode { /* ordered table of variables with highest estimators */
 #define	EMPTY	-2
 #define	ADDRSD	-1
 
+void checketab();
+
 void
 rainit()
 
@@ -95,7 +102,7 @@ rainit()
 	struct hinode *hp;
 
 	/* initialize estimator table */
-	for( p = estimtab; p < estimtab + SYMTSZ; p++ ) *p = EMPTY;
+	for( p = estimtab; p < estimtab + estimsize; p++ ) *p = EMPTY;
 
 	/* initialize hi table */
 	for( hp = high; hp < high + HIGHSZ; hp++ ) hp->hiestim = EMPTY;
@@ -121,6 +128,8 @@ NODE *p;
 {
 	int type, class;
 	int old;
+
+	checketab();			/* make sure table is large enough */
 
 	/* check for simpleness */
 	type = stab[idname].stype;
@@ -152,16 +161,18 @@ NODE *p;
 		case AUTO:
 			if( estimtab[idname] == EMPTY ) estimtab[idname] = 0;
 			weight = RAPAYOFF;
-			for( i = 1; i <= fordepth; i++ ) {
+			if (!sizeopt) {
+			    for( i = 1; i <= fordepth; i++ ) {
 				if( weight >= 10000 ) break;
-				if (!sizeopt) weight *= FORWEIGHT;
-			}
-			for( i = 1; i <= whdepth; i++ ) {
+				 weight *= FORWEIGHT;
+			    }
+			    for( i = 1; i <= whdepth; i++ ) {
 				if( weight >= 10000 ) break;
-				if (!sizeopt) weight *= WHWEIGHT;
-			}
-			for( i = 1; i <= brdepth; i++ ) {
-				if (!sizeopt) weight /= BRWEIGHT;
+				 weight *= WHWEIGHT;
+			    }
+			    for( i = 1; i <= brdepth; i++ ) {
+				 weight /= BRWEIGHT;
+			    }
 			}
 			estimtab[idname] += weight;
 		}
@@ -186,6 +197,8 @@ raua(p)
 NODE *p;
 
 {
+	checketab();			/* be sure table is large enough */
+
 	/* mark variables with address taken */
 	if( p == lastp )  estimtab[lastid] = ADDRSD;
 }
@@ -202,18 +215,20 @@ raftn()
 	/* check for end of function */
 	if( blevel != 2 ) return;
 
+	checketab();			/* be sure table is large enough */
+
 	/* check for doubles */
 	if( dblflg == 0 ) printf( "#REGAL\t%d\tNODBL\n", 0 );
 	else return;
 
 	/* check for args with address taken */
-	for( i = 0; i < SYMTSZ; i++ ) {
-		if( stab[i].sclass == PARAM && estimtab[i] == ADDRSD ) {
-			for( j = 0; j < SYMTSZ; j++ ) 
-				if( stab[j].sclass == PARAM )
-					estimtab[j] = ADDRSD;
-			break;
-		}
+	for (i = 0; i < argno; i++) {
+	    /* argstk[i] is stab index of i+1st arg. */
+	    if (estimtab[argstk[i]] == ADDRSD) {
+		for (j=0; j < argno; j++)
+		    estimtab[argstk[j]] = ADDRSD;
+		break;
+	    }
 	}
 
 	/* insert entries from symbol table in decreasing order */
@@ -236,12 +251,10 @@ raftn()
 				( sp->sclass == hp->hiscl && 
 				   sp->offset > hp->hiident ) )))
 			{
-				for( k = 8; k >= j; k-- ) {
+				for( k = HIGHSZ-2; k >= j; k-- ) {
 					hp = &high[k];
-					(hp+1)->hiestim = hp->hiestim;
-					(hp+1)->hiscl = hp->hiscl;
-					(hp+1)->hiident = hp->hiident;
-					(hp+1)->hilen = hp->hilen;
+					if (hp->hiestim != EMPTY)
+					    *(hp+1) = *hp;	/* copy */
 				}
 				hp = &high[j];
 				hp->hiestim = ei;
@@ -278,5 +291,22 @@ raftn()
 		}
 		printf( "\t%d\n", hp->hilen );
 	}
+}
+
+static void
+checketab()
+{
+    int oldsize;			/* current table size */
+    register int i;
+
+    /* make sure estimtab is large enough for symbol table */
+    if (estimsize < SYMTSZ) {
+	oldsize = td_enlarge(&td_estimtab, SYMTSZ);
+
+	for (i = oldsize; i < SYMTSZ; ++i)
+	    estimtab[i] = EMPTY;
+    }
+    /* estimtab now large enough for current symbol table */
+    return;
 }
 #endif /* IMPREGAL */

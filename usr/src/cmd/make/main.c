@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)make:main.c	1.4.1.1"
+#ident	"@(#)make:main.c	1.4.1.2"
 
 # include "defs"
 /*
@@ -48,7 +48,7 @@ int okdel=YES;
 
 CHARSTAR prompt="\t";	/* other systems -- pick what you want */
 char junkname[20];
-char funny[128];
+char funny[256];
 
 
 
@@ -79,10 +79,10 @@ CHARSTAR argv[];
 	descset = 0;
 
 	for(s = "#|=^();&<>*?[]:$`'\"\\\n" ; *s ; ++s)
-		funny[*s] |= META;
+		funny[(unsigned char) *s] |= META;
 	for(s = "\n\t :=;{}&>|" ; *s ; ++s)
-		funny[*s] |= TERMINAL;
-	funny['\0'] |= TERMINAL;
+		funny[(unsigned char) *s] |= TERMINAL;
+	funny[(unsigned char) '\0'] |= TERMINAL;
 
 	TURNON(INTRULE);		/* Default internal rules, turned on */
 

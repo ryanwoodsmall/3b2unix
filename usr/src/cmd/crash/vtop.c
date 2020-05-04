@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)crash-3b2:vtop.c	1.5"
+#ident	"@(#)crash-3b2:vtop.c	1.5.1.1"
 /*
  * This file contains code for the crash functions:  vtop and mode, as well as
  * the virtual to physical offset conversion routine vtop.
@@ -34,7 +34,7 @@ int prsid;				/* temporary variables to hold */
 long prssl,prsram,prpsl;		/* values to be printed by vtop */
 					/* function */
 
-/* virtual to physical office address translation */
+/* virtual to physical offset address translation */
 paddr_t
 vtop(vaddr,slot)
 long vaddr;

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)init:init.c	1.20"
+#ident	"@(#)init:init.c	1.29"
 
 /*	"init" is the general process spawning program.  It reads	*/
 /*	/etc/inittab for a script.					*/
@@ -118,7 +118,7 @@
 #ifndef		CBUNIX
 #include	<sys/types.h>
 #endif
-#include	<sys/param.h>	/* included for NPROC & NOFILE */
+#include	<sys/param.h>	/* included for NPROC */
 #include	<signal.h>	/* Fix param.h not to duplicate */
 #include	<stdio.h>
 #include	"utmp.h"
@@ -210,6 +210,10 @@ int SPECIALPID;	/* Any pid can be made special for debugging */
 #define	MASKa	0400
 #define	MASKb	01000
 #define	MASKc	02000
+
+#if u3b15
+#define NPROC	500
+#endif
 
 #ifndef	NPROC
 #define	NPROC	100
@@ -399,6 +403,8 @@ char	*SYSTTY	=	"/dev/systty";	/* System Console */
 char	*SYSCON	=	"/dev/syscon";	/* Virtual System console */
 char	*IOCTLSYSCON	=	"/etc/ioctl.syscon";	/* Last syscon modes */
 
+char	*ENVFILE	=	"/etc/TIMEZONE"; /* Change this name in 4.0! */
+
 #ifdef	DEBUGGER
 char	*DBG_FILE	=	"/etc/debug";
 #endif
@@ -422,7 +428,7 @@ int	op_modes = BOOT_MODES;	/* Current state of "init" */
 #ifndef	CBUNIX
 #define control(x)	('x'&037)
 
-#if u3b || u3b5 || u3b2
+#if u3b || u3b15 || u3b2
 struct	termio	dflt_termio = {
 	BRKINT|IGNPAR|ISTRIP|IXON|IXANY|ICRNL,
 	OPOST|ONLCR|TAB3,
@@ -491,6 +497,12 @@ struct PROC_TABLE	dummy;	/* A zero table used when
 #ifdef	DEBUG
 char comment[120];
 #endif
+
+/**************************************************************/
+/* array for default global environment                       */
+/**************************************************************/
+#define MAXENVENT 6  /* max number of default env variables + 1 */
+char *glob_envp[MAXENVENT];  /* array of environment strings */
 
 /********************/
 /****    main    ****/
@@ -776,7 +788,7 @@ int defaultlevel;
 /* "init" to be signaled to change levels. */
 		while (waitproc(su_process) == FAILURE) {
 
-#if u3b2 || u3b5
+#if u3b2 || u3b15
 	/* did we waken because of a single-user 3B2/3B5 powerfail? */
 	/* if so, spawn /etc/powerfail from inittab */
 			if (wakeup.w_flags.w_powerhit) {
@@ -1125,6 +1137,7 @@ register struct CMD_LINE *cmd;
 	};
 	extern char *prog_name();
 	extern int rsflag;
+	int maxfiles;
 
 #ifdef	DEBUG1
 	extern char *C();
@@ -1214,11 +1227,12 @@ register struct CMD_LINE *cmd;
 		tmproc.p_pid = getpid();
 		tmproc.p_exit = 0;
 		account(INIT_PROCESS,&tmproc,prog_name(&cmd->c_command[EXEC]));
-		for (i=0,fp= stdin; i < _NFILE;i++,fp++) fclose(fp);
+		maxfiles = ulimit(4,0);
+		for( i=0; i<maxfiles; i++ ) fcntl(i, F_SETFD, 1);
 
 /* Now "exec" a shell with the -c option and the command from */
 /* /etc/inittab. */
-		execle(SH,"INITSH","-c",cmd->c_command,0,&envp[0]);
+		execle(SH,"INITSH","-c",cmd->c_command,0,&glob_envp[0]);
 
 /* If the "exec" fails, print an error message. */
 		console("Command\n\"%s\"\n failed to execute.  errno = %d (exec of shell failed)\n", cmd->c_command,errno);
@@ -1661,17 +1675,19 @@ int initialize()
 	char command[MAXCMDL];
 	extern int cur_state,op_modes;
 	extern int childeath();
+	extern char *malloc();
 	register int msk,i;
-	static int states[] = {
-		LVL0,LVL1,LVL2,LVL3,LVL4,LVL5,LVL6,SINGLE_USER
-	};
-	static char *envp[] = { 
-		"PATH=/bin:/etc:/usr/bin",0
-	};
+	static int states[] = { LVL0,LVL1,LVL2,LVL3,LVL4,LVL5,LVL6,SINGLE_USER };
 	FILE *fp;
 	int initstate,flag;
 	register struct PROC_TABLE *process,*oprocess;
 	extern struct PROC_TABLE *efork(),*findpslot();
+	int maxfiles;
+	int len;
+	char *cmdptr;
+	char *c;
+ 	char *cptr1, *cptr2;
+ 	extern char *strpbrk() ;
 
 /* Initialize state to "SINGLE_USER" "BOOT_MODES" */
 	if(cur_state >= 0) {
@@ -1688,6 +1704,62 @@ int initialize()
 #ifdef	UDEBUG
 	save_ioctl();
 #endif
+
+/* Set up the default environment for all procs to be forked from init. */
+/* Read the values from the /etc/TIMEZONE file, except for PATH.        */
+/* If there's not room in the environment array, the environment lines  */
+/* that don't fit are silently discarded.                               */
+
+	glob_envp[0] = malloc((unsigned)(strlen("PATH=/bin:/etc:/usr/bin")+2));
+	strcpy( glob_envp[0],"PATH=/bin:/etc:/usr/bin");
+
+	if( (fp = fopen(ENVFILE,"r")) != NULL )
+	{
+		i = 1;
+	envloop:
+		while( fgets(command, MAXCMDL-1, fp) )
+		{
+			for( c=command; *c != '\0'; c++ )
+				if( *c == '=' )
+				{
+					if( i < MAXENVENT-1 )
+					{
+						cmdptr = command;
+						while( (cmdptr[0] == '\t') ||
+							(cmdptr[0] == ' ') )
+							cmdptr++;
+						len = strlen(cmdptr);
+						if( cmdptr[len-1] == '\n' )
+							cmdptr[len-1] = '\0';
+						/* while loop strips double and single quotes */
+					 	while ( (cptr1 =strpbrk(cmdptr,"\"\'")) != NULL )
+ 							{
+					 		for (cptr2=cptr1; cptr2 < &cmdptr[len-1] ; cptr2++ )
+					 			*cptr2 = *(cptr2+1) ;
+					 		len-- ;
+ 							}
+						glob_envp[i]= malloc((unsigned)(len+1));
+						strcpy(glob_envp[i], cmdptr);
+						i++;
+						goto envloop;
+					}
+					else
+						goto envloop;
+				}
+		}
+
+/* Append a null pointer to the environment array to mark its end.  */
+/* If the array's full, write over the last entry so the system     */
+/* doesn't panic.                                                   */
+
+		if( i < MAXENVENT )
+			glob_envp[i] = NULL;
+		else
+			glob_envp[MAXENVENT-1] = NULL;
+		fclose(fp);
+	}
+	else
+		console("Cannot open %s. Environment not initialized.\n", ENVFILE);
 
 /* Look for an "initdefault" entry in "/etc/inittab", which */
 /* specifies the initial level to which "init" is to go at */
@@ -1719,8 +1791,9 @@ int initialize()
 /* system to take place.  No writing should be done until the */
 /* operator has had the chance to decide whether the file system */
 /* needs checking or not. */
-					for (i=0,fp= stdin; i < _NFILE;i++,fp++) fclose(fp);
-					execle(SH,"INITSH","-c",cmd.c_command,0,&envp[0]);
+					maxfiles = ulimit(4,0);
+					for( i=0; i<maxfiles; i++ ) fcntl(i,F_SETFD,1);
+					execle(SH,"INITSH","-c",cmd.c_command,0,&glob_envp[0]);
 /* If the "exec" fails, print an error message. */
 					console("Command\n\"%s\"\n failed to execute.  errno = %d (exec of shell failed)\n", cmd.c_command,errno);
 					exit(1);
@@ -1891,7 +1964,7 @@ powerfail()
 {
 	extern union WAKEUP wakeup;
 
-#if u3b2 || u3b5
+#if u3b2 || u3b15
 	nice(-19);
 #endif
 	wakeup.w_flags.w_powerhit = 1;

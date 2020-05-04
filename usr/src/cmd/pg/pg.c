@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)pg:pg.c	1.14"
+#ident	"@(#)pg:pg.c	1.17"
 
 #include <signal.h>
 #include <setjmp.h>
@@ -53,7 +53,7 @@ short           nlall;          /* room for how many LINEs in memory */
 FILE		*in_file,	/* current input stream */
 		*tmp_fin,	/* pipe temporary file in */
 		*tmp_fou;	/* pipe temporary file out */
-char		*tmp_name = "/tmp/pgXXXXXX";
+char		tmp_name[] = "/tmp/pgXXXXXX";
 
 long		ftell();
 char		*malloc(),
@@ -110,7 +110,7 @@ short		eoflag;		/* set whenever at end of current file */
 short		doliseof;	/* set when last line of file is known */
 int		eofl_no;	/* what the last line of the file is */
 
-#define USAGE() { fprintf(stderr,"Usage: pg [-number] [-p string] [-cefns] [+line] [+/pattern/] files\n"); exit(1); }
+#define USAGE() { (void) fprintf(stderr,"Usage: pg [-number] [-p string] [-cefns] [+line] [+/pattern/] files\n"); exit(1); }
 
 main(argc, argv)
 int argc;
@@ -173,7 +173,7 @@ char *argv[];
 					if (p < initbuf + sizeof(initbuf))
 						*p++ = *s++;
 					else {
-						fprintf(stderr,"pg: pattern too long\n");
+						(void) fprintf(stderr,"pg: pattern too long\n");
 						exit(1);
 					}
 				*p = '\0';
@@ -190,13 +190,13 @@ char *argv[];
 		else
 			break;
 	}
-	signal(SIGQUIT,end_it);
-	signal(SIGINT,end_it);
+	(void) signal(SIGQUIT,end_it);
+	(void) signal(SIGINT,end_it);
 	out_is_tty = isatty(1);
 	if (out_is_tty) {
 		terminit();
-		signal(SIGQUIT,on_brk);
-		signal(SIGINT,on_brk);
+		(void) signal(SIGQUIT,on_brk);
+		(void) signal(SIGINT,on_brk);
 	}
 	if (window == 0)
 		window = lines - 1;
@@ -222,22 +222,23 @@ char *argv[];
 				fnum += screen(fnames[fnum]);
 			else {
 				if (prnames) {
-					fputs("::::::::::::::\n",stdout);
-					fputs(fnames[fnum],stdout);
-					fputs("\n::::::::::::::\n",stdout);
+					(void) fputs("::::::::::::::\n",stdout);
+					(void) fputs(fnames[fnum],stdout);
+					(void) fputs("\n::::::::::::::\n",stdout);
 				}
 				copy_file(in_file,stdout);
 				fnum++;
 			}
-			fflush(stdout);
+			(void) fflush(stdout);
 			if (pipe_in)
 				save_pipe();
 			else
 			if (in_file != tmp_fin)
-				fclose(in_file);
+				(void) fclose(in_file);
 		}
 	}
 	end_it();
+/* NOT REACHED */
 }
 
 char *
@@ -264,7 +265,7 @@ register char *s;
 		default:
 			break;
 		}
-	fprintf(stderr,"pg: prompt too long\n");
+	(void) fprintf(stderr,"pg: prompt too long\n");
 	exit(1);
 }
 
@@ -349,8 +350,8 @@ char *file_name;
 		}
 
 		for(; start <= new_ss.last_line; start++) {
-			find(0,start);
-			fputs(Line,stdout);
+			(void) find(0,start);
+			(void) fputs(Line,stdout);
 			if (brk_hit) {
 				new_ss.last_line = find(1,0);
 				new_ss.is_eof = 0;
@@ -359,7 +360,7 @@ char *file_name;
 		}
 
 		brk_hit = 0;
-		fflush(stdout);
+		(void) fflush(stdout);
 		if (new_ss.is_eof) {
 			if (!eof_pause || eofl_no == 1)
 				return(1);
@@ -372,7 +373,7 @@ char *file_name;
 }
 
 char	cmdbuf[LINSIZ], *cmdptr;
-#define BEEP()		if (bell) { putp(bell); fflush(stdout); }
+#define BEEP()		if (bell) { putp(bell); (void) fflush(stdout); }
 #define	BLANKS(p)	while (*p == ' ' || *p == '\t') p++
 #define CHECKEND()	BLANKS(cmdptr); if (*cmdptr) { BEEP(); break; }
 
@@ -389,7 +390,6 @@ char *filename;
 	register char c;
 	FILE *sf;
 	char *cmdend;
-	short checkit = 0;
 	int id;
 	int skip;
 
@@ -397,7 +397,7 @@ char *filename;
 		/* Wait for output to drain before going on.     */
 		/* This is done so that the user will not hit    */
 		/* break and quit before he has seen the prompt. */
-		ioctl(1,TCSBRK,1);
+		(void) ioctl(1,TCSBRK,1);
 		if (setjmp(restore) != 0)
 			end_it();
 		inwait = 1;
@@ -408,7 +408,7 @@ char *filename;
 			kill_line();
 			prompt(filename);
 		}
-		fflush(stdout);
+		(void) fflush(stdout);
 		if (ttyin())
 			continue;
 		cmdptr = cmdbuf;
@@ -423,7 +423,7 @@ char *filename;
 		case '.':       /* redisplay current window */
 			CHECKEND();
 			new_ss.first_line = old_ss.first_line;
-			new_ss.last_line = new_ss.first_line + window - 1;
+			new_ss.last_line = old_ss.last_line; /*G.B.Green*/
 			inwait = 0;
 			return(0);
 		case 'w':       /* set window size */
@@ -476,11 +476,11 @@ char *filename;
 				kill_line();
 				sopr("saving file ",1);
 				sopr(cmdptr,1);
-				fflush(stdout);
+				(void) fflush(stdout);
 				save_input(sf);
 				error("saved");
 			}
-			fclose(sf);
+			(void) fclose(sf);
 			break;
 		case 'q':
 		case 'Q':
@@ -539,6 +539,18 @@ char *filename;
 			case 0:
 				new_ss.first_line = nlines + 1;
 				new_ss.last_line = nlines + window;
+				/*
+				  This if statement is to fix the obscure bug 
+				  where you have a file that has less lines
+				  than a screen holds, and the user types '1', 
+				  expecting to have the 1st page (re)displayed.
+				  If we didn't set the new last_line to 
+				  eofl_no-1, the screen() routine 
+				  would cause pg to exit.
+				*/
+				if (new_ss.first_line == 1
+				    && new_ss.last_line >= eofl_no)
+					new_ss.last_line = eofl_no - 1;
 				break;
 			case -1:
 				new_ss.last_line = old_ss.first_line - nlines;
@@ -611,8 +623,8 @@ char *filename;
 			}
 		case '!':       /* shell escape */
 			if (!hard_copy) { /* redisplay the command */
-				fputs(cmdbuf,stdout);
-				fputs("\n",stdout);
+				(void) fputs(cmdbuf,stdout);
+				(void) fputs("\n",stdout);
 			}
 			if ((id = fork ()) < 0) {
 				error("cannot fork, try again later");
@@ -624,14 +636,14 @@ char *filename;
 				* that the terminal is really stdin for
 				* the command
 				*/
-				fclose(stdin);
-				dup(fileno(stdout));
-				execl(shell, shell, "-c", cmdptr, 0);
-				fprintf(stderr,"exec failed\n");
+				(void) fclose(stdin);
+				(void) dup(fileno(stdout));
+				(void) execl(shell, shell, "-c", cmdptr, 0);
+				(void) fprintf(stderr,"exec failed\n");
 				exit(1);
 			}
-			signal (SIGINT, SIG_IGN);
-			signal (SIGQUIT, SIG_IGN);
+			(void) signal (SIGINT, SIG_IGN);
+			(void) signal (SIGQUIT, SIG_IGN);
 			while (wait((int *) 0) != id);
 			{
 				if (errno == ECHILD)
@@ -639,10 +651,10 @@ char *filename;
 				else
 					errno = 0;
 			}
-			fputs("!\n",stdout);
-			fflush(stdout);
-			signal(SIGINT,on_brk);
-			signal(SIGQUIT,on_brk);
+			(void) fputs("!\n",stdout);
+			(void) fflush(stdout);
+			(void) signal(SIGINT,on_brk);
+			(void) signal(SIGQUIT,on_brk);
 			break;
 		default:
 			BEEP();
@@ -678,12 +690,12 @@ number()
 ttyin ()
 {
 	register char *sptr;
-	register char ch;
+	register unsigned char ch;
 	register int slash = 0;
 	int state = 0;
 
 	fixterm();
-	set_state(&state,' ');	/* initialize state processing */
+	(void) set_state(&state,' ',(char *)0);	/* initialize state processing */
 	sptr = cmdbuf;
 	while(state != 10) {
 		ch = readch();
@@ -692,27 +704,27 @@ ttyin ()
 		if (ch == erasechar() && !slash) {
 			if (sptr > cmdbuf) {
 				--promptlen;
-				fputs("\b \b",stdout);
+				(void) fputs("\b \b",stdout);
 				--sptr;
 				if (*sptr < ' ') {
 					--promptlen;
-					fputs("\b \b",stdout);
+					(void) fputs("\b \b",stdout);
 				}
 			}
-			set_state(&state,ch,sptr);
-			fflush(stdout);
+			(void) set_state(&state,ch,sptr);
+			(void) fflush(stdout);
 			continue;
 		}
 		else
 		if (ch == killchar() && !slash) {
 			if (hard_copy)
-				putchar(ch);
+				(void) putchar(ch);
 			resetterm();
 			return(1);
 		}
 		if (slash) {
 			slash = 0;
-			fputs("\b \b",stdout);
+			(void) fputs("\b \b",stdout);
 			sptr--;
 			promptlen--;
 		}
@@ -724,24 +736,24 @@ ttyin ()
 		else
 		if (ch == '\\')
 			slash++;
-		if (set_state(&state,ch,sptr) == 0) {
+		if (set_state(&state,(int)ch,sptr) == 0) {
 			BEEP();
 			continue;
 		}
 		*sptr++ = ch;
 		if (ch < ' ') {
 			ch += 0100;
-			putchar('^');
+			(void) putchar('^');
 			promptlen++;
 		}
-		putchar(ch);
+		(void) putchar(ch);
 		promptlen++;
-		fflush(stdout);
+		(void) fflush(stdout);
 	}
 
 	*sptr = '\0';
 	kill_line();
-	fflush(stdout);
+	(void) fflush(stdout);
 	resetterm();
 	return(0);
 }
@@ -757,9 +769,9 @@ register char *pc;
 	static int slash;
 
 	if (*pstate == 0) {
-		psign = NULL;
-		pnumber = NULL;
-		pcommand = NULL;
+		psign = (char *)NULL;
+		pnumber = (char *)NULL;
+		pcommand = (char *)NULL;
 		*pstate = 1;
 		slash = 0;
 		return(1);
@@ -773,19 +785,19 @@ register char *pc;
 		case 4:
 			if (pc > pcommand)
 				return(1);
-			pcommand = NULL;
+			pcommand = (char *)NULL;
 		case 3:
 			if (pnumber && pc > pnumber) {
 				*pstate = 3;
 				return(1);
 			}
-			pnumber = NULL;
+			pnumber = (char *)NULL;
 		case 2:
 			if (psign && pc > psign) {
 				*pstate = 2;
 				return(1);
 			}
-			psign = NULL;
+			psign = (char *)NULL;
 		case 1:
 			*pstate = 1;
 			return(1);
@@ -833,7 +845,7 @@ readch ()
 {
 	char ch;
 
-	read (fileno(stdout), &ch, 1);
+	(void) read (fileno(stdout), &ch, 1);
 	return (ch);
 }
 
@@ -842,29 +854,29 @@ help()
 	if (clropt)
 		doclear();
 
-	fputs("-------------------------------------------------------\n",stdout);
-	fputs("   h               help\n",stdout);
-	fputs("   q or Q          quit\n",stdout);
-	fputs("   <blank> or \\n   next page\n",stdout);
-	fputs("   l               next line\n",stdout);
-	fputs("   d or ^D         display half a page more\n",stdout);
-	fputs("   . or ^L         redisplay current page\n",stdout);
-	fputs("   f               skip the next page forward\n",stdout);
-	fputs("   n               next file\n",stdout);
-	fputs("   p               previous file\n",stdout);
-	fputs("   $               last page\n",stdout);
-	fputs("   w or z          set window size and display next page\n",stdout);
-	fputs("   s savefile      save current file in savefile\n",stdout);
-	fputs("   /pattern/       search forward for pattern\n",stdout);
-	fputs("   ?pattern? or\n",stdout);
-	fputs("   ^pattern^       search backward for pattern\n",stdout);
-	fputs("   !command         execute command\n",stdout);
-	fputs("\n",stdout);
-	fputs("Most commands can be preceeded by a number, as in:\n",stdout);
-	fputs("+1\\n (next page,stdout); -1\\n (previous page); 1\\n (page 1).\n");
-	fputs("\n",stdout);
-	fputs("See the manual page for more detail.\n",stdout);
-	fputs("-------------------------------------------------------\n",stdout);
+	(void) fputs("-------------------------------------------------------\n",stdout);
+	(void) fputs("   h               help\n",stdout);
+	(void) fputs("   q or Q          quit\n",stdout);
+	(void) fputs("   <blank> or \\n   next page\n",stdout);
+	(void) fputs("   l               next line\n",stdout);
+	(void) fputs("   d or ^D         display half a page more\n",stdout);
+	(void) fputs("   . or ^L         redisplay current page\n",stdout);
+	(void) fputs("   f               skip the next page forward\n",stdout);
+	(void) fputs("   n               next file\n",stdout);
+	(void) fputs("   p               previous file\n",stdout);
+	(void) fputs("   $               last page\n",stdout);
+	(void) fputs("   w or z          set window size and display next page\n",stdout);
+	(void) fputs("   s savefile      save current file in savefile\n",stdout);
+	(void) fputs("   /pattern/       search forward for pattern\n",stdout);
+	(void) fputs("   ?pattern? or\n",stdout);
+	(void) fputs("   ^pattern^       search backward for pattern\n",stdout);
+	(void) fputs("   !command         execute command\n",stdout);
+	(void) fputs("\n",stdout);
+	(void) fputs("Most commands can be preceeded by a number, as in:\n",stdout);
+	(void) fputs("+1\\n (next page,stdout); -1\\n (previous page); 1\\n (page 1).\n",stdout);
+	(void) fputs("\n",stdout);
+	(void) fputs("See the manual page for more detail.\n",stdout);
+	(void) fputs("-------------------------------------------------------\n",stdout);
 }
 
 /*
@@ -872,6 +884,7 @@ help()
  * negative.
  */
 
+int
 skipf (nskip)
 register int nskip;
 {
@@ -912,20 +925,20 @@ register char *fs;
 		}
 	}
 	else {
-		if ((f=fopen(fs, "r")) == NULL) {
-			fflush(stdout);
+		if ((f=fopen(fs, "r")) == (FILE *)NULL) {
+			(void) fflush(stdout);
 			perror(fs);
-			return (NULL);
+			return ((FILE *)NULL);
 		}
 	}
 	if (fstat(fileno(f), &stbuf) == -1) {
-		fflush(stdout);
+		(void) fflush(stdout);
 		perror(fs);
-		return (NULL);
+		return ((FILE *)NULL);
 	}
 	if (stbuf.st_mode & S_IFDIR) {
-		fprintf(stderr,"pg: %s is a directory\n",fs);
-		return (NULL);
+		(void) fprintf(stderr,"pg: %s is a directory\n",fs);
+		return ((FILE *)NULL);
 	}
 	if (stbuf.st_mode & S_IFREG) {
 		if (f == stdin)		/* It may have been read from */
@@ -933,23 +946,23 @@ register char *fs;
 	}
 	else {
 		if (f != stdin) {
-			fprintf(stderr,"pg: special files only handled as standard input\n");
-			return(NULL);
+			(void) fprintf(stderr,"pg: special files only handled as standard input\n");
+			return((FILE *)NULL);
 		}
 		else {
-			mktemp(tmp_name);
+			(void) mktemp(tmp_name);
 			if ((fd=creat(tmp_name,0600)) < 0) {
-			    fprintf(stderr,"pg: Can't create temp file\n");
-			    return(NULL);
+			    (void) fprintf(stderr,"pg: Can't create temp file\n");
+			    return((FILE *)NULL);
 			}			
-			close(fd);
+			(void) close(fd);
 			if ((tmp_fou = fopen(tmp_name, "w")) == NULL) {
-				fprintf(stderr,"pg: Can't get temp file for writing\n");
-				return(NULL);
+				(void) fprintf(stderr,"pg: Can't get temp file for writing\n");
+				return((FILE *)NULL);
 			}
 			if ((tmp_fin = fopen(tmp_name, "r")) == NULL) {
-				fprintf(stderr,"pg: Can't get temp file for reading\n");
-				return(NULL);
+				(void) fprintf(stderr,"pg: Can't get temp file for reading\n");
+				return((FILE *)NULL);
 			}
 			pipe_in = 1;
 		}
@@ -964,12 +977,12 @@ register FILE *f, *out;
 	register int c;
 
 	while ((c = getc(f)) != EOF)
-		putc(c,out);
+		(void) putc(c,out);
 }
 
 #define INIT		register char *sp = instring;
-#define GETC()		(*sp++)
-#define PEEKC()		(*sp)
+#define GETC()		(unsigned char)(*sp++)
+#define PEEKC()		(unsigned char)(*sp)
 #define UNGETC(x)	(--sp)
 #define RETURN(c)	return
 #define ERROR(c)	re_error(c)
@@ -991,12 +1004,12 @@ int i;
 		"No remembered search string",  		41,
 		"\\( \\) imbalance",				42,
 		"Too many \\(",					43,
-		"More than two numbers given in \\{ \\}",	44,
+		"More than two numbers given in \\{ \\}",  	44,
 		"} expected after \\",				45,
-		"First number exceeds second in \\{ \\}",	46,
+		"First number exceeds second in \\{ \\}",  	46,
 		"[] imbalance",					49,
 		"Regular expression overflow",			50,
-		"Bad regular expression",		 	0
+		"Bad regular expression",			0
 		};
 
 	for (j = 0; re_errmsg[j].number != 0; j++ )
@@ -1014,6 +1027,7 @@ int i;
 
 char expbuf[BUFSIZ];
 
+int
 search (buf, n)
 char buf[];
 register int n;
@@ -1033,12 +1047,12 @@ register int n;
 
 		if (n < 0) {	/* search back */
 			direction = -1;
-			find(0,old_ss.first_line);
+			(void) find(0,old_ss.first_line);
 			END_COND = BOF;
 		}
 		else {
 			direction = 1;
-			find(0,old_ss.last_line);
+			(void) find(0,old_ss.last_line);
 			END_COND = EOF;
 		}
 
@@ -1057,8 +1071,7 @@ register int n;
 						new_ss.first_line = new_ss.last_line - window + 1;
 						break;
 					case 'm':
-						new_ss.first_line =
-find(1,0) - (window - 1)/2;
+						new_ss.first_line = find(1,0) - (window - 1)/2;
 						new_ss.last_line = new_ss.first_line + window - 1;
 						break;
 					}
@@ -1127,7 +1140,7 @@ short line;
 		if (pipe_in)
 			in_file = f = stdin;
 		else
-			fseek(f, dol->l_addr, 0);
+			(void) fseek(f, dol->l_addr, 0);
 		dot = dol - 1;
 		while ((nchars = getline(f)) != EOF) {
 			dot++;
@@ -1147,17 +1160,17 @@ short line;
 	}
 	else { /* where < dol->l_no */
 		if (pipe_in) {
-			fflush(tmp_fou);
+			(void) fflush(tmp_fou);
 			in_file = f = tmp_fin;
 		}
 		if (where < zero->l_no){
-			fseek(f, zero->l_addr, 0);
+			(void) fseek(f, zero->l_addr, 0);
 			dot = zero - 1;
 			return(BOF);
 		}
 		else {
 			dot = zero + where - 1;
-			fseek(f, dot->l_addr, 0);
+			(void) fseek(f, dot->l_addr, 0);
 			nchars = getline(f);
 			return(dot->l_no);
 		}
@@ -1185,7 +1198,8 @@ register FILE *f;
 		rdchar = fgetc;
 
 	for (i = 1, column = 0, p = Line; i < LINSIZ - 1; i++, p++) {
-		*p = c = (*rdchar)(f);
+		c = (*rdchar)(f);
+		*p = c;
 		switch(c) {
 		case EOF:
 			clearerr(f);
@@ -1208,7 +1222,7 @@ register FILE *f;
 			column = 0;
 			break;
 		default:
-			if (c >= ' ')
+			if (isprint(c))
 				column++;
 			break;
 		}
@@ -1227,28 +1241,28 @@ register FILE *f;
 		/* peek at the next character */
 		c = fgetc(f);
 		if (c == '\n') {
-			ungetc(c,f);
+			(void) ungetc(c,f);
 			c = (*rdchar)(f); /* gobble and copy it */
 		}
 		else
 		if (c == EOF) /* get it next time */
 			clearerr(f);
 		else
-			ungetc(c,f);
+			(void) ungetc(c,f);
 	}
 	*p = 0;
 	return(column);
 }
 
 save_input(f)
-register FILE f;
+register FILE *f;
 {
 	if (pipe_in) {
 		save_pipe();
 		in_file = tmp_fin;
 		pipe_in = 0;
 	}
-	fseek(in_file,0L,0);
+	(void) fseek(in_file,0L,0);
 	copy_file(in_file,f);
 }
 
@@ -1261,7 +1275,7 @@ save_pipe()
 				error("Piped input only partially saved");
 				break;
 			}
-	fclose(tmp_fou);
+	(void) fclose(tmp_fou);
 }
 
 fgetputc(f)	/* copy anything read from a pipe to tmp_fou */
@@ -1269,7 +1283,7 @@ register FILE *f;
 {
 	register int c;
 	if ((c = getc(f)) != EOF)
-		putc(c,tmp_fou);
+		(void) putc(c,tmp_fou);
 	return(c);
 }
 
@@ -1324,7 +1338,7 @@ register FILE *f;
 	if (!pipe_in)
 		dol->l_addr = ftell(f);
 	else {
-		fflush(tmp_fou);
+		(void) fflush(tmp_fou);
 		dol->l_addr = ftell(tmp_fou);
 	}
 	dol->l_no = (dol-1)->l_no + 1;
@@ -1332,7 +1346,7 @@ register FILE *f;
 
 compact()
 {
-	fprintf(stderr, "pg: no more memory - line %d\n",dol->l_no);
+	(void) fprintf(stderr, "pg: no more memory - line %d\n",dol->l_no);
 	end_it();
 }
 
@@ -1342,18 +1356,18 @@ terminit()	/* set up terminal dependencies from termlib */
 	struct termio ntty;
 
 	if ((freopen("/dev/tty","r+",stdout)) == NULL) {
-		fprintf(stderr,"pg: cannot reopen stdout\n");
+		(void) fprintf(stderr,"pg: cannot reopen stdout\n");
 		exit(1);
 	}
-	ioctl(fileno(stdout),TCGETA,&otty);
+	(void) ioctl(fileno(stdout),TCGETA,&otty);
 	termflg = 1;
 
-	setupterm(0,fileno(stdout),&err_ret);
-	ioctl(fileno(stdout),TCGETA,&ntty);
+	(void) setupterm(0,fileno(stdout),&err_ret);
+	(void) ioctl(fileno(stdout),TCGETA,&ntty);
 	ntty.c_lflag &= ~(ECHONL | ECHO | ICANON);
 	ntty.c_cc[VMIN] = 1;
 	ntty.c_cc[VTIME] = 1;
-	ioctl(fileno(stdout),TCSETAW,&ntty);
+	(void) ioctl(fileno(stdout),TCSETAW,&ntty);
 	saveterm();
 	resetterm();
 	if (lines <= 0 || hard_copy) {
@@ -1364,7 +1378,7 @@ terminit()	/* set up terminal dependencies from termlib */
 		columns = 80;
 	if (clropt && !clear_screen)
 		clropt = 0;
-	if ((shell = getenv("SHELL")) == NULL)
+	if ((shell = getenv("SHELL")) == (char *)NULL)
 			shell = "/bin/sh";
 }
 
@@ -1391,10 +1405,10 @@ char *filename;
 		if ((pagenum=(int)((new_ss.last_line-2)/(window-1)+1))
 						> 999999)
 			pagenum = 999999;
-		sprintf(outstr,promptstr,pagenum);
+		(void) sprintf(outstr,promptstr,pagenum);
 		sopr(outstr,1);
 	}
-	fflush(stdout);
+	(void) fflush(stdout);
 }
 
 /*
@@ -1410,25 +1424,25 @@ sopr(m,count)
 		promptlen += strlen(m);
 	if (soflag && enter_standout_mode && exit_standout_mode) {
 		putp(enter_standout_mode);
-		fputs(m,stdout);
+		(void) fputs(m,stdout);
 		putp(exit_standout_mode);
 	}
 	else
-		fputs(m,stdout);
+		(void) fputs(m,stdout);
 }
 
 doclear()
 {
 	if (clear_screen)
 		putp(clear_screen);
-	putchar('\r');  /* this resets the terminal drivers character */
+	(void) putchar('\r');  /* this resets the terminal drivers character */
 			/* count in case it is trying to expand tabs  */
 }
 
 kill_line()
 {
 	erase_line(0);
-	if (!clr_eol) putchar ('\r');
+	if (!clr_eol) (void) putchar ('\r');
 }
 
 /* erase from after col to end of prompt */
@@ -1439,17 +1453,17 @@ register int col;
 	if (promptlen == 0)
 		return;
 	if (hard_copy)
-		putchar('\n');
+		(void) putchar('\n');
 	else {
 		if (col == 0)
-			putchar('\r');
+			(void) putchar('\r');
 		if (clr_eol) {
 			putp(clr_eol);
-			putchar('\r');  /* for the terminal driver again */
+			(void) putchar('\r');  /* for the terminal driver again */
 		}
 		else
 			for (col = promptlen - col; col > 0; col--)
-				putchar (' ');
+				(void) putchar (' ');
 	}
 	promptlen = 0;
 }
@@ -1458,10 +1472,11 @@ register int col;
  * Come here if a quit or interrupt signal is received
  */
 
+int
 on_brk(sno)
 	int sno;	/* signal number generated */
 {
-	signal(sno, on_brk);
+	(void) signal(sno, on_brk);
 	if (!inwait) {
 		BEEP();
 		brk_hit = 1;
@@ -1476,6 +1491,7 @@ on_brk(sno)
  * Clean up terminal state and exit.
  */
 
+int
 end_it ()
 {
 
@@ -1483,13 +1499,13 @@ end_it ()
 		kill_line();
 		resetterm();
 		if (termflg)
-			ioctl(fileno(stdout),TCSETAW,&otty);
+			(void) ioctl(fileno(stdout),TCSETAW,&otty);
 	}
 	if (tmp_fin)
-		fclose(tmp_fin);
+		(void) fclose(tmp_fin);
 	if (tmp_fou)
-		fclose(tmp_fou);
+		(void) fclose(tmp_fou);
 	if (tmp_fou || tmp_fin)
-		unlink(tmp_name);
+		(void) unlink(tmp_name);
 	exit(0);
 }

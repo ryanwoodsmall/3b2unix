@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-	.ident	"@(#)libc-m32:gen/m32_data.s	1.5"
+	.ident	"@(#)libc-m32:gen/m32_data.s	1.6"
 	.file   "m32_data.s"
 # This file contains
 # the definition of the
@@ -20,11 +20,11 @@
 	.align	4
 errno:	
 	.word 	0
-_m4_ifdef_(`SHLIB',
-`	.globl	d.vect
-	.globl	_old.fp
+	.globl	d.vect
 d.vect:
 	.zero	32 * 4
+_m4_ifdef_(`SHLIB',
+`	.globl	_old.fp
 _old.fp:
 	.word	0
 ',

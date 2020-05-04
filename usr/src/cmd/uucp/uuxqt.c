@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:uuxqt.c	2.4"
+#ident	"@(#)uucp:uuxqt.c	2.7"
 
 #include "uucp.h"
 
@@ -25,8 +25,6 @@
 #define BAD_COMMAND	1
 #define BAD_FILE	2
 #define USAGE	"[-xDEGUG] [-sSYSTEM]"
-#define APPCMD(p)	{(void) strcat(_Cmd, p); (void) strcat(_Cmd, " ");}
-#define APPCMDNS(p)	{(void) strcat(_Cmd, p);}
 
 char	_Xfile[MAXFULLNAME];
 char	_Cmd[2 * BUFSIZ];	/* build up command buffer */
@@ -457,12 +455,12 @@ int
 chkpart(ptr)
 char *ptr;
 {
-	char	prm[BUFSIZ], xcmd[BUFSIZ];
+	char	prm[BUFSIZ], whitesp[BUFSIZ], xcmd[BUFSIZ];
 	char	savechar[2]; /* one character string with NULL */
 	int	ret;
 
 	/* _CargType is the arg type for this iteration (cmd or file) */
-	while ((ptr = getprm(ptr, prm)) != NULL) {
+	while ((ptr = getprm(ptr, whitesp, prm)) != NULL) {
 	    DEBUG(4, "prm='%s'\n", prm);
 	    switch(*prm) {
 
@@ -471,14 +469,14 @@ char *ptr;
 	    case '^':
 	    case '&':
 	    case '|':
-	        APPCMDNS(prm);
+		(void)strcat(strcat(_Cmd, whitesp), prm);
 		_CargType = C_COMMAND;
 		continue;
 
 	    /* Other delimiter */
 	    case '>':
 	    case '<':
-	        APPCMDNS(prm);
+		(void)strcat(strcat(_Cmd, whitesp), prm);
 		continue;
 
 	    case '`':	/* don't allow any ` commands */
@@ -492,7 +490,8 @@ char *ptr;
 	        /* must recurse */
 		savechar[0] = *prm;
 		savechar[1] = NULLCHAR;
-		APPCMD(savechar);	/* put first char into command */
+		/* put leading white space & first char into command */
+		(void)strcat(strcat(_Cmd, whitesp), savechar);
 		savechar[0] = prm[strlen(prm)-1];
 		prm[strlen(prm)-1] = NULLCHAR; /* delete last character */
 
@@ -500,7 +499,8 @@ char *ptr;
 		if (ret = chkpart(prm+1)) { /* failed */
 		    return(ret);
 		}
-		APPCMD(savechar);	/* put last char into command */
+
+		(void)strcat(_Cmd, savechar);	/* put last char into command */
 		continue;
 
 	    default:	/* check for command or file */
@@ -510,7 +510,7 @@ char *ptr;
 	    if (_CargType == C_COMMAND) {
 		if ( (cmdOK(prm, xcmd)) == FALSE)
 		    return(BAD_COMMAND);
-		APPCMD(xcmd);
+		(void)strcat(strcat(_Cmd, whitesp), xcmd);
 		_CargType = C_FILE;
 		continue;
 	    }
@@ -518,8 +518,11 @@ char *ptr;
 	    if (chkFile(prm))
 		return(BAD_FILE);
 	    else
-		APPCMD(prm);
+		(void)strcat(strcat(_Cmd, whitesp), prm);
    	}
+	if ( whitesp[0] != '\0' )
+		/* restore any trailing white space */
+		(void)strcat(_Cmd, whitesp);
 	return(0);	/* all ok */
 }
 
@@ -714,7 +717,8 @@ char *dirname;
     char	_Sfile[MAXFULLNAME];	/* name of local file for status */
     FILE	*xfp, *dfp, *fp, *errdfp;
     struct	stat sb;
-    char	buf[BUFSIZ], user[BUFSIZ], retaddr[BUFSIZ], msgbuf[BUFSIZ];
+    char	buf[BUFSIZ], user[BUFSIZ], retaddr[BUFSIZ], retuser[BUFSIZ], 
+		msgbuf[BUFSIZ];
 
     (void) strcpy(Rmtname, dirname);
     chremdir(Rmtname);
@@ -738,7 +742,7 @@ char *dirname;
 	(void) strcpy(fout, "/dev/null");
 	(void) sprintf(sysout, "%.*s", MAXBASENAME, Myname);
 	badfiles = 0;
-	*incmd = *retaddr = NULLCHAR;
+	*incmd = *retaddr = *retuser = NULLCHAR;
 	(void) initSeq();
 	send_zero = send_nonzero = send_nothing = store_status = return_stdin = 0;
 
@@ -804,8 +808,12 @@ char *dirname;
 			    break;
 
 
-		case X_RETADDR:	/* return address */
-			    (void) sscanf(&buf[1], "%s", retaddr);
+		case X_RETADDR:	/* return address -- is user's name	*/
+			    /* put "Rmtname!" in front of it so mail	*/
+			    /* will always get back to remote system.	*/
+			    (void) sscanf(&buf[1], "%s", retuser);
+			    (void) strcat(strcat(strcpy(retaddr, Rmtname), "!"),
+					retuser);
 			    break;
 
 		default:

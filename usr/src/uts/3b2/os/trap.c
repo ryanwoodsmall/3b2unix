@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/trap.c	10.17"
+#ident	"@(#)kern-port:os/trap.c	10.17.4.10"
 #include "sys/sysmacros.h"
 #include "sys/param.h"
 #include "sys/types.h"
@@ -33,17 +33,17 @@
 #include "sys/inline.h"
 #include "sys/mau.h"
 
-
 extern int sbdrcsr;
 extern int sbdwcsr;
 extern int bootstate;
 
 int	mau_present;	/* flag if mau is in system */
 
-/* read-only table of WE32100 support processor opcodes
+/*
+ * Read-only table of WE32100 support processor opcodes
  * used to distinguish between the (anonymous) external memory fault
  * caused by "support processor not present" and all other faults.
- * the entry format is 1) indicates MAU instruction 2) indicates double/triple
+ * The entry format is 1) indicates MAU instruction 2) indicates double/triple
  * write instruction
  */
 #define MAU_SPECIAL 2	/* flags that a page fault on this instruction needs
@@ -67,13 +67,12 @@ char spopcode[ 256 ] = {
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,	/* 0xe0 - 0xef */
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};	/* 0xf0 - 0xff */
 
-int	*save_r0ptr ;	/* Pansave uses this to find	*/
-			/* the registers.		*/
+int	*save_r0ptr ;	/* pansave() uses this to find the registers */
 
 /*
  *	#################################################
  *	#						#
- *	#		NOTICE!#
+ *	#		NOTICE!				#
  *	#						#
  *	# Although similar to u_trap(), s_trap() knows	#
  *	# that signal processing is the only thing to do#
@@ -92,10 +91,11 @@ s_trap()
 	u.u_pcbp = (struct pcb *)&u.u_kpcb.psw;	/* running on kernel now */
 
 	syst = u.u_stime;
-	psig();
 	pp = u.u_procp;
+	if (ISSIG(pp, FORREAL))
+		psig();
 	curpri = pp->p_pri = calcppri(pp);
-	if (u.u_prof.pr_scale)
+	if (u.u_prof.pr_scale & ~1)
 		addupc((caddr_t)u.u_ar0[PC],
 			&u.u_prof,
 			(int)(u.u_stime - syst));
@@ -148,12 +148,13 @@ register int	*r0ptr;
 	save_r0ptr = r0ptr ;
 	ps.cint = r0ptr[PS];
 
-	/*	If we were moving data to or from a user's
-	**	process space and we got a memory fault,
-	**	it may be an invalid page.  If so, validate
-	**	it.  If not, give an error on the system
-	**	call.
-	*/
+	/*
+	 * If we were moving data to or from a user's
+	 * process space and we got a memory fault,
+	 * it may be an invalid page.  If so, validate
+	 * it.  If not, give an error on the system
+	 * call.
+	 */
 
 	if (u.u_caddrflt &&  ps.cps.FT == ON_NORMAL && ps.cps.ISC == XMEMFLT) {
 
@@ -164,12 +165,13 @@ register int	*r0ptr;
 		u.u_caddrflt = 0;
 		i = usrxmemflt(r0ptr[PC],ps);
 
-		/*	If usrxmemflt returned a non-zero value,
-		**	then the fault couldn't be corrected.
-		**	Return to the error routine indicated
-		**	by u.u_caddrflt.  Otherwise, just return
-		**	to try the access again.
-		*/
+		/*
+		 * If usrxmemflt returned a non-zero value,
+		 * then the fault couldn't be corrected.
+		 * Return to the error routine indicated
+		 * by u.u_caddrflt.  Otherwise, just return
+		 * to try the access again.
+		 */
 
 		u.u_caddrflt = caddrsave;
 		if (i != 0)
@@ -181,10 +183,9 @@ register int	*r0ptr;
 		return;
 	}
 
-	/*	Make sure the compiler saves all of the registers.
-	*/
+	/* Make sure the compiler saves all of the registers. */
 
-	rr8 = rr7 = rr6 = rr5 = rr4 = rr3 = 1;;
+	rr8 = rr7 = rr6 = rr5 = rr4 = rr3 = 1;
 
 	cmn_err(CE_CONT, "TRAP\nproc = %x psw = %x\npc = %x",
 		u.u_procp, ps.cint, r0ptr[PC]);
@@ -202,7 +203,7 @@ register int	*r0ptr;
 /*
  *	#################################################
  *	#						#
- *	#		NOTICE!#
+ *	#		NOTICE!				#
  *	#						#
  *	#	U_TRAP() is CALLPS'ed not CALLed.	#
  *	#	It must RETPS, not RETURN.		#
@@ -232,11 +233,11 @@ u_trap()
 	uptr->u_pcb.regsave[K_PS] = *(--uptr->u_pcb.sp);
 	uptr->u_pcb.regsave[K_PC] = *(--uptr->u_pcb.sp);
 
-	/* reset the kpcb initial pc so syscalls whizz through */
+	/* reset the kpcb initial pc so syscalls whiz through */
 
 	uptr->u_kpcb.ipcb.pc = systrap;
 
-	/* get off the interrupt stack!*/
+	/* get off the interrupt stack! */
 
 	asm("	SUBW2	&4,%isp");
 
@@ -250,8 +251,10 @@ u_trap()
 	if (ps.cps.FT == ON_NORMAL) {
 
 		switch (ps.cps.ISC) {
-			case IZDFLT:
 			case IOVFLT:
+				u.u_fpovr = 0;
+				/* fall thru to next case */
+			case IZDFLT:
 				sig = SIGFPE;
 				break;
 			case BPTRAP:
@@ -277,9 +280,10 @@ u_trap()
 				break;
 		}
 	} else {
-		/*	We must have gotten here for an
-		**	invalid "gate" done by the user.
-		*/
+		/*
+		 * We must have gotten here for an
+		 * invalid "gate" done by the user.
+		 */
 
 		sig = SIGKILL;
 	}
@@ -288,16 +292,17 @@ u_trap()
 	curpri = pp->p_pri = calcppri(pp);
 
 	if (sig != 0)
-		psignal(uptr->u_procp, sig);
+		psignal(pp, sig);
 
-	/*	We may be running on the user pcb if we are
-	**	fielding an ilc or returning from a floating
-	**	point routine called via interrupt.  In this
-	**	case, the return address is in the u_pcb.
-	**	If we context switch or try to call a user
-	**	signal routine, we will clobber this return
-	**	address.  Don't do that.
-	*/
+	/*
+	 * We may be running on the user pcb if we are
+	 * fielding an ilc or returning from a floating
+	 * point routine called via interrupt.  In this
+	 * case, the return address is in the u_pcb.
+	 * If we context switch or try to call a user
+	 * signal routine, we will clobber this return
+	 * address.  Don't do that.
+	 */
 
 	if((uptr->u_pcb.regsave[K_PC] >= (int)&nrmx_ilc   &&
 	    uptr->u_pcb.regsave[K_PC] <= (int)&nrmx_ilc2) ||
@@ -309,18 +314,16 @@ u_trap()
 
 	if (runrun != 0)
 		qswtch();
-	if ((uptr->u_procp->p_flag & SPRSTOP)
-	  || (uptr->u_procp->p_sig && issig())) {
+	if (ISSIG(pp, FORREAL)) {
 		psig();
 		curpri = pp->p_pri = calcppri(pp);
 	}
-	if (uptr->u_prof.pr_scale) {
+	if (uptr->u_prof.pr_scale & ~1) {
 		addupc((caddr_t)uptr->u_pcb.regsave[K_PC],
 			&uptr->u_prof,
 			(int)(uptr->u_stime - syst));
 	}
 	
-
 	/* Return through common interrupt return sequence */
 
 	ASSERT(noilocks() == 0);
@@ -334,7 +337,7 @@ u_trap()
 /*
  *	#################################################
  *	#						#
- *	#		NOTICE!#
+ *	#		NOTICE!				#
  *	#						#
  *	#	SYSTRAP() is CALLPS'ed, not CALL'ed.	#
  *	#	It must RETPS, not RETURN.		#
@@ -353,6 +356,7 @@ systrap()
 	extern int		krnl_isp[];
 	time_t			syst;
 	short			pid;
+	unsigned int		scall;
 
 	/* finish storing the user state into u.u_pcb */
 
@@ -360,13 +364,14 @@ systrap()
 	uptr->u_pcb.regsave[K_PS] = *(--uptr->u_pcb.sp);
 	uptr->u_pcb.regsave[K_PC] = *(--uptr->u_pcb.sp);
 
-	/*	The following line is only really needed
-	**	for process 1.  We come in here on the
-	**	user stack but the saved PSW has kernel
-	**	mode.  This is necessary since we had to
-	**	write the pcb to switch stacks.  See the
-	**	code in misc.s/icode.
-	*/
+	/*
+	 * The following line is only really needed
+	 * for process 1.  We come in here on the
+	 * user stack but the saved PSW has kernel
+	 * mode.  This is necessary since we had to
+	 * write the pcb to switch stacks.  See the
+	 * code in misc.s/icode.
+	 */
 
 	((psw_t *)(&uptr->u_pcb.regsave[K_PS]))->CM = PS_USER;
 
@@ -381,30 +386,72 @@ systrap()
 		uptr->u_pcb.regsave[K_R1]);
 
 	syst = uptr->u_stime;
-	pid = u.u_procp->p_pid;
+	pid = uptr->u_procp->p_pid;
 
 	sysinfo.syscall++;
 	uptr->u_error = 0;
 	((psw_t *)(uptr->u_pcb.regsave))[K_PS].NZVC &= ~PS_C;
-	ap = (uint *)uptr->u_pcb.regsave[K_AP];
 
-	u.u_syscall = (uptr->u_pcb.regsave[K_R1]&0x7ff8) >> 3;
-	callp = &sysent[u.u_syscall];
-	for (i = 0; i < callp->sy_narg; i++) {
-		uptr->u_arg[i] = fuword(ap++);
+	/*
+	 * Performance hack: the system call number is not saved
+	 * here because it's not usually needed; if it is it can
+	 * be recomputed later.
+	 */
+	callp = &sysent[(uptr->u_pcb.regsave[K_R1]&0x7ff8) >> 3];
+
+#ifndef NBBY
+#define	NBBY	8	/* Number of bits per byte */
+#endif
+
+#define	BITSPERLONG	(sizeof(long)*NBBY)
+
+	uptr->u_sysabort = 0;
+	if (uptr->u_systrap) {		/* do stop-on-syscall-entry test */
+		register long m;
+		scall = callp - sysent;
+		m = uptr->u_entrymask[scall/BITSPERLONG];
+		if (m & (1 << (scall%BITSPERLONG))) {
+			uptr->u_procp->p_whatstop = scall;
+			uptr->u_procp->p_whystop = SYSENTRY;
+			stop(uptr->u_procp);
+			swtch();
+		}
 	}
+
+	ap = (uint *)uptr->u_pcb.regsave[K_AP];
+	for (i = 0; i < callp->sy_narg; i++)
+		uptr->u_arg[i] = lfuword(ap++);
 	uptr->u_dirp = (caddr_t)uptr->u_arg[0];
 	uptr->u_rval1 = 0;
 	uptr->u_rval2 = uptr->u_pcb.regsave[K_R1];
 	uptr->u_ap = uptr->u_arg;
 
-	if ((bootstate || !callp->sy_setjmp) && setjmp(uptr->u_qsav)) {
-		if (!(uptr->u_rflags & U_RSYS) && !uptr->u_error)
+	if (uptr->u_sysabort) {
+		/*
+		 * u_sysabort may have been set by a debugger while
+		 * the process was stopped.  If so, don't execute
+		 * the syscall code.
+		 */
+		uptr->u_sysabort = 0;
+		uptr->u_error = EINTR;
+	} else if (bootstate) {
+		/*
+		 * For performance there is some replication of code
+		 * here, so that the references to u_rflags can be
+		 * avoided if RFS is not running.
+		 */
+		uptr->u_syscall = callp - sysent;
+		if (setjmp(uptr->u_qsav)) {
+			if (!(uptr->u_rflags & U_RSYS) && !uptr->u_error)
+				uptr->u_error = EINTR;
+		} else
+			(*callp->sy_call)();
+		uptr->u_rflags &= ~(U_RSYS|U_DOTDOT);
+	} else if (!callp->sy_setjmp && setjmp(uptr->u_qsav)) {
+		if (!uptr->u_error)
 			uptr->u_error = EINTR;
 	} else
 		(*callp->sy_call)();
-
-	uptr->u_rflags &= ~(U_RSYS | U_DOTDOT | U_LBIN);
 
 	if (uptr->u_error) {
 		uptr->u_pcb.regsave[K_R0] = uptr->u_error;
@@ -417,6 +464,22 @@ systrap()
 	} else {
 		uptr->u_pcb.regsave[K_R0] = uptr->u_rval1;
 		uptr->u_pcb.regsave[K_R1] = uptr->u_rval2;
+	}
+
+	/*
+	 * Do stop-on-syscall-exit test.  If a ptrace(2) exit is in
+	 * progress, don't stop the process.
+	 */
+	if (uptr->u_systrap && (uptr->u_procp->p_flag & SPTRX) == 0) {
+		register long m;
+		scall = callp - sysent;
+		m = uptr->u_exitmask[scall/BITSPERLONG];
+		if (m & (1 << (scall%BITSPERLONG))) {
+			uptr->u_procp->p_whatstop = scall;
+			uptr->u_procp->p_whystop = SYSEXIT;
+			stop(uptr->u_procp);
+			swtch();
+		}
 	}
 
 	MONITOR('R',
@@ -432,18 +495,18 @@ systrap()
 		qswtch();
 	}
 
-
-	if ((pp->p_flag & SPRSTOP) || (pp->p_sig && issig()))
+	if (ISSIG(pp, FORREAL))
 		psig();
 	curpri = pp->p_pri = calcppri(pp);
 
-	/*	If pid != pp->p_pid, then we are the child
-	**	returning from a fork system call.  In this
-	**	case, ignore syst since our time was reset
-	**	in fork.
+	/*
+	 * If pid != pp->p_pid, then we are the child
+	 * returning from a fork system call.  In this
+	 * case, ignore syst since our time was reset
+	 * in fork.
 	*/
 
-	if (uptr->u_prof.pr_scale)
+	if (uptr->u_prof.pr_scale & ~1)
 		addupc((caddr_t)uptr->u_ar0[PC], &uptr->u_prof, 
 			pid == pp->p_pid ? (int)(uptr->u_stime - syst)
 					 : (int)uptr->u_stime);
@@ -491,21 +554,22 @@ intnull()
 }
 
 
-/*	This routine is called for all level 15 interrupts
-**	except clock interrupts.
-*/
+/*
+ * This routine is called for all level 15 interrupts
+ * except clock interrupts.
+ */
 
 intsyserr ()
 {
  	extern char pwrflag;
 
- 	if (SBDSIT->count0 != SITINIT)  /*power down*/
+ 	if (SBDSIT->count0 != SITINIT)  /* power down */
  	{
  		pwrflag = 1;
  		((struct wcsr *)(&sbdwcsr))->s_pir9 = 0x1;  /* set PIR 9 */
  		SBDSIT->command=0x16;
 
-		/*clear softpwr-bus timer bit */
+		/* clear softpwr-bus timer bit */
 
 		((struct wcsr *)(&sbdwcsr))->c_sanity = 0x00;
  		return;
@@ -562,8 +626,9 @@ struct pcb *pcbp;
 		u.u_procp, psw, pcbp) ;
 }
 
-/*	This routine is called for user stack exceptions.
-*/
+/*
+ * This routine is called for user stack exceptions.
+ */
 
 intsx(pcbp)
 register struct pcb *pcbp;
@@ -576,19 +641,20 @@ register struct pcb *pcbp;
 
 	MONITOR('X', pcbp->pc, pcbp->psw, pcbp->sp, 0);
 
-	/*	If it was a stack bounds fault, try to
-	**	grow the stack.  If this succeeds, then
-	**	just return.  Otherwise, the user's stack
-	**	is blown.  Give him/her a SIGSEGV and be sure
-	**	we don't try to call a user signal routine
-	**	with the stack messed up.
-	**
-	**	If it was a stack fault, try to fix it up
-	**	by loading the page or making it writable.
-	**
-	**	We don't expect to get an interrupt vector
-	**	fetch fault.
-	*/
+	/*
+	 * If it was a stack bounds fault, try to
+	 * grow the stack.  If this succeeds, then
+	 * just return.  Otherwise, the user's stack
+	 * is blown.  Give him/her a SIGSEGV and be sure
+	 * we don't try to call a user signal routine
+	 * with the stack messed up.
+	 *
+	 * If it was a stack fault, try to fix it up
+	 * by loading the page or making it writable.
+	 *
+	 * We don't expect to get an interrupt vector
+	 * fetch fault.
+	 */
 
 	pp = u.u_procp;
 
@@ -626,24 +692,38 @@ register struct pcb *pcbp;
 	}
 
 	/*
-	 *	The following code is a hardware workaround to make
-	 *	trace trap work.  If you have just executed an
-	 *	instruction with the TE bit set in the psw,
-	 *	you want to give a normal exception for trace.
-	 *	However, if the current stack page is not valid
-	 *	or you are at the top of the stack and have to
-	 *	grow it, then you lose the normal exception and
-	 *	have no idea what happened.  This code checks for
-	 *	this.  The trace trap check is based on the
-	 *	u_tracepc field of the u-block.  The code in ttrap.s
-	 *	at trap_ret2 checks if the psw being restored has
-	 *	the TE bit set.  If so, u_tracepc is set to the
-	 *	pc being returned to.   If the TE bit is off, then
-	 *	u_tracepc is cleared.  If we get here with u_tracepc
-	 *	non-zero and not equal to the pc we got the stack
-	 *	fault on, then we must have gotten the stack fault
-	 *	trying to do the normal exception for the trace.
+	 *  The following code is two hardware workarounds to
+	 *  make trace trap and fl. pt. overflow trap work.  If
+	 *  you have just executed an instruction with the TE
+	 *  (OE) bit set in the psw, you want to give a normal
+	 *  exception for trace (fl. pt. overflow).  However,
+	 *  if the current stack page is not valid or you are
+	 *  at the top of the stack and have to grow it, then
+	 *  you lose the normal exception and have no idea what
+	 *  happened.  This code checks for this.
+	 *  
+	 *  The fl. pt. overflow check is based on the u_fpovr
+	 *  field of the u-block.  If this bit has been set, by
+	 *  a sys3b() call, and the OE bit is clear it indicates
+	 *  an overflow has occurred and cleared the OE bit from
+	 *  the PSW.
+	 *  
+	 *  The trace trap check is based on the u_tracepc
+	 *  field of the u-block.  The code in ttrap.s at
+	 *  trap_ret2 checks if the psw being restored has the
+	 *  TE bit set.  If so, u_tracepc is set to the pc
+	 *  being returned to.  If the TE bit is off, then
+	 *  u_tracepc is cleared.  If we get here with u_tracepc
+	 *  non-zero and not equal to the pc we got the stack
+	 *  fault on, then we must have gotten the stack fault
+	 *  trying to do the normal exception for the trace.
 	 */
+
+	if (u.u_fpovr && pcbp->psw.OE == 0) {
+		u.u_fpovr = 0;
+		psignal(pp, SIGFPE);
+		rval = 0;
+	}
 
 	if (rval) {
 		if (u.u_tracepc && u.u_tracepc != (char *)pcbp->pc) {
@@ -657,8 +737,9 @@ register struct pcb *pcbp;
 	return(rval);
 }
 
-/*	This routine is called for kernel stack exceptions.
-*/
+/*
+ * This routine is called for kernel stack exceptions.
+ */
 
 intsxk(pcbp)
 register struct pcb	*pcbp;
@@ -725,7 +806,7 @@ psw_t	ps;
 					sde = vatosde(faultadr);
 					pde = vatopde(faultadr, sde);
 					if ((sig = vfault(faultadr, pde)) == 0 &&
-					  spopcode[fubyte(pc)] == MAU_SPECIAL&&
+					  spopcode[lfubyte(pc)] == MAU_SPECIAL&&
 					  faultcr.reqacc == AT_SPOPWRITE)
 					    mau_pfault(MAU_NOPROBE, &faultadr,
 						&mau_flg);
@@ -746,7 +827,7 @@ psw_t	ps;
 			sde = vatosde(faultadr);
 			pde = vatopde(faultadr, sde);
 			if ((sig = vfault(faultadr, pde)) == 0 &&
-			  spopcode[fubyte(pc)] == MAU_SPECIAL&&
+			  spopcode[lfubyte(pc)] == MAU_SPECIAL&&
 			  faultcr.reqacc == AT_SPOPWRITE)
 			    mau_pfault(MAU_NOPROBE, &faultadr, &mau_flg);
 			break;
@@ -760,7 +841,7 @@ psw_t	ps;
 					break;
 			}
 			if ((sig = pfault(faultadr, pde)) == 0 &&
-			  spopcode[fubyte(pc)] == MAU_SPECIAL&&
+			  spopcode[lfubyte(pc)] == MAU_SPECIAL&&
 			  faultcr.reqacc == AT_SPOPWRITE)
 			    mau_pfault(MAU_NOPROBE, &faultadr, &mau_flg);
 			break;
@@ -786,17 +867,18 @@ psw_t	ps;
 			break ;
 
 		default :
-			/*	We can get here for 3 cases.
-			**	An alignment error, a support
-			**	processor instruction executed
-			**	on a 32100 which does not have
-			**	the support processor hardware
-			**	or a gate instruction executed
-			**	with one or two bad index values.
-			**	Note that on a 32000, an spop
-			**	instruction will generate an
-			**	ILLOPFLT fault.
-			*/
+			/*
+			 * We can get here for 3 cases.
+			 * An alignment error, a support
+			 * processor instruction executed
+			 * on a 32100 which does not have
+			 * the support processor hardware
+			 * or a gate instruction executed
+			 * with one or two bad index values.
+			 * Note that on a 32000, an spop
+			 * instruction will generate an
+			 * ILLOPFLT fault.
+			 */
 
 			if (Rcsr & CSRALGN) {
 				sig = SIGEMT ;
@@ -804,7 +886,7 @@ psw_t	ps;
 			} else if ((Rcsr & CSRPARE) != 0) {
 				Wcsr->c_parity = 0 ;
 				cmn_err(CE_PANIC,"SYSTEM PARITY ERROR INTERRUPT") ;
-			} else if (spopcode[fubyte(pc)] != 0) {
+			} else if (spopcode[lfubyte(pc)] != 0) {
 				if (mau_present)
 					sig = mau_fault(pc);
 				else

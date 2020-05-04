@@ -5,15 +5,15 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)mkunix:mkunix.mk	1.5"
+#ident	"@(#)mkunix:mkunix.mk	1.6"
 #
 #		Copyright 1984 AT&T
 #
 #
 
 ROOT =
-INCRT = $(ROOT)/usr/include
-CFLAGS = -O -I$(INCRT) -s
+INC = $(ROOT)/usr/include
+CFLAGS = -O -I$(INC) -s
 INS = install
 FRC =
 
@@ -33,7 +33,7 @@ clean:
 lint:	mkunix.lint
 
 mkunix.lint:	mkunix.c
-	lint -Du3b2 -Uvax -I$(ROOT)/usr/include mkunix.c > mkunix.lint
+	lint -Du3b2 -Uvax -I$(INC) mkunix.c > mkunix.lint
 
 FRC:
 
@@ -42,19 +42,19 @@ FRC:
 #
 
 mkunix: mkunix.c \
-	$(INCRT)/a.out.h \
-	$(INCRT)/aouthdr.h \
-	$(INCRT)/fcntl.h \
-	$(INCRT)/filehdr.h \
-	$(INCRT)/ldfcn.h \
-	$(INCRT)/linenum.h \
-	$(INCRT)/nlist.h \
-	$(INCRT)/reloc.h \
-	$(INCRT)/scnhdr.h \
-	$(INCRT)/stdio.h \
-	$(INCRT)/storclass.h \
-	$(INCRT)/syms.h \
-	$(INCRT)/sys/stat.h \
-	$(INCRT)/sys/sys3b.h \
-	$(INCRT)/sys/types.h \
+	$(INC)/a.out.h \
+	$(INC)/aouthdr.h \
+	$(INC)/fcntl.h \
+	$(INC)/filehdr.h \
+	$(INC)/ldfcn.h \
+	$(INC)/linenum.h \
+	$(INC)/nlist.h \
+	$(INC)/reloc.h \
+	$(INC)/scnhdr.h \
+	$(INC)/stdio.h \
+	$(INC)/storclass.h \
+	$(INC)/syms.h \
+	$(INC)/sys/stat.h \
+	$(INC)/sys/sys3b.h \
+	$(INC)/sys/types.h \
 	$(FRC)

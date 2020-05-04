@@ -1,5 +1,6 @@
-!#ident	"@(#)curses:screen/maketerm.ed	1.9"
-!rm -f bool num str boolnames numnames strnames boolvals numvals strvals capnames.c term.h /tmp/term.h.new
+!#ident	"@(#)curses:screen/maketerm.ed	1.28"
+H
+!rm -f bool num str boolnames numnames strnames boolvals numvals strvals tnames.c tinames.c tifnames.c term.h ./tmp/term.h.new ./tmp/tmp.awk ./tmp/term.h
 e caps
 g/^#/d
 /--- begin bool/+1,/--- end bool/-1 w bool
@@ -11,43 +12,44 @@ E bool
 1,$-10g/^/.,+9j
 +,$j
 1i
-char *boolnames[] = {
+char	*boolnames[] =
+	{
 .
 $a
 0
-};
+	};
 
 .
-w boolnames
+w tinames.c
 e bool
 1,$s/^[^"]*"[^"]*".//
 1,$s/"	.*/", /
 1,$-10g/^/.,+9j
 +,$j
 1i
-char *boolcodes[] = {
+char	*boolcodes[] =
+	{
 .
 $a
 0
-};
+	};
 
 .
-0r boolnames
-w boolnames
+w tnames.c
 e bool
 1,$s/^\([a-z][0-9a-z_]*\),.*/"\1", /
 1,$-4g/^/.,+3j
 +,$j
 1i
-char *boolfnames[] = {
+char	*boolfnames[] =
+	{
 .
 $a
 0
-};
+	};
 
 .
-0r boolnames
-w boolnames
+w tifnames.c
 e bool
 1,$s;"[^"]*"[ 	]*".."	;/* ;
 1,$s;$; */;
@@ -65,43 +67,47 @@ e num
 1,$-10g/^/.,+9j
 +,$j
 1i
-char *numnames[] = {
+char	*numnames[] =
+	{
 .
 $a
 0
-};
+	};
 
 .
-w numnames
+0r tinames.c
+w tinames.c
 e num
 1,$s/^[^"]*"[^"]*".//
 1,$s/"	.*/", /
 1,$-10g/^/.,+9j
 +,$j
 1i
-char *numcodes[] = {
+char	*numcodes[] =
+	{
 .
 $a
 0
-};
+	};
 
 .
-0r numnames
-w numnames
+0r tnames.c
+w tnames.c
 e num
 1,$s/^\([a-z][0-9a-z_]*\),.*/"\1", /
 1,$-4g/^/.,+3j
 +,$j
 1i
-char *numfnames[] = {
+char	*numfnames[] =
+	{
 .
 $a
 0
-};
+	};
 
 .
-0r numnames
-w numnames
+0r tifnames.c
+w tifnames.c
 e num
 1,$s;"[^"]*"[ 	]*".."	;/* ;
 1,$s;$; */;
@@ -119,43 +125,47 @@ e str
 1,$-10g/^/.,+9j
 +,$j
 1i
-char *strnames[] = {
+char	*strnames[] =
+	{
 .
 $a
 0
-};
+	};
 
 .
-w strnames
+0r tinames.c
+w tinames.c
 e str
 1,$s/^[^"]*"[^"]*".//
 1,$s/"	.*/", /
 1,$-10g/^/.,+9j
 +,$j
 1i
-char *strcodes[] = {
+char	*strcodes[] =
+	{
 .
 $a
 0
-};
+	};
 
 .
-0r strnames
-w strnames
+0r tnames.c
+w tnames.c
 e str
 1,$s/^\([a-z][0-9a-z_]*\),.*/"\1", /
 1,$-4g/^/.,+3j
 +,$j
 1i
-char *strfnames[] = {
+char	*strfnames[] =
+	{
 .
 $a
 0
-};
+	};
 
 .
-0r strnames
-w strnames
+0r tifnames.c
+w tifnames.c
 e str
 1,$s;"[^"]*"[ 	]*".."	;/* ;
 1,$s;$; */;
@@ -165,17 +175,35 @@ $a
 .
 w strvals
 1,$d
-r boolnames
-r numnames
-r strnames
+r tnames.c
 1i
-#ident	"@(#)curses:screen/maketerm.ed	1.9"
-/* capnames.c: Made automatically from caps and maketerm.ed - don't edit me! */
+#ident	"@(#)curses:screen/maketerm.ed	1.28"
+/* tnames.c: Made automatically from caps and maketerm.ed - don't edit me! */
 .
 1,$s/ $//
 0r copyright.h
 /screen\/copyright\.h/d
-w capnames.c
+w tnames.c
+1,$d
+r tinames.c
+1i
+#ident	"@(#)curses:screen/maketerm.ed	1.28"
+/* tinames.c: Made automatically from caps and maketerm.ed - don't edit me! */
+.
+1,$s/ $//
+0r copyright.h
+/screen\/copyright\.h/d
+w tinames.c
+1,$d
+r tifnames.c
+1i
+#ident	"@(#)curses:screen/maketerm.ed	1.28"
+/* tifnames.c: Made automatically from caps and maketerm.ed - don't edit me! */
+.
+1,$s/ $//
+0r copyright.h
+/screen\/copyright\.h/d
+w tifnames.c
 1,$d
 a
 
@@ -200,9 +228,11 @@ r numvals
 a
 };
 .
+w ./tmp/term.h.new
+e ./tmp/term.h.new
 g/^	./s/^	/	_/
-w /tmp/term.h.new
-e /tmp/term.h.new
+w ./tmp/term.h.new
+e ./tmp/term.h.new
 0r boolvals
 .kb
 .r numvals
@@ -219,8 +249,8 @@ e /tmp/term.h.new
 1,'ss/strs\.//
 1,'ss/strs.\(.\)/strs._\1/
 1,'s+1g/;/d
-w /tmp/term.h.new
-e /tmp/term.h.new
+w ./tmp/term.h.new
+e ./tmp/term.h.new
 1,$s/[ 	]*$//
 1,$s/CURS _strs/CURS strs/
 1;/CURS strs/+100;.,+99s/CURS strs/CURS strs2/
@@ -253,30 +283,35 @@ g/[ 	.]_scroll_/s/_scroll_/_scrll_/
 g/^	_......[,;]			\//s/,	/,/
 g/^	_..............[,;]		\//s/,	/,/
 g/^	_......................[,;]	\//s/,	/,/
-w /tmp/term.h.new
-e /tmp/term.h.new
+w ./tmp/term.h.new
+e ./tmp/term.h.new
 !# the following lines GO away when Vr2 compat code goes away
 1;/^#define auto_left_margin/,/^#define xon_xoff/s/CURB.*/CUR _b/
-1;/^#define auto_left_margin/,/^#define xon_xoff/w /tmp/tmp.term.h
+1;/^#define auto_left_margin/,/^#define xon_xoff/w ./tmp/tmp.term.h
 1;/^#define auto_left_margin/,/^#define xon_xoff/d
-.-1r !awk '{printf "%s%d\n", $0,++i}' < /tmp/tmp.term.h
+!/bin/echo '{printf "\%s\%d\\n", $0,++i}' > ./tmp/tmp.awk
+.-1r !awk -f ./tmp/tmp.awk < ./tmp/tmp.term.h
 1;/^#define columns/,/^#define width_status_line/s/CURN.*/CUR _c/
-1;/^#define columns/,/^#define width_status_line/w /tmp/tmp.term.h
+1;/^#define columns/,/^#define width_status_line/w ./tmp/tmp.term.h
 1;/^#define columns/,/^#define width_status_line/d
-.-1r !awk '{printf "%s%d\n", $0,++i}' < /tmp/tmp.term.h
+!/bin/echo '{printf "\%s\%d\\n", $0,++i}' > ./tmp/tmp.awk
+.-1r !awk -f ./tmp/tmp.awk < ./tmp/tmp.term.h
 1;/^#define back_tab/,/^#define lab_f8/s/CURS.*/CUR _Vr2_Astrs._s/
-1;/^#define back_tab/,/^#define lab_f8/w /tmp/tmp.term.h
+1;/^#define back_tab/,/^#define lab_f8/w ./tmp/tmp.term.h
 1;/^#define back_tab/,/^#define lab_f8/d
-.-1r !awk '{printf "%s%d\n", $0,++i}' < /tmp/tmp.term.h
+!/bin/echo '{printf "\%s\%d\\n", $0,++i}' > ./tmp/tmp.awk
+.-1r !awk -f ./tmp/tmp.awk < ./tmp/tmp.term.h
 1;/^#define lab_f9/,/^#define prtr_non/s/CURS.*/CUR _Vr2_Bstrs._s/
-1;/^#define lab_f9/,/^#define prtr_non/w /tmp/tmp.term.h
+1;/^#define lab_f9/,/^#define prtr_non/w ./tmp/tmp.term.h
 1;/^#define lab_f9/,/^#define prtr_non/d
-.-1r !awk 'BEGIN{i=100} {printf "%s%d\n", $0,++i}' < /tmp/tmp.term.h
-!rm -f /tmp/tmp.term.h
-w /tmp/term.h.new
-e /tmp/term.h.new
+!/bin/echo 'BEGIN{i=100}\n{printf "\%s\%d\\n", $0,++i}' > ./tmp/tmp.awk
+.-1r !awk -f ./tmp/tmp.awk < ./tmp/tmp.term.h
+!rm -f ./tmp/tmp.term.h ./tmp/tmp.awk
+w ./tmp/term.h.new
+e ./tmp/term.h.new
+!# Vr2 compat code ends here
 1i
-#ident	"@(#)curses:screen/maketerm.ed	1.9"
+#ident	"@(#)curses:screen/maketerm.ed	1.28"
 /*
  * term.h - this file is automatically made from caps and maketerm.ed.
  * Don't make changes directly to term.h.
@@ -285,18 +320,6 @@ e /tmp/term.h.new
  */
 
 #ifndef auto_left_margin
-
-/*
-	WARNING!!!! This MUST match the definition in use
-	in curses.h.
-*/
-#ifndef _SUBWIN
-#ifdef	CHTYPE
-	typedef	CHTYPE chtype;
-#else
-	typedef unsigned short chtype;
-#endif /* CHTYPE */
-#endif /* _SUBWIN */
 
 .
 $a
@@ -307,11 +330,19 @@ struct _str_struct {
 	struct strs3 strs3;
 };
 
+#define NUM_ATTRIBUTES	9
+#define	UNACCESSIBLE		1
+#define	NO_TERMINAL		2
+#define CORRUPTED		3
+#define	ENTRY_TOO_LONG		4
+#define	TERMINFO_TOO_LONG	5
+#define	TERM_BAD_MALLOC		6
+#define NOT_READABLE		7
 #define _VR2_COMPAT_CODE
 #ifdef _VR2_COMPAT_CODE
 struct _Vr2_Astrs {
     charptr
-	_s1, _s2, _s3, _s4, _s5, _s6, _s7, _s8, _s9, _s10,
+	_s1,  _s2,  _s3,  _s4,  _s5,  _s6,  _s7,  _s8,  _s9,  _s10,
 	_s11, _s12, _s13, _s14, _s15, _s16, _s17, _s18, _s19, _s20,
 	_s21, _s22, _s23, _s24, _s25, _s26, _s27, _s28, _s29, _s30,
 	_s31, _s32, _s33, _s34, _s35, _s36, _s37, _s38, _s39, _s40,
@@ -333,6 +364,11 @@ struct _Vr2_Bstrs {
 };
 #endif /* _VR2_COMPAT_CODE */
 
+typedef struct {
+	char *_sends;	/* Characters sent when key is pressed */
+	short _keyval;	/* "char" we pass back to program */
+} _KEY_MAP;
+
 /*
  * This definition for the term struct allows the boolean, number
  * and string information to grow in the future and still allow .o
@@ -342,7 +378,7 @@ struct _Vr2_Bstrs {
 struct term {
 #ifdef _VR2_COMPAT_CODE
     char
-	_b1, _b2, _b3, _b4, _b5, _b6, _b7, _b8, _b9, _b10,
+	_b1,  _b2,  _b3,  _b4,  _b5,  _b6,  _b7,  _b8,  _b9,  _b10,
 	_b11, _b12, _b13, _b14, _b15, _b16, _b17, _b18, _b19, _b20, _b21;
     short
 	_c1, _c2, _c3, _c4, _c5, _c6, _c7, _c8;
@@ -350,30 +386,59 @@ struct term {
 	struct _Vr2_Bstrs _Vr2_Bstrs;
 #endif /* _VR2_COMPAT_CODE */
 	short Filedes;		/* file descriptor being written to */
-#ifndef NONSTANDARD
 	SGTTY Ottyb,		/* original state of the terminal */
 	      Nttyb;		/* current state of the terminal */
-#endif
 #ifdef DIOCSETT
 	struct termcb new, old;	/* CB/UNIX virtual terminals */
 #endif
 #ifdef LTILDE
 	int newlmode, oldlmode;	/* BSD tty driver */
 #endif
+	/* end of Vr2 structure */
 	struct _bool_struct *_bools;
 	struct _num_struct *_nums;
 	struct _str_struct *_strs;
 	char *_strtab;
-	chtype sgr_mode;	/* current physical graphic rendition */
-	chtype sgr_faked;	/* attributes faked by vidputs */
-	char rmul_rmso_neq;	/* rmul != rmso */
-	char rmul_sgr0_neq;	/* rmul != sgr0 */
-	char rmacs_sgr0_neq;	/* rmacs != sgr0 */
-	char rmacs_rmso_neq;	/* rmacs != rmso */
-	char rmso_sgr0_neq;	/* rmso != sgr0 */
 #ifdef FIONREAD
 	long timeout;		/* for BSD halfdelay mode */
 #endif
+	/* end of Vr3 structure */
+	chtype sgr_mode;		/* current phys. graphic rendition */
+	chtype sgr_faked;		/* attributes faked by vidputs */
+	int    _delay;			/* timeout for inputs */
+	int    _inputfd;		/* input file descriptor */
+	int    _check_fd;		/* typeahead file descriptor */
+	_KEY_MAP	**_keys,	/* key map */
+			*internal_keys;	/* pointer to free key structures */
+	short		_ksz,		/* size of keymap */
+			_lastkey_ordered,/* where the last ordered key is */
+			_lastmacro_ordered,/* where the last ordered macro is */
+			_first_macro;
+	bool				/* map of which chars start fn keys */
+			funckeystarter[0400];	
+	bool		_fl_rawmode,	/* in cbreak(=1) or raw(=2) mode */
+			fl_typeahdok,	/* ok to use typeahead */
+			_cursorstate,	/* cursor: 0=invis, 1=norm, 2=vvis */
+			_iwait;		/* true if input-pending */
+	short		_regs[26];	/* tparm static registers */
+#define INP_QSIZE	32
+	short				/* a place to put stuff ungetch'ed */
+			_input_queue[INP_QSIZE],
+			_ungotten;	/* # chars ungotten by ungetch() */
+	char		_chars_on_queue; /* # chars on queue */
+#ifdef _VR3_COMPAT_CODE
+	_ochtype	*_acsmap;
+	chtype		*_acs32map;	/* map of alternate char set chars */
+#else /* _VR3_COMPAT_CODE */
+	chtype		*_acsmap;	/* map of alternate char set chars */
+#endif /* _VR3_COMPAT_CODE */
+	char		*turn_on_seq[NUM_ATTRIBUTES];
+	chtype		bit_vector;
+	char		*cursor_seq[3];
+	char		_termname[15];
+	char		*turn_off_seq[3];
+	chtype		check_turn_off;
+	chtype		non_faked_mode;
 };
 
 typedef struct term TERMINAL;
@@ -382,12 +447,10 @@ typedef struct term TERMINAL;
 #define beehive_glitch	no_esc_ctlc
 #define teleray_glitch	dest_tabs_magic_smso
 
-#ifndef NONSTANDARD
 extern TERMINAL			*cur_term;
 extern struct _bool_struct	*cur_bools;
 extern struct _num_struct	*cur_nums;
 extern struct _str_struct	*cur_strs;
-#endif
 
 #ifdef SINGLE
 extern TERMINAL			_first_term;
@@ -410,17 +473,35 @@ extern struct _str_struct	_frst_strs;
 # define SHELLTTY		(cur_term->Ottyb)
 #endif
  
-extern TERMINAL *set_curterm(/* TERMINAL *newterminal */);
-extern int del_curterm(/* TERMINAL *oldterminal */);
+extern	chtype		termattrs();
+extern	TERMINAL	*setcurterm(/* TERMINAL *newterminal */);
 
-extern char	*tparm(), *tgoto(), *tgetstr(), *tigetstr();
-extern char	*boolnames[], *boolcodes[], *boolfnames[],
+#ifdef	_VR3_COMPAT_CODE
+extern	TERMINAL	*set_curterm(/* TERMINAL *newterminal */);
+#endif	/* _VR3_COMPAT_CODE */
+
+#ifndef NOMACROS
+#define del_curterm	delterm
+#define set_curterm	setcurterm
+#endif /* NOMACROS */
+
+extern	short	term_errno;
+
+extern	char	*tparm(), *tgoto(), *tgetstr(), *tigetstr(),
+		term_parm_err[], *term_err_strings[], *Def_term, *termname();
+extern	char	*boolnames[], *boolcodes[], *boolfnames[],
 		*numnames[], *numcodes[], *numfnames[],
 		*strnames[], *strcodes[], *strfnames[];
+extern	int	tputs(), putp(), vidputs(), vidattr();
+
+extern	int	resetterm(), fixterm(), saveterm(), restartterm(), del_curterm(),
+		delterm();
+
+extern	void	termerr(), tinputfd();
 #endif /* auto_left_margin */
 .
 0r copyright.h
 /screen\/copyright\.h/d
 w term.h
-!rm -f boolnames boolvals bool numnames numvals num strnames strvals str /tmp/term.h.new
+!rm -f boolnames boolvals bool numnames numvals num strnames strvals str ./tmp/term.h.new ./tmp/tmp.awk ./tmp/tmp.term.h
 q

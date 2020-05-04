@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:uusched.c	2.4"
+#ident	"@(#)uucp:uusched.c	2.5"
 
 #include	"uucp.h"
 
@@ -42,8 +42,12 @@ char **envp;
 		switch(i){
 		case 'x':
 			Debug = atoi(optarg);
-			if (Debug <= 0)
+			if (Debug <= 0) {
+				fprintf(stderr,
+				"WARNING: %s: invalid debug level %s ignored, using level 1\n",
+				Progname, optarg);
 				Debug = 1;
+			}
 #ifdef SMALL
 			fprintf(stderr,
 			"WARNING: uusched built with SMALL flag defined -- no debug info available\n");
@@ -51,8 +55,12 @@ char **envp;
 			break;
 		case 'u':
 			Uopt = atoi(optarg);
-			if (Uopt <= 0)
+			if (Uopt <= 0) {
+				fprintf(stderr,
+				"WARNING: %s: invalid debug level %s ignored, using level 1\n",
+				Progname, optarg);
 				Uopt = 1;
+			}
 			break;
 		default:
 			(void) fprintf(stderr, "\tusage: %s %s\n",

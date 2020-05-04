@@ -1,4 +1,4 @@
-*#ident	"@(#)kern-port:master.d/kernel	10.25"
+*#ident	"@(#)kern-port:master.d/kernel	10.25.7.5"
 *
 * KERNEL
 *
@@ -16,21 +16,21 @@ none	 -	  -	 -	  -	 -
 							  &strinit,
 							  &debuginit,
 							  0}
-						buf[NBUF] (%0x34)
+						buf[NBUF] (%0x38)
 						buffers	[(NBUF+1)*1024] (%c)
-						pbuf[NPBUF] (%0x34)
-						hbuf[NHBUF] (%0xC)
+						pbuf[NPBUF] (%0x38)
+						hbuf[NHBUF] (%0x10)
 						file[NFILE] (%0xC)
-						inode[NINODE] (%0x44)
+						inode[NINODE] (%0x4C)
 						s5inode[NS5INODE] (%0x40)
-						proc[NPROC] (%0xA8)
+						proc[NPROC] (%0xB8)
 						region[NREGION] (%0x24)
 						callout[NCALL] (%0x10)
 						mount[NMOUNT] (%0x24)
 						sptmap[SPTMAP] (%0x8)
 						putbuf[PUTBUFSZ] (%c)
 						putbufsz(%i) = {PUTBUFSZ}
-						v(%i%i%i%i%l%i%l%i%l%i%l%i%i%i%i%i%i%i%i%i%i%i%i%i%i%i%i%i%i%i%i%i%i)
+						v(%i%i%i%i%l%i%l%i%l%i%l%i%i%i%i%i%i%i%i%i%i%i%i%i%i%i%i%i%i%i%i%i%i%l)
 							={NBUF,
 							  NCALL,
 							  NINODE,
@@ -63,7 +63,8 @@ none	 -	  -	 -	  -	 -
 							  NBLK64,
 							  NBLK16,
 							  NBLK4,
-							  NS5INODE}
+							  NS5INODE,
+							  ULIMIT}
 *tuneable.h
 						tune(%i%i%i%i%i%i%i%i%i%i%i)
 						={	GPGSLO,
@@ -84,8 +85,8 @@ none	 -	  -	 -	  -	 -
 							= {FLCKREC}
 						flox[FLCKREC] (%0x1c)
 * shared libraries *
-						shlbinfo(%l%l%l)
-							= {SHLBMAX, 0, 0}
+						shlbinfo(%l%l%l%l)
+							= {SHLBMAX, 0, 0, 0}
 * uname
 						utsname(%8c%c%8c%c%8c%c%8c%c%8c%c)
 							={SYS,0,
@@ -158,7 +159,7 @@ $$$
 
 SYS ="unix"
 NODE ="unix"
-REL  = "3.0"
+REL  = "3.1"
 VER  = "2"
 
 *
@@ -222,6 +223,10 @@ NAUTOUP = 10
 * stdio, sh, etc will not make use of more than 20 in this release).
 
 NOFILES = 20
+
+* System default max write address.
+
+ULIMIT = 2048
 
 * added for paging
 

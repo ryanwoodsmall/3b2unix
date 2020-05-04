@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)prtvtoc:prtvtoc.c	1.4"
+#ident	"@(#)prtvtoc:prtvtoc.c	1.4.2.1"
 /*
  * prtvtoc.c
  *
@@ -15,6 +15,7 @@
 
 #include <fcntl.h>
 #include <sys/types.h>
+#include <mnttab.h>
 #include <sys/stat.h>
 #include <sys/vtoc.h>
 #include <errno.h>
@@ -74,6 +75,7 @@ int	getopt();
 char	*memstr();
 int	partcmp();
 void	prc();
+char	*mkn();
 void	prn();
 void	prs();
 int	prtvtoc();
@@ -99,6 +101,7 @@ static short	fflag;			/* Print freespace shell assignments */
 static short	hflag;			/* Omit headers */
 static short	sflag;			/* Omit all but the column header */
 static char	*fstab = "/etc/fstab";	/* Fstab pathname */
+static char	*mnttab = "/etc/mnttab";/* mnttab pathname */
 static char	*myname;		/* Last qualifier of arg0 */
 static int	optind = 1;		/* Argument index */
 static char	*optarg;		/* Option argument */
@@ -113,7 +116,7 @@ reg char	**av;
 		++myname;
 	else
 		myname = av[0];
-	while ((idx = getopt(ac, av, "fhst:")) != -1)
+	while ((idx = getopt(ac, av, "fhst:m:")) != -1)
 		switch (idx) {
 		case 'f':
 			++fflag;
@@ -126,6 +129,9 @@ reg char	**av;
 			break;
 		case 't':
 			fstab = optarg;
+			break;
+		case 'm':
+			mnttab = optarg;
 			break;
 		default:
 			usage();
@@ -210,7 +216,7 @@ reg struct vtoc		*vtoc;
  * getmntpt()
  *
  * Get the filesystem mountpoint of each partition on the disk
- * from the fstab. Returns a pointer to an array of pointers to
+ * from the fstab or mnttab . Returns a pointer to an array of pointers to
  * directory names (indexed by partition number).
  */
 static char **
@@ -230,16 +236,37 @@ int		drive;
 	static char	devblk[] = "/dev/";
 	static char	devraw[] = "/dev/r";
 	static char	*list[V_NUMPAR];
+	struct mnttab	mtab;
 
 	for (idx = 0; idx < V_NUMPAR; ++idx)
 		list[idx] = 0;
-	if ((fd = open(fstab, O_RDONLY)) < 0)
-		return (0);
+
+	/* read mnttab for partition mountpoints */
+	if ((fd = open(mnttab, O_RDONLY)) < 0)  {
+		warn(mnttab, syserr());
+	} else {
+		while ( read(fd, &mtab, sizeof(mtab)) > 0 ) {
+			item = mtab.mt_dev;
+			if ( strncmp(item, devblk, strsize(devblk)) == 0
+			  && stat(strcat(strcpy(devbuf, devraw),
+			    item + strsize(devblk)), &sb) == 0
+			  && (sb.st_mode & S_IFMT) == S_IFCHR
+			  && major(sb.st_rdev) == slot
+			  && iddn(minor(sb.st_rdev)) == drive )
+				list[idslice(minor(sb.st_rdev))] = memstr(mtab.mt_filsys);
+		}
+	}
+	close(fd);
+
+	if ((fd = open(fstab, O_RDONLY)) < 0)  {
+		warn(fstab, syserr());
+		return(list);
+	}
 	switch (idx = read(fd, buf, sizeof(buf))) {
 	case -1:
 		fatal(syserr(), fstab);
 	case 0:
-		return(0);
+		return(list);
 	case sizeof(buf):
 		fatal(fstab, "Fstab too big");
 	}
@@ -254,10 +281,14 @@ int		drive;
 		  && (sb.st_mode & S_IFMT) == S_IFCHR
 		  && major(sb.st_rdev) == slot
 		  && iddn(minor(sb.st_rdev)) == drive
+		  /* use mnttab if both tables have entries */
+		  && list[idslice(minor(sb.st_rdev))] == 0
 		  && (item = strtok((char *) 0, delimit))
 		  && *item == '/')
 			list[idslice(minor(sb.st_rdev))] = memstr(item);
 	}
+	close(fd);
+
 	return (list);
 }
 
@@ -363,17 +394,32 @@ ushort	min;
 	reg char	*idx;
 	auto char	buf[64];
 
-	idx = buf + sizeof(buf);
+	idx=mkn(buf, sizeof(buf), number, base, len, min);
+	prs(idx);
+}
+
+char *
+mkn(buf, bufsize,  number, base, len, min)
+char *		buf;
+int		bufsize;
+reg ulong	number;
+reg int		base;
+reg ushort	len;
+ushort	min;
+{
+	reg char	*idx;
+
+	idx = &buf[bufsize];
 	*--idx = '\0';
 	do {
 		*--idx = "0123456789abcdef"[number % base];
 		number /= base;
 	} while (number);
-	for (number = buf + sizeof(buf) - 1 - idx; number < min; ++number)
+	for (number = buf + bufsize - 1 - idx; number < min; ++number)
 		*--idx = '0';
-	for (number = buf + sizeof(buf) - 1 - idx; number < len; ++number)
+	for (number = buf + bufsize - 1 - idx; number < len; ++number)
 		*--idx = ' ';
-	prs(idx);
+	return(idx);
 }
 
 /*
@@ -498,6 +544,8 @@ char			**mtab;
 		prs(" sectors/track\n* ");
 		prn(pdinfo->tracks, DECIMAL, 7, 1);
 		prs(" tracks/cylinder\n* ");
+		prn(pdinfo->sectors * pdinfo->tracks, DECIMAL, 7, 1);
+		prs(" sectors/cylinder\n* ");
 		prn(pdinfo->cyls, DECIMAL, 7, 1);
 		prs(" cylinders\n* ");
 		prn(pdinfo->cyls - 1 - start, DECIMAL, 7, 1);
@@ -507,34 +555,42 @@ char			**mtab;
 		prn((ulong) V_RONLY, HEX, 2, 1);
 		prs(": read-only\n*\n");
 		if (freemap->fr_size) {
-			prs("* Unallocated space:\n*\tStart\t      Size\n");
+			prs("* Unallocated space:\n");
+			prs("*\tFirst     Sector    Last\n");
+			prs("*\tSector     Count    Sector \n");
 			do {
-				prs("*  ");
-				prn(freemap->fr_start, DECIMAL, 10, 1);
-				prs("\t");
-				prn(freemap->fr_size, DECIMAL, 10, 1);
+				prs("*   ");
+				prn(freemap->fr_start, DECIMAL, 9, 1);
+				prs(" ");
+				prn(freemap->fr_size, DECIMAL, 9, 1);
+				prs(" ");
+				prn(freemap->fr_size + freemap->fr_start - 1, DECIMAL, 9, 1);
 				prs("\n");
 			} while ((++freemap)->fr_size);
 			prs("*\n");
 		}
 	}
-	if (!hflag)
-		prs("*   Partition  Tag  Flags  First Sector  Sector Count   Mount Directory\n");
+	if (!hflag)  {
+		prs("*                          First     Sector    Last\n");
+		prs("* Partition  Tag  Flags    Sector     Count    Sector  Mount Directory\n");
+	}
 	for (idx = 0; idx < vtoc->v_nparts; ++idx) {
 		if (vtoc->v_part[idx].p_size == 0)
 			continue;
-		prs("\t");
-		prn((ulong) idx, DECIMAL, 2, 1);
+		prs("      ");
+		prn((ulong) idx, HEX, 2, 1);
 		prs("  ");
 		prn((ulong) vtoc->v_part[idx].p_tag, DECIMAL, 5, 1);
 		prs("  ");
 		prn((ulong) vtoc->v_part[idx].p_flag, HEX, 4, 2);
 		prs("  ");
-		prn((ulong) vtoc->v_part[idx].p_start, DECIMAL, 10, 1);
-		prs("  \t");
-		prn((ulong) vtoc->v_part[idx].p_size, DECIMAL, 10, 1);
+		prn((ulong) vtoc->v_part[idx].p_start, DECIMAL, 9, 1);
+		prs(" ");
+		prn((ulong) vtoc->v_part[idx].p_size, DECIMAL, 9, 1);
+		prs(" ");
+		prn((ulong) (vtoc->v_part[idx].p_start + vtoc->v_part[idx].p_size - 1), DECIMAL, 9, 1);
 		if (mtab && mtab[idx]) {
-			prs("\t ");
+			prs("   ");
 			prs(mtab[idx]);
 		}
 		prs("\n");
@@ -595,12 +651,14 @@ struct vtoc	*vtoc;
  *
  * Return a pointer to a system error message.
  */
+static char	err1[30] =  "Unknown error - ";
+static char	err2[10] =  "         ";
 static char *
 syserr()
 {
 	return (errno <= 0 ? "No error (?)"
 	    : errno < sys_nerr ? sys_errlist[errno]
-	    : "Unknown error (!)");
+	    : strcat( err1, mkn(err2,sizeof(err2),errno, DECIMAL, 5, 1)) );
 }
 
 /*
@@ -612,7 +670,7 @@ static void
 usage()
 {
 	static char	before[] = "Usage:\t";
-	static char	after[] = " [ -h ] [ -s ] [ -t fstab ] rawdisk ...\n";
+	static char	after[] = " [ -h ] [ -s ] [ -t fstab ] [ -m mnttab ] rawdisk ...\n";
 
 	(void) write(STDERR, before, (uint) strlen(before));
 	(void) write(STDERR, myname, (uint) strlen(myname));

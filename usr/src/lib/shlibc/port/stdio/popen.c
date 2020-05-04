@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libc-port:stdio/popen.c	1.12"
+#ident	"@(#)libc-port:stdio/popen.c	1.13"
 /*LINTLIBRARY*/
 #include <stdio.h>
 #include <signal.h>
@@ -65,7 +65,8 @@ pclose(ptr)
 FILE	*ptr;
 {
 	register int f, r;
-	int status, (*hstat)(), (*istat)(), (*qstat)();
+	int status;
+	void (*hstat)(), (*istat)(), (*qstat)();
 
 	f = fileno(ptr);
 	(void) fclose(ptr);

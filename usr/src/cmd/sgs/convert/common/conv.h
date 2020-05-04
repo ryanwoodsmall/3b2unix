@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)convert:common/conv.h	2.6"
+#ident	"@(#)convert:common/conv.h	2.6.1.1"
 /*
  */
 
@@ -75,6 +75,7 @@ union general
 #define CNMAGIC		0410
 #define COMAGIC		0407
 #define	CPMAGIC		0413
+#define	CLMAGIC		0443
 
 /*
  * Conversion types for converting object files built on other machines

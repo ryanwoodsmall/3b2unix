@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)find:find/find.mk	1.2"
+#ident	"@(#)find:find.mk	1.5"
 
 #	Makefile for find
 
@@ -15,7 +15,7 @@ DIR = $(ROOT)/bin
 
 INC = $(ROOT)/usr/include
 
-LDFLAGS = -s $(IFLAG) $(LDLIBS)
+LDFLAGS = -s $(IFLAG) $(LDLIBS) -lgen
 
 CFLAGS = -O -I$(INC)
 

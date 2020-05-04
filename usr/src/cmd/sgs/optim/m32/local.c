@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)optim:m32/local.c	1.15"
+#ident	"@(#)optim:m32/local.c	1.16"
 
 /* # include <ctype.h> -- optim.h takes care of this */
 # include "optim.h"
@@ -608,14 +608,17 @@ yyinit(flags) char * flags; {
 	}
 }
 
-char *
-yysflgs( p ) char *p; { /* parse flags with sub fields */
-	
-	switch( *p ) {
+char **
+yysflgs( p ) char **p; { /* parse flags with sub fields */
+	char *s;
+
+	switch( **p ) {
 	case 'K':
-		while( *(p+1) == ' ' ) p++;
-		if( *++p == 's' )
-			switch( *++p ) {
+		s = (*p) + 1;
+		if (!*s)
+			s = *++p;
+		if( *s == 's' )
+			switch( *++s ) {
 			case 'd': optmode = OSPEED; return( p );
 			case 'z': optmode = OSIZE; return( p );
 			}
@@ -623,8 +626,11 @@ yysflgs( p ) char *p; { /* parse flags with sub fields */
 		return( p );
 #ifdef IMPIL
 	case 'y':
+		s = (*p) + 1;
+		if (!*s)
+			s = *++p;
 		p++; /* skip over 'y' to sub option */
-		p = pcdecode( p );
+		pcdecode( s );
 		return( p );
 #endif /* IMPIL */
 	default:

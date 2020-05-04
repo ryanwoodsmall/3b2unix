@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident "@(#)vi:port/ex_vops2.c	1.11"
+#ident "@(#)vi:port/ex_vops2.c	1.13"
 
 #include "ex.h"
 #include "ex_tty.h"
@@ -76,7 +76,7 @@ takeout(BUF)
 		cursor = cp;
 	}
 	setBUF(BUF);
-	if ((BUF[0] & (QUOTE|TRIM)) == OVERBUF)
+	if ((unsigned char)BUF[128] == 0200)
 		beep();
 }
 
@@ -87,7 +87,7 @@ takeout(BUF)
 ateopr()
 {
 	register int i, c;
-	register char *cp = vtube[destline] + destcol;
+	register short *cp = vtube[destline] + destcol;
 
 	for (i = WCOLS - destcol; i > 0; i--) {
 		c = *cp++;
@@ -119,6 +119,13 @@ bool	vaifirst;
 bool	gobbled;
 char	*ogcursor;
 
+static int 	INSCDCNT; /* number of ^D's (backtabs) in insertion buffer */
+
+static int 	inscdcnt; /* 
+			   * count of ^D's (backtabs) not seen yet when doing
+		 	   * repeat of insertion
+			   */
+
 vappend(ch, cnt, indent)
 	int ch;		/* char --> int */
 	int cnt, indent;
@@ -135,6 +142,7 @@ vappend(ch, cnt, indent)
 	 * we retype the line to the left of the cursor so the
 	 * insert looks clean.
 	 */
+
 	if (ch != 'o' && state == HARDOPEN && (rubble || !ateopr())) {
 		rubble = 1;
 		gcursor = cursor;
@@ -211,7 +219,7 @@ vappend(ch, cnt, indent)
 		vshowmode("INPUT MODE");
 	}
 	if ((vglobp && *vglobp == 0) || peekbr()) {
-		if ((INS[0] & (QUOTE|TRIM)) == OVERBUF) {
+		if (INS[128] == 0200) {
 			beep();
 			if (!splitw)
 				ungetkey('u');
@@ -225,13 +233,17 @@ vappend(ch, cnt, indent)
 		 * Hold off n^^2 type update on dumb terminals.
 		 */
 		vglobp = INS;
+		inscdcnt = INSCDCNT;
 		hold |= HOLDQIK;
-	} else if (vglobp == 0)
+	} else if (vglobp == 0) {
 		/*
 		 * Not a repeated command, get
 		 * a new inserted text for repeat.
 		 */
 		INS[0] = 0;
+		INS[128] = 0;
+		INSCDCNT = 0;
+	}
 
 	/*
 	 * For wrapmargin to hack away second space after a '.'
@@ -265,8 +277,12 @@ vappend(ch, cnt, indent)
 				addtext("^");
 			else if (HADZERO)
 				addtext("0");
-			while (CDCNT > 0)
-				addtext("\204"), CDCNT--;
+			if(!vglobp)
+				INSCDCNT = CDCNT;
+			while (CDCNT > 0) {
+				addtext("\004");
+				CDCNT--;
+			}
 			if (gobbled)
 				addtext(" ");
 			addtext(ogcursor);
@@ -490,6 +506,7 @@ vgetline(cnt, gcursor, aescaped, commch)
 	 * Remember how much white space at beginning of line so
 	 * as not to allow backspace over autoindent.
 	 */
+	
 	*aescaped = 0;
 	ogcursor = gcursor;
 	flusho();
@@ -524,7 +541,7 @@ vgetline(cnt, gcursor, aescaped, commch)
 		}
 		c = getkey();
 		if (c != ATTN)
-			c &= (QUOTE|TRIM);
+			c &= 0377;
 		ch = c;
 		maphopcnt = 0;
 		if (vglobp == 0 && Peekkey == 0 && commch != 'r')
@@ -761,8 +778,8 @@ vbackup:
 				*gcursor = 0;
 				for (abno=0; abbrevs[abno].mapto; abno++) {
 					if (eq(cp, abbrevs[abno].cap)) {
-						if (abbrepcnt == 0) {
-							if (reccnt(abbrevs[abno].cap,abbrevs[abno].mapto))
+						if(abbrepcnt == 0) {
+							if(reccnt(abbrevs[abno].cap, abbrevs[abno].mapto))
 								abbrepcnt = 1;
 							macpush(cstr, 0);
 							macpush(abbrevs[abno].mapto);
@@ -806,16 +823,11 @@ vbackup:
 		 *		Unless in repeat where this means these
 		 *		were superquoted in.
 		 */
-		case CTRL(d):
 		case CTRL(t):
 			if (vglobp)
 				goto def;
 			/* fall into ... */
 
-		/*
-		 * ^D|QUOTE	Is a backtab (in a repeated command).
-		 */
-		case CTRL(d) | QUOTE:
 			*gcursor = 0;
 			cp = vpastwh(genbuf);
 			c = whitecnt(genbuf);
@@ -841,6 +853,15 @@ vbackup:
 			 * generated autoindent.  We count the ^D for repeat
 			 * purposes.
 			 */
+		case CTRL(d):
+			/* check if ^d was superquoted in */
+			if(vglobp && inscdcnt <= 0)
+				goto def;
+			if(vglobp)
+				inscdcnt--;
+			*gcursor = 0;
+			cp = vpastwh(genbuf);
+			c = whitecnt(genbuf);
 			if (c == iwhite && c != 0)
 				if (cp == gcursor) {
 					iwhite = backtab(c);
@@ -887,7 +908,7 @@ def:
 			}
 			if (gcursor > &genbuf[LBSIZE - 2])
 				error("Line too long");
-			*gcursor++ = c & TRIM;
+			*gcursor++ = c;
 			vcsync();
 			if (value(vi_SHOWMATCH) && !iglobp)
 				if (c == ')' || c == '}')
@@ -965,8 +986,13 @@ vmaxrep(ch, cnt)
 	}
 	return (cnt);
 }
+
 /*
- * Determine how many occurrences of word S1 are in S2.
+ * Determine how many occurrences of word 'CAP' are in 'MAPTO'.  To be
+ * considered an occurrence there must be both a nonword-prefix, a 
+ * complete match of 'CAP' within 'MAPTO', and a nonword-suffix. 
+ * Note that the beginning and end of 'MAPTO' are considered to be
+ * valid nonword delimiters.
  */
 reccnt(cap, mapto)
 char *cap;
@@ -977,10 +1003,11 @@ char *mapto;
 	cnt = 0;
 	final = strlen(mapto) - strlen(cap);
 
-	for (i=0; i <= final; i++)
-		if (strncmp(cap, mapto+i, strlen(cap)) == 0)
-			if ((i == 0 || !wordch(mapto[i-1]))  /* if prefix okay */
-		     && (i == final || !wordch(mapto[i+strlen(cap)]))) /* if suffix okay */
-				cnt++;
+	for (i=0; i <= final; i++) 
+	  if ((strncmp(cap, mapto+i, strlen(cap)) == 0)       /* match */
+	  && (i == 0     || !wordch(&mapto[i-1]))	      /* prefix ok */
+	  && (i == final || !wordch(&mapto[i+strlen(cap)])))  /* suffix ok */
+		cnt++;
 	return (cnt);
 }
+

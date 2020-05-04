@@ -1,4 +1,4 @@
-#ident	"@(#)terminfo:televideo.ti	1.4"
+#ident	"@(#)terminfo:televideo.ti	1.8"
 # # --------------------------------
 #
 # televideo: TELEVIDEO
@@ -20,7 +20,7 @@ tvi912|912|920|tvi920|old televideo,
 	kbs=^h, kcuu1=^K, kcud1=^J, kcub1=^H, kcuf1=^L,
 	kf0=^A@\r, kf1=^AA\r, kf2=^AB\r, kf3=^AC\r, kf4=^AD\r,
 	kf5=^AE\r, kf6=^AF\r, kf7=^AG\r, kf8=^AH\r, kf9=^AI\r,
-	home=^^, ich1=\EQ, lines#24, cuf1=^L, ht=^I,
+	home=^^, ich1=\EQ, lines#24, ht=^I,
 	rmso=\Ek, smso=\Ej, cuu1=^K, smul=\El, rmul=\Em, xmc#1,
 # Info:
 #	the 912 has a <funct> key that's like shift: <funct>8 xmits 
@@ -96,7 +96,7 @@ tvi950|950|televideo950,
 	cud1=^V, rmir=\Er, home=^^, smir=\Eq, kf0=^A0\r,
 	kf1=^A@\r, kf2=^AA\r, kf3=^AB\r, kf4=^AC\r, kf5=^AD\r, kf6=^AE\r,
 	kf7=^AF\r, kf8=^AG\r, kf9=^AH\r, kbs=^H, kcud1=^V, khome=^^, kcub1=^H,
-	kcuf1=^L, kcuu1=^K, lines#24, mir, msgr, cuf1=^L,
+	kcuf1=^L, kcuu1=^K, lines#24, mir, msgr,
 	ht=^I, rmso=\EG0, xmc#1, smso=\EG4, ri=\Ej,
 	rmul=\EG0, cuu1=^K, smul=\EG8,
 	flash=\Eb$<20>\Ed, xenl,
@@ -180,7 +180,7 @@ tvi950-rv-4p|950-rv-4p|televideo950 rev video w/4 pages,
 #
 tvi925|925|televideo 925,
 	am, bel=^G, bw, cbt=\EI, clear=^Z, cnorm=\E.4, cols#80,
-	cr=^M, cub1=^H, cud1=^J, cud1=^V, cuf1=^L,
+	cr=^M, cub1=^H, cud1=^J, cud1=^V,
 	cup=\E=%p1%' '%+%c%p2%' '%+%c, cuu1=^K, cvvis=\E.2,
 	dch1=\EW, dl1=\ER, dsl=\Eh, ed=\EY, el=\ET,
 	flash=\Eb$<20>\Ed, fsl=\r\Eg, home=^^, hs,

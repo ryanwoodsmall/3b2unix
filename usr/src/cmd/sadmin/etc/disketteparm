@@ -1,10 +1,10 @@
-#ident	"@(#)sadmin:etc/disketteparm	1.2"
+#ident	"@(#)sadmin:etc/disketteparm	1.2.2.1"
 #	Parameters for file systems made on diskettes.
 #	See mkfs(1M) and makefsys.
 
 
 case "`uname -m`" in
-3b5 | 3B5 )
+3b15 | 3B15 )
 	#	blocks in the file system
 	blocks=12800
 	#	inodes in the file system, may be empty

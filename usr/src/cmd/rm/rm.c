@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)rm:rm.c	1.14"
+#ident	"@(#)rm:rm.c	1.15"
 /*
 **      rm [-fir] file ...
 */
@@ -70,7 +70,13 @@ char	*argv[];
 	argc -= optind;
 	argv = &argv[optind];
 	
-	while (argc-- > 0) {
+	while (argc-- > 0)
+	{
+		if( !strcmp(*argv, "..") )
+		{
+			fprintf(stderr,"rm: cannot remove ..\n");
+			continue;
+		}
 		rm (*argv);
 		argv++;
 	}

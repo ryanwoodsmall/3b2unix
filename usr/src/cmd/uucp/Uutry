@@ -1,5 +1,5 @@
 #!/bin/sh
-#ident	"@(#)uucp:Uutry	2.3"
+#ident	"@(#)uucp:Uutry	2.4"
 
 #	This shell will start a uucico for the system given.
 #	Options:
@@ -25,6 +25,7 @@ do
 	-x)  shift; X="-x$1"; shift;;
 	-x*) X=$1; shift;;
 	-r) REMOVE="y"; shift;;
+	-?) echo "$0: unrecognized flag $1\nUSAGE: $0 [-r] [-xdebug_level] system";exit 1;;
 	*) SYS="$1"; shift;;
 	esac
 done

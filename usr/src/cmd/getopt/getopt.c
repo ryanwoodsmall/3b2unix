@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident "@(#)ogetopt:ogetopt.c	1.6"
+#ident	"@(#)ogetopt:ogetopt.c	1.7"
 
 #include	<stdio.h>
 
@@ -34,6 +34,7 @@ char **argv;
 	argv[1] = argv[0];
 	argv++;
 	argc--;
+	outstr[0] = '\0';
 
 	while((c=getopt(argc, argv, goarg)) != EOF) {
 		if(c=='?') {

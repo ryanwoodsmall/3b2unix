@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/stream.h	10.10"
+#ident	"@(#)kern-port:sys/stream.h	10.10.1.1"
 
 /*
  * data queue
@@ -417,7 +417,7 @@ struct stroptions {
 /*
  * free a queue pair
  */
-#define freeq(q)	((q)->q_flag = WR(q)->q_flag = 0)
+#define freeq(q)	{ (q)->q_flag = WR(q)->q_flag = 0; strst.queue.use--; }
 
 /*
  * Test if data block type is one of the data messages (i.e. not a control

@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:admin/menu/syssetup/datetime	2.4"
+#ident	"@(#)sadmin:admin/menu/syssetup/datetime	2.6"
 #menu# set the date, time, time zone and daylight savings time
 #help# 
 #help#	Datetime tells the computer the date, time, time zone and whether
@@ -8,7 +8,7 @@
 #help#	return to Standard Time in the fall.
 #help#	Any logins and processes running when the time zone changes, and
 #help#	all their child processes, will continue to see the old time zone.
-#help#	The cron will be restarted with the new time and time zone if it was
+#help#	The cron(1M) will be restarted with the new time and time zone if it was
 #help#	already running.
 
 flags="-qq -k$$"
@@ -34,7 +34,7 @@ if checkyn ${flags} -H'
 	fall.
 	Any logins and processes running when the time zone changes, and
 	all their child processes, will continue to see the old time zone.
-	The cron will be restarted with the new time and time zone if it was
+	The cron(1M) will be restarted with the new time and time zone if it was
 	already running.' \
 	-f 'Change the time zone?'
 then
@@ -84,9 +84,7 @@ then
 
 	TZ=${tz}${dst}
 
-	echo "# established `date`
-	TZ=${TZ}
-	export TZ" >/etc/TIMEZONE  ||
+	echo "# established `date`\nTZ=${TZ}\nexport TZ" >/etc/TIMEZONE  ||
 	{
 		admerr `basename $0` 'Time zone has not been changed.  Cannot write /etc/TIMEZONE.'
 		exit 1
@@ -95,7 +93,7 @@ then
 	echo 'Time zone now changed.
 Note:  Any logins and processes running when the time zone changes, and
 all their child processes, will continue to see the old time zone.
-The cron will be restarted at the end of this procedure.'
+The cron(1M) will be restarted at the end of this procedure.'
 	timechanged=yes
 fi
 
@@ -104,7 +102,7 @@ echo "Current date and time:  ${day} ${dmon}/${dday}/${dyr} ${dhr}:${dmin}"
 if checkyn ${flags} -H'
 	This procedure allows you to set the date and time that the computer
 	reports.
-	The cron will be restarted with the new time and time zone if it was
+	The cron(1M) will be restarted with the new time and time zone if it was
 	already running.' \
 	-f 'Change the date and time?'
 then

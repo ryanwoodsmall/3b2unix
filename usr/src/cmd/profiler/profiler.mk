@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)profiler:profiler.mk	1.2"
+#ident	"@(#)profiler:profiler.mk	1.2.1.1"
 FFLAG =
 
 CC = cc
@@ -23,7 +23,7 @@ install:
 	-if u3b; then cd u3b20; \
 		make -f profiler.mk ARGS="$(ARGS)" CFLAGS="$(CFLAGS)" \
 		FFLAG="$(FFLAG)" install clobber; fi
-	-if u3b5 || u3b2; then cd u3b5; \
+	-if u3b15 || u3b2; then cd u3b15; \
 		make -f profiler.mk ARGS="$(ARGS)" CFLAGS="$(CFLAGS)" \
 		FFLAG="$(FFLAG)" install clobber; fi
 
@@ -38,6 +38,6 @@ clobber:
 	-if u3b; then cd u3b20; \
 		make -f profiler.mk ARGS="$(ARGS)" CFLAGS="$(CFLAGS)" \
 		FFLAG="$(FFLAG)" clobber; fi
-	-if u3b5 || u3b2; then cd u3b5; \
+	-if u3b15 || u3b2; then cd u3b15; \
 		make -f profiler.mk ARGS="$(ARGS)" CFLAGS="$(CFLAGS)" \
 		FFLAG="$(FFLAG)" clobber; fi

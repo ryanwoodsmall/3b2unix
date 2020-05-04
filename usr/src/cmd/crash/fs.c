@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)crash-3b2:fs.c	1.6"
+#ident	"@(#)crash-3b2:fs.c	1.6.1.1"
 /*
  * This file contains code for the crash function fs.
  */
@@ -72,24 +72,24 @@ getfs()
 			}
 			if(arg2 != -1)
 				for(slot = arg1; slot <= arg2; slot++)
-					prfs(all,slot,phys,addr);
+					prfs(all,slot,phys,addr,nfstypes);
 			else {
 				if(arg1 < nfstypes)
 					slot = arg1;
 				else addr = arg1;
-				prfs(all,slot,phys,addr);
+				prfs(all,slot,phys,addr,nfstypes);
 			}
 			slot = addr = arg1 = arg2 = -1;
 		}while(args[++optind]);
 	}
 	else for(slot = 1; slot < nfstypes; slot++)
-		prfs(all,slot,phys,addr);
+		prfs(all,slot,phys,addr,nfstypes);
 }
 
 /* print fsinfo table */
 int
-prfs(all,slot,phys,addr)
-int all,slot,phys;
+prfs(all,slot,phys,addr,max)
+int all,slot,phys,max;
 long addr;
 {
 	struct fsinfo fsbuf;
@@ -97,22 +97,26 @@ long addr;
 
 	readbuf(addr,(long)(Fsinfo->n_value+slot*sizeof fsbuf),phys,-1,
 		(char *)&fsbuf,sizeof fsbuf,"file system information table");
-	if(addr > -1)
-		slot = getslot(addr,(long)Fsinfo->n_value,sizeof fsbuf,phys);
 	if(!fsbuf.fs_name && !all)
 		return; 
+	if(addr > -1)
+		slot = getslot(addr,(long)Fsinfo->n_value,sizeof fsbuf,phys,max);
+	if(slot == -1)
+		fprintf(fp,"  - ");
+	else
+		fprintf(fp, "%4d", slot);
 	readmem((long)fsbuf.fs_name,1,-1,name,sizeof name,"fs_name");
-	fprintf(fp,"%4d %-20s",
-		slot,
-		name); 
+	fprintf(fp," %-20s", name); 
 	slot = ((long)fsbuf.fs_pipe - (long)Mount->n_value)/
 		sizeof (struct mount);
 	if((slot >= 0) && (slot < vbuf.v_mount))
 		fprintf(fp," %4d",slot);
 	else fprintf (fp,"   - ");
-	fprintf(fp," %s%s%s %s\n",
+	fprintf(fp," %s%s%s %s%s%s\n",
 		fsbuf.fs_notify & NO_CHDIR ? " dr" : "   ",
 		fsbuf.fs_notify & NO_CHROOT ? " rt" : "   ",
 		fsbuf.fs_notify & NO_SEEK ? " sk" : "   ",
-		fsbuf.fs_flags & FS_NOICACHE ? " noic" : "");
+		fsbuf.fs_flags & FS_NOICACHE ? " noic" : "",
+		fsbuf.fs_flags & FS_RECYCLE ? " recy" : "",
+		fsbuf.fs_flags & FS_NOTBUFFERED ? " nobf" : "");
 }

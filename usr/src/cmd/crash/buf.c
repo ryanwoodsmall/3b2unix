@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)crash-3b2:buf.c	1.12"
+#ident	"@(#)crash-3b2:buf.c	1.12.2.1"
 /*
  * This file contains code for the crash functions: bufhdr, buffer, od.
  */
@@ -30,6 +30,7 @@
 #include "sys/inode.h"
 #include "sys/ino.h"
 #include "sys/buf.h"
+#include "sys/rbuf.h"
 #include "crash.h"
 
 #define BSZ  1		/* byte size */
@@ -108,73 +109,149 @@ long addr;
 char *heading;
 {
 	struct buf bhbuf;
+	struct rbuf rbhbuf;
 	register int b_flags;
 	extern struct syment *Proc;
-	int procslot,forw,back,avf,avb;
+	int procslot,forw,back,avf,avb,fforw,fback;
 
 	readbuf(addr,(long)(Buf->n_value+slot*sizeof bhbuf),phys,-1,
 		(char *)&bhbuf,sizeof bhbuf,"buffer header");
-	if(addr > -1) 
-		slot = getslot(addr,(long)Buf->n_value,sizeof bhbuf,phys);
-	if(full)
-		fprintf(fp,"%s",heading);
-	fprintf(fp,"%4d %3u,%-3u %8x %8x",
-		slot,
-		major(bhbuf.b_dev)&0377,
-		minor(bhbuf.b_dev),
-		bhbuf.b_blkno,
-		bhbuf.b_un.b_addr);
-	forw = ((long)bhbuf.b_forw - Buf->n_value)/sizeof bhbuf;
-	if((forw >= 0) && (forw < vbuf.v_buf))
-		fprintf(fp," %3d",forw);
-	else fprintf(fp,"  - ");
-	back = ((long)bhbuf.b_back - Buf->n_value)/sizeof bhbuf;
-	if((back >= 0) && (back < vbuf.v_buf))
-		fprintf(fp," %3d",back);
-	else fprintf(fp,"  - ");
-	if(!(bhbuf.b_flags & B_BUSY)) {
-		avf = ((long)bhbuf.av_forw - Buf->n_value)/sizeof bhbuf;
-		if((avf >= 0) && (avf < vbuf.v_buf))
-			fprintf(fp," %3d",avf);
+	if(bhbuf.b_flags & B_REMOTE) {
+		readbuf(addr,(long)(Buf->n_value+slot*sizeof rbhbuf),phys,-1,
+			(char *)&rbhbuf,sizeof rbhbuf,"buffer header");
+		if(full)
+			fprintf(fp,"%s",heading);
+		if(addr > -1) 
+			slot = getslot(addr,(long)Buf->n_value,sizeof rbhbuf,phys,
+				vbuf.v_buf);
+		if(slot == -1)
+			fprintf(fp,"  - ");
+		else fprintf(fp,"%4d",slot);
+		fprintf(fp,"  - , -  %8x %8x",
+			rbhbuf.b_blkno,
+			rbhbuf.b_un.b_addr);
+		forw = ((long)rbhbuf.b_forw - Buf->n_value)/sizeof rbhbuf;
+		if((forw >= 0) && (forw < vbuf.v_buf))
+			fprintf(fp," %3d",forw);
 		else fprintf(fp,"  - ");
-		avb = ((long)bhbuf.av_back - Buf->n_value)/sizeof bhbuf;
-		if((avb >= 0) && (avb < vbuf.v_buf))
-			fprintf(fp," %3d",avb);
+		back = ((long)rbhbuf.b_back - Buf->n_value)/sizeof rbhbuf;
+		if((back >= 0) && (back < vbuf.v_buf))
+			fprintf(fp," %3d",back);
 		else fprintf(fp,"  - ");
+		if(!(rbhbuf.b_flags & B_BUSY)) {
+			avf = ((long)rbhbuf.av_forw - Buf->n_value)/sizeof rbhbuf;
+			if((avf >= 0) && (avf < vbuf.v_buf))
+				fprintf(fp," %3d",avf);
+			else fprintf(fp,"  - ");
+			avb = ((long)rbhbuf.av_back - Buf->n_value)/sizeof rbhbuf;
+			if((avb >= 0) && (avb < vbuf.v_buf))
+				fprintf(fp," %3d",avb);
+			else fprintf(fp,"  - ");
+		}
+		else fprintf(fp,"  -   - ");
+		b_flags = rbhbuf.b_flags;
+		fprintf(fp,"%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
+			b_flags == B_WRITE ? " write" : "",
+			b_flags & B_READ ? " read" : "",
+			b_flags & B_DONE ? " done" : "",
+			b_flags & B_ERROR ? " error" : "",
+			b_flags & B_BUSY ? " busy" : "",
+			b_flags & B_PHYS ? " phys" : "",
+			b_flags & B_MAP ? " map" : "",
+			b_flags & B_WANTED ? " wanted" : "",
+			b_flags & B_AGE ? " age" : "",
+			b_flags & B_ASYNC ? " async" : "",
+			b_flags & B_DELWRI ? " delwri" : "",
+			b_flags & B_OPEN ? " open" : "",
+			b_flags & B_STALE ? " stale" : "",
+			b_flags & B_VERIFY ? " verify" : "",
+			b_flags & B_FORMAT ? " format" : "",
+			b_flags & B_REMOTE ? " remote" : "");
+		if(full) {
+			fprintf(fp,"\tF_FOR F_BCK  FHANDLE    QUEUE MNTINDX    VCODE  RELTIME\n");
+			fforw = ((long)rbhbuf.b_forw - Buf->n_value)/sizeof rbhbuf;
+			if((fforw >= 0) && (fforw < vbuf.v_buf))
+				fprintf(fp,"\t%5d",fforw);
+			else fprintf(fp,"\t  -  ");
+			fback = ((long)rbhbuf.b_back - Buf->n_value)/sizeof rbhbuf;
+			if((fback >= 0) && (fback < vbuf.v_buf))
+				fprintf(fp," %5d",fback);
+			else fprintf(fp,"   -  ");
+			fprintf(fp," %8x %8x    %4x %8x %8x\n",
+				rbhbuf.b_fhandle,
+				rbhbuf.b_queue,
+				rbhbuf.b_mntindx,
+				rbhbuf.b_vcode,
+				rbhbuf.b_reltime);
+			fprintf(fp,"\n");
+			}
 	}
-	else fprintf(fp,"  -   - ");
-	b_flags = bhbuf.b_flags;
-	fprintf(fp,"%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
-		b_flags == B_WRITE ? " write" : "",
-		b_flags & B_READ ? " read" : "",
-		b_flags & B_DONE ? " done" : "",
-		b_flags & B_ERROR ? " error" : "",
-		b_flags & B_BUSY ? " busy" : "",
-		b_flags & B_PHYS ? " phys" : "",
-		b_flags & B_MAP ? " map" : "",
-		b_flags & B_WANTED ? " wanted" : "",
-		b_flags & B_AGE ? " age" : "",
-		b_flags & B_ASYNC ? " async" : "",
-		b_flags & B_DELWRI ? " delwri" : "",
-		b_flags & B_OPEN ? " open" : "",
-		b_flags & B_STALE ? " stale" : "",
-		b_flags & B_VERIFY ? " verify" : "",
-		b_flags & B_FORMAT ? " format" : "",
-		b_flags & B_RAMRD ? " ramrd" : "",
-		b_flags & B_RAMWT ? " ramwt" : "");
-	if(full) {
-		fprintf(fp,"\tBCNT ERR RESI   START  PROC\n");
-		fprintf(fp,"\t%4d %3d %4d %8x",
-			bhbuf.b_bcount,
-			bhbuf.b_error,
-			bhbuf.b_resid,
-			bhbuf.b_start);
-		procslot = ((long)bhbuf.b_proc - Proc->n_value)/
-			sizeof (struct proc);
-		if((procslot >= 0) && (procslot < vbuf.v_proc))
-			fprintf(fp," %4d\n",procslot);
-		else fprintf(fp,"  - \n");
-		fprintf(fp,"\n");
+	else {
+		if(full)
+			fprintf(fp,"%s",heading);
+		if(addr > -1) 
+			slot = getslot(addr,(long)Buf->n_value,sizeof bhbuf,phys,
+				vbuf.v_buf);
+		if(slot == -1)
+			fprintf(fp,"  - ");
+		else fprintf(fp,"%4d",slot);
+		fprintf(fp," %3u,%-3u %8x %8x",
+			major(bhbuf.b_dev)&0377,
+			minor(bhbuf.b_dev),
+			bhbuf.b_blkno,
+			bhbuf.b_un.b_addr);
+		forw = ((long)bhbuf.b_forw - Buf->n_value)/sizeof bhbuf;
+		if((forw >= 0) && (forw < vbuf.v_buf))
+			fprintf(fp," %3d",forw);
+		else fprintf(fp,"  - ");
+		back = ((long)bhbuf.b_back - Buf->n_value)/sizeof bhbuf;
+		if((back >= 0) && (back < vbuf.v_buf))
+			fprintf(fp," %3d",back);
+		else fprintf(fp,"  - ");
+		if(!(bhbuf.b_flags & B_BUSY)) {
+			avf = ((long)bhbuf.av_forw - Buf->n_value)/sizeof bhbuf;
+			if((avf >= 0) && (avf < vbuf.v_buf))
+				fprintf(fp," %3d",avf);
+			else fprintf(fp,"  - ");
+			avb = ((long)bhbuf.av_back - Buf->n_value)/sizeof bhbuf;
+			if((avb >= 0) && (avb < vbuf.v_buf))
+				fprintf(fp," %3d",avb);
+			else fprintf(fp,"  - ");
+		}
+		else fprintf(fp,"  -   - ");
+		b_flags = bhbuf.b_flags;
+		fprintf(fp,"%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
+			b_flags == B_WRITE ? " write" : "",
+			b_flags & B_READ ? " read" : "",
+			b_flags & B_DONE ? " done" : "",
+			b_flags & B_ERROR ? " error" : "",
+			b_flags & B_BUSY ? " busy" : "",
+			b_flags & B_PHYS ? " phys" : "",
+			b_flags & B_MAP ? " map" : "",
+			b_flags & B_WANTED ? " wanted" : "",
+			b_flags & B_AGE ? " age" : "",
+			b_flags & B_ASYNC ? " async" : "",
+			b_flags & B_DELWRI ? " delwri" : "",
+			b_flags & B_OPEN ? " open" : "",
+			b_flags & B_STALE ? " stale" : "",
+			b_flags & B_VERIFY ? " verify" : "",
+			b_flags & B_FORMAT ? " format" : "",
+			b_flags & B_REMOTE ? " remote" : "");
+		if(full) {
+			fprintf(fp,"\tBCNT ERR RESI   START  PROC  RELTIME\n");
+			fprintf(fp,"\t%4d %3d %4d %8x",
+				bhbuf.b_bcount,
+				bhbuf.b_error,
+				bhbuf.b_resid,
+				bhbuf.b_start);
+			procslot = ((long)bhbuf.b_proc - Proc->n_value)/
+				sizeof (struct proc);
+			if((procslot >= 0) && (procslot < vbuf.v_proc))
+				fprintf(fp," %4d",procslot);
+			else fprintf(fp,"  - ");
+			fprintf(fp," %8x\n",bhbuf.b_reltime);
+			fprintf(fp,"\n");
+		}
 	}
 }
 

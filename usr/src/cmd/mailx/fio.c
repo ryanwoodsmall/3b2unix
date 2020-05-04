@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:fio.c	1.9"
+#ident	"@(#)mailx:fio.c	1.13"
 #
 
 #include "rcv.h"
@@ -32,21 +32,32 @@ extern	char *strchr();
 setptr(ibuf)
 	FILE *ibuf;
 {
+	
 	register int c;
 	register char *cp, *cp2;
 	register int count, l;
 	register long s;
-	off_t offset;
+	off_t offset, fsize();
 	char linebuf[LINESIZE];
 	char wbuf[LINESIZE];
-	int maybe, mestmp, flag, inhead;
-	struct message this;
-	extern char tempSet[];
+	int maybe, mestmp, flag, inhead, newmail, Odot;
+	struct message m;
 
-	if ((mestmp = opentemp(tempSet)) < 0)
-		exit(1);
-	msgCount = 0;
-	offset = 0;
+	if ( !space ) {
+		msgCount = 0;
+		offset = 0;
+		space = 32;
+		newmail = 0;
+		message = (struct message *)calloc(space, sizeof(struct message));
+		if ( message == NULL ) {
+			fprintf(stderr,"calloc: insufficient memory for %d messages\n",space);
+			exit(1);
+		}
+		dot = message;
+	} else {
+		newmail = 1;
+		offset = fsize(otf);
+	}
 	s = 0L;
 	l = 0;
 	maybe = 1;
@@ -55,20 +66,14 @@ setptr(ibuf)
 		cp = fgets(linebuf,LINESIZE,ibuf);
 		if (cp == NULL) {
 			fflush(otf);
-			this.m_flag = flag;
-			flag = MUSED|MNEW;
-			this.m_offset = offsetof(offset);
-			this.m_block = blockof(offset);
-			this.m_size = s;
-			this.m_lines = l;
-			if (append(&this, mestmp)) {
-				perror(tempSet);
-				exit(1);
+			if ( msgCount ) {
+				message[msgCount-1].m_size = s;
+				message[msgCount-1].m_lines = l;
+				message[msgCount-1].m_flag = flag;
 			}
+			flag = MUSED|MNEW;
 			fclose(ibuf);
 			fflush(otf);
-			makemessage(mestmp);
-			close(mestmp);
 			return;
 		}
 		count = strlen(linebuf);
@@ -78,20 +83,38 @@ setptr(ibuf)
 			exit(1);
 		}
 		if (maybe && linebuf[0] == 'F' && ishead(linebuf)) {
+			if ( (msgCount > 0) && (!newmail) ){
+				message[msgCount-1].m_size = s;
+				message[msgCount-1].m_lines = l;
+				message[msgCount-1].m_flag = flag;
+				flag = MUSED|MNEW;
+			}
+			if ( msgCount >= space ) {
+
+		/* Limit the speed at which the allocated space grows */
+
+				if ( space < 512 )
+					space = space*2;
+				else
+					space += 512;
+				errno = 0;
+				Odot = dot - &(message[0]);
+				message = (struct message *)realloc(message,space*(sizeof( struct message)));
+				if ( message == NULL ) {
+					perror("realloc failed");
+					fprintf(stderr,"realloc: insufficient memory for %d messages\n",space);
+					exit(1);
+				}
+				dot = &message[Odot];
+			}
+			message[msgCount].m_block = blockof(offset);
+			message[msgCount].m_offset = offsetof(offset);
+			newmail = 0;
 			msgCount++;
-			this.m_flag = flag;
 			flag = MUSED|MNEW;
 			inhead = 1;
-			this.m_block = blockof(offset);
-			this.m_offset = offsetof(offset);
-			this.m_size = s;
-			this.m_lines = l;
 			s = 0L;
 			l = 0;
-			if (append(&this, mestmp)) {
-				perror(tempSet);
-				exit(1);
-			}
 		}
 		if (linebuf[0] == '\n')
 			inhead = 0;
@@ -192,50 +215,6 @@ setinput(mp)
 	return(itf);
 }
 
-/*
- * Take the data out of the passed ghost file and toss it into
- * a dynamically allocated message structure.
- */
-
-makemessage(f)
-{
-	register struct message *m;
-	register char *mp;
-	register count;
-
-	mp = calloc((unsigned) (msgCount + 1), sizeof *m);
-	if (mp == NOSTR) {
-		printf("Insufficient memory for %d messages\n", msgCount);
-		exit(1);
-	}
-	if (message != (struct message *) 0)
-		cfree((char *) message);
-	message = (struct message *) mp;
-	dot = message;
-	lseek(f, 0L, 0);
-	while (count = read(f, mp, BUFSIZ))
-		mp += count;
-	for (m = &message[0]; m < &message[msgCount]; m++) {
-		m->m_size = (m+1)->m_size;
-		m->m_lines = (m+1)->m_lines;
-		m->m_flag = (m+1)->m_flag;
-	}
-	message[msgCount].m_size = 0L;
-	message[msgCount].m_lines = 0;
-}
-
-/*
- * Append the passed message descriptor onto the temp file.
- * If the write fails, return 1, else 0
- */
-
-append(mp, f)
-	struct message *mp;
-{
-	if (write(f, (char *) mp, sizeof *mp) != sizeof *mp)
-		return(1);
-	return(0);
-}
 
 /*
  * Delete a file, but only if the file is a plain file.
@@ -369,9 +348,9 @@ done:
  */
 holdsigs()
 {
-	m_sighold(SIGHUP);
-	m_sighold(SIGINT);
-	m_sighold(SIGQUIT);
+	sighold(SIGHUP);
+	sighold(SIGINT);
+	sighold(SIGQUIT);
 }
 
 /*
@@ -379,9 +358,9 @@ holdsigs()
  */
 relsesigs()
 {
-	m_sigrelse(SIGHUP);
-	m_sigrelse(SIGINT);
-	m_sigrelse(SIGQUIT);
+	sigrelse(SIGHUP);
+	sigrelse(SIGINT);
+	sigrelse(SIGQUIT);
 }
 
 /*

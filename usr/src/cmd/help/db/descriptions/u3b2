@@ -12,5 +12,5 @@ Description:
      in shell programs to identify the type of computer.  It insures that the
      system executes the machine specific lines that are appropriate to the
      3B2.  See also:  false(1), pdp11(1), sh(1), test(1), true(1), u370(1),
-     u3b(1), u3b5(1), and vax(1) for commands with functions similar to
+     u3b(1), u3b15(1), and vax(1) for commands with functions similar to
      \Su3b2\S, and make(1) for a command that might be used with \Su3b2\S.

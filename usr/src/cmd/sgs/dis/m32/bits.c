@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)dis:m32/bits.c	1.16"
+#ident	"@(#)dis:m32/bits.c	1.17"
 /*
  */
 #include	<stdio.h>
@@ -94,6 +94,7 @@ dis_text()
 
 	/* initialization for each beginning of text disassembly	*/
 
+	bytesleft = 0;
 	sech = &scnhdr;
 
 	if (Lflag > 0)

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)lint:lerror2.c	1.6"
+#ident	"@(#)lint:lerror2.c	1.8"
 /*	3.0 SID #	1.3	*/
 /* lerror2.c
  *	This file contains routines for message and error handling for

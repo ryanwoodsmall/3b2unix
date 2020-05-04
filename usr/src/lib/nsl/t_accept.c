@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/t_accept.c	1.5"
+#ident	"@(#)libnsl:nsl/t_accept.c	1.5.1.2"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/errno.h"
@@ -23,7 +23,7 @@ extern int t_errno;
 extern int errno;
 extern struct _ti_user *_t_checkfd();
 extern int _t_is_event();
-extern int (*sigset())();
+extern void (*sigset())();
 extern int ioctl();
 
 
@@ -38,12 +38,13 @@ struct t_call *call;
 	int size;
 	int retval;
 	register struct _ti_user *tiptr;
-	int (*sigsave)();
+	register struct _ti_user *restiptr;
+	void (*sigsave)();
 
 	if ((tiptr = _t_checkfd(fd)) == NULL)
 		return(-1);
 
-	if (_t_checkfd(resfd) == NULL)
+	if ((restiptr = _t_checkfd(resfd)) == NULL)
 		return(-1);
 
 	if (tiptr->ti_servtype == T_CLTS) {
@@ -111,5 +112,20 @@ struct t_call *call;
 	}
 
 	sigset(SIGPOLL, sigsave);
+
+	if (tiptr->ti_ocnt == 1) {
+		if (fd == resfd)
+			tiptr->ti_state = TLI_NEXTSTATE(T_ACCEPT1, tiptr->ti_state);
+		else {
+			tiptr->ti_state = TLI_NEXTSTATE(T_ACCEPT2, tiptr->ti_state);
+			restiptr->ti_state = TLI_NEXTSTATE(T_PASSCON, restiptr->ti_state);
+		}
+	}
+	else {
+		tiptr->ti_state = TLI_NEXTSTATE(T_ACCEPT3, tiptr->ti_state);
+		restiptr->ti_state = TLI_NEXTSTATE(T_PASSCON, restiptr->ti_state);
+	}
+
+	tiptr->ti_ocnt--;
 	return(0);
 }

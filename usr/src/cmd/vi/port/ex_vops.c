@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident "@(#)vi:port/ex_vops.c	1.9"
+#ident "@(#)vi:port/ex_vops.c	1.11"
 
 #include "ex.h"
 #include "ex_tty.h"
@@ -335,7 +335,7 @@ vmove()
 		} else if (wcursor > cursor) {
 			vfixcurs();
 			for (cp = cursor; *cp && cp < wcursor;) {
-				register int c = *cp++ & TRIM;
+				register int c = (unsigned char)*cp++;
 
 				putchar(c ? c : ' ');
 			}
@@ -743,7 +743,7 @@ vfilter()
 	addr = dot;
 	CATCH
 		vgoto(WECHO, 0); flusho();
-		vremote(cnt, filter, 2);
+		vremote(cnt, vi_filter, 2);
 	ONERR
 		vdirty(0, lines);
 	ENDCATCH

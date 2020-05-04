@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/_conn_util.c	1.6"
+#ident	"@(#)libnsl:nsl/_conn_util.c	1.6.1.1"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/errno.h"
@@ -21,7 +21,7 @@
 extern struct _ti_user *_ti_user;
 extern int t_errno;
 extern int errno;
-extern int (*sigset())();
+extern void (*sigset())();
 extern char *memcpy();
 extern int getmsg(), putmsg();
 
@@ -38,7 +38,7 @@ register struct t_call *call;
 	char *buf;
 	int size;
 	register struct _ti_user *tiptr;
-	int (*sigsave)();
+	void (*sigsave)();
 	
 
 	tiptr = &_ti_user[fd];

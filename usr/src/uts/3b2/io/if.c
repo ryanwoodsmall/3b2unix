@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/if.c	10.12"
+#ident	"@(#)kern-port:io/if.c	10.12.4.3"
 /* 
  *		Copyright 1984 AT&T
  *
@@ -39,6 +39,7 @@
 #include "sys/vtoc.h"
 #include "sys/open.h"
 #include "sys/file.h"
+#include "sys/tuneable.h"
 
 /*
  * The following definitions belong in sys/if.h; they
@@ -145,16 +146,62 @@ struct  {
 }ifcache[2];
 
 unsigned int ifcacheaddr;
-/*
- * The following guarantees alignment of fmat_buf.
- * Since this buffer is used for dma, this 
- * alignment may be necessary.
- */
-asm(".align 8");
-struct iftrkfmat fmat_buf;	/* a waste of memory */
+struct iftrkfmat *fmat_buf;	
 struct ifformat kifmat;
 struct io_arg kifargs;
 
+ifstart()
+{
+	int i;
+	unsigned int noneed;
+	unsigned int fmataddr;
+	int szbuf;
+	int memchng;
+
+	/*
+	 * get smallest number of pages which
+	 * contain the format buffer.
+	 */
+
+	szbuf = btoc(sizeof(struct iftrkfmat));
+	memchng = 2 * szbuf - 1;
+	if (availrmem - memchng < tune.t_minarmem  ||
+	   availsmem - memchng < tune.t_minasmem) {
+		nomemmsg("ifstart", memchng, 0, 0);
+		return;
+	}
+	/*
+	 * Ask for physically contiguous pages with 
+	 * with nosleep option.
+	 */
+	if((fmataddr = getcpages(memchng, 1)) == NULL) {
+		return;
+	}
+
+	/*
+	 * Check if buffer crosses 64K boundary to
+	 * work around DMA limitation
+	 */
+
+	if (((fmataddr&MSK64K) + sizeof(struct iftrkfmat)) > BND64K) {
+		fmat_buf = (struct iftrkfmat *)(fmataddr + ctob(szbuf) - NBPC);
+		noneed = fmataddr;
+	} else {
+		fmat_buf = (struct iftrkfmat *)fmataddr;
+		noneed = fmataddr + ctob(szbuf);
+	}
+
+	/*
+	 * Free pages for which there is no need.
+	 */
+
+	for (i = 0; i < szbuf - 1; i++) {
+		freepage((int)kvtopfn(noneed + ctob(i)));
+	}
+	availrmem -= szbuf;
+	availsmem -= szbuf;
+	return;
+}
 ifcopy(faddr, taddr, count)
 unsigned int *faddr;
 unsigned int *taddr;
@@ -238,27 +285,26 @@ unsigned int	otyp;
 		while (ifopenst == IFOWAIT){
 			sleep (&ifopenst,PRIBIO);
 		}
-		if((flag & FWRITE) && (IF->statcmd & IFWRPT))
-		{
-			ifspindn(0);
-			u.u_error = EROFS;
-		}
-		else
 		if (ifopenst != IFOGOOD){
-			ifspindn(0);
 			u.u_error = ENXIO;
-		} else
-			ifisopen = SET;
+		}
 		ifopenst = IFOQUIET;
 		wakeup(&ifopenst);
 	}
-	if (ifisopen) {
+	if (u.u_error)
+		;
+	else if((flag & FWRITE) && (IF->statcmd & IFWRPT))
+		u.u_error = EROFS;
+	else {
+		ifisopen = SET;
 		ifclosed = NULL;
 		if (otyp == OTYP_LYR)
 			++ifotyp[OTYP_LYR];
 		else if (otyp < OTYPCNT)
 			ifotyp[otyp] |= 1 << (dev & 0x7f);
 	}
+	if (u.u_error && ifisopen == NULL)
+		ifspindn(0);
 	splx(iplsave);
 }
 
@@ -305,6 +351,7 @@ ifinit()
 	ifclosed = SET;
 	ifnoscan = SET;
 	ifalive = SET;
+	fmat_buf = NULL;
 	/* assign physical address of temporary cache */
 	ifcacheaddr = (unsigned int) vtop(&ifcache[0], 0);
 	if (((ifcacheaddr&MSK64K)+0x200)>BND64K)
@@ -871,96 +918,95 @@ unsigned int dev, cmd, arg, mode;
 
 	
 	switch(cmd){
-		case IFBCHECK:{
+	case IFBCHECK:{
 
-			struct ifformat ifmat;
-			paddr_t ifbaddr;
+		struct ifformat ifmat;
+		paddr_t ifbaddr;
 
-			if (copyin((struct ifformat *)arg, &ifmat, sizeof(struct ifformat))) {
-				u.u_error = EFAULT;
-				return;
-			}
-			ifbaddr = vtop(ifmat.data, u.u_procp);
-			if (ifbaddr == 0){
-				cmn_err(CE_WARN,"\nfloppy disk: Bad address returned from VTOP\n");
-				u.u_error = EFAULT;
-				return;
-			}
-			if (((ifbaddr & MSK64K)+ifmat.size) > BND64K){
-				u.u_error = EFAULT;
-				return;
-			}
-			break;
+		if (copyin((struct ifformat *)arg, &ifmat, sizeof(struct ifformat))) {
+			u.u_error = EFAULT;
+			return;
 		}
-		case IFFORMAT:{
-
-			register struct buf *bp;
-			struct iftrkfmat *trkpt;
-			struct ifformat *ifmat;
-			int bpbcount;
-			caddr_t bpbaddr;
-
-			trkpt = (struct iftrkfmat *)arg;
-			if (copyin(trkpt, &fmat_buf, sizeof(struct iftrkfmat)) != 0) {
-				u.u_error = EFAULT;
-				return;
-			}
-			bp = geteblk();
-			bp->b_error = 0;
-			bp->b_dev = (dev | IFPTN);
-			bpbcount = bp->b_bcount;
-			bpbaddr= bp->b_un.b_addr;
-			bp->b_bcount = sizeof(struct iftrkfmat);
-			bp->b_proc = u.u_procp;
-			bp->b_un.b_addr =  ((caddr_t)&fmat_buf);
-			bp->b_flags = (B_BUSY | B_WRITE);
-			bp->b_blkno = ((fmat_buf.dsksct[0].TRACK*(IFNUMSECT*2))+(fmat_buf.dsksct[0].SIDE*IFNUMSECT));
-			ifstate |= IFFMAT0;
-			ifstrategy(bp);
-			iowait(bp);
-			bp->b_bcount = bpbcount;
-			bp->b_un.b_addr = bpbaddr;
-			brelse(bp);
-			ifstate &= ~IFFMAT0;
-			break;
+		ifbaddr = vtop(ifmat.data, u.u_procp);
+		if (ifbaddr == 0){
+			cmn_err(CE_WARN,"\nfloppy disk: Bad address returned from VTOP\n");
+			u.u_error = EFAULT;
+			return;
 		}
-		case IFCONFIRM:{
-			register struct buf *bp;
-			struct iftrkfmat *trkpt;
-			struct ifformat *ifmat;
-			struct ifformat *argpt;
-			int bpbcount;
-			paddr_t ifbaddr;
-				
-			caddr_t bpbaddr;
+		if (((ifbaddr & MSK64K)+ifmat.size) > BND64K){
+			u.u_error = EFAULT;
+			return;
+		}
+		break;
+	}
+	case IFFORMAT:{
 
-			argpt = (struct ifformat *)arg;
-			if (copyin(argpt, &kifmat, sizeof(struct ifformat))) {
-				u.u_error = EFAULT;
-				return;
-			}
-			trkpt = (struct iftrkfmat *)(kifmat.data);
-			bp = geteblk();
-			bp->b_error = 0;
-			bp->b_flags = (B_BUSY | B_READ);
-			bp->b_dev = (dev | IFPTN);
-			bpbcount = bp->b_bcount;
-			bpbaddr = bp->b_un.b_addr;
-			bp->b_bcount = (IFNUMSECT*IFBYTESCT);
-			bp->b_proc = u.u_procp;
-			bp->b_un.b_addr = ((caddr_t) &fmat_buf);
-			bp->b_blkno = ((kifmat.iftrack*(IFNUMSECT*2))+(kifmat.ifside*IFNUMSECT));
-			ifstrategy(bp);
-			iowait(bp);
-			bp->b_bcount = bpbcount;
-			bp->b_un.b_addr = bpbaddr;
-			brelse(bp);
-			if (copyout(&fmat_buf, trkpt, sizeof (struct iftrkfmat)) != 0) {
-				u.u_error = EFAULT;
-			}
-			break;
+		register struct buf *bp;
+		struct iftrkfmat *trkpt;
+		struct ifformat *ifmat;
+		int bpbcount;
+		caddr_t bpbaddr;
+
+		trkpt = (struct iftrkfmat *)arg;
+		if (copyin(trkpt, fmat_buf, sizeof(struct iftrkfmat)) != 0) {
+			u.u_error = EFAULT;
+			return;
+		}
+		bp = geteblk();
+		bp->b_error = 0;
+		bp->b_dev = (dev | IFPTN);
+		bpbcount = bp->b_bcount;
+		bpbaddr= bp->b_un.b_addr;
+		bp->b_bcount = sizeof(struct iftrkfmat);
+		bp->b_proc = u.u_procp;
+		bp->b_un.b_addr =  ((caddr_t)fmat_buf);
+		bp->b_flags = (B_BUSY | B_WRITE);
+		bp->b_blkno = ((fmat_buf->dsksct[0].TRACK*(IFNUMSECT*2))+(fmat_buf->dsksct[0].SIDE*IFNUMSECT));
+		ifstate |= IFFMAT0;
+		ifstrategy(bp);
+		iowait(bp);
+		bp->b_bcount = bpbcount;
+		bp->b_un.b_addr = bpbaddr;
+		brelse(bp);
+		ifstate &= ~IFFMAT0;
+		break;
+	}
+	case IFCONFIRM:{
+		register struct buf *bp;
+		struct iftrkfmat *trkpt;
+		struct ifformat *ifmat;
+		struct ifformat *argpt;
+		int bpbcount;
+		paddr_t ifbaddr;
 			
+		caddr_t bpbaddr;
+
+		argpt = (struct ifformat *)arg;
+		if (copyin(argpt, &kifmat, sizeof(struct ifformat))) {
+			u.u_error = EFAULT;
+			return;
 		}
+		trkpt = (struct iftrkfmat *)(kifmat.data);
+		bp = geteblk();
+		bp->b_error = 0;
+		bp->b_flags = (B_BUSY | B_READ);
+		bp->b_dev = (dev | IFPTN);
+		bpbcount = bp->b_bcount;
+		bpbaddr = bp->b_un.b_addr;
+		bp->b_bcount = (IFNUMSECT*IFBYTESCT);
+		bp->b_proc = u.u_procp;
+		bp->b_un.b_addr = ((caddr_t) fmat_buf);
+		bp->b_blkno = ((kifmat.iftrack*(IFNUMSECT*2))+(kifmat.ifside*IFNUMSECT));
+		ifstrategy(bp);
+		iowait(bp);
+		bp->b_bcount = bpbcount;
+		bp->b_un.b_addr = bpbaddr;
+		brelse(bp);
+		if (copyout(fmat_buf, trkpt, sizeof (struct iftrkfmat)) != 0) {
+			u.u_error = EFAULT;
+		}
+		break;
+	}
 	case V_PREAD:{
 		struct io_arg *ifargs;
 		struct buf *geteblk();

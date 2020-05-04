@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:names.c	1.7"
+#ident	"@(#)mailx:names.c	1.10"
 #
 
 /*
@@ -178,70 +178,6 @@ yankword(ap, wbuf)
 		;
 	*cp2 = '\0';
 	return(cp);
-}
-
-/*
- * Verify that all the users in the list of names are
- * legitimate.  Complain about and delink those who aren't.
- */
-
-struct name *
-verify(names)
-	struct name *names;
-{
-	register struct name *np, *top, *t, *x;
-	register char *cp;
-
-#ifdef DELIVERMAIL
-	return(names);
-#else
-	/*
-	 * if we have a special delivery program,
-	 * let it do the verification.
-	 */
-	if (value("sendmail")!=NOSTR)
-		return(names);
-
-	top = names;
-	np = names;
-	while (np != NIL) {
-		if (np->n_type & GDEL) {
-			np = np->n_flink;
-			continue;
-		}
-		for (cp = "!:@^"; *cp; cp++)
-			if (any(*cp, np->n_name))
-				break;
-		if (*cp != 0) {
-			np = np->n_flink;
-			continue;
-		}
-		cp = np->n_name;
-		while (*cp == '\\')
-			cp++;
-		if (equal(cp, "msgs") ||
-		    getuserid(cp) != -1) {
-			np = np->n_flink;
-			continue;
-		}
-		fprintf(stderr, "Can't send to %s\n", np->n_name);
-		senderr++;
-		if (np == top) {
-			top = np->n_flink;
-			if (top != NIL)
-				top->n_blink = NIL;
-			np = top;
-			continue;
-		}
-		x = np->n_blink;
-		t = np->n_flink;
-		x->n_flink = t;
-		if (t != NIL)
-			t->n_blink = x;
-		np = t;
-	}
-	return(top);
-#endif
 }
 
 /*
@@ -584,14 +520,13 @@ unpack(np)
 
 	/*
 	 * Compute the number of extra arguments we will need.
-	 * We need at least 3 extra -- one for "mail" and one for
-	 * the terminating 0 pointer, and one for the '-s' option.
+	 * We need at least 2 extra -- one for "mail" and one for
+	 * the terminating 0 pointer.
 	 * Additional spots may be needed to pass along -r and -f to 
 	 * the host mailer.
 	 */
 
-	if (value("addsopt") != NOSTR) extra = 3;
-	else extra = 2;
+	extra = 2;
 
 	if (rflag != NOSTR)
 		extra += 2;
@@ -605,12 +540,7 @@ unpack(np)
 		extra += 2;
 	top = (char **) salloc((t + extra) * sizeof cp);
 	ap = top;
-	*ap++ = "mail";
-	/*
-		The addsopt option causes a '-s' to be added to
-		the mail command line - REQUIRED FOR /bin/mail
-	*/
-	if (value("addsopt") != NOSTR) *ap++ = "-s";
+	*ap++ = "rmail";
 	if (rflag != NOSTR) {
 		*ap++ = "-r";
 		*ap++ = rflag;

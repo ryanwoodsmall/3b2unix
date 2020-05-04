@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:com/docomm.c	1.16"
+#ident	"@(#)sdb:com/docomm.c	1.18"
 
 #include "head.h"
 #include "coff.h"
@@ -158,7 +158,7 @@ docommand()
 	
 	case 'Y':
 		debug = !debug;
-		debugflag = integ;	/* #Y turns on debugging level # */
+		debugflag = integ;	 /*#Y turns on debugging level # */
 		break;
 
 	case 'V':
@@ -172,7 +172,10 @@ docommand()
 		}
 		else
 		{
-			printmap("? map", &txtmap);
+			i = libn;
+			for (libn = 0; libn <= nshlib; libn++)
+				printmap("? map", &txtmap[libn]);
+			libn = i;
 			printmap("/ map", &datmap);
 		}
 		break;
@@ -203,7 +206,6 @@ docommand()
 			}
 		}
 		goto setbrk;
-		break;	
 
 	case 'l':
 		setcur(1);
@@ -216,8 +218,8 @@ docommand()
 		break;
 		
 	case 't':
+		prfrx(integ);
 		lastcom = NOCOM;
-		prframe();
 		break;
 		
 	case 'e':
@@ -279,6 +281,9 @@ docommand()
 		}
 		/* argument is procedure name */
 		procp = findproc(args);
+		isisp(procp->paddress);
+		if (libn > 0) 
+			procp = (adrtoprocp(brtoproc(procp->paddress)));
 		if ((procp->pname[0] != '\0') && (procp->sfptr != badfile))
 		{
 			finit(procp->sfptr->sfilename);
@@ -289,12 +294,18 @@ docommand()
 			fprintf(FPRT1, "Cannot find %s\n", args);
 		}
 		{
-			char *name;
-			name = curproc()->pname;
 #if u3b || u3b5 || u3b15 || u3b2
-			printf("%s() in \"%s\"\n", name, curfile);
+			procp = curproc();
+			if (nshlib) {
+				prpname(procp,"()");
+				printf(" in \"%s\"\n", curfile);
+			}
+			else
+				printf("%s() in \"%s\"\n", procp->pname, curfile);
 #else
 #if vax
+			char *name;
+			name = curproc()->pname;
 			if (*name == '_')
 			{
 			     printf("%s() in \"%s\"\n", name+1, curfile);
@@ -450,7 +461,7 @@ docommand()
 	case 'C':
 		if (proc[0] != '\0' || integ != 0)
 		{
-			dot = setdot(BKOFFSET, ALTBKOFFSET);
+			dot = setdot(1);
 			if (dot == -1)
 			{
 				error("Cannot set temporary breakpoint");
@@ -532,7 +543,7 @@ f1:
 			error("Not stopped at breakpoint");
 			break;
 		}
-		dot = setdot(BKOFFSET, ALTBKOFFSET);
+		dot = setdot(1);
 		if (dot == -1)
 		{
 			error("Bad address");
@@ -595,7 +606,7 @@ f1:
 		{    
 			integ = curstmt.lnno;
 		}
-		dot = setdot(BKOFFSET, ALTBKOFFSET);
+		dot = setdot(1);
 		/* also fixed setcur() and runpcs() to allow breaks at 0 */
 		if (dot == -1 )
 		{
@@ -625,7 +636,7 @@ f1:
 			idbkpt();
 			break;
 		}
-		dot = setdot(BKOFFSET, ALTBKOFFSET);
+		dot = setdot(1);
 		if (dot == -1)
 		{
 			error("Non existent breakpoint");
@@ -713,7 +724,7 @@ f1:
 		p = args[0] ? args : "i";
 		if(var[0] == '\0')
 		{
-			dot = setdot(0, 0);
+			dot = setdot(0);
 		}
 		/* else if (var[0] == '.' && var[1] == '\0') dot = dot */
 		else
@@ -762,7 +773,7 @@ f1:
 		{
 			if (proc[0])
 			{
-				addr = setdot(0, 0);
+				addr = setdot(0);
 				if (addr == -1)
 				{
 					error("Unknown address");
@@ -933,11 +944,25 @@ fpargs() {
 
 extern MSG	BADTXT;
 
+#if u3b2 || u3b5 || u3b15
+#define SAVE	0x10
+#define ADDW2	"ADDW2"
+#endif
+#if u3b
+#define SAVE	0x7a
+#define ADDW2	"addw2"
+#endif
+
 /* Used by =, ?, a, b, c, C, d and g commands to find linenumber */
 ADDR
-setdot(bkoffset, altbkoffset) {
+setdot(skipflag)
+short skipflag;
+{
 	REG ADDR loc;		/* dot returned */
+	REG ADDR tmploc;		/* dot returned */
+	union word word;
 	struct proct *procp = badproc;
+	extern char mneu[];
 #if DEBUG
 	if (debugflag ==1)
 	{
@@ -946,11 +971,8 @@ setdot(bkoffset, altbkoffset) {
 	else if (debugflag == 2)
 	{
 		enter2("setdot");
-		arg("bkoffset");
-		printf("0x%x",bkoffset);
-		comma();
-		arg("altbkoffset");
-		printf("0x%x",altbkoffset);
+		arg("skipflag");
+		printf("%d",skipflag);
 		closeparen();
 	}
 #endif
@@ -977,16 +999,19 @@ setdot(bkoffset, altbkoffset) {
 			errflg = "inline expanded function";
 			loc = -2;
 		}
-		else
-		{
+		else if (skipflag) {
 			procp = adrtoprocp(loc);
 			addr = procp->paddress;
-			if (procp->notstab) {
-				if (loc < addr + altbkoffset)
-					loc = addr + altbkoffset;
-			} else {
-				if (loc < addr + bkoffset)
-					loc = addr + bkoffset;
+			if (addr == loc) {
+				word.w = get(loc, ISP);
+	 			if (word.c[0] == SAVE) {	/* skip 'SAVE' */
+					loc = addr + 2;
+					word.w = get(loc, ISP);
+					tmploc = dis_dot(loc,ISP,'\0');
+					mneu[5]='\0';
+	 				if (eqstr(mneu,ADDW2))
+						loc = tmploc;	/* skip 'ADD2W' */
+				}
 			}
 			dis_dot(loc,ISP,'\0');	/* sets errlev if bad loc */
 			if(errlev > 0)	/*  not an instruction boundary */
@@ -1006,4 +1031,17 @@ setdot(bkoffset, altbkoffset) {
 		}
 #endif
 	return(loc);
+}
+
+inbrtbl(addr)
+ADDR addr;
+{
+	register int i;
+
+	for (i = 1; i <= nshlib; i++) {
+		if ((addr >= brtbl[i].start) && 
+				(addr <= (brtbl[i].start + brtbl[i].size)))
+			return 1;
+	}
+	return 0;
 }

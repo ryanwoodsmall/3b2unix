@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libc-port:gen/getopt.c	1.13"
+#ident	"@(#)libc-port:gen/getopt.c	1.14"
 /*	3.0 SID #	1.2	*/
 /*LINTLIBRARY*/
 #define NULL	0
@@ -25,15 +25,9 @@ extern char *strchr();
  * If building the regular library, pick up the defintions from this file
  * If building the shared library, pick up definitions from opt_data.c 
  */
-#if SHLIB
+
 extern int opterr, optind, optopt;
 extern char *optarg;
-#else
-int	opterr = 1;
-int	optind = 1;
-int	optopt = 0;
-char	*optarg = 0;
-#endif
 
 static char error1[] = ": option requires an argument -- ";
 static char error2[] = ": illegal option -- ";

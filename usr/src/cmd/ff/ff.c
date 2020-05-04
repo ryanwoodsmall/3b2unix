@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)ff:ff.c	1.10"
+#ident	"@(#)ff:ff.c	1.13"
 /*
 
 	ff - fast(er) find
@@ -69,7 +69,7 @@
 */
 #define	LIMITS	{	\
 maxIreq = g_ilb*g_inopb;	/* % of all inodes which are used */\
-maxL = 1+(g_ilb*g_inopb)/10;	/* % of all files which are links */\
+maxL = 1+(g_ilb*g_inopb)/5;	/* % of all files which are links */\
 maxDb = (lstblk-fstblk)/10;	/* number of blocks owned by dirs */\
 maxIb = 20;			/* number of indirect dir blocks  */\
 		}
@@ -349,11 +349,11 @@ int super()
 #ifdef FsMAGIC
 	g_bsize = (fs->s_magic!=FsMAGIC ? BSIZE :
 			(fs->s_type==1 ? 512 :
-#ifdef u3b5
+#ifdef u3b15
 			(fs->s_type==2 ? 2048 :
 #else
 			(fs->s_type==2 ? 1024 :
-#endif /* u3b5 */
+#endif /* u3b15 */
 			errorx("ff: unknown filesystem BSIZE\n"))));
 #else
 	g_bsize = BSIZE;

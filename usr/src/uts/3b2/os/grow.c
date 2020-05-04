@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/grow.c	10.9"
+#ident	"@(#)kern-port:os/grow.c	10.9.1.2"
 #include "sys/types.h"
 #include "sys/bitmasks.h"
 #include "sys/param.h"
@@ -81,14 +81,6 @@ sbreak()
 	}
 
 	regrele(rp);
-
-	if (change != 0) {
-		/*	Reload the mmu register for section 2.
-		*/
-
-		loadmmu(u.u_procp, SCN2);
-	}
-
 	return;
 
 sbrk_err:
@@ -136,12 +128,6 @@ int *sp;
 	u.u_pcb.sub = (int *)((unsigned)userstack + ctob(rp->r_pgsz));
 
 	regrele(rp);
-
-	/*	Reload the mmu registers for section 3.
-	*/
-
-	loadmmu(u.u_procp, SCN3);
-
 	return(1);
 }
 
@@ -296,10 +282,13 @@ ptalloc(npgtbls, flag)
 
 	/*	Add any unused page tables at the end of the
 	 *	last page to the free list.
+	 *
+	 *	Note: the following only works if NPTPP = 2^n;
+	 *	otherwise, use  j = npgtbls % NPTPP.
 	 */
 	
 
-	j = npgtbls % NPTPP;
+	j = npgtbls & (NPTPP - 1);
 	if (j > 0) {
 		pf = kvtopfdat(pt + ctob(i-1));
 		ASSERT((pf->pf_flags & (P_QUEUE | P_HASH)) == 0);

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/tiuser.h	10.3"
+#ident	"@(#)kern-port:sys/tiuser.h	10.4"
 
 /*
  * The following are the error codes needed by both the kernel
@@ -177,9 +177,58 @@ struct t_uderr {
 #define T_DATAXFER	5		/* data transfer		*/
 #define T_OUTREL        6               /* outgoing release pending     */
 #define T_INREL		7		/* incoming release pending     */
+#define T_FAKE		8		/* fake state used when state   */
+					/* cannot be determined		*/
+#define T_HACK		12		/* needed to maintain compatibility !!!
+					 * (used by switch statement in 
+					 * t_getstate.c)
+					 * DO NOT REMOVE UNTIL _spec FILE
+					 * REORDERED!!!!
+					 */
 
-#define T_NOSTATES 	8
-
+#define T_NOSTATES 	9
 
 
 #define ROUNDUP(X)	((X + 0x03)&~0x03)
+
+/*
+ * The following are TLI user level events which cause
+ * state changes.
+ */
+
+#define T_OPEN 		0
+#define T_BIND		1
+#define T_OPTMGMT	2
+#define T_UNBIND	3
+#define T_CLOSE		4
+#define T_SNDUDATA	5
+#define T_RCVUDATA	6
+#define T_RCVUDERR	7
+#define T_CONNECT1	8
+#define T_CONNECT2	9
+#define T_RCVCONNECT	10
+#define T_LISTN		11
+#define T_ACCEPT1	12
+#define T_ACCEPT2	13
+#define	T_ACCEPT3	14
+#define T_SND		15
+#define T_RCV		16
+#define T_SNDDIS1	17
+#define T_SNDDIS2	18
+#define T_RCVDIS1	19
+#define T_RCVDIS2	20
+#define T_RCVDIS3	21
+#define T_SNDREL	22
+#define T_RCVREL	23
+#define T_PASSCON	24
+
+#define T_NOEVENTS	25
+
+#define nvs 	127 	/* not a valid state change */
+
+extern char tiusr_statetbl[T_NOEVENTS][T_NOSTATES];
+
+/* macro to change state */
+/* TLI_NEXTSTATE(event, current state) */
+#define TLI_NEXTSTATE(X,Y)	tiusr_statetbl[X][Y]
+

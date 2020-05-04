@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)pcc2:common/mfile2.h	10.1"
+#ident	"@(#)pcc2:common/mfile2.h	10.5"
  
 #ifndef	MACDEFS_H			/* guard against double include */
 # include "macdefs.h"
@@ -110,6 +110,10 @@
 
 # define LMATCH 010000        /* left sub-tree must match exactly */
 # define RMATCH 020000        /* right sub-tree must match exactly */
+#ifdef CG
+# define NO_IGNORE 01000	/*This template cannot ignore exceptions*/
+# define NO_HONOR 02000		/*This template cannot honor exceptions*/
+#endif
 
 
  
@@ -118,8 +122,6 @@
 extern int busy[];
 
 # define INFINITY 10000
-
-extern NODE node[];
 
 typedef struct shape SHAPE;
 
@@ -261,9 +263,12 @@ struct st_inst {
 #endif
 };
 
-# define NINS 300
-extern INST inst[NINS];
-extern nins;
+#undef NINS
+extern struct td td_inst;
+#define inst ((INST *)(td_inst.td_start))
+#define nins (td_inst.td_used)
+#define NINS (td_inst.td_allo)
+
 
 	/* definitions of strategies legal for ops */
 
@@ -280,6 +285,8 @@ extern nins;
 # define EXHONOR 0100	/* Must honor numeric exceptions*/
 # define EXIGNORE 0200	/* Must ignore numeric exceptions*/
 # define DOEXACT 0400	/* Must honor exact semantics (e.g. volatile)*/
+# define ALTRVAL 01000	/* alternate return register- not used yet*/
+# define OCOPY 02000	/* ordered copy: 1 = must make a copy of this value*/
 #endif	/* def CG */
 
 
@@ -294,6 +301,9 @@ extern SHTABLE	sha;
 #else	/* STINCC */
 #    ifdef	REGSET
 #	define RS_FAIL	(RS_BIT(TOTREGS)) /* special flag for match fail */
+#    ifndef RS_FORTYPE
+#	define RS_FORTYPE(type) (RS_NRGS) /* any scratch reg for any type */
+#    endif
 /* flags for insout/bprt */
 #	define REWROTE (RS_FAIL + 1)	/* tree rewritten */
 #	define OUTOFREG (RS_FAIL + 2)	/* ran out of regs, couldn't gen.
@@ -326,13 +336,10 @@ extern SHTABLE	sha;
 # define COMMON 04
 # define DEFINE 010
 # define DEFNOI 020
-
-/*flags for the tnum field*/
-#define INPAREN 0100    /*flag: 1 = under a parenthesis*/
-#define OCOPY 0200      /*ordered copy: 1 = must make a copy of this value*/
+# define ICOMMON 040
 
 /*Structure for common subexpressions*/
-#define MAXCSE NRGS	/*max # of nested cse's*/
+#define MAXCSE 100	/*max # of cse's*/
 struct cse {
 	int id;	/*number for this CSE*/
 	int reg;/*reg that holds the cse*/

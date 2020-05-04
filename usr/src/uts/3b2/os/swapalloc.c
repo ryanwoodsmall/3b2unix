@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/swapalloc.c	10.8"
+#ident	"@(#)kern-port:os/swapalloc.c	10.9"
 #include "sys/types.h"
 #include "sys/param.h"
 #include "sys/sysmacros.h"
@@ -85,9 +85,13 @@ register int	waitflag;	/* If required space is not available */
 			swappg = swapfind(&swaptab[smi], size);
 			if (swappg >= 0)
 				break;
-		} while ((smi = (smi + 1) % MSFILES) != nextswap);
+		} while ((smi = (smi + 1) & (MSFILES - 1)) != nextswap);
 
-		/*	If we got the swap space, then go set up the
+		/*
+		 *	Note: the above only works if MSFILES = 2^n;
+		 *	otherwise, use  smi = (smi + 1) % MSFILES.
+		 *
+		 *	If we got the swap space, then go set up the
 		 *	disk block descriptors.
 		 */
 
@@ -132,7 +136,13 @@ register int	waitflag;	/* If required space is not available */
 	cntptr = &swaptab[smi].st_ucnt[swappg];
 	swappg = swaptab[smi].st_swplo + (swappg << DPPSHFT);
 	swaptab[smi].st_nfpgs -= size;
-	nextswap = (smi + 1) % MSFILES;
+
+	/*
+	 *	Note: the following only works if MSFILES = 2^n;
+	 *	otherwise, use  nextswap = (smi + 1) % MSFILES.
+	 */
+
+	nextswap = (smi + 1) & (MSFILES - 1);
 
 
 	/*	Initialize the swap use counts for each page

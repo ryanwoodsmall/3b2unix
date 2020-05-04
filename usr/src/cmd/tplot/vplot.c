@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)tplot:vplot.c	1.7"
+#ident	"@(#)tplot:vplot.c	1.8"
 #include <stdio.h>
 #include <signal.h>
 #include <values.h>
@@ -37,7 +37,7 @@ extern char	chrtab[][16];
 int	plotcom[] =	{ 0200, 0, 0};
 int	eotcom[] =	{ 0210, 0, 0};
 #endif
-#if vax | u370 | u3b | u3b5 | u3b2
+#if vax | u370 | u3b | u3b15 | u3b2
 short	plotcom[] = { 0200, 0, 0, 0 };
 short	eotcom[] = { 0210, 0, 0, 0 };
 #endif

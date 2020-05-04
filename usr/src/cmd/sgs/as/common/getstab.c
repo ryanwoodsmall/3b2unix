@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:common/getstab.c	1.7"
+#ident	"@(#)as:common/getstab.c	1.7.1.1"
 
 /*
  *
@@ -47,7 +47,7 @@
 
 extern FILE *fopen();
 
-extern upsymins *lookup();
+extern upsymins lookup();
 
 getstab(file)
 	char *file;
@@ -60,7 +60,7 @@ getstab(file)
 	if((fd = fopen(file,"r"))==NULL)
 		aerror("Cannot Open Temporary (symbol table) File");
 	while(fread((char *)&symb,SYMBOLL,1,fd) == 1) {
-		ptr = (*lookup(symb._name.name,INSTALL,USRNAME)).stp;
+		ptr = lookup(symb._name.name,INSTALL,USRNAME).stp;
 		ptr->styp = symb.styp;
 		ptr->value = symb.value;
 	}

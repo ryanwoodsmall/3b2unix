@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)comp:common/trees.c	1.15"
+#ident	"@(#)comp:common/trees.c	1.17"
 
 # include "mfile1"
 # include "messages.h"

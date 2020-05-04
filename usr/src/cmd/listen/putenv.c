@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)listen:putenv.c	1.1"
+#ident	"@(#)listen:putenv.c	1.2"
 /*	@(#)from vax: putenv.c	1.2	*/
 /*	LINTLIBRARY	*/
 /*	putenv - change environment variables
@@ -59,13 +59,15 @@ char *change;
 	return 0;
 }
 
+
 /*	find - find where s2 is in environ
  *
  *	input - str = string of form name=value
  *
  *	output - index of name in environ that matches "name"
  *		 -size of table, if none exists
-*/
+ */
+
 static
 find(str)
 register char *str;
@@ -79,6 +81,8 @@ register char *str;
 	}
 	return -(++ct);
 }
+
+
 /*
  *	s1 is either name, or name=value
  *	s2 is name=value

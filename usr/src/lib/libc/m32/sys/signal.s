@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-	.ident	"@(#)libc-m32:sys/signal.s	1.21"
+	.ident	"@(#)libc-m32:sys/signal.s	1.23"
 	.file	"signal.s"
 #   C-library signal() routine recoded for IEEE floating-point
 # REMEMBER: SIGFPE is special in this environment!
@@ -312,13 +312,10 @@ tvect:
 #	   changing the handler to SIG_DFL.
 #	3) if sigset() is used and a signal has been caught,
 #	   holding subsequent signals of the same type.
+# MOVED to ../gen/m32_data.s
 
 	.data	# define the parallel set of user vectors
 	.align	4
-_m4_ifdef_(`SHLIB',
-`',
-`d.vect:	.zero	NSIG * 4	# and initialize to SIG_DFL
-')
 setflg:	.zero	NSIG 		# sigset flag vector
 	.text
 #
@@ -456,16 +453,17 @@ fnorelse:
 # We then use the tvect return address to calculate our signal number,
 # call the user handler, restore the registers, and RETG to the user.
 savr:
+	SAVE	%r3
 	PUSHW	%r0			# save user environment
 	PUSHW	%r1	# this sequence saves r0 - r8, and fp. The ap
 	PUSHW	%r2	# is saved/restored by the CALL/RET sequence.
-	SAVE	%r3
+	PUSHW	%ap
 
 	# calculate the signal number from the tvect return point
 	# BEFORE saving the floating-point state.
 	# %r3 := the number of bytes between tvect[1] and tvect[n+1]
 	# (where n == the current signal number).
-	SUBW3	&.entry2,-11*4(%sp),%r3
+	SUBW3	&.entry2,-12*4(%sp),%r3
 
 	# determine floating-point hardware equippage
 	TSTW	_fp_hw
@@ -542,10 +540,11 @@ norelse:
 	EXTFW	&(1-1),&22,%psw,%r0
 	INSFW	&(1-1),&22,%r0,-12*4(%sp)
 
-	RESTORE	%r3			# restore user environment
+	POPW	%ap
 	POPW	%r2
 	POPW	%r1
 	POPW	%r0
+	RESTORE	%r3			# restore user environment
 
 	SUBW2	&4,%sp			# skip BSBH return PC
 

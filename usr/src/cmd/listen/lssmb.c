@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)listen:lssmb.c	1.3"
+#ident	"@(#)listen:lssmb.c	1.5"
 
 /*
  * lssmb.c:	Contains all code specific to the  MS-NET file server.
@@ -15,6 +15,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <sys/param.h>
 #include <sys/tiuser.h>
 
 #include "lsparam.h"
@@ -69,11 +70,11 @@ static char errbuf[] = {
  */
 
 smbservice(fd, bp, bufsize, call, argv)
-	int fd;			/* new virtual circuit (should be zero) */
-	register char *bp;	/* pointer to message buffer */
-	int bufsize;		/* size of message */
-	struct t_call	*call;	/* pointer to call structure from t_accept */
-	char **argv;		/* server arguments */
+int fd;			/* new virtual circuit (should be zero) */
+register char *bp;	/* pointer to message buffer */
+int bufsize;		/* size of message */
+struct t_call	*call;	/* pointer to call structure from t_accept */
+char **argv;		/* server arguments */
 {
 	char *server = *argv;	/* path of server 		*/
 	char logbuf[256];
@@ -218,6 +219,7 @@ badexit:
 	return(-1);
 }
 
+
 /*
  * g e t w o r d
  *
@@ -226,16 +228,12 @@ badexit:
  * (NOTE that word is a 16-bit iapx-286 word).
  */
 
-static
 getword(addr, w)
-	register char *addr;
-	short *w;
+register char *addr;
+short *w;
 {
-	register char *c;
-
-	c = (char *)w;
-	*(c + 1) = *addr++;
-	*c = *addr;
+	lobyte(*w) = *addr++;
+	hibyte(*w) = *addr;
 }
 
 /*	End of @(#)lssmb.c	1.5 line 233	*/
@@ -246,15 +244,14 @@ getword(addr, w)
 
 
 smbservice(fd, bp, size, call, argv)
-	int fd;			/* new virtual circuit (should be zero) */
-	char *bp;		/* pointer to message buffer */
-	int size;		/* size of message */
-	struct t_call	*call;	/* pointer to call structure from t_accept */
-	char **argv;		/* server arguments */
+int fd;			/* new virtual circuit (should be zero) */
+char *bp;		/* pointer to message buffer */
+int size;		/* size of message */
+struct t_call	*call;	/* pointer to call structure from t_accept */
+char **argv;		/* server arguments */
 {
 	logmessage("SMB service NOT supported");
 	return(-1);
 }
 
 #endif	/* SMBSERVICE */
-

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)pcc2:common/scan.c	10.6"
+#ident	"@(#)pcc2:common/scan.c	10.12"
 
 # include "mfile1.h"
 # include <ctype.h>
@@ -23,11 +23,18 @@
 
 int flflag = 0;
 
-# ifndef ASMBUF
-# define ASMBUF 50
-# endif
-char asmbuf[ASMBUF+1];			/* leave room for terminating NUL */
-char *asmp;
+/* static */ char asmbuf_init[INI_ASMBUF];
+
+#ifndef STATSOUT
+static
+#endif
+	TD_INIT( td_asmbuf, INI_ASMBUF, sizeof(char), 0, asmbuf_init, "asm buffer");
+
+#undef ASMBUF				/* disregard old definitions */
+#define ASMBUF (td_asmbuf.td_allo)
+#define asmbuf ((char *)(td_asmbuf.td_start))
+#define asmidx (td_asmbuf.td_used)
+
 int asm_esc = 0; /* asm escaped used in file */
 /* lexical actions */
 
@@ -190,7 +197,10 @@ char *argv[];
 
 	p2init( argc, argv );
 
+#if TNULL != 0
+	/* initially allocated as zero */
 	for( i=0; i<SYMTSZ; ++i ) stab[i].stype = TNULL;
+#endif
 
 	lxinit();
 	tinit();
@@ -225,6 +235,9 @@ char *argv[];
 # ifdef ENDJOB
 	ENDJOB(nerrors?1:0);
 # endif
+#ifdef STATSOUT
+	dostats();
+#endif
 	return(nerrors?1:0);
 
 }
@@ -952,35 +965,13 @@ islong:
 
 		case A_EQ:
 			/* = */
-			switch( lxchar = getchar() )
+			if( (lxchar = getchar()) == '=' )
 			{
-
-			case '=':
 				yylval.intval = EQ;
 				return( EQUOP );
-
-			/* check for future faulty constructions */
-
-			case '-':
-			case '*':
-			case '&':
-				werror("ambiguous assignment: simple assign, unary op assumed");
-				goto onechar;
-
-			case '+':
-			case '/':
-			case '%':
-			case '|':
-			case '^':
-			case '<':
-			case '>':
-				werror("old style assign-op causes syntax error");
-				/*FALLTHRU*/
-
-			default:
-				goto onechar;
-
 			}
+
+			goto onechar;
 
 
 		default:
@@ -1178,25 +1169,22 @@ lxres()
 #endif
 				lxget( ' ', LEXWS );
 				if( getchar() != '"' ) goto badasm;
-				asmp = asmbuf;
-				while( (c = getchar()) != '"' )
-				{
+				for (asmidx = 0; (c = getchar()) != '"'; ++asmidx) {
 					if( c=='\n' || c==EOF ) goto badasm;
-					if( asmp >= &asmbuf[ASMBUF] )
-					{
-					    uerror( "asm > %d chars", ASMBUF);
-					    /* scan to end */
-					    while (   (c = getchar()) != '"'
-						    && c != EOF
-					    )
-						/*NOTHING*/;
-					    break;
-					}
-					*asmp++ = c;
+					/* expand, if necessary; leave room
+					** for final NUL
+					*/
+					if (asmidx+1 > ASMBUF)
+					    td_enlarge(&td_asmbuf, 0);
+					asmbuf[asmidx] = c;
 				}
 				lxget( ' ', LEXWS );
 				if( getchar() != ')' ) goto badasm;
-				*asmp++ = '\0';
+				asmbuf[asmidx] = '\0';
+#ifdef STATSOUT
+				if (td_asmbuf.td_max < asmidx)
+				    td_asmbuf.td_max = asmidx;
+#endif
 				return( ASM );
 
 badasm:
@@ -1314,14 +1302,23 @@ savestr( cp )			/* place string into permanent string storage */
 /*
 * The segmented hash tables.
 */
-#define MAXHASH		20
-#define HASHINC		1013
 struct ht
 {
 	char	**ht_low;
 	char	**ht_high;
 	int	ht_used;
-} htab[MAXHASH];
+} htab_init[INI_MAXHASH];
+
+#ifndef	STATSOUT
+static
+#endif
+	TD_INIT( td_htab, INI_MAXHASH, sizeof(struct ht), TD_ZERO, htab_init,
+			"scanner hash table" );
+
+#define	htab ((struct ht *) td_htab.td_start)
+#define MAXHASH (td_htab.td_allo)
+
+#define HASHINC		1013
 
 
 char *
@@ -1333,6 +1330,7 @@ hash( s )	/* look for s in seg. hash tables.  Not found, make new entry */
 	register char *cp;
 	struct ht *htp;
 	int sh;
+	int hidx;
 	extern char * calloc();
 #ifdef LINT
 	char *found = 0;	/* set once LNCHNAM chars. matched for name */
@@ -1359,8 +1357,17 @@ hash( s )	/* look for s in seg. hash tables.  Not found, make new entry */
 	* Look through each table for name.  If not found in the current
 	* table, skip to the next one.
 	*/
-	for ( htp = htab; htp < &htab[MAXHASH]; htp++ )
+	for ( hidx = 0; ; ++hidx )
 	{
+		/* Check whether hash tables must be enlarged. */
+		if (hidx >= MAXHASH)
+		    td_enlarge(&td_htab, 0);
+
+#ifdef	STATSOUT
+		if (hidx > td_htab.td_max)
+		    td_htab.td_max = hidx;	/* maintain statistics */
+#endif
+		htp = &htab[hidx];
 		if ( htp->ht_low == 0 )
 		{
 			register char **hp = (char **) calloc(
@@ -1434,7 +1441,6 @@ hash( s )	/* look for s in seg. hash tables.  Not found, make new entry */
 				h -= HASHINC;
 		} while ( i < HASHINC );
 	}
-	cerror( "out of hash tables" );
 /*NOTREACHED*/
 }
 
@@ -1493,3 +1499,27 @@ bg_file()
     }
     return;
 }
+
+#ifdef STATSOUT
+static
+dostats()
+{
+    char buf[BUFSIZ];
+    int len;
+    extern int nclusters;
+    extern struct td td_inst, td_bb_flags, td_mystrtab, td_macarg_tab;
+    extern struct td td_instack, td_htab;
+
+    len = sprintf(buf, 
+"node stab dimt scop inst swit heap asav parm args bbfl fake asmb maca istk inla htab\n" );
+    len += sprintf( buf+len,
+"%4d %4d %4d %4d %4d %4d %4d %4d %4d %4d %4d %4d %4d %4d %4d %4d %4d\t%s\n",
+nclusters, td_stab.td_max, td_dimtab.td_max, td_scopestack.td_max,
+td_inst.td_max, td_swtab.td_max, td_heapsw.td_max, td_asavbc.td_max,
+td_paramstk.td_max, td_argstk.td_max, td_bb_flags.td_max, td_mystrtab.td_max,
+td_asmbuf.td_max, td_macarg_tab.td_max, td_instack.td_max, td_inlargs.td_max,
+td_htab.td_max
+,ftitle);
+    write( STATSOUT, buf, len );
+}
+#endif

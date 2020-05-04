@@ -5,128 +5,185 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)awk:lib.c	1.4"
-#include "stdio.h"
-#include "awk.def"
+#ident	"@(#)awk:lib.c	2.6"
+#define DEBUG
+#include <stdio.h>
+#include <ctype.h>
+#include <errno.h>
 #include "awk.h"
-#include "ctype.h"
+#include "y.tab.h"
+
+#define	getfval(p)	(((p)->tval & (ARR|FLD|REC|NUM)) == NUM ? (p)->fval : r_getfval(p))
+#define	getsval(p)	(((p)->tval & (ARR|FLD|REC|STR)) == STR ? (p)->sval : r_getsval(p))
+
+extern	Awkfloat r_getfval();
+extern	uchar	*r_getsval();
 
 FILE	*infile	= NULL;
-char	*file;
-#define	RECSIZE	(5 * 512)
-char	recdata[RECSIZE];
-char	*record	= recdata;
-char	fields[RECSIZE];
+uchar	*file	= (uchar*) "";
+uchar	recdata[RECSIZE];
+uchar	*record	= recdata;
+uchar	fields[RECSIZE];
 
-#define	MAXFLD	100
+#define	MAXFLD	101	/* one greater than the maximum number of fields */
 int	donefld;	/* 1 = implies rec broken into fields */
 int	donerec;	/* 1 = record is valid (no flds have changed) */
-int	mustfld;	/* 1 = NF seen, so always break*/
 
-#define	FINIT	{ OCELL, CFLD, 0, NULL, 0.0, FLD|STR }
-CELL fldtab[MAXFLD] = {		/* room for fields */
-	{ OCELL, CFLD, "$record", recdata, 0.0, STR|FLD},
-	FINIT, FINIT, FINIT, FINIT, FINIT, FINIT, FINIT,
-	FINIT, FINIT, FINIT, FINIT, FINIT, FINIT, FINIT,
-	FINIT, FINIT, FINIT, FINIT, FINIT, FINIT, FINIT,
-	FINIT, FINIT, FINIT, FINIT, FINIT, FINIT, FINIT,
-	FINIT, FINIT, FINIT, FINIT, FINIT, FINIT, FINIT,
-	FINIT, FINIT, FINIT, FINIT, FINIT, FINIT, FINIT,
-	FINIT, FINIT, FINIT, FINIT, FINIT, FINIT, FINIT
+Cell emptyfld = { OCELL, CFLD, NULL, (uchar*) "", 0.0, FLD|STR|DONTFREE };
+
+Cell fldtab[MAXFLD] = {		/* room for fields */
+	{ OCELL, CFLD, (uchar*) "$0", recdata, 0.0, REC|STR|DONTFREE},
 };
 int	maxfld	= 0;	/* last used field */
+int	argno	= 1;	/* current input argument number */
 
+void initfld()
+{	int i;
 
-getrec()
+	for (i = 1; i < MAXFLD; i++)
+		fldtab[i] = emptyfld;
+}
+
+initgetrec()
 {
-	register char *rr;
-	register c, sep;
-	register FILE *inf;
-	extern int svargc;
-	extern char **svargv;
+	infile = stdin;
+	*FILENAME = file = (uchar*) "-";
+}
 
-	dprintf("**RS=%o, **FS=%o\n", **RS, **FS, NULL);
+getrec(buf)
+	uchar *buf;
+{
+	uchar *getargv();
+	int c;
+	extern Awkfloat *ARGC;
+
+	dprintf("RS=<%s>, FS=<%s>\n", *RS, *FS);
 	donefld = 0;
 	donerec = 1;
-	record[0] = 0;
-	while (svargc > 0) {
-		dprintf("svargc=%d, *svargv=%s\n", svargc, *svargv, NULL);
+	buf[0] = 0;
+	while (argno < *ARGC || infile == stdin) {
+		dprintf("argno=%d, file=|%s|\n", argno, file);
 		if (infile == NULL) {	/* have to open a new file */
-			if (member('=', *svargv)) {	/* it's a var=value argument */
-				setclvar(*svargv);
-				svargv++;
-				svargc--;
+			file = getargv(argno);
+			if (*file == '\0') {	/* it's been zapped */
+				argno++;
 				continue;
 			}
-			*FILENAME = file = *svargv;
-			dprintf("opening file %s\n", file, NULL, NULL);
-			if (*file == '-')
+			if (isclvar(file)) {	/* a var=value arg */
+				setclvar(file);
+				argno++;
+				continue;
+			}
+			*FILENAME = file;
+			dprintf("opening file %s\n", file);
+			if (*file == '-' && *(file+1) == '\0')
 				infile = stdin;
 			else if ((infile = fopen(file, "r")) == NULL)
 				error(FATAL, "can't open %s", file);
+			setfval(fnrloc, 0.0);
 		}
-		if ((sep = **RS) == 0)
-			sep = '\n';
-		inf = infile;
-		for (rr = record; ; ) {
-			for (; (c=getc(inf)) != sep && c != EOF; *rr++ = c)
-				;
-			if (**RS == sep || c == EOF)
-				break;
-			if ((c = getc(inf)) == '\n' || c == EOF)	/* 2 in a row */
-				break;
-			*rr++ = '\n';
-			*rr++ = c;
-		}
-		if (rr > record + RECSIZE)
-			error(FATAL, "record `%.20s...' too long", record);
-		*rr = 0;
-		if (mustfld)
-			fldbld();
-		if (c != EOF || rr > record) {	/* normal record */
-			recloc->tval &= ~NUM;
-			recloc->tval |= STR;
-			++nrloc->fval;
-			nrloc->tval &= ~STR;
-			nrloc->tval |= NUM;
-			return(1);
+		c = readrec(buf, RECSIZE, infile);
+		if (c != 0 || buf[0] != '\0') {	/* normal record */
+			if (buf == record) {
+				if (!(recloc->tval & DONTFREE))
+					xfree(recloc->sval);
+				recloc->sval = record;
+				recloc->tval = REC | STR | DONTFREE;
+			}
+			setfval(nrloc, nrloc->fval+1);
+			setfval(fnrloc, fnrloc->fval+1);
+			return 1;
 		}
 		/* EOF arrived on this file; set up next */
 		if (infile != stdin)
 			fclose(infile);
 		infile = NULL;
-		svargc--;
-		svargv++;
+		argno++;
 	}
-	return(0);	/* true end of file */
+	return 0;	/* true end of file */
+}
+
+readrec(buf, bufsize, inf)	/* read one record into buf */
+	uchar *buf;
+	int bufsize;
+	FILE *inf;
+{
+	register int sep, c;
+	register uchar *rr;
+
+	if ((sep = **RS) == 0) {
+		sep = '\n';
+		while ((c=getc(inf)) == '\n' && c != EOF)	/* skip leading \n's */
+			;
+		if (c != EOF)
+			ungetc(c, inf);
+	}
+	for (rr = buf; ; ) {
+		for (; (c=getc(inf)) != sep && c != EOF; *rr++ = c)
+			;
+		if (**RS == sep || c == EOF)
+			break;
+		if ((c = getc(inf)) == '\n' || c == EOF) /* 2 in a row */
+			break;
+		*rr++ = '\n';
+		*rr++ = c;
+	}
+	if (rr > buf + bufsize)
+		error(FATAL, "input record `%.20s...' too long", buf);
+	*rr = 0;
+	dprintf("readrec saw <%s>, returns %d\n", buf, c == EOF && rr == buf ? 0 : 1);
+	return c == EOF && rr == buf ? 0 : 1;
+}
+
+uchar *getargv(n)	/* get ARGV[n] */
+	int n;
+{
+	Cell *x;
+	uchar *s, temp[10];
+	extern Cell **ARGVtab;
+
+	sprintf(temp, "%d", n);
+	x = setsymtab(temp, "", 0.0, STR, ARGVtab);
+	s = getsval(x);
+	dprintf("getargv(%d) returns |%s|\n", n, s, NULL);
+	return s;
 }
 
 setclvar(s)	/* set var=value from s */
-char *s;
+uchar *s;
 {
-	char *p;
-	CELL *q;
+	uchar *p;
+	Cell *q;
 
 	for (p=s; *p != '='; p++)
 		;
 	*p++ = 0;
-	q = setsymtab(s, tostring(p), 0.0, STR, symtab);
+	q = setsymtab(s, p, 0.0, STR, symtab);
 	setsval(q, p);
+	if (isnumber(q->sval)) {
+		q->fval = atof(q->sval);
+		q->tval |= NUM;
+	}
 	dprintf("command line set %s to |%s|\n", s, p, NULL);
 }
-static int ctest[0200];
+
 
 fldbld()
 {
-	register char *r, *fr, sep;
-	CELL *p, *q;
-	static char *nullstat = "";
-	int i, j;
+	register uchar *r, *fr, sep;
+	Cell *p, *q;
+	int i;
 
-	r = record;
+	if (donefld)
+		return;
+	if (!(recloc->tval & STR))
+		getsval(recloc);
+	r = recloc->sval;	/* was record! */
 	fr = fields;
 	i = 0;	/* number of fields accumulated here */
-	if ((sep = **FS) == ' ')
+	if (strlen(*FS) > 1) {	/* it's a regular expression */
+		i = refldbld(r, *FS);
+	} else if ((sep = **FS) == ' ') {
 		for (i = 0; ; ) {
 			while (*r == ' ' || *r == '\t' || *r == '\n')
 				r++;
@@ -134,119 +191,317 @@ fldbld()
 				break;
 			i++;
 			if (i >= MAXFLD)
-				error(FATAL, "record `%.20s...' has too many fields", record);
-			if (!(fldtab[i].tval&FLD))
+				break;
+			if (!(fldtab[i].tval & DONTFREE))
 				xfree(fldtab[i].sval);
 			fldtab[i].sval = fr;
-			fldtab[i].tval = FLD | STR;
-			ctest[' '] = ctest['\t'] = ctest['\n'] = ctest['\0'] =1;
+			fldtab[i].tval = FLD | STR | DONTFREE;
 			do
 				*fr++ = *r++;
-			/*while (*r != ' ' && *r != '\t' && *r != '\n' && *r != '\0');*/
-			while(!ctest[*r]);
-			ctest[' '] = ctest['\t'] = ctest['\n'] = ctest['\0'] =0;
-
+			while (*r != ' ' && *r != '\t' && *r != '\n' && *r != '\0');
 			*fr++ = 0;
 		}
-	else if (*r != 0)	/* if 0, it's a null field */
+		*fr = 0;
+	} else if (*r != 0) {	/* if 0, it's a null field */
 		for (;;) {
 			i++;
 			if (i >= MAXFLD)
-				error(FATAL, "record `%.20s...' has too many fields", record);
-			if (!(fldtab[i].tval&FLD))
+				break;
+			if (!(fldtab[i].tval & DONTFREE))
 				xfree(fldtab[i].sval);
 			fldtab[i].sval = fr;
-			fldtab[i].tval = FLD | STR;
-			ctest[sep] = ctest['\n'] = ctest['\0'] = 1;
-			while(!ctest[*r])
-			/*while (*r != sep && *r != '\n' && *r != '\0')*/
-				/* \n always a separator */
+			fldtab[i].tval = FLD | STR | DONTFREE;
+			while (*r != sep && *r != '\n' && *r != '\0')	/* \n always a separator */
 				*fr++ = *r++;
-			ctest[sep] = ctest['\n'] = ctest['\0'] = 0;
 			*fr++ = 0;
 			if (*r++ == 0)
 				break;
 		}
-	*fr = 0;
-	/* clean out junk from previous record */
-	for (p = &fldtab[maxfld], q = &fldtab[i]; p > q; p--) {
-		if (!(p->tval&FLD))
-			xfree(p->sval);
-		p->tval = STR | FLD;
-		p->sval = nullstat;
+		*fr = 0;
 	}
+	if (i >= MAXFLD)
+		error(FATAL, "record `%.20s...' has too many fields", record);
+	/* clean out junk from previous record */
+	cleanfld(i, maxfld);
 	maxfld = i;
 	donefld = 1;
-	for (i = 1; i <= maxfld; i++)
-		if(isnumber(fldtab[i].sval)) {
-			fldtab[i].fval = atof(fldtab[i].sval);
-			fldtab[i].tval |= NUM;
+	for (p = fldtab+1; p <= fldtab+maxfld; p++) {
+		if(isnumber(p->sval)) {
+			p->fval = atof(p->sval);
+			p->tval |= NUM;
 		}
-	setfval(lookup("NF", symtab, 0), (awkfloat) maxfld);
+	}
+	setfval(nfloc, (Awkfloat) maxfld);
 	if (dbg)
-		for (i = 0; i <= maxfld; i++)
-			printf("field %d: |%s|\n", i, fldtab[i].sval);
+		for (p = fldtab; p <= fldtab+maxfld; p++)
+			printf("field %d: |%s|\n", p-fldtab, p->sval);
+}
+
+cleanfld(n1, n2)	/* clean out fields n1..n2 inclusive */
+{
+	static uchar *nullstat = (uchar *) "";
+	register Cell *p, *q;
+
+	for (p = &fldtab[n2], q = &fldtab[n1]; p > q; p--) {
+		if (!(p->tval & DONTFREE))
+			xfree(p->sval);
+		p->tval = FLD | STR | DONTFREE;
+		p->sval = nullstat;
+	}
+}
+
+newfld(n)	/* add field n (after end) */
+{
+	if (n >= MAXFLD)
+		error(FATAL, "creating too many fields", record);
+	cleanfld(maxfld, n);
+	maxfld = n;
+	setfval(nfloc, (Awkfloat) n);
+}
+
+refldbld(rec, fs)	/* build fields from reg expr in FS */
+	uchar *rec, *fs;
+{
+	fa *makedfa();
+	uchar *fr;
+	int i, tempstat;
+	static fa *pfa = NULL;
+	static uchar *prevfs = NULL;
+
+	fr = fields;
+	*fr = '\0';
+	if (*rec == '\0')
+		return 0;
+	if (pfa == NULL) {	/* first time thru */
+		pfa = makedfa(reparse(fs), 1);
+		prevfs = tostring(fs);
+	} else if (strcmp(fs, prevfs) != 0) {	/* new fa needed for new FS */
+		freefa(pfa);
+		Free(prevfs);
+		pfa = makedfa(reparse(fs), 1);
+		prevfs = tostring(fs);
+	}
+	dprintf("into refldbld, rec = <%s>, pat = <%s>\n", rec, fs);
+	tempstat = pfa->initstat;
+	for (i = 1; i < MAXFLD; i++) {
+		if (!(fldtab[i].tval & DONTFREE))
+			xfree(fldtab[i].sval);
+		fldtab[i].tval = FLD | STR | DONTFREE;
+		fldtab[i].sval = fr;
+		dprintf("refldbld: i=%d\n", i);
+		if (nematch(pfa, rec)) {
+			pfa->initstat = 2;
+			dprintf("match %s (%d chars)\n", patbeg, patlen);
+			strncpy(fr, rec, patbeg-rec);
+			fr += patbeg - rec + 1;
+			*(fr-1) = '\0';
+			rec = patbeg + patlen;
+		} else {
+			dprintf("no match %s\n", rec);
+			strcpy(fr, rec);
+			pfa->initstat = tempstat;
+			break;
+		}
+	}
+	return i;		
 }
 
 recbld()
 {
 	int i;
-	register char *r, *p;
+	register uchar *r, *p;
+	static uchar rec[RECSIZE];
 
-	if (donefld == 0 || donerec == 1)
+	if (donerec == 1)
 		return;
-	r = record;
+	r = rec;
 	for (i = 1; i <= *NF; i++) {
 		p = getsval(&fldtab[i]);
-		while (*r++ = *p++)
-			;
-		*(r-1) = **OFS;
+		while (*r = *p++)
+			r++;
+		if (i < *NF)
+			for (p = *OFS; *r = *p++; )
+				r++;
 	}
-	*(r-1) = '\0';
+	*r = '\0';
 	dprintf("in recbld FS=%o, recloc=%o\n", **FS, recloc, NULL);
-	recloc->tval = STR | FLD;
+	recloc->tval = REC | STR | DONTFREE;
+	recloc->sval = record = rec;
 	dprintf("in recbld FS=%o, recloc=%o\n", **FS, recloc, NULL);
-	if (r > record+RECSIZE)
+	if (r > record + RECSIZE)
 		error(FATAL, "built giant record `%.20s...'", record);
 	dprintf("recbld = |%s|\n", record, NULL, NULL);
+	donerec = 1;
 }
 
-CELL *fieldadr(n)
+Cell *fieldadr(n)
 {
-	if (n >= MAXFLD)
+	if (n < 0 || n >= MAXFLD)
 		error(FATAL, "trying to access field %d", n);
 	return(&fldtab[n]);
 }
 
 int	errorflag	= 0;
 
-yyerror(s) char *s; {
-	fprintf(stderr, "awk: %s near line %d\n", s, lineno);
+yyerror(s, a1, a2, a3, a4, a5, a6, a7)
+	uchar *s;
+{
+	extern uchar *cmdname, *curfname;
+	static int been_here = 0;
+
+	if (been_here++ > 2)
+		return;
+	fprintf(stderr, "%s: ", cmdname);
+	fprintf(stderr, s, a1, a2, a3, a4, a5, a6, a7);
+	fprintf(stderr, " at source line %d", lineno);
+	if (curfname != NULL)
+		fprintf(stderr, " in function %s", curfname);
+	fprintf(stderr, "\n");
 	errorflag = 2;
+	eprint();
 }
 
-error(f, s, a1, a2, a3, a4, a5, a6, a7) {
-	fprintf(stderr, "awk: ");
+fpecatch()
+{
+	error(FATAL, "floating point exception");
+}
+
+bracecheck()
+{
+	extern int bracecnt, brackcnt, parencnt;
+	int c;
+
+	while ((c = input()) != EOF && c != '\0')
+		bclass(c);
+	bcheck2(bracecnt, '{', '}');
+	bcheck2(brackcnt, '[', ']');
+	bcheck2(parencnt, '(', ')');
+}
+
+bcheck2(n, c1, c2)
+{
+	if (n == 1)
+		fprintf(stderr, "\t1 extra %c\n", c1);
+	else if (n > 1)
+		fprintf(stderr, "\t%d extra %c's\n", n, c1);
+	else if (n == -1)
+		fprintf(stderr, "\t1 extra %c\n", c2);
+	else if (n < -1)
+		fprintf(stderr, "\t%d extra %c's\n", -n, c2);
+}
+
+error(f, s, a1, a2, a3, a4, a5, a6, a7)
+{
+	extern Node *curnode;
+	extern uchar *cmdname;
+
+	fprintf(stderr, "%s: ", cmdname);
 	fprintf(stderr, s, a1, a2, a3, a4, a5, a6, a7);
 	fprintf(stderr, "\n");
-	if (*NR > 0)
-		fprintf(stderr, " record number %g\n", *NR);
-	if (f)
+	if (NR && *NR > 0) {
+		fprintf(stderr, " input record number %g", *FNR);
+		if (strcmp(*FILENAME, "-") != 0)
+			fprintf(stderr, ", file %s", *FILENAME);
+		fprintf(stderr, "\n");
+	}
+	if (curnode)
+		fprintf(stderr, " source line number %d\n", curnode->lineno);
+	else if (lineno)
+		fprintf(stderr, " source line number %d\n", lineno);
+	eprint();
+	if (f) {
+		if (dbg)
+			abort();
 		exit(2);
+	}
 }
 
-PUTS(s) char *s; {
+eprint()	/* try to print context around error */
+{
+	uchar *p, *q;
+	int c;
+	static int been_here = 0;
+	extern int compile_time;
+	extern uchar ebuf[300], *ep;
+
+	if (compile_time == 0 || been_here++ > 0)
+		return;
+	p = ep - 1;
+	if (p > ebuf && *p == '\n')
+		p--;
+	for ( ; p > ebuf && *p != '\n' && *p != '\0'; p--)
+		;
+	while (*p == '\n')
+		p++;
+	fprintf(stderr, " context is\n\t");
+	for (q=ep-1; q>=p && *q!=' ' && *q!='\t' && *q!='\n'; q--)
+		;
+	while (p < q)
+		putc(*p++, stderr);
+	fprintf(stderr, " >>> ");
+	while (p < ep)
+		putc(*p++, stderr);
+	fprintf(stderr, " <<< ");
+	if (*ep)
+		while ((c = input()) != '\n' && c != '\0' && c != EOF) {
+			putc(c, stderr);
+			bclass(c);
+		}
+	putc('\n', stderr);
+	ep = ebuf;
+}
+
+bclass(c)
+{
+	switch (c) {
+	case '{': bracecnt++; break;
+	case '}': bracecnt--; break;
+	case '[': brackcnt++; break;
+	case ']': brackcnt--; break;
+	case '(': parencnt++; break;
+	case ')': parencnt--; break;
+	}
+}
+
+double errcheck(x, s)
+	double x;
+	uchar *s;
+{
+	extern int errno;
+
+	if (errno == EDOM) {
+		errno = 0;
+		error(!FATAL, "%s argument out of domain", s);
+		x = 1;
+	} else if (errno == ERANGE) {
+		errno = 0;
+		error(!FATAL, "%s result out of range", s);
+		x = 1;
+	}
+	return x;
+}
+
+PUTS(s) uchar *s; {
 	dprintf("%s\n", s, NULL, NULL);
+}
+
+isclvar(s)	/* is s of form var=something? */
+	char *s;
+{
+	for ( ; *s; s++)
+		if (!isalnum(*s))
+			break;
+	return *s == '=';
 }
 
 #define	MAXEXPON	38	/* maximum exponenet for fp number */
 
 isnumber(s)
-register char *s;
+register uchar *s;
 {
 	register d1, d2;
 	int point;
-	char *es;
+	uchar *es;
 
 	d1 = d2 = point = 0;
 	while (*s == ' ' || *s == '\t' || *s == '\n')
@@ -299,6 +554,3 @@ register char *s;
 	else
 		return(0);
 }
-/*
-isnumber(s) char *s; {return(0);}
-*/

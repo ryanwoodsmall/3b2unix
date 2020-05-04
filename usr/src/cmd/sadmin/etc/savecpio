@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:etc/savecpio	2.7"
+#ident	"@(#)sadmin:etc/savecpio	2.10"
 #	Mechanism to save file-systems in cpio format on removable media.
 
 #!	chmod +x ${file}
@@ -6,10 +6,10 @@
 complete=yes
 ddrive=/dev/diskette
 msg=
-ncpiocmd=ncpio
+cpiocmd=cpio
 ndrive='diskette drive'
 verbose=-V
-exit=
+exit=0
 while [ -n "$1" ]
 do
 	case "$1" in
@@ -34,6 +34,7 @@ do
 		if [ -z "${ndrive}" ]
 		then
 			echo >&2 "$0:  -n drive-name must be specified before -M msg"
+			exit=1
 			exit 1
 		fi
 		shift
@@ -45,12 +46,13 @@ Press <RETURN> when ready. [q] "
 	-C )
 		if [ -n "$2" ]
 		then
-			ncpiocmd=$2
+			cpiocmd=$2
 		fi
 		shift
 		;;
 	-* )
 		echo >&2 "$0:  illegal flag argument '$1'"
+		exit=1
 		exit 1
 		;;
 	* )
@@ -63,6 +65,7 @@ if [ $# -lt 1  -o  -z "${ddrive}"  -o  -z "${ndrive}" ]
 then
 	echo >&2 "Usage:  $0 -c|i -d device  -n device-name  \\
 	[ -v ] [ -M msg ] [ -C cmd ] file-system ..."
+	exit=1
 	exit 1
 fi
 
@@ -72,18 +75,16 @@ do
 	then
 		echo "$0:  ${d}:  Not a mounted file system."
 		exit=1
+		exit 1
 	fi
 done
-if [ ${exit} ]
-then
-	exit ${exit}
-fi
 mounted=`/etc/mount  |  grep " ${ddrive} "`
 if [ -n "${mounted}" ]
 then
 	echo "	A file system is still mounted on the ${ndrive}.
 ${mounted}
 	Save not performed.  Stop."
+	exit=1
 	exit 1
 fi
 
@@ -95,13 +96,14 @@ then
 fi
 cd ${SAVEDIR}/timestamp
 
-trap exit 1 2 15
-trap 'rm -f /tmp/$$.?.save ${SAVEDIR}/timestamp/$$*' 0
+trap 'exit=2; exit 2' 1 2 15
+trap 'rm -f /tmp/$$.?.save ; find ${SAVEDIR}/timestamp -name "$$*" -print | rm -f ; exit ${exit} ' 0
 
 if [ ${complete} ]
 then
 	for dir
 	{
+		NESTED=
 		if [ ${dir} = / ]
 		then
 			DIR=:root:
@@ -110,21 +112,34 @@ then
 			dirlist="${dirlist} `ls -d /*  |  fgrep -vx -f fgrep.tmp`"
 			rm -f fgrep.tmp
 		else
-			DIR=`expr "${dir}" : '/\(.*\)'`
+			DIR=`basename ${dir}`
+			if test "`dirname ${dir}`" != "/"
+			then
+				NESTED=`echo ${dir} | sed 's%/\([^/]*\)%/\1.d%g'`
+				NESTED=`dirname ${NESTED}`/
+				eval `echo ${dir} | sed 's%/\([^/]*\)\(.*\)%Parent=\1 Child=\2%'`
+				while test "${Parent}" != "${DIR}"
+				do
+					mkdir ${Parent}.d  2>/dev/null
+					cd ${Parent}.d
+					eval `echo ${Child} | sed 's%/\([^/]*\)\(.*\)%Parent=\1 Child=\2%'`
+				done
+			fi
+			cd ${SAVEDIR}/timestamp
 			dirlist="${dirlist} ${dir}"
 		fi
-		date +'%a. %D, %r' >$$${DIR}
+		date +'%a. %D, %r' > ${SAVEDIR}/timestamp/${NESTED}$$${DIR}
 	}
 
 	#	Finding and sorting in a loop allows for shorter sorts,
 	#	file systems are backed up in order requested, and
-	#	find of 2nd-thru-Nth file system overlaps with ncpio output.
+	#	find of 2nd-thru-Nth file system overlaps with cpio output.
 	#	find(1) output is sorted to make looking for file names easier.
 	for d in ${dirlist}
 	do
 		find ${d} -depth -print  |  sort
 	done  |
-		${ncpiocmd} -oac"${msg}" ${verbose} -O ${ddrive}
+		${cpiocmd} -oac"${msg}" ${verbose} -O ${ddrive}
 else
 	sed '	/^#/d
 		s/.*/\\;&;d/
@@ -132,6 +147,7 @@ else
 	>/tmp/$$.2.save
 	for dir
 	{
+		NESTED=
 		if [ ${dir} = / ]
 		then
 			DIR=:root:
@@ -140,19 +156,25 @@ else
 			dirlist=`ls -d /*  |  fgrep -vx -f fgrep.tmp`
 			rm -f fgrep.tmp
 		else
-			DIR=`expr "${dir}" : '/\(.*\)'`
+			DIR=`basename ${dir}`
+			if test "`dirname ${dir}`" != "/"
+			then
+				NESTED=`echo ${dir} | sed 's%/\([^/]*\)%/\1.d%g'`
+				NESTED=`dirname ${NESTED}`/
+			fi
 			dirlist=${dir}
 		fi
-		lastsave=`cat -s ${DIR}`
+		lastsave=`cat -s ${SAVEDIR}/timestamp/${NESTED}${DIR}`
 		if [ -z "${lastsave}" ]
 		then
-			echo >&2 "$0:  ${SAVEDIR}/timestamp/${DIR} does not exist or empty.
+			echo >&2 "$0:  \tCannot do incremental backup.
 			Complete backup ( ${cmd} -c ${dir} ) needs to be run first."
+			exit=1
 			exit 1
 		fi
 
-		date +'%a. %D, %r' >$$${DIR}
-		find ${dirlist} -depth -newer ${DIR} -print  |
+		date +'%a. %D, %r' >${SAVEDIR}/timestamp/${NESTED}$$${DIR}
+		find ${dirlist} -depth -newer ${SAVEDIR}/timestamp/${NESTED}${DIR} -print  |
 			sed -f /tmp/$$.3.save  |
 			sort >/tmp/$$.4.save
 		if [ ! -s /tmp/$$.4.save ]
@@ -170,13 +192,16 @@ else
 		exit
 	fi
 
-	${ncpiocmd} -oac"${msg}" ${verbose} -O ${ddrive} </tmp/$$.2.save
+	${cpiocmd} -oac"${msg}" ${verbose} -O ${ddrive} </tmp/$$.2.save
 fi
 if [ $? != 0 ]
 then
+	exit=1
 	exit 1
 fi
-for f in $$*
-{
-	mv -f ${f} `expr ${f} : "$$\(.*\)"`
-}
+for f in `find . -name "$$*" -print`
+do
+	FILE=`basename ${f} | sed "s/$$//"`
+	mv -f ${f} `dirname ${f}`/${FILE} 2>/dev/null
+done
+exit 0

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mkshlib:common/t_mkbt.c	1.4"
+#ident	"@(#)mkshlib:common/t_mkbt.c	1.5.1.6"
 
 #include <stdio.h>
 #include "filehdr.h"
@@ -42,6 +42,28 @@ mkbt()
 }
 
 
+/* Make new undefined symbol structure
+	Initially, create undefined symbol list by inputting name of
+	symbol and the fact that the symbol has not yet been found
+	in another shared library
+								*/
+usdef *newusdef(name, next)
+char	*name;
+usdef	*next;
+{
+	
+	usdef	*tnode;
+
+	if ((tnode = (usdef *)calloc(1,sizeof(usdef))) == NULL)
+		fatal("Out of space for undefined symbol hash table");
+
+	tnode->name = name;
+	tnode->found = FALSE;
+	tnode->nobjdefs = 0;
+	tnode->next = next;
+	return(tnode);
+}
+
 /* This routine modifies the symbol table of the partially loaded object (tpltnam)
  * so that each symbol which has a branch table entry has its name changed to
  * the dest. label of its corresponding jump in the branch table. The modified file
@@ -50,6 +72,8 @@ mkbt()
 void
 patchsym()
 {
+	int common_used = FALSE;
+	int badbranches = FALSE; /* Set if we find #branch references */
 	char	*strtab;	/* points to the beginning of the string table */
 	long	strsize;	/* size of string table */
 	char	*strnext;	/* pointer into string table */
@@ -68,6 +92,9 @@ patchsym()
 	LDFILE	*pltrg;		/* pointer to the partially loaded target */
 	FILE	*modpltrg;	/* pointer to the modified part. loaded target */
 	int	i,j;
+	usdef	*puslst;	/* Pointer into undefined symbol hash table */
+
+	extern usdef *lookus();	/* External hash lookup function for undefined syms */
 
 	/* open tpltnam for reading */
 	if ((pltrg=ldopen(tpltnam,(LDFILE *)NULL)) == NULL)
@@ -103,8 +130,8 @@ patchsym()
 			break;
 		}
 	}
-	if (!qflag && txtnum == NONE)
-		fprintf(stderr,"Warning: target shared library has no .text section");
+	if (txtnum == NONE)
+		warn("target shared library has no .text section");
 
 	/* Scan through the symbol table of pltrg and write the modified symbol
 	 * table to modpltrg.
@@ -130,15 +157,34 @@ patchsym()
 		cursym= ldgetname(pltrg, &symbol);
 
 		if (symbol.n_sclass == C_EXT) {
-			/* there should be no undefined symbols in the partially
-			 * loaded target */
+			/* Undefined symbols put in uslst hash table */
+			/* Other shared libraries will be searched for symbols, */
+			/* and if not found, (or not absolute) an error will result */
 			if (symbol.n_scnum == N_UNDEF) {
-				if (!qflag) {
-					if (symbol.n_value == 0)
-						(void)fprintf(stderr,"Warning: undefined symbol, %s, found in target\n",cursym);
-					else
-						(void)fprintf(stderr,"Warning: common symbol, %s, found in target\n",cursym);
+				if (symbol.n_value == 0)
+				{
+					/* Undefined symbol, add to uslst */
+					if (numnold == 0)
+						fatal ("Found undefined symbol %s and no '#object noload' specified",cursym);	
+
+					usflag = TRUE;	/* At least one undefined symbol */
+					/* Put symbol name in undefined */
+					/* symbol hash table uslst */
+					puslst = lookus (cursym);
+
+					if (puslst == NULL){
+					/* Name not found in undefined symbol */
+					/* table - allocate newuslst */
+						hval = hash(cursym, USSIZ);
+						puslst = newusdef (stralloc(cursym), uslst[hval]);
+						uslst[hval] = puslst;
+					}
 				}
+				else {
+					/* Undefined common symbols not allowed */
+					(void)fprintf(stderr,"Warning: common symbol, %s, found in target\n",cursym);
+					common_used = TRUE;
+					}
 			} else {
 
 				/* check to see if current symbol (cursym) is in
@@ -155,14 +201,14 @@ patchsym()
 					/* symbol is in branch table */
 					tptr->found= TRUE;
 		
-					if (!qflag && symbol.n_scnum != txtnum) 
-						(void)fprintf(stderr,"Warning:  symbol, %s, in branch table not defined in the .text section\n",cursym);
+					if (symbol.n_scnum != txtnum) 
+						warn("symbol \"%s\" in branch table not defined in the .text section\n",cursym);
 		
 					/* change symbol name to branch table jump label */
 					cursym= makelab(tptr->pos);
 				} else {
-					if (!qflag && symbol.n_scnum == txtnum)
-						(void)fprintf(stderr,"Warning: visible .text symbol, %s, not included in the branch table\n",cursym);
+					if (symbol.n_scnum == txtnum)
+						warn("visible .text symbol, %s, not included in the branch table\n",cursym);
 				}
 			}
 		}
@@ -171,7 +217,7 @@ patchsym()
 			(void)strncpy(symbol.n_name, cursym, SYMNMLEN);
 		} else {
 			/* put name in string table */
-			len++;	/* add room for terminating null charater */
+			len++;	/* add room for \0 */
 			slength += len;
 
 			if (slength >= strsize) {
@@ -182,7 +228,7 @@ patchsym()
 			}
 
 			(void)strcpy(strnext, cursym);
-			symbol.n_offset = (strnext - strtab) + 4;
+			symbol.n_offset = (strnext - strtab) + sizeof(long);
 			strnext += len;
 		}
 
@@ -199,23 +245,30 @@ patchsym()
 		}
 	}
 	
+	if (common_used) fatal(
+"There are no provisions for common symbols: provide initializations\n\
+for all data items.");
 
 	/* Scan btorder[] to see if any branch table entries have not yet been found.
 	 * If any such entries exist, print an appropriate warning message.
 	 */
-	if (!qflag) {
-		for (i=0; i<tabsiz; i++) {
-			if (btorder[i]->found != TRUE)
-				(void)fprintf(stderr,"Warning: branch table entry for %s was not resolved\n",btorder[i]->name);
+	for (i=0; i<tabsiz; i++) 
+	{
+		if (btorder[i]->found != TRUE)
+		{
+			(void)fprintf(stderr,"Branch table entry for %s was not resolved\n",btorder[i]->name);
+			badbranches = TRUE;
 		}
 	}
+	if (badbranches)
+		fatal("Unresolved branch table references.");
 
 	/* copy string table */
 	strsize= strnext - strtab;
 	if (strsize) {
-		strsize += 4;
+		strsize += sizeof(long);
 		if ((fwrite((char *)&strsize, sizeof(long), 1, modpltrg) != 1) ||
-				(fwrite(strtab,(int)strsize-4,1,modpltrg) != 1))
+				(fwrite(strtab,(int)strsize-sizeof(long),1,modpltrg) != 1))
 			fatal("failed to write string table to temp file");
 	}
 	free(strtab);

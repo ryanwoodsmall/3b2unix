@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident "@(#)vi:port/ex_v.c	1.7"
+#ident "@(#)vi:port/ex_v.c	1.8"
 
 #include "ex.h"
 #include "ex_re.h"
@@ -59,13 +59,13 @@
  * Enter open mode
  */
 #ifdef u370
-char	atube[TUBESIZE+LBSIZE];
+short	atube[TUBESIZE+LBSIZE/2];
 #endif
 oop()
 {
 	register char *ic;
 #ifndef u370
-	char atube[TUBESIZE + LBSIZE];
+	short	atube[TUBESIZE+LBSIZE/2];
 #endif
 	ttymode f;	/* was register */
 
@@ -165,7 +165,7 @@ vop()
 {
 	register int c;
 #ifndef u370
-	char atube[TUBESIZE + LBSIZE];
+	short atube[TUBESIZE];
 #endif
 	ttymode f;	/* was register */
 	extern char termtype[];
@@ -328,8 +328,10 @@ setwind()
  * If so, then divide the screen buffer up into lines,
  * and initialize a bunch of state variables before we start.
  */
+static char vlinebuf[LBSIZE];
+
 vok(atube)
-	register char *atube;
+	register short *atube;
 {
 	register int i;
 
@@ -343,12 +345,12 @@ vok(atube)
 	vtube0 = atube;
 	vclrbyte(atube, WCOLS * (WECHO - ZERO + 1));
 	for (i = 0; i < ZERO; i++)
-		vtube[i] = (char *) 0;
+		vtube[i] = (short *) 0;
 	for (; i <= WECHO; i++)
 		vtube[i] = atube, atube += WCOLS;
 	for (; i < TUBELINES; i++)
-		vtube[i] = (char *) 0;
-	vutmp = atube;
+		vtube[i] = (short *) 0;
+	vutmp = vlinebuf;
 	vundkind = VNONE;
 	vUNDdot = 0;
 	OCOLUMNS = columns;

@@ -1,4 +1,4 @@
-#ident	"@(#)uucp:uupick	2.4"
+#ident	"@(#)uucp:uupick	2.6"
 
 # sys: system; user: login name;  cdir: current directory;
 # tdir: temporary directory; pu: PUBDIR/receive/user;
@@ -9,10 +9,10 @@ sys=""
 var=""
 varto=""
 varfrom=""
-trap "exit" 1 2 13 15
+trap "exit 1" 1 2 13 15
 # get options
 if test $# -gt 2
-then echo "Usage: $0 [-s sysname]"; exit
+then echo "Usage: $0 [-s sysname]"; exit 1
 fi
 while test $# -ge 1
 do
@@ -24,15 +24,19 @@ do
 			sys=$2
 			shift
 		fi
+		if [ -z "$sys" ]
+		then
+	 		echo "Usage: $0 [-s sysname]"; exit 1
+		fi
 		;;
-	 *)    echo "Usage: $0 [-s sysname]"; exit
+	 *)    echo "Usage: $0 [-s sysname]"; exit 1
 	esac
 	shift
 done
 user=`id | sed -n "/^uid=[0-9]*(\([^)]*\)).*/s//\1/p"`
 
 if test -z "$user"
-then echo "User id required!"; exit
+then echo "User id required!"; exit 1
 fi
 
 pu=/usr/spool/uucppublic/receive/$user
@@ -50,12 +54,12 @@ do
 		do
 			if test $j = "." -o $j = ".."; then continue; fi
 			if test -d $j
-			then echo "from system $i: directory $j"
-			else echo "from system $i: file $j"
+			then echo "from system $i: directory $j \c"
+			else echo "from system $i: file $j \c"
 			fi
 			while true
 			do
-			  echo '?'
+			  echo '? \c'
 			  if read cmd dir
 			  then
 				trap ": ;;" 1
@@ -72,22 +76,29 @@ do
 				 	then abs=`expr "$dir" : '/.*'`
 						if test $abs != 0
 						then tdir=$dir
- 						elif test -d "$cdir/$dir"
-						then tdir=$cdir/$dir
+ 						else tdir=$cdir/$dir
 						fi
 					else
 						tdir=$cdir
 					fi
-					find $j -print |cpio -pdmuv $tdir \
-					1>> /tmp/$$uupick	
+					if [ ! -d $tdir -o ! -w $tdir ]; then
+					    echo "directory '$tdir' doesn't exist or isn't writable"
+					    continue
+					fi
+					find $j -depth -print >/tmp/$$uupick
+					cpio -pdmu $tdir </tmp/$$uupick 
 					for k in `cat /tmp/$$uupick`
 					do
-					    varto="$k"
-					    var=`echo $k |sed -n "s;^$tdir/;;p"`
-					    varfrom="$pu/$i/$var"
-					    cmp $varfrom $varto
-					    if test $? -eq 0; then
-					    	rm -fr $varfrom
+					    varto="$tdir/$k"
+					    varfrom="$pu/$i/$k"
+					    if test -f $varfrom; then
+						if cmp $varfrom $varto ; then
+					    	    rm -f $varfrom
+						else
+						    echo "file '$varfrom' not removed"
+						fi
+					    else
+						rmdir $varfrom 2>/dev/null
 					    fi
 					done
 					rm -f /tmp/$$uupick
@@ -96,34 +107,45 @@ do
 #put their names in /tmp/$$uupick.
 #Only remove those named files
 #from...receive/..dir if cmp
-#verifies transfer took place
+#verifies transfer took place.
+#then find & remove directories
+#(separate find is necessary because
+#cpio -v doesn't print dir names)
 				 a)	eval dir="$dir"
 					if test $dir
 					then abs=`expr "$dir" : '/.*'`
 						if test $abs != 0
-							then tdir=$dir
-						elif test -d "$cdir/$dir"
-							then tdir=$cdir/$dir
+						then tdir=$dir
+						else tdir=$cdir/$dir
 						fi
 					else
 						tdir=$cdir
 					fi
-					find * -print |\
-					cpio -pdmuv $tdir 1>> /tmp/$$uupick
+					if [ ! -d $tdir -o ! -w $tdir ]; then
+					    echo "directory '$tdir' doesn't exist or isn't writable"
+					    continue
+					fi
+					find . -depth -print | \
+					grep -v '^\.$' >/tmp/$$uupick
+					cpio -pdmu $tdir </tmp/$$uupick
 					for k in `cat /tmp/$$uupick`
 					do
-					    varto="$k"
-					    var=`echo $k |sed -n "s;^$tdir/;;p"`
-					    varfrom="$pu/$i/$var"
-					    cmp $varfrom $varto
-					    if test $? -eq 0; then
-					     	rm -fr $varfrom
+					    varto="$tdir/$k"
+					    varfrom="$pu/$i/$k"
+					    if test -f $varfrom; then
+						if cmp $varfrom $varto ; then
+						    rm -f $varfrom
+						else
+						    echo "file '$varfrom' not removed"
+						fi
+					    else
+						rmdir $varfrom 2>/dev/null
 					    fi
 					done
 					rm -f /tmp/$$uupick
 					break 2 ;;
 				 p)	if test -d $j
-					then find . -print
+					then find $j -print
 					elif test -s $j 
 				        then cat $j
 					fi ;;
@@ -137,7 +159,7 @@ do
 				 *)	echo "usage: [d][m dir][a dir][p][q]\c"
 					echo "[cntl-d][!cmd][*][new-line]" ;;
 				esac
-				trap 1
+				trap "exit 1" 1
 			  else	break 3
 			  fi
 			done

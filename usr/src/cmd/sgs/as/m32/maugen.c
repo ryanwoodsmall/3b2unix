@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:m32/maugen.c	1.15"
+#ident	"@(#)as:m32/maugen.c	1.15.1.2"
 
 #include <stdio.h>
 #include "systems.h"
@@ -47,7 +47,7 @@ static int flags[8] = {
 int  overlap();
 void fimmed();
 void setrnd();
-extern upsymins *lookup();
+extern upsymins lookup();
 struct mnemonic *find_mnemonic();
 
 fpjmpgen(insptr,addr,sense)
@@ -656,7 +656,7 @@ int size;
 
 	if (dot->styp == TXT) {
 		if (datsec < 0)
-			datsec = mksect(lookup(_DATA,INSTALL,USRNAME)->stp, STYP_DATA);
+			datsec = mksect(lookup(_DATA,INSTALL,USRNAME).stp, STYP_DATA);
 		cgsect(datsec);
 	}
 	else
@@ -669,13 +669,13 @@ int size;
 		generate(32, RELDAT32, fpval[i], NULLSYM);
 
 	if (txtsec < 0)
-		txtsec =  mksect(lookup(_TEXT,INSTALL,USRNAME)->stp, STYP_TEXT);
+		txtsec =  mksect(lookup(_TEXT,INSTALL,USRNAME).stp, STYP_TEXT);
 	cgsect(txtsec);
 
 	addr->newtype = NOTYPE;
 	addr->type = ABSMD;
 	addr->exptype =  DAT;
-	addr->symptr = (*lookup(".data",INSTALL,USRNAME)).stp;
+	addr->symptr = lookup(".data",INSTALL,USRNAME).stp;
 	addr->expval = savedot;
 	addr->expspec = NULLSPEC;
 }
@@ -764,6 +764,16 @@ int size2;
 		return(NO);
 
 	switch(addr2->type) {
+	case REGMD:
+		if (addr1->type == REGMD)
+			if (addr1->reg == addr2->reg)
+				return(YES);
+		if (((addr1->type == REGDFMD) ||
+		     (addr1->type == DSPMD) ||
+		     (addr1->type == DSPDFMD)) &&
+		      addr1->reg == addr2->reg)
+			return(YES);
+		return(NO);
 	case REGDFMD:
 		if (addr1->type == DSPMD) {
 			if (addr1->reg == addr2->reg)

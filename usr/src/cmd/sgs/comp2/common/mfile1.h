@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)pcc2:common/mfile1.h	10.2"
+#ident	"@(#)pcc2:common/mfile1.h	10.7"
 
 
 #ifndef	MACDEFS_H			/* guard against double include */
@@ -48,27 +48,41 @@ extern char *scnames();
 
 /* symbol table flags */
 # define SMOS 01
-# define SHIDDEN 02
-# define SHIDES 04
+/* SHIDDEN 02 and SHIDES 04 were removed.
+** Their codes have been reused.
+*/
+# define SLABEL 02			/* symbol is label */
+# define SISREG 04			/* declared as REG, but not in REG */
 # define SSET 010
 # define SREF 020
 # define SNONUNIQ 040
 # define STAG 0100
 
+/* flags for fn.flags field */
+#define	FF_ISREG	01		/* user wanted this (leaf) node to be REG */
+#define	FF_ISFLD	02		/* node started as bitfield */
+/* three flags available to implementations */
+#define	FF_MDP1		01000
+#define	FF_MDP2		02000
+#define	FF_MDP3		04000
+
 typedef long OFFSZ;
 
 struct symtab {
 	char *sname;
-	TWORD stype;  /* type word */
+	TWORD stype;		/* type word */
 
-	char sclass;  /* storage class */
-	char slevel;  /* scope level */
-	char sflags;  /* flags for set, use, hidden, mos, etc. */
-	int offset;  /* offset or value */
-	short dimoff; /* offset into the dimension table */
-	short sizoff; /* offset into the size table */
-	short suse;  /* line number of last use of the variable */
-	struct symtab *scopelink;	/* chain of symbols at same level */
+	char sclass;		/* storage class */
+	char slevel;		/* scope level */
+	char sflags;		/* flags for set, use, hidden, mos, etc. */
+	int offset;		/* offset or value */
+	short dimoff;		/* offset into the dimension table */
+	short sizoff;		/* offset into the size table */
+	short suse;		/* line number of last use of the variable */
+	unsigned short st_scopelink;
+				/* index of next symbol at current scope level */
+	unsigned short st_next;	/* index of next symbol on hash chain */
+	unsigned short * st_own;/* pointer to owning hash chain */
 };
 
 
@@ -77,12 +91,30 @@ struct sw {
 	int slab;
 };
 
-extern struct sw swtab[];
-extern struct sw *swp;
-extern int swx;
+#ifdef CG
+			/*For CG: cases can contain large ranges.
+			  Need a "swtab" -like array that deals
+			  in ranges rather than single values.*/
+
+struct case_range {
+	CONSZ lower_bound;
+	CONSZ upper_bound;
+	int goto_label;
+};
+
+extern struct td td_case_range;	/* structure describing switch table */
+#define case_ranges ((struct case_range *)(td_case_range.td_start))
+#define RNGSZ (td_case_range.td_allo)	/* size of switch case table */
+
+#ifndef MAXSWIT		/*Max # of entries in swtab[]*/
+#define MAXSWIT 200
+#endif
+
+#endif /*CG*/
+
+extern int sw_beg;
 
 extern int ftnno;
-extern int blevel;
 extern int instruct, stwart;
 
 extern int lineno, nerrors;
@@ -97,20 +129,11 @@ extern CONSZ ccast();
 extern FP_DOUBLE dcon;
 
 extern char ftitle[];
-extern struct symtab stab[];
 extern int curftn;
 extern int strftn;
 extern char *locnames[];
 extern int curloc;
 extern int curclass;
-extern int curdim;
-extern int dimtab[];
-extern int paramstk[];
-extern int paramno;
-extern int argstk[];
-extern int argsoff[];
-extern TWORD argty[];
-extern int argno;
 extern int autooff, argoff, strucoff;
 #ifdef	REGSET
 extern RST regvar;			/* bit vector of current reg. vars. */
@@ -131,9 +154,6 @@ extern int reached;
 
 extern int idname;
 
-extern NODE node[];
-extern NODE *lastfree;
-
 extern int cflag, hflag, pflag;
 
 /* various labels */
@@ -145,7 +165,6 @@ extern int contlab;
 extern int flostat;
 extern int retlab;
 extern int retstat;
-extern int asavbc[], *psavbc;
 
 /*	flags used in structures/unions */
 
@@ -239,7 +258,7 @@ TWORD	types(),
 
 char *exname(), *exdcon();
 
-# define checkst(x)
+# define checkst(x) 		/* turn off symbol table checking */
 
 # ifdef SDB
 # include "sdb.h"
@@ -249,3 +268,57 @@ char *exname(), *exdcon();
 # ifndef PTRTYPE
 # define PTRTYPE INT
 # endif
+
+/* size of hash bucket table */
+#ifndef HASHTSZ
+#define HASHTSZ 511
+#endif
+
+extern struct td td_stab;	/* structure describing symbol table */
+#define SYMTSZ	(td_stab.td_allo)	/* size is now dynamic */
+#define stab	((struct symtab *)(td_stab.td_start))
+				/* address is now dynamic */
+
+extern struct td td_dimtab;	/* structure describing dimension table */
+#define DIMTABSZ (td_dimtab.td_allo)
+#define dimtab ((int *) (td_dimtab.td_start))
+#define curdim (td_dimtab.td_used)
+
+extern struct td td_paramstk;	/* structure describing parameter stack */
+#define PARAMSZ (td_paramstk.td_allo)
+#define paramstk ((int *) (td_paramstk.td_start))
+#define paramno (td_paramstk.td_used)
+
+extern struct td td_asavbc;	/* structure describing block save area */
+#define BCSZ (td_asavbc.td_allo)
+#define asavbc ((int *) (td_asavbc.td_start))
+#define psavbc (td_asavbc.td_used)
+
+extern struct td td_scopestack;	/* structure describing scope links for symtab */
+#define MAXNEST (td_scopestack.td_allo)
+#define scopestack ((int *)(td_scopestack.td_start))
+#define blevel (td_scopestack.td_used)
+
+extern struct td td_argstk;	/* structure describing symtab indices of args */
+#define ARGSZ (td_argstk.td_allo)
+#define argstk ((int *)(td_argstk.td_start))
+#define argno (td_argstk.td_used)
+
+extern struct td td_argsoff;	/* structure describing offsets of arguments */
+#define argsoff ((int *)(td_argsoff.td_start))
+
+extern struct td td_argty;	/* structure describing types of arguments */
+#define argty ((TWORD *)(td_argty.td_start))
+
+extern struct td td_swtab;	/* structure describing switch table */
+#define swtab ((struct sw *)(td_swtab.td_start))
+#define CSWITSZ (td_swtab.td_allo)	/* size of switch case table */
+#define swidx (td_swtab.td_used)	/* number used so far */
+
+#ifdef	MAKEHEAP
+#undef SWITSZ
+extern void makeheap();
+extern struct td td_heapsw;
+#define heapsw ((struct sw *)(td_heapsw.td_start))
+#define HSWITSZ (td_heapsw.td_allo)
+#endif

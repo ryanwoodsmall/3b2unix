@@ -49,11 +49,11 @@ d--775 0 3
 	sbin	d--775 0 3
 		absunix		---555 2 2	inst/bin/absunix
 	$
-	lib	d--775 0 3
+	lib	d--775 2 2
 		lboot		---555 0 0	../lib/lboot
 		mboot		---555 0 0	../lib/mboot
 		olboot		---555 0 0	../lib/olboot
 	$
 	
 $
-:#ident	"@(#)core:proto.core6	1.6"
+:#ident	"@(#)core:proto.core6	1.7"

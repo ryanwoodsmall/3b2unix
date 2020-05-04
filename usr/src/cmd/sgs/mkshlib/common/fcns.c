@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mkshlib:common/fcns.c	1.3"
+#ident	"@(#)mkshlib:common/fcns.c	1.5.1.6"
 
 #include <stdio.h>
 #include <signal.h>
@@ -146,18 +146,20 @@ mktmps()
 						   * hold branch table */
 		btname=   tempnam(TMPDIR,"trg6"); /* name of object to hold branch 
 						   * table */
+		ifil3name=   tempnam(TMPDIR,"trg7"); /* Export/hide directives */
+		ifil4name=   tempnam(TMPDIR,"trg8"); /* Nested shared libs. */
+							/* name=value; pairs */
 		if (!(ifil1name && ifil2name && tpltnam && pltname && assemnam &&
-			btname))
+			btname && ifil3name && ifil4name))
 			fatal("Cannot create temp file name");
 	}
 
 	if (makehost == TRUE) {
 		moddir=  tempnam(TMPDIR,"hst1"); /* name of temp directory for
 						  * holding modified objects */
-		defname= tempnam(TMPDIR,"hst2"); /* name of lib. definition file */
-		ainit=   tempnam(TMPDIR,"hst3"); /* name of aseembly file for 
+		ainit=   tempnam(TMPDIR,"hst2"); /* name of aseembly file for 
 						  * creating .init sections */
-		if (!(moddir && defname && ainit))
+		if (moddir == NULL || ainit == NULL)
 			fatal("Cannot create temp file name");
 	}
 	errno=0; /* reset errno to prevent erroneous perror() messages */
@@ -183,27 +185,71 @@ void
 fatal(va_alist)
 va_dcl
 {
-	extern int	errno;
 
 	va_list	args;
 	char	*fmt;
 	static int	first=TRUE;
 
 	va_start(args);
-	(void)fprintf(stderr,"%s: ",progname);
+	(void)fprintf(stderr,"%s: fatal error: ",progname);
 	fmt= va_arg(args, char *);
 	(void)vfprintf(stderr, fmt, args);
 	va_end(args);
-	if (errno != 0)
-		perror(" ");
-	else
-		(void)putc('\n',stderr);
+
+	(void)putc('\n',stderr);
 
 	if (first) {
 		first= FALSE;
 		dexit();
 	} else
 		exit(1);
+}
+
+
+static int num_errors = 0;
+#define	MAXERRORS	5
+error(va_alist)
+va_dcl
+{
+
+	va_list	args;
+	char	*fmt;
+
+	va_start(args);
+	(void)fprintf(stderr,"%s: ",progname);
+	fmt= va_arg(args, char *);
+	(void)vfprintf(stderr, fmt, args);
+	va_end(args);
+
+	(void)putc('\n',stderr);
+
+	if (++num_errors > MAXERRORS)
+		fatal("Too many errors, exiting");
+}
+
+checkforerrors(s)
+	char *s;
+{
+	if (num_errors)
+		fatal(s);
+}
+/*VARARGS0*/
+void
+warn(va_alist)
+va_dcl
+{
+
+	va_list	args;
+	char	*fmt;
+
+	if (qflag) return;
+	va_start(args);
+	(void)fprintf(stderr,"%s: warning: ",progname);
+	fmt= va_arg(args, char *);
+	(void)vfprintf(stderr, fmt, args);
+	va_end(args);
+
+	(void)putc('\n',stderr);
 }
 
 
@@ -223,13 +269,15 @@ rmtmps()
 	if (maketarg == TRUE) {
 		(void)unlink(ifil1name);
 		(void)unlink(ifil2name);
+		(void)unlink(ifil3name);
+		(void)unlink(ifil4name);
 		(void)unlink(tpltnam);
 		(void)unlink(pltname);
 		(void)unlink(assemnam);
 		(void)unlink(btname);
 	}
 	if (makehost == TRUE) {
-		(void)unlink(defname);
+/*		(void)unlink(defname); */
 		(void)unlink(ainit);
 		if (execute("rm","rm","-r","-f",moddir,(char *)0))
 			fatal("Internal rm invocation failed");
@@ -275,4 +323,27 @@ va_dcl
 		}
 	}
 	return((status >> 8) & 0xff);
+}
+
+char *strbuild(va_alist)
+	va_dcl
+{
+	char *p, *buf;
+	int len = 0;
+	va_list ap;
+
+	va_start(ap);
+	for (p = va_arg(ap, char *); p != NULL; p = va_arg(ap, char *))
+		len += strlen(p);
+	va_end(ap);
+
+	buf = malloc(len+1);
+	if (buf == NULL) return(NULL);
+	*buf = '\0';
+
+	va_start(ap);
+	for (p = va_arg(ap, char *); p != NULL; p = va_arg(ap, char *))
+		(void) strcat(buf, p);
+	va_end(ap);
+	return(buf);
 }

@@ -1,4 +1,4 @@
-#ident	"@(#)terminfo:hds.ti	1.8"
+#ident	"@(#)terminfo:hds.ti	1.9"
 # # --------------------------------
 #
 # concept: (HUMAN DESIGNED SYSTEMS)
@@ -118,7 +118,7 @@ c108-w-acs|c108-w w/ acs,
 #	plotted, any character you choose will be likely, so we lose.
 #
 c100|concept100|concept|c104|c100-4p|hds concept 100,
-	is2=\EU\Ef\E7\E5\E8\El\ENH\E\0\Eo&\0\Eo'\E\Eo!\0\E^G!\E^HA@ ,
+	is2=\EU\Ef\E7\E5\E8\El\ENH\E\0\Eo&\0\Eo'\E\Eo!\0\E^G!\E^HA@ \E4#:"\E:a\E4#;"\E:b\E4#<"\E:c,
 	is1=\EK, is3=\Ev    $<6>\Ep\n,
 #	cr=^M, ind=^J$<9>,
 	cr=$<9>^M, ind=^J,
@@ -126,14 +126,15 @@ c100|concept100|concept|c104|c100-4p|hds concept 100,
 	smcup=\EU\Ev  8p\Ep\r\E^U$<16>, rmcup=\Ev    $<6>\Ep\r\n,
 	il1=\E^R$<3*>, am, cub1=^H, ed=\E^E$<16*>, el=\E^U$<16>,
 	cup=\Ea%p1%' '%+%c%p2%' '%+%c, cols#80, dch1=\E^Q$<16*>, dl1=\E^B$<3*>,
-	rmir=\E\200, eo, smir=\E^P, ip=$<16*>, lines#24, mir, cuf1=\E=,
+	rmir=\E\s\s, eo, smir=\E^P, ip=$<16*>, lines#24, mir, cuf1=\E=,
 	ht=\t$<8>, kbs=^h, ul, cuu1=\E;, smul=\EG, rmul=\Eg,
 	xenl, flash=\Ek$<20>\EK, pb#9600, vt#8,
 	smul=\EG, rmul=\Eg, smso=\ED, rmso=\Ed,
-	dim=\EE, rev=\ED, blink=\EC, prot=\EI, invis=\EH, sgr0=\EN\200,
+	dim=\EE, rev=\ED, blink=\EC, prot=\EI, invis=\EH, sgr0=\EN@,
 	rep=\Er%p1%c%p2%' '%+%c$<.2*>, smkx=\EX, rmkx=\Ex,
-	kcuu1=\E;, kcud1=\E<, kcub1=\E>, kcuf1=\E=, khome=\E?,
-	kf1=\E5, kf2=\E6, kf3=\E7, kf4=\E8, kf5=\E9, kf6=\E:,
+	kcuu1=\E;, kcud1=\E<, kcub1=\E>, kcuf1=\E=, khome=\E?, kcbt=\E',
+	kf1=\E5, kf2=\E6, kf3=\E7, kf4=\E8, kf5=\E9,
+	kf6=\E:a, kf7=\E:b, kf8=\E:c,
 	kich1=\E^P, krmir=\E\0, kdch1=\E^Q, kil1=\E^R, kdl1=\E^B,
 	kel=\E^S, ked=\E^C, kpp=\E., knp=\E-, kind=\E[, kri=\E\\,
 	khts=\E], kctab=\E_,

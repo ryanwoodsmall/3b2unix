@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)listen:lslog.c	1.4"
+#ident	"@(#)listen:lslog.c	1.7.1.1"
 
 /*
  * error/logging/cleanup functions for the network listener process.
@@ -39,6 +39,8 @@
 #include "lserror.h"		/* listener error codes		*/
 
 extern char Lastmsg[];
+extern int Child;
+extern char *Netspec;
 extern FILE *Logfp;
 extern FILE *Debugfp;
  
@@ -56,11 +58,15 @@ extern FILE *Debugfp;
  */
 
 error(code, exitflag)
-	int code, exitflag;
+int code, exitflag;
 {
-	if (!(exitflag & NO_MSG))
-		log(code);
-	cleanup(code, exitflag);
+	char scratch[BUFSIZ];
+
+	if (!(exitflag & NO_MSG)) {
+		strcpy(scratch, err_list[code].err_msg);
+		cleanup(code, exitflag, scratch);
+	}
+	cleanup(code, exitflag, NULL);
 }
 
 /*
@@ -70,7 +76,7 @@ error(code, exitflag)
 static char *tlirange = "Unknown TLI error (t_errno > t_nerr)";
 
 tli_error(code, exitflag)
-	int code, exitflag;
+int code, exitflag;
 {
 	void	t_error();
 	extern	int	t_errno;
@@ -90,8 +96,7 @@ tli_error(code, exitflag)
 		strcat(scratch, ": ");
 		strcat(scratch, p);
 	}
-	logmessage(scratch);
-	cleanup(code, exitflag);
+	cleanup(code, exitflag, scratch);
 }
 
 
@@ -100,7 +105,7 @@ tli_error(code, exitflag)
  */
 
 sys_error(code, exitflag)
-	int code, exitflag;
+int code, exitflag;
 {
 	extern int errno;
 	extern char *sys_errlist[];
@@ -112,10 +117,8 @@ sys_error(code, exitflag)
 	p = (errno < sys_nerr ? sys_errlist[errno] : range_err());
 
 	sprintf(scratch, "%s: %s", err_list[code].err_msg, p);
-	logmessage(scratch);
-	cleanup(code, exitflag);
+	cleanup(code, exitflag, scratch);
 }
-
 
 
 /*
@@ -123,8 +126,8 @@ sys_error(code, exitflag)
  */
 
 sysf_error(code, s, exitflag)
-	int code, exitflag;
-	char *s;
+int code, exitflag;
+char *s;
 {
 	char *p;
 	char scratch[256];
@@ -137,8 +140,7 @@ sysf_error(code, s, exitflag)
 
 	sprintf(scratch, "File/Directory %s: %s: %s", 
 		s, err_list[code].err_msg, p);
-	logmessage(scratch);
-	cleanup(code, exitflag);
+	cleanup(code, exitflag, scratch);
 }
 
 
@@ -158,15 +160,18 @@ All further Incoming Services are disabled.\n\
 Consult your STARLAN NETWORK UNIX PC User's Guide.";
 #endif
 
-cleanup(code, flag)
-	register code, flag;
+cleanup(code, flag, msg)
+register code, flag;
+char *msg;
 {
 	extern int Nfd1, Nfd2, Nfd3;
-	extern void exit();
+	extern void logexit();
 	extern Background, Child, Nflag, Validate;
 
-	if (!(flag & EXIT))
+	if (!(flag & EXIT)) {
+		logmessage(msg);
 		return;
+	}
 
 	if (!(Child) && !(Validate))  {
 
@@ -197,7 +202,7 @@ cleanup(code, flag)
 		abort();
 #endif	/* COREDUMP */
 
-	exit(err_list[code].err_code);
+	logexit(err_list[code].err_code, msg);
 }
 
 
@@ -219,6 +224,45 @@ range_err()
 }
 
 
+void
+logexit(exitcode, msg)
+int exitcode;
+char *msg;
+{
+	FILE *fp;
+	long clock;
+	extern long time();
+	extern char *ctime();
+
+/*
+ * note: fp == NULL if we are the child, hence further checks are unnecessary
+ */
+
+	fp = (FILE *) NULL;
+	if (!Child) {
+		fp = fopen("/dev/console", "w");
+		if (fp == NULL) {
+			logmessage("couldn't open /dev/console");
+		}
+	}
+	if (msg) {
+		logmessage(msg); /* put it in the log */
+		if (fp) {
+			fprintf(fp, "LISTEN: ");
+			fprintf(fp, msg); /* and on the console */
+			fprintf(fp, "\n");
+		}
+	}
+	if (!Child)
+		logmessage("*** listener terminating!!! ***");
+	if (fp) {
+		(void) time(&clock);
+		fprintf(fp, "LISTEN: *** listener on netspec <%s> terminating at %s", Netspec, ctime(&clock));
+	}
+	if (fp)
+		fclose(fp);
+	exit(exitcode);
+}
 
 
 #ifdef	DEBUGMODE
@@ -233,9 +277,9 @@ range_err()
 /*VARARGS2*/
 int
 debug(level, format, va_alist)
-	int level;
-	char *format;
-	va_dcl
+int level;
+char *format;
+va_dcl
 {
 	char buf[256];
 	FILE siop;
@@ -268,15 +312,16 @@ static char *logprot = "%s; %d; %s\n";
 static char *valprot = "%s\n";
 
 log(code)
-	int code;
+int code;
 {
 	logmessage(err_list[code].err_msg);
 }
 
+
 static int nlogs;		/* maintains size of logfile	*/
 
 logmessage(s)
-	char *s;
+char *s;
 {
 	register err = 0;
 	register FILE *nlogfp;
@@ -292,6 +337,8 @@ logmessage(s)
 	 * messages do not affect the parent's count.
 	 */
 
+	if (!Logfp)
+		return;
 	if (!Child && Logmax && ( nlogs >= Logmax ) && !Splflag)  {
 		nlogs = 0;
 		DEBUG((1, "Logfile exceeds Logmax (%d) lines", Logmax));
@@ -308,6 +355,7 @@ logmessage(s)
 		else  if (nlogfp = fopen(LOGNAME, "w"))  { 
 			fclose(Logfp);
 			Logfp = nlogfp;
+			fcntl(fileno(Logfp), F_SETFD, 1); /* reset close-on-exec */
 			DEBUG((1, "logmessage: logfile saved successfully"));
 		}  else  {
 			++err;
@@ -323,9 +371,10 @@ logmessage(s)
 	++nlogs;
 }
 
+
 char *
 stamp(msg)
-	char *msg;
+char *msg;
 {
 	long clock;
 	long time();
@@ -344,4 +393,3 @@ stamp(msg)
 	}
 	return(Lastmsg);
 }
-

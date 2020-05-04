@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)ld:common/syms.c	1.26"
+#ident	"@(#)ld:common/syms.c	1.26.1.11"
 #include "system.h"
 #include <stdio.h>
 #include <fatal.h>
@@ -275,6 +275,8 @@ INFILE	*filp;
 			p->sment.n_nptr = savefn(sym->n_nptr);
 #endif
 		p->sment.n_numaux = 0;
+		p->sm_how = __undefined;
+		p->sm_seen = 1;
 		p->smmyacid = acid;
 
 		hashval = hash(name);
@@ -327,14 +329,24 @@ INFILE	*filp;
 			else
 #endif
 				unresolved--;
+			if (p->sm_seen == 0 && p->sm_how != __undefined)
+			{
+				p->sm_seen = 1;
+			}
 			p->sment.n_value = sym->n_value;
 			p->sment.n_scnum = sym->n_scnum;
 			p->sment.n_type = sym->n_type;
 			p->sment.n_sclass = sym->n_sclass;
 			}
-		else if( p->sment.n_scnum != -1 )
+		else if (p->sment.n_scnum != N_ABS)
 			lderror(1,0,NULL, "Symbol %s in %s is multiply defined. First defined in %s",
 				name, curfilnm, p->smscnptr->isfilptr->flname );
+		else if (sym->n_scnum != N_ABS)
+			lderror(1,0,NULL, "Symbol %s in %s is multiply defined.",
+				name, curfilnm);
+		else if (sym->n_value != p->sment.n_value)
+			lderror(1,0,NULL, "Absolute symbol %s in %s multiply defined.",
+				name, curfilnm);
 		}
 
 #if COMMON
@@ -349,6 +361,10 @@ INFILE	*filp;
 		}
 		else
 			unresolved--;
+		if (p->sm_seen == 0 && p->sm_how != __undefined)
+		{
+			p->sm_seen = 1;
+		}
 
 		/* set value for .common symbol */
 
@@ -905,4 +921,162 @@ INSECT *dot_sec;
 
 	return( acid );
 
+}
+
+int num_hidden = 0;
+int num_exported = 0;
+int scope_changes = 0;
+
+static char both_msg[] = "Symbol %s marked as both exported and hidden!";
+
+int sym_scope(s, how)
+	char *s;
+	enum scope how;
+{
+	SYMENT sym;
+	int n;
+	enum how_prev;
+	SYMTAB *p;
+
+	if (how != __hidden && how != __exported)
+		lderror(2,0,NULL,
+		"Symbol %s tagged with unknown scope!", s);
+	switch (hasmeta(s)) {
+	    case 1:
+		scope_changes = 1;
+		store_re(s, how);
+		return;
+	    case -2:
+		take_out_escapes(s);
+		break;
+	    case -1:
+		lderror(0,0,NULL,
+		"Invalid regular expression: %s, ignored", s);
+		return;
+		}
+	zero( (char *) &sym, SYMESZ );
+
+#if FLEXNAMES
+	if ((n = strlen(s)) > 8) {
+		sym.n_zeroes = 0L;
+		sym.n_nptr = myalloc(n+1);
+		copy(sym.n_nptr, s, n+1);
+		}
+	else
+#endif
+		copy( sym.n_name, s, 8);
+
+	sym.n_sclass = C_EXT;
+	sym.n_scnum = N_UNDEF;
+
+	if ((p = findsym(s)) == NULL)
+	{
+		p = makesym(&sym, NULL);
+		p->sm_seen = 0;
+	}
+#if FLEXNAMES
+	if (n > 8 && p->sment.n_nptr != sym.n_nptr)
+		(void) free(sym.n_nptr);
+#endif
+	switch (p->sm_how) {
+		case __undefined:
+			p->sm_how = how;
+			if (how == __hidden)
+				num_hidden++;
+			else
+				num_exported++;
+			scope_changes = 1;
+			if (p->sment.n_scnum != N_UNDEF || p->sment.n_value != 0)
+				p->sm_seen = 1;
+			return(0);
+		case __exported:
+			if (how == __hidden)
+				lderror(2,0,NULL, both_msg, s);
+			return(1);
+		case __hidden:
+			if (how == __exported)
+				lderror(2,0,NULL, both_msg, s);
+			return(1);
+		}
+	/* NOTREACHED */
+}
+
+int hideornots(s)
+	char *s;
+{
+	SYMTAB *p;
+
+	if ((p = findsym(s)) == NULL)
+		return(action_re(s, __hidden));
+	else return(hideornot(p));
+}
+
+/*
+ * Assuming that "s" is an external symbol, should we
+ * hide it?
+ */
+
+int hideornot(s)
+	SYMTAB *s;
+{
+	int res;
+
+	if (s->sm_how == __undefined) {
+		char *name;
+#ifdef FLEXNAMES
+		name = (s->sment.n_zeroes == 0L) ? s->sment.n_nptr
+			:  s->sment.n_name;
+#else
+		name = s->sment.n_name;
+#endif
+		return(action_re(name, __hidden));
+	} else if (s->sm_how == __hidden)
+		return(1);
+	else /* s->sm_how = __exported */
+		return(0);
+	/* NOTREACHED */
+}
+/*
+ * Hide the following symbol, checking that it's defined (and all
+ * that) first.
+ */
+
+hide_sym(sm, how)
+	SYMENT *sm;
+	enum scope how;
+{
+	char *s;
+
+	if (!scope_changes) return;
+	if (rflag && sm->n_sclass == C_EXT &&
+		sm->n_scnum == N_UNDEF && sm->n_value == 0)
+	{
+		if (how != __undefined)
+			lderror(2, 0, NULL, "Trying to hide undefined symbol %s\n",
+				PTRNAME(sm));
+		return;
+	}
+	if (rflag && sm->n_sclass == C_EXT &&
+		sm->n_scnum == N_UNDEF && sm->n_value > 0)
+	{
+		if (how != __undefined)
+			lderror(2, 0, NULL,
+				"common symbol %s being hidden.\n",
+				PTRNAME(sm));
+		return;
+	}
+	sm->n_sclass = C_STAT;
+	return;
+}
+
+take_out_escapes(s)
+	char *s;
+{
+	char *p;
+
+	for (p = s; *p; p++)
+	{
+		if (*p == '\\')
+			(void) strcpy(p, p+1);
+	}
 }

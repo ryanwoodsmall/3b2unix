@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/recover.c	10.31"
+#ident	"@(#)kern-port:nudnix/recover.c	10.31.7.2"
 
 #include "sys/types.h"
 #include "sys/sema.h"
@@ -59,7 +59,6 @@ void wake_serve ();
 void clean_sndd ();
 void dec_srmcnt ();
 void checkq ();
-void flushnack ();
 
 /*
  *	Initialize recovery (called at startup time).
@@ -72,6 +71,7 @@ recover_init ()
 
 	/* Initialize list of free rd_user structures. */
 	for (i = 0; i < nrduser - 1; i++) {
+		rd_user[i].ru_stat = RU_FREE;
 		rd_user[i].ru_next = &rd_user[i+1];
 	}
 	if (nrduser >= 1) {
@@ -205,6 +205,9 @@ queue_t	*bad_q;
 			DUPRINT2 (DB_RECOVER,
 				"\t link down to remote file system %s\n",
 				mp->m_name);
+			/* invalidate cache for this mount device */
+			if (mp->m_rflags & MCACHE)
+				rmntinval((struct sndd *)mp->m_mount->i_fsptr);
 			user_msg (RF_DISCONN, mp->m_name, NMSZ);
 		}
 
@@ -260,8 +263,11 @@ check_srmount ()
 			while (sp->sr_slpcnt) {
 				sleep (&srmount[i], PZERO);
 			}
-			bad_q = sysid_to_queue (sp->sr_sysid);
-			ASSERT(bad_q);
+			/* you must have a virtual ckt match assert otherwise*/
+			if ((bad_q = sysid_to_queue (sp->sr_sysid)) == NULL) {
+				ASSERT(bad_q);
+				continue;
+			}
 			/* Bump count on inode so it won't go away -
 			 * iput in dec_srmcnt when doing unmount */
 			ip = sp->sr_rootinode;
@@ -347,9 +353,7 @@ index_t srm_index;
 	ASSERT (rduptr != NULL);
 
 	checkq (rd, srm_index); /* get rid of old messages */
-	/* clean up SDs on nacker queue */
-	if(rd->rd_sdnack)
-		flushnack (rd, srm_index);
+
 	ip = rd->rd_inode;
 
 	/* cleanlocks needs sysid - save old sysid */
@@ -422,45 +426,9 @@ index_t srm_index;
 }
 
 /*
- *	Throw away SDs with this srmindx from the nacker queue of this RD.
- */
-
-void
-flushnack (rd, srmindx)
-register rcvd_t rd;
-register int srmindx;
-{
-	register int s;
-	register sndd_t tmpsd;
-	register sndd_t sd;
-
-	s = splrf();
-	sd = rd->rd_sdnack;
-	tmpsd = sd->sd_next;
-	while (tmpsd  != NULL) {
-		if (tmpsd->sd_mntindx == srmindx) {
-			sd->sd_next = tmpsd->sd_next;
-			free_sndd(tmpsd);
-			tmpsd = sd->sd_next;
-		} else 
-			sd = tmpsd;
-			tmpsd = tmpsd->sd_next;
-	}
-	/* now check the first one */
-	sd = rd->rd_sdnack;
-	tmpsd = sd->sd_next;
-	if (sd->sd_mntindx == srmindx) {
-		rd->rd_sdnack = tmpsd;
-		free_sndd(sd);
-	}
-	splx (s);
-}
-
-/*
  *	Decrement the reference count in the srmount table.
  *	If it goes to zero, do the unmount.
  *
- *	(This routine does not handle LBIN case.)
  */
 
 static void
@@ -502,7 +470,7 @@ queue_t *bad_q;
  *	Otherwise point rd at new structure and return it.
  */
 
-static struct rd_user *
+struct rd_user *
 alloc_rduser (rd)
 register struct rcvd *rd;
 {
@@ -524,6 +492,9 @@ register struct rcvd *rd;
 	rduptr->ru_fcount = 0;
 	rduptr->ru_frcnt = 0;
 	rduptr->ru_fwcnt = 0;
+	rduptr->ru_cwcnt = 0;
+	rduptr->ru_cflag = CACHE_OFF;
+	rduptr->ru_stat = RU_USED;
 	rdu_frlist = rdu_frlist->ru_next;
 
 	/* insert at head of list */
@@ -541,6 +512,7 @@ free_rduser (rduptr)
 struct rd_user *rduptr;
 {
 	DUPRINT1 (DB_RDUSER, "  free_rduser \n");
+	rduptr->ru_stat = RU_FREE;
 	rduptr->ru_next = rdu_frlist;
 	rdu_frlist = rduptr;
 	return;
@@ -571,18 +543,37 @@ queue_t	*qp;		/* stream head - i.e., who's getting gift */
 	if (u.u_syscall == DUOPEN) {
 		rduptr->ru_fcount++;
 		/* for fifo case, bump reader/writer counts */
-		if (ip->i_ftype & IFIFO) {
+		if (ip->i_ftype == IFIFO) {
 			if (u.u_arg[1] & FREAD)
 				rduptr->ru_frcnt++;
 			if (u.u_arg[1] & FWRITE)
 				rduptr->ru_fwcnt++;
 		}
+
 	} else if (u.u_syscall == DUCREAT) {
 		rduptr->ru_fcount++;
-		if (ip->i_ftype & IFIFO) 
+		if (ip->i_ftype == IFIFO) 
 			rduptr->ru_fwcnt++;
 	}
 	rduptr->ru_icount++;
+
+	if (u.u_syscall == DUOPEN || u.u_syscall == DUCREAT) {
+		/* bump writer counts for client cache */
+		if ((srmount[u.u_mntindx].sr_flags & MCACHE)
+		 && (ip->i_ftype == IFREG)	/* regular file */
+		 && !(fsinfo[ip->i_fstyp].fs_flags & FS_NOTBUFFERED) 
+					/*file system suited for caching */
+		 && FS_ACCESS(ip, IMNDLCK)) {	/* not mandatory lock */
+			if (rduptr->ru_cflag == CACHE_OFF)
+				rduptr->ru_cflag = CACHE_ENABLE;
+			if (rduptr->ru_cflag & CACHE_REENABLE) {
+				rduptr->ru_cflag &= ~CACHE_REENABLE;
+				rduptr->ru_cflag |= CACHE_ENABLE;
+			}
+			if ((u.u_syscall == DUCREAT) || (u.u_arg[1] & FWRITE))
+				rduptr->ru_cwcnt++;
+		}
+	}
 	return (rduptr);
 
 }
@@ -623,15 +614,27 @@ rcvd_t	rd;
 done:
 	if (u.u_syscall == DUCLOSE) {
 		rduptr->ru_fcount--;	
-		if (rd->rd_inode->i_ftype & IFIFO) {
+		if (rd->rd_inode->i_ftype == IFIFO) {
 			if (u.u_fmode & FREAD)
 				rduptr->ru_frcnt--;
 			if (u.u_fmode & FWRITE)
 				rduptr->ru_fwcnt--;
 		}
+		/* decrement writer counts for client cache */
+		if (rduptr->ru_cflag != CACHE_OFF) {
+			if (u.u_fmode & FWRITE) {
+				rduptr->ru_cwcnt--;
+				/* check if cache can be re-enabled */
+				if ((rduptr->ru_cflag & CACHE_WRITE) && (rduptr->ru_cwcnt == 0)) {
+					rduptr->ru_cflag &= ~CACHE_WRITE;
+					enable_cache(rd);
+				}
+			}
+		}
 		return;
 	}
-	if (--rduptr->ru_icount) 
+
+	if (--rduptr->ru_icount)
 		return;
 
 	/* last reference - get rid of rd_user struct */

@@ -5,7 +5,10 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)forms:support.c	1.32"
+#ident	"@(#)forms:support.c	1.33"
+
+/* support.c -- contains routines used by both mforms and tforms */
+
 #include "muse.h"
 
 extern int localflag;
@@ -43,7 +46,9 @@ char *visible[] = {
 };
 
 
-/* EXIT FUNCTION                                                                   */
+/*
+ * Exit routine called when certain error conditions are met.
+ */
 
 int done()
 {
@@ -130,9 +135,14 @@ int done()
 
 
 
+/*
+ * Function that checks if fs file is accessible AND
+ * if command to which CF is dedicated is executable.
+ * Generates varaiety of error messages [in char *error_mess].
+ */
 int implement(word,flag)  
-char *word;
-int flag;
+char *word;   /* name of screen, w.out path */
+int flag;     /* Not used */
 {  
    register int c;
    register int test=0;
@@ -143,14 +153,22 @@ int flag;
    register int other_loc = 0;
    char *cwd, *getcwd();
 
+/*
+ * If action is left empty in menu, it must be a "MORE" item.
+ */
    if (word==NULL || *(word)==null)
    {
-      strcpy(error_mess," THERE ARE NO COMMAND FORMS FOR \"MORE\" COMMANDS ");
+      strcpy(error_mess,
+	" COMMAND FORMS ARE NOT AVAILABLE FOR COMMANDS UNDER THE \"MORE\" SECTION ");
       warn_mess[0] = null;
       return(0);
    }
+
+/* Construct full path name */
    sprintf(dumstr,"%s%s.fs",fs_forms,word);
-   if (stat(dumstr,&buf)==0)   /* fs file exists */
+
+/* First analyze case when the fs file exists */
+   if (stat(dumstr,&buf)==0) 
    {
       fp0 = fopen(dumstr,"r");
       if (fp0==NULL)         /* fs file cannot be opened for reading */
@@ -161,13 +179,15 @@ int flag;
          return(0);
       }
 
+      /* By now, fs file exists and is readble */
       while ((c=getc(fp0))!=CTRL(E) && c!=EOF);
-      if (c==EOF)            /* bad fs file */
+      if (c==EOF)            /* bad fs file: has no ^E */
       {
          strcpy(error_mess," ASSIST FILE EXISTS BUT IS CORRUPTED ");
          warn_mess[0] = null;
          return(0);
       }
+      /* Got to ^E.  Now check whether it is a menu or a CF */
       c = getc(fp0);   /* Get command form vs. menu flag */
       if (c!='4')      /* Not a menu. Check whether command in $PATH */
       {
@@ -178,11 +198,11 @@ int flag;
          *c_pt = null;
          fclose(fp0);
          for (c_pt=dumstr; *c_pt && *c_pt==' '; c_pt++);
-         if (built_in(c_pt)) return(1);
-         if (*c_pt == '/') return(1);
+         if (built_in(c_pt)) return(1);  /* OK if command is shell built-in */
+         if (*c_pt == '/') return(1);    /* OK if full pathname is provided */
          test = 0;
          cwd = getcwd(NULL,512);
-         for (b=binpaths; *b && test==0; b++)
+         for (b=binpaths; *b && test==0; b++) /* Check $PATH */
          {
             if (**b!=null)
                sprintf(s,"%s/%s",*b,c_pt);
@@ -194,11 +214,13 @@ int flag;
                    || (**b==null && strcmp(cwd,"/usr/bin")==0) 
                    || (**b==null && strcmp(cwd,"/bin")==0) )
                {
-                  if (other_loc) test=2;
-                  else test = 1;
+                  if (other_loc) test=2;  /* command in usual AND in
+                                             funny location, listed
+                                             earlier in $PATH */
+                  else test = 1;          /* command in usual location */
                }
                else 
-               {
+               {                          /* command in funny location */
                   other_loc = 1; 
                   if (**b==null) other_b = ".";
                   else other_b = *b;
@@ -220,7 +242,7 @@ int flag;
             warn_mess[0] = null;
             return(0);
             break;
-         case 1:
+         case 1: /* Everything OK */
             return(1);
             break;
          case 2: /* In PATH, but in some directory 
@@ -234,7 +256,7 @@ int flag;
             warn_mess[0] = null;
             return(0);
             break;
-         default:
+         default:  /* Defensive "default" */
             return(0);
             break;
          }
@@ -244,13 +266,13 @@ int flag;
       return(1);   /* Was menu; no PATH checking needed */
    }
 
-   else /* Not supported by ASSIST */
+   else /* fs files does not exist */
    {
       if (strlen(word)<30)
       {
          if (!localflag)
             sprintf(error_mess,
-             "%s NOT SUPPORTED BY ASSIST ",word);
+             "%s CURRENTLY NOT IMPLEMENTED IN ASSIST ",word);
          else
             sprintf(error_mess,
              "%s.fs NOT ACCESSIBLE ",word);
@@ -259,10 +281,10 @@ int flag;
       {
          if (!localflag)
             sprintf(error_mess,
-             " NOT SUPPORTED BY ASSIST ");
+             " CURRENTLY NOT IMPLEMENTED IN ASSIST ");
          else
             sprintf(error_mess,
-             "fs FILE NOT ACCESSIBLE ");
+             " fs FILE NOT ACCESSIBLE ");
       }
       return(0);
    }
@@ -270,8 +292,15 @@ int flag;
 
 
 
+/*
+ * Routine that goes through all fields and copies those captions
+ * and segments on the screen whose coordinates are consistent
+ * with the current page number (page) or, equivalently, standard screen
+ * location (Stdscr_loc).
+ */
 VOID copy_form_std(top_row)
-int top_row;
+int top_row;  /* stdscr location of UL corner of main body -- 2 in
+                 mforms, 4 in tforms */
 {  
    register int i, row;
    register struct field *f_pt;
@@ -300,7 +329,7 @@ int top_row;
          {
             row = s_pt->row-Stdscr_loc;
             if (row>top_row && row<=SCRLINES && s_pt->word!=NULL)
-               show(s_pt);
+               show(s_pt);  /* Make certain non-printing chars visible */
          }
       }
    }
@@ -310,6 +339,10 @@ int top_row;
 
 
 
+/*
+ * Routine that makes characters in char *s visible and
+ * stores result in char *showstring.  Used by show().
+ */
 dectrl(s)
 register char *s;
 {  register char *t_pt=showstring, *v;
@@ -328,6 +361,9 @@ register char *s;
 }
 
 
+/*
+ * Computes length of visibilized vesion of char *s.
+ */
 int length(s)
 register char *s;
 {  register int kount=0;
@@ -342,6 +378,9 @@ register char *s;
 }
 
 
+/*
+ * Visibilizes and displays segment.
+ */
 VOID show(s_pt)
 struct segment *s_pt;
 {  register char *c_pt;
@@ -353,6 +392,9 @@ struct segment *s_pt;
 }
 
 
+/*
+ * Exit routine called by signals.
+ */
 idone()
 {  int i;
    for (i=1; i<18; i++) signal(i,SIG_IGN);
@@ -392,6 +434,9 @@ char *built_ins[] = {
   (char*)0
 };
 
+/*
+ * Check whether a command is a built-in.
+ */
 int built_in(s)
 char *s;
 {  char **b;
@@ -400,6 +445,10 @@ char *s;
    return(0);
 }
 
+/*
+ * The next two routines do what the curses routines fixterm() and resetterm()
+ * really should do.
+ */
 updatetty(tb)
 struct termio *tb;
 {
@@ -413,7 +462,7 @@ struct termio *tb;
 }
 
 
-/* Routine to be placed in read_in.c that closes gaps in
+/* Routine called by read_in() that closes gaps in
  * the locations.
  */
 

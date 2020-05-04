@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)initpkg:./bcheckrc.sh	1.3"
+#ident	"@(#)initpkg:./bcheckrc.sh	1.5"
 
 echo "
 # ***** This file has those commands necessary to check the file
@@ -35,14 +35,14 @@ trap \"\" 2
 
 while :
 do
-	echo \"Is the date \`date\` correct? (y or n) \c\"
+	echo \"Is the date \`date\` correct? (y or n) \\\c\"
 	read reply
 	if
 		[ \"\$reply\" = y ]
 	then
 		break
 	else
-		echo \"Enter the correct date:  \\c\"
+		echo \"Enter the correct date:  \\\c\"
 		read reply
 		date \"\$reply\"
 	fi
@@ -52,7 +52,7 @@ done
 
 while :
 do
-	echo \"Do you want to check the file systems? (y or n) \\c\"
+	echo \"Do you want to check the file systems? (y or n) \\\c\"
 	read reply
 	case \"\$reply\" in
 		 y )
@@ -74,3 +74,12 @@ do
 done
 " >>bcheckrc
 fi
+
+echo "
+/etc/devnm / | grep -v swap | /etc/setmnt	# put root into mount table
+" >> bcheckrc
+
+echo "
+rm -f /etc/.madeunix	# remove node indicating mkunix done
+" >> bcheckrc
+

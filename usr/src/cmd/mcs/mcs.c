@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident "@(#)mcs:mcs.c	1.4"
+#ident	"@(#)mcs:mcs.c	1.11"
 /*
  *	mcs - Manipulate the Comment Section of an a.out file
  *
@@ -28,12 +28,12 @@
 #include <ar.h>
 #include <string.h>
 #include <fcntl.h>
-#include <sys/signal.h>
+#include <signal.h>
 
 	/* file and section headers */
 FILHDR	file_hdr;	/* file header */
 struct	aouthdr *aout;	/* a.out optional header */
-int	aoutsize;	/* sizeof aout */
+unsigned short aoutsize;	/* sizeof aout */
 SCNHDR	*scn_hdr;	/* an array of the section headers */
 int	scn_count;	/* number of sections in the array */
 
@@ -101,17 +101,19 @@ long	sym_eof;	/* end of the symbol table (and object file) */
 	/* fields related to processing an archive file */
 struct	ar_hdr arhead;	/* current archive header */
 int	Is_archive;	/* if the current file being processed is an archive */
-int	Elem_size;	/* size of the current archive element */
+long	Elem_size;	/* size of the current archive element */
 int	arsym_exist;	/* if archive symbols existed in the file */
 
+struct action {
+	enum what_to_do { ACT_DELETE=1, ACT_PRINT=2, ACT_PPRINT=4,
+	ACT_COMPRESS=8, ACT_STRING=16
+		} a_action;
+	char *a_string;	/* Only valid if a_action is a string */
+	};
 	/* option processing */
 #define ACTSIZE 20
-int	Action[ACTSIZE];
+struct action Action[ACTSIZE];
 int	actmax = 0;
-#define ACT_DELETE	1
-#define ACT_PRINT	2
-#define ACT_PPRINT	3
-#define ACT_COMPRESS	4
 
 /*
  * data structures used when compressing the slist space....all strings are
@@ -151,7 +153,6 @@ int	Label_files;	/* if output lines should be labeled */
 
 /* extern functions called */
 extern char *malloc(), *realloc();
-extern int (*signal())();
 extern char *mktemp();
 extern void exit();
 
@@ -167,21 +168,21 @@ char	**argv;
 	while ((c = getopt(argc, argv, "a:cdn:pP")) != EOF) {
 		switch (c) {
 		case 'a':
-			queue(optarg);
+			queue(ACT_STRING, optarg);
 			Might_chg++;
 			break;
 		case 'c':
-			queue(ACT_COMPRESS);
+			queue(ACT_COMPRESS, NULL);
 			Might_chg++;
 			break;
 		case 'p':
-			queue(ACT_PRINT);
+			queue(ACT_PRINT, NULL);
 			break;
 		case 'P':
-			queue(ACT_PPRINT);
+			queue(ACT_PPRINT, NULL);
 			break;
 		case 'd':
-			queue(ACT_DELETE);
+			queue(ACT_DELETE, NULL);
 			Might_chg++;
 			break;
 		case 'n':
@@ -274,13 +275,14 @@ long	file_size;
 		if (aoutsize != file_hdr.f_opthdr) {
 			if (aoutsize == 0) {
 				aoutsize = file_hdr.f_opthdr;
-				aout = (struct aouthdr *) malloc(aoutsize);
+				aout = (struct aouthdr *) malloc((unsigned)aoutsize);
 			} else {
 				aoutsize = file_hdr.f_opthdr;
-				aout=(struct aouthdr *) realloc(aout,aoutsize);
+				aout=(struct aouthdr *)
+					realloc(aout,(unsigned)aoutsize);
 			}
 		}
-		if (fread(aout, aoutsize, 1, ifile) != 1) 
+		if (fread(aout, (int) aoutsize, 1, ifile) != 1) 
 			read_error();
 		/* is this a file whose secion header can't be deleted */
 		if ((aoutsize == SAOUT1 || aoutsize == SAOUT2) &&
@@ -291,9 +293,10 @@ long	file_size;
 	/* read in the section headers, get an extra entry
 	 * in case we need to create a comment section
 	 */
-	scn_hdr = (SCNHDR *)malloc(sizeof(SCNHDR) * (file_hdr.f_nscns+1));
+	scn_hdr = (SCNHDR *)malloc((unsigned) sizeof(SCNHDR) * (file_hdr.f_nscns+1));
 	comm_sindex = -1;
-	for (i=0; i < file_hdr.f_nscns; i++) {
+	scn_count = file_hdr.f_nscns;
+	for (i=0; i < scn_count; i++) {
 		if (fread(&scn_hdr[i], sizeof(SCNHDR), 1, ifile) != 1)
 			read_error();
 		if (strncmp(scn_hdr[i].s_name, Sect_name, 8) == 0) {
@@ -301,7 +304,6 @@ long	file_size;
 			Exists = TRUE;
 		}
 	}
-	scn_count = file_hdr.f_nscns;
 	/* locate start of sections in case file needs to be rewritten */
 	txt_start = FILHSZ + file_hdr.f_opthdr + file_hdr.f_nscns * SCNHSZ;
 	sym_start = (file_hdr.f_symptr) ? file_hdr.f_symptr : sym_eof;
@@ -317,7 +319,11 @@ long	file_size;
 		 * section from the headers, as if it was deleted
 		 */
 		file_hdr.f_nscns--;
-		readjust(comm_pos, -comm_size);
+		if (comm_pos == 0) {
+			txt_size = sym_start - txt_start;
+			comm_end = txt_start + txt_size;
+		} else
+			readjust(comm_pos+comm_size, -comm_size);
 		if ( (i=SCNHSZ * (comm_sindex - 1)) < 0)
 			i = 0;
 		readjust((long)(FILHSZ+file_hdr.f_opthdr+i), -SCNHSZ);
@@ -328,11 +334,11 @@ long	file_size;
 		/* determine last (highest address) section
 		 * if needed, the comment section will be added after this
 		 */
-		for (i=0; i<=file_hdr.f_nscns; i++)
+		for (i=0; i< scn_count; i++)
 			if (scn_hdr[i].s_scnptr > scn_hdr[last].s_scnptr)
 				last = i;
 
-		if (scn_hdr[last].s_size != 0)
+		if (scn_count > 0 && scn_hdr[last].s_size != 0)
 			txt_size = scn_hdr[last].s_size +
 				scn_hdr[last].s_scnptr - txt_start;
 		else
@@ -340,9 +346,9 @@ long	file_size;
 		comm_end = txt_size + txt_start;
 	}
 	/* process the file */
-	for (act_index=0; act_index < actmax; act_index++)
-		switch (Action[act_index]) {
-			char	*new_str;
+	for (act_index=0; act_index < actmax; act_index++) {
+		char	*new_str;
+		switch (Action[act_index].a_action) {
 		case ACT_PRINT:
 			if (Label_files)
 				doprint(curname);
@@ -361,7 +367,9 @@ long	file_size;
 			Changed++;
 			break;
 		case ACT_COMPRESS:
-			if ( !Exists ) 
+/* Nothing there, or nothing to compress */
+			if (!Exists || comm_size == 0) break;
+			if ((comm_pos == Offset) && comm_des == ifile)
 				break;
 			if (fseek(comm_des, comm_pos, 0) != 0) read_error();
 			compress(comm_des, comm_size);
@@ -373,13 +381,13 @@ long	file_size;
 				write_error();
 			comm_size = next_str;
 			break;
-		default:
+		case ACT_STRING:
 			/* we are adding a string to the comment section */
 			if (Nochg_shdr && !Exists) {
 				nocomment();
 				break;
 			}
-			new_str = (char *) Action[act_index];
+			new_str = Action[act_index].a_string;
 			if (comm_des == ifile || comm_des == NULL)
 				newcomm_des();
 			Changed++;
@@ -391,6 +399,7 @@ long	file_size;
 			comm_size += strlen(new_str) + 1;
 			break;
 		}
+	}
 	/* at this point, the headers are setup to process the file */
 	if (!Changed) 
 		return;
@@ -409,7 +418,7 @@ long	file_size;
 		long	comm_start = 0L;
 		file_hdr.f_nscns++;
 		if (comm_sindex == -1) {	/* brand new comment section */
-			comm_sindex = scn_count; /* set up an array entry */
+			comm_sindex = scn_count++; /* set up an array entry */
 			comm_start = SCNHSZ;	/* add sect hdr size to start */
 		}
 		if ( (i=SCNHSZ * (comm_sindex - 1)) < 0)
@@ -437,8 +446,8 @@ long	file_size;
 	}
 	if (fwrite(&file_hdr, sizeof(file_hdr), 1, outdes) != 1) write_error();
 	if (file_hdr.f_opthdr != 0)
-		if (fwrite(aout, file_hdr.f_opthdr, 1, outdes) != 1) write_error();
-	for (i=0; i < file_hdr.f_nscns; i++) {
+		if (fwrite(aout, (int) file_hdr.f_opthdr, 1, outdes) != 1) write_error();
+	for (i=0; i < scn_count; i++) {
 		if (!Exists && i == comm_sindex)  /* skip nonexistent comment section */
 			continue;
 		if (fwrite(&scn_hdr[i], sizeof(SCNHDR), 1, outdes) != 1)
@@ -447,7 +456,7 @@ long	file_size;
 	/* read and write the data */
 	if( fseek(ifile, Offset + txt_start, 0) != 0) read_error();
 	fmove(outdes, ifile, txt_size);
-	if (Exists) {
+	if (Exists && (comm_des != ifile || comm_pos != Offset)) {
 		if( fseek(comm_des, comm_pos, 0) != 0) read_error();
 		fmove(outdes, comm_des, comm_size);
 	}
@@ -463,6 +472,9 @@ long	file_size;
 			SYMENT work;
 			AUXENT aux;
 			if (fread(&work, SYMESZ, 1, ifile) != 1) read_error();
+			if (!Exists && comm_sindex != -1 &&
+			    work.n_scnum > comm_sindex)
+				work.n_scnum--;
 			if (fwrite(&work, SYMESZ, 1, outdes) != 1)
 				write_error();
 			if (work.n_numaux == 0) 
@@ -498,14 +510,16 @@ long	size;
 	Sym_adjust += size;
 }
 
-queue(activity)
-int	activity;
+queue(activity, s)
+enum what_to_do activity;
+char *s;
 {
 	if (actmax == ACTSIZE) {
 		(void) fprintf(stderr, "mcs: greater than %d command options\n", ACTSIZE);
 		tidy_up(1);
 	}
-	Action[actmax++] = activity;
+	Action[actmax].a_action = activity;
+	Action[actmax++].a_string = s;	/* Usually, it's NULL */
 }
 
 
@@ -523,8 +537,14 @@ newcomm_des()
 	}
 	comm_des = ctemp_des;
 	Exists = TRUE;
-	if (fseek(ifile, comm_pos, 0) != 0) read_error();
-	fmove(comm_des, ifile, comm_size);
+	if (comm_pos == Offset) { /* Nothing there! */
+		register int i;
+		for (i = 0; i < comm_size; i++)
+			(void) putc(0, comm_des);
+	} else {
+		if (fseek(ifile, comm_pos, 0) != 0) read_error();
+		fmove(comm_des, ifile, comm_size);
+		}
 	comm_pos = 0;
 }
 
@@ -542,11 +562,11 @@ long	fd_len;	/* number of bytes to read from fd */
 	int	i;
 
 	if (hash_key == NULL) {
-		hash_key = (int *)malloc(sizeof(int)*200);
+		hash_key = (int *)malloc((unsigned)sizeof(int)*200);
 		hash_end = 200;
-		hash_str = (int *)malloc(sizeof(int)*200);
+		hash_str = (int *)malloc((unsigned)sizeof(int)*200);
 		str_size = 10000;
-		strings = (char *)malloc(str_size);
+		strings = (char *)malloc((unsigned)str_size);
 	}
 	hash_num = 0;
 	next_str = 0;
@@ -567,8 +587,10 @@ long	fd_len;	/* number of bytes to read from fd */
 		}
 		if (hash_num == hash_end) {
 			hash_end *= 2;
-			hash_key = (int *) realloc(hash_key, hash_end * sizeof(int));
-			hash_str = (int *) realloc(hash_str, hash_end * sizeof(int));
+			hash_key = (int *) realloc((char *)hash_key,
+				(unsigned) hash_end * sizeof(int));
+			hash_str = (int *) realloc((char *)hash_str,
+				(unsigned) hash_end * sizeof(int));
 		}
 		hash_key[hash_num] = hash;
 		hash_str[hash_num++] = pos;
@@ -588,13 +610,14 @@ FILE *fd;
 			read_error();
 		if (next_str >= str_size) {
 			str_size *= 2;
-			strings = (char *)realloc(strings, str_size);
+			strings = (char *)realloc(strings,
+				(unsigned) str_size);
 		}
 		strings[next_str++] = c;
 	}
 	if (next_str >= str_size) {
 		str_size *= 2;
-		strings = (char *)realloc(strings, str_size);
+		strings = (char *)realloc(strings, (unsigned) str_size);
 	}
 	strings[next_str++] = NULL;
 	return(start);

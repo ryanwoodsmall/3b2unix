@@ -5,19 +5,19 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/wprintw.c	1.4"
+#ident	"@(#)curses:screen/wprintw.c	1.7"
 /*
  * printw and friends
  *
  */
 
-# include	"curses.ext"
+# include	"curses_inc.h"
 # include	<varargs.h>
 
 /*
  *	This routine implements a printf on the given window.
  */
-/* VARARGS */
+/*VARARGS*/
 wprintw(va_alist)
 va_dcl
 {

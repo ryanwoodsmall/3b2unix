@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)xt:xtt.c	2.3"
+#ident	"@(#)xt:xtt.c	2.4"
 
 /*	Copyright (c) 1984 AT&T	*/
 /*	  All Rights Reserved  	*/
@@ -25,10 +25,12 @@
 #include "sys/xt.h"
 #include "stdio.h"
 
+#define		Fprintf		(void)fprintf
+
 char *name;
 int display;
 int traceoff;
-extern void xtraces();
+extern int xtraces();
 extern char _sobuf[];
 char usage[] = "Usage: %s [-o] [-f]\n";
 
@@ -54,8 +56,15 @@ char *argv[];
 			return 1;
 		}
 	}
+
+	if (ioctl(0, JMPX, 0) == -1){
+		Fprintf(stderr, "%s: Must be invoked with stdin attached to an xt channel.\n", name);
+		exit(1);
+	}
+
 	setbuf(stdout, _sobuf);
-	xtraces(0, stdout);
+	if ( xtraces(name, 0, stdout) )
+		exit(1);
 	if (display)
 		(void)fprintf(stdout, "\f");
 	if (traceoff)

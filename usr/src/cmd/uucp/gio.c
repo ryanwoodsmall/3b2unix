@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:gio.c	2.4"
+#ident	"@(#)uucp:gio.c	2.5"
 
 #include "uucp.h"
 
@@ -140,8 +140,10 @@ FILE *fp2;
 			return(FAIL);
 		}
 		bytes += len;
-		if (write( fd2, bufr, len ) != len)
+		if (write( fd2, bufr, len ) != len) {
+			DEBUG(7, "grddata: write to file failed, errno %d\n", errno);
 			return(FAIL);
+		}
 		if (len < BUFSIZ)
 			break;
 	}

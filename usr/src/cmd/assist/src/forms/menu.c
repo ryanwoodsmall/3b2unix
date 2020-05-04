@@ -5,7 +5,11 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)forms:menu.c	1.13"
+#ident	"@(#)forms:menu.c	1.16"
+
+/* menu.c -- handles the popup menu.  It is essentially a
+   stripped-down version of fill_out.c  */
+
 #include  "muse.h"
 #include "mmuse.h"
 #define CLBOT        {move(LINES-1,0); clrtoeol(); move(LINES-1,0);}
@@ -44,10 +48,13 @@ int menu()
    move(i=row0+1+(int)(Field_pt-menus),j=col0+1);
    refresh();
 
+/* Main switch */
    for (;;) {
       c = getch();
       highlight(Segm_pt=Field_pt->first_s_pt,0,(struct field *)0);
       move(LINES-1,0); clrtoeol();
+
+      /* "help" sub-switch -- as in fill_out() */
       while (c==KEY_F(6) || c==KEY_F(7) || c==KEY_F(8) || c==CTRL(A) ||
              c==CTRL(O)  || c==CTRL(Y))
       {
@@ -91,26 +98,40 @@ int menu()
             mvprintw(SCRLINES+1,COLS-13," PAGE %1d of %1d ",page,maxpage);
          draw_box(row0,row1,col0,col1);
          redraw();
-      }
+
+      }  /* End of "help" sub-switch */
+
       move(LINES-1,0); clrtoeol();
       switch(c)
       {
-      case CTRL(D):
+      case CTRL(D):  /* Exit ASSIST */
          status=0; done();
          break;
-      case KEY_F(4):
+/*dwb added next case in response to MR bl86-18812*/
+      case CTRL(T):
+	 if (implement("TOP",1))
+		{
+		next_screen("",TOP);
+		return;
+		}
+	 break;
+      case KEY_F(4): /* Return to screen from which popup was invoked */
       case CTRL(R):
          return(1);
          break;
-      case KEY_F(2):
+      case KEY_F(2): /* Invalid */
+         if (post_pop==OFF)
+            sprintf(error_mess,
+          " YOU TYPED f2, NO HELP MESSAGE OR PROMPT TO CLEAR ");
+         break;
       case CTRL(V):
          if (post_pop==OFF)
             sprintf(error_mess,
-          " USE %s TO CLEAR HELP OR TO KILL PROMPT ",f[2]);
+          " YOU TYPED ^V, NO HELP MESSAGE OR PROMPT TO CLEAR ");
          break;
-      case KEY_F(3):
+      case KEY_F(3): /* Redraw */
       case CTRL(L):
-         if (post_pop==ON)
+         if (post_pop==ON) /* Re-generate back-ground screen too */
          {
             copy_form_std(2);
             show_header();
@@ -121,7 +142,7 @@ int menu()
          clearok(curscr,TRUE);
          wrefresh(curscr);
          break;
-      case CTRL(N):
+      case CTRL(N): /* Move to next item. Could not use find_field() */
       case '\015':
       case KEY_DOWN:
          if (Field_pt<last_menu) Field_pt++;
@@ -132,7 +153,7 @@ int menu()
             else Field_pt = menus;
          }
          break;
-      case CTRL(P):
+      case CTRL(P): /* Move to previous item. Could not use find_field() */
       case KEY_UP:
          if (Field_pt>menus) Field_pt--;
          else Field_pt = last_menu;
@@ -142,24 +163,29 @@ int menu()
             else Field_pt = last_menu;
          }
          break;
-      case CTRL(G):
+      case CTRL(G): /* Select item and perform action.  "loc" is
+                       used as action index */
       case KEY_F(1):
          switch(Field_pt->loc)
          {
-         case 0:
+         case 0:   /* COMMAND FORMS */
 IN0:        switch(cf())
             {
-            case 0:
+            case 0:  /* Bottom line prompt aborted */
                post_pop=ON;
                break;
-            case 1:
+            case 1:  /* User has typed in command name */
                for (c_pt=bottom_str;*c_pt!=SPACE && *c_pt; c_pt++);
                *c_pt = null;
+
+               /* ASSIST has command */
                if (implement(bottom_str,1))
                {
                   next_screen(bottom_str,NEW);
                   return(0);
                }
+
+               /* ASSIST does not have command */
                else if (*bottom_str)
                {
                   CLBOT;
@@ -175,7 +201,7 @@ IN0:        switch(cf())
                   goto IN0;
                }
                break;
-            case 2:
+            case 2: /* User has typed RETURN.  Goto Cflist.fs */
                if (implement("Cflist",0))
                {
                   next_screen("Cflist",NEW);
@@ -187,43 +213,43 @@ IN0:        switch(cf())
                break;
             }
             break;
-         case 3:
+         case 3:  /* ASSIST WALKTHRU */
             if (implement("assistwalk",0))
             {
                next_screen("assistwalk",NEW);
                return(0);
             }
             break;
-         case 5:
+         case 5:  /* EXIT ASSIST */
             status = 0; done();
             break;
-         case 8:
+         case 8:  /* obsolete: old menu item */
             next_screen("",TOP);
             return(0);
             break;
-         case 7:
+         case 7:  /* UNIX WALKTHRU */
             if (implement("unixwalk",0))
             {
                next_screen("unixwalk",NEW);
                return(0);
             }
             break;
-         case 6:
+         case 6:  /* SWITCH DIRECTORY */
 IN2:        sprintf(s," CURRENT DIRECTORY: %s  NEW DIRECTORY",
                getcwd((char *)NULL,256));
             if (strlen(s)>60)
                sprintf(s," NEW DIRECTORY");
             switch(bottom_write(s,1,1))
             {
-            case 0:
-            case 2:
+            case 0: /* User aborted bottom line prompt */
+            case 2: /* User typed RETURN */
                post_pop = ON;
                break;
-            case 1:
+            case 1: /* User has typed string */
                if (*bottom_str)
                {
                   shexp(bottom_str);
-                  if (mchdir(bottom_str) == -1)
+                  if (mchdir(bottom_str) == -1) /* Directory not OK */
                   {
                      CLBOT;
                      REV;
@@ -237,7 +263,7 @@ IN2:        sprintf(s," CURRENT DIRECTORY: %s  NEW DIRECTORY",
                      CLBOT;
                      goto IN2;
                   }
-                  else
+                  else  /* Directory OK */
                   {
                      CLBOT;
                      sprintf(s,
@@ -263,13 +289,13 @@ IN2:        sprintf(s," CURRENT DIRECTORY: %s  NEW DIRECTORY",
                break;
             }
             break;
-         case 1:
+         case 1:  /* COMMAND SEARCH */
             if (refer(1)==1)
             {
                clear(); move(0,0); refresh();
                saveterm(); resetterm();
                updatetty(&termbuf);
-               system(bottom_str);
+               system(bottom_str);  /* Execute msearch */
                putchar('\n');
                catchtty(&termbuf);
                fixterm();
@@ -277,7 +303,7 @@ IN2:        sprintf(s," CURRENT DIRECTORY: %s  NEW DIRECTORY",
                if (mode==MENU) strcat(s," MENU");
                else strcat(s," FORM");
                strcat(s, ", OR TYPE COMMAND NAME");
-IN1:           bottom_write(s,0,1);
+IN1:           bottom_write(s,0,1);  /* Get command from user */
                for (c_pt=bottom_str;*c_pt!=SPACE && *c_pt; c_pt++);
                *c_pt = null;
                if (*bottom_str != null && implement(bottom_str,1)) 
@@ -286,8 +312,9 @@ IN1:           bottom_write(s,0,1);
                   next_screen(bottom_str,NEW);
                   return(0);
                }
-               else if (*bottom_str)
+               else if (*bottom_str)  /* ASSIST does not have command */
                {
+	          move(LINES-1,0); clrtoeol();
                   REV;
                   mvaddstr(LINES-1,0,error_mess);
                   addstr("[TYPE RETURN]");
@@ -299,7 +326,7 @@ IN1:           bottom_write(s,0,1);
                           c!=CTRL(M)) beep();
                   goto IN1;
                }
-               else if (*bottom_str==null)
+               else if (*bottom_str==null)  /* Go back to background screen */
                {
                   clear();
                   return(1);
@@ -307,10 +334,10 @@ IN1:           bottom_write(s,0,1);
             }
             post_pop = ON;
             break;
-         case 2:
+         case 2:  /* UNIX SYSTEM SUB-SHELL */
             return(4);
             break;
-         case 4:
+         case 4: /* Obsolete: old menu item */
             clear();
             move(0,0);
             refresh();
@@ -330,7 +357,7 @@ IN1:           bottom_write(s,0,1);
             break;
             }
          break;
-      default:
+      default:  /* First-letter cursor move */
          if ((c>='a' && c<='z') || (c>='A' && c<='Z'))
          {
             if (gotofield(c,menus,last_menu) == 0)
@@ -340,10 +367,17 @@ IN1:           bottom_write(s,0,1);
                beep();
             }
          }
-         else strcpy(error_mess,
-                 " NOT A VALID COMMAND ON THE POPUP MENU ");
+	else
+		{
+         strcpy(error_mess,
+                 " YOU CANNOT USE THE COMMAND YOU TYPED ON THE POPUP MENU ");
+		 beep();
+		}
          break;
-      }
+      }  /* End switch */
+
+      /* Display screen */
+
       if (post_pop) 
       {
          post_pop = 0;
@@ -369,12 +403,19 @@ IN1:           bottom_write(s,0,1);
    }
 }
 
+
+/*
+ * Simplified version of copy_form_std(),
+ */
 redraw()
 {  register struct field *f_pt;
    for (f_pt=menus; f_pt<=last_menu; f_pt++)
       show(f_pt->first_s_pt);
 }
 
+/*
+ * draws smooth-line box at row and col coordinates.
+ */
 draw_box(r0,r1,c0,c1)
 register int r0, r1, c0, c1;
 {  register int i, j;

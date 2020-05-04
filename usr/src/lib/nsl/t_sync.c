@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/t_sync.c	1.4"
+#ident	"@(#)libnsl:nsl/t_sync.c	1.4.3.1"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/errno.h"
@@ -19,15 +19,16 @@
 
 
 extern struct _ti_user *_ti_user;
-extern struct _ti_user _null_ti;
 extern int t_errno;
 extern int errno;
+extern long openfiles;
 extern struct _ti_user *_t_checkfd();
 extern void free();
 extern char *calloc();
-extern int (*sigset())();
+extern void (*sigset())();
 extern int ioctl();
-extern int ulimit();
+extern long ulimit();
+extern _null_tiptr();
 
 
 t_sync(fd)
@@ -37,14 +38,22 @@ int fd;
 	struct T_info_ack info;
 	register struct _ti_user *tiptr;
 	int retlen;
-	int (*sigsave)();
+	void (*sigsave)();
+	int arg,rval;
+
+	/*
+	 * Initialize "openfiles" - global variable
+  	 * containing number of open files allowed
+	 * per process.
+	 */
+	openfiles = OPENFILES;
 
 	/*
          * if needed allocate the ti_user structures
 	 * for all file desc.
 	 */
 	 if (!_ti_user) 
-		if ((_ti_user = (struct _ti_user *)calloc(1, (unsigned)(OPENFILES*sizeof(struct _ti_user)))) == NULL) {
+		if ((_ti_user = (struct _ti_user *)calloc(1, (unsigned)(openfiles*sizeof(struct _ti_user)))) == NULL) {
 			t_errno = TSYSERR;
 			return(-1);
 		}
@@ -55,7 +64,7 @@ int fd;
 
 	if ((retval = ioctl(fd, I_FIND, "timod")) < 0) {
 		sigset(SIGPOLL, sigsave);
-		t_errno = TSYSERR;
+		t_errno = TBADF;
 		return(-1);
 	}
 
@@ -78,6 +87,7 @@ int fd;
 
 	/* 
 	 * Range of file desc. is OK, the ioctl above was successful!
+	 * Check for fork/exec case.
 	 */
 
 	if ((tiptr = _t_checkfd(fd)) == NULL) {
@@ -85,11 +95,30 @@ int fd;
 		tiptr = &_ti_user[fd];
 
 		if (_t_alloc_bufs(fd, tiptr, info) < 0) {
-			*tiptr = _null_ti;
+			_null_tiptr(tiptr);
 			t_errno = TSYSERR;
 			return(-1);
 		}
+		/****** Hack to fix exec user level state problem *********/
+		/****** DATAXFER and DISCONNECT cases are covered *********/
+		/****** Solves the problems for execed servers*************/
 
+			if (info.CURRENT_state == TS_DATA_XFER)
+				tiptr->ti_state = T_DATAXFER;
+			else  {
+				if (info.CURRENT_state == TS_IDLE) {
+					if((rval = ioctl(fd,I_NREAD,&arg)) < 0)  {
+						t_errno = TSYSERR;
+						return(-1);
+					}
+					if(rval == 0 )
+						tiptr->ti_state = T_IDLE;
+					else
+						tiptr->ti_state = T_DATAXFER;
+				}
+				else
+					tiptr->ti_state = T_FAKE;
+	       	 }			
 	}
 
 	switch (info.CURRENT_state) {
@@ -105,9 +134,9 @@ int fd;
 	case TS_DATA_XFER:
 		return(T_DATAXFER);
 	case TS_WIND_ORDREL:
-		return(T_INREL);
-	case TS_WREQ_ORDREL:
 		return(T_OUTREL);
+	case TS_WREQ_ORDREL:
+		return(T_INREL);
 	default:
 		t_errno = TSTATECHNG;
 		return(-1);

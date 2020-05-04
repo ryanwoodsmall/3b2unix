@@ -1,4 +1,4 @@
-#ident	"@(#)terminfo:beehive.ti	1.8"
+#ident	"@(#)terminfo:beehive.ti	1.9"
 # # --------------------------------
 #
 # beehive: BEEHIVE
@@ -69,8 +69,8 @@
 sb|sb1|sbg|Beehive superbee,
 	cr=^M, cud1=^J, ind=^J, bel=^G, am, cub1=^H, cbt=\E`$<650>, bw, cols#80,
 	il1=\EN\EL$<3>\EQ                                                                                \EP$<3> \EO\ER\EA$<3>,
-	ed=\EJ$<3>, el=\EK$<3>, clear=\EH$<1>\EJ$<3>, cup=\EF%r%p1%03d%p2%03d,
-	lines#25, cub1=\b$<1>, cr=$<1>\r, da,
+	ed=\EJ$<3>, el=\EK$<3>, clear=\EH$<1>\EJ$<3>, cup=\EF%p2%03d%p1%03d,
+	ht=\t, hts=\E1, tbc=\E3, lines#25, cub1=\b$<1>, cr=$<1>\r, da,
 	db, dch1=\EP$<3>, dl1=\EM$<100>, cud1=\EB$<3>, rmir=\ER,
 	home=\EH$<1>, smir=\EQ\EO,
 	is2=\EE$<3>\EX\EZ\EO\Eb\Eg\ER, kf0=\E2, kf1=\Ep,
@@ -80,13 +80,12 @@ sb|sb1|sbg|Beehive superbee,
 	kel=\EK, ked=\EJ, kdl1=\EM, kich1=\EQ\EO, krmir=\ER,
 	khome=\EH, kcub1=\ED, kcuf1=\EC, kcuu1=\EA, mir,
 	cuf1=\EC$<3>, rmso=\E_3, xmc#1, smso=\E_1,
-	nel=3\n\0\n\0\ET$<6>\EA$<5>\EK,
 	smcup=\EO, rmul=\E_3, ul, cuu1=\EA$<3>,
 	smul=\E_0,
 sb2|sb3|fixed superbee,
 	xsb@, use=superbee,
 sbi|superbee|beehive superbee at Indiana U.,
-	cr=^M$<1>, il1=1\EN\EL$<9>\EQ \EP$<9> \EO\ER\EA, use=sbg,
+	xsb, cr=^M$<1>, il1=1\EN\EL$<9>\EQ \EP$<9> \EO\ER\EA, use=sbg,
 # Info:
 #	Does this entry make xmc when it doesn't have to?
 #	Look at those spaces in rmso/smso. Seems strange to me.

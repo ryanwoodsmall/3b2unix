@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin3b2:admin/menu/diskmgmt/harddisk/display	1.5"
+#ident	"@(#)sadmin3b2:admin/menu/diskmgmt/harddisk/display	1.8"
 #menu# display hard disk partitioning
 #help# 
 #help#	Display the partitioning of a hard disk.  Also shows the
@@ -19,16 +19,26 @@ ndrive=`drivename ${ddrive}`
 . $DIRPATH/display.d/`basename $ddrive | sed s/[0-9]*$//p`
 
 dskname=`samedev ${ddrive} /dev/rdsk/c*d*s6`
-eval `basename ${dskname} | sed -e 's:^c\([0-9]*\)d\([0-9]*\).*$:slot=\1 drv=\2:'`
-slot=`expr ${slot} - 1`
-
-echo "Displaying ${ndrive} partitioning (hardware slot ${slot} drive ${drv}):\n"
-
-if /etc/prtvtoc ${ddrive}	
+dskname=`basename ${dskname}`
+havet=`expr ${dskname} : '.*\(t\).*'`
+if [ -n "${havet}" ]
 then
-	:
+  eval `echo ${dskname} | sed -e 's:^c\([0-9]*\)t\([0-9]*\)d\([0-9]*\).*$:slot=\1 tc=\2 drv=\3:'`
+  echo "Displaying ${ndrive} partitioning (hardware slot ${slot},"
+  echo "target controller ${tc}, drive ${drv}):\n"
 else
-	admerr $0 hard disk partitioning display failed.
+  eval `echo ${dskname} | sed -e 's:^c\([0-9]*\)d\([0-9]*\).*$:slot=\1 drv=\2:'`
+  slot=`expr ${slot} - 1`
+  echo "Displaying ${ndrive} partitioning (hardware slot ${slot} drive ${drv}):\n"
+fi
+
+/etc/prtvtoc ${ddrive}	
+if [ $? -ne 0 ]
+then
+	echo "\tDisplay of the hard disk partitioning failed."
+	echo "\tSuggestions:  1) The disk may not be partitioned."
+	echo "\t              2) There may be a problem with the hard disk itself."
+	echo "\t                 Call your service representative."
 	exit 1
 fi
 exit 0

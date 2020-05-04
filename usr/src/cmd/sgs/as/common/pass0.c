@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:common/pass0.c	1.28"
+#ident	"@(#)as:common/pass0.c	1.29.1.1"
 
 #include <stdio.h>
 #include <signal.h>
@@ -67,6 +67,10 @@ extern short workaround;
 extern int warlevel;
 extern int need_mau;
 #endif
+#if STATS
+char * firstbrk;
+extern char *sbrk();
+#endif
 extern short
 	tstlookup,
 	Oflag,
@@ -126,6 +130,10 @@ static short
 	testas = -2;
 #endif
 
+#if iAPX286
+char model = 's';	/* memory model (small is the default) */
+#endif
+
 extern char
 	*strcpy(),
 	*strcat(),
@@ -168,6 +176,18 @@ getargs(xargc,xargv)
 		if (**xargv == '-') {
 			while ((ch = *++*xargv) != '\0')
 				switch (ch) {
+
+#if iAPX286
+                                case 'M':
+                                        switch( *++*xargv ) {
+                                                case 's' : model = 's'; break ;
+                                                case 'l' : model = 'l'; break ;
+                                                default :
+						   aerror("Unrecognized model");
+						   break;
+                                        }
+                                        break ;
+#endif
 #if M4ON
 				case 'm':
 					macro = ! macro;
@@ -386,6 +406,10 @@ main(argc,argv)
 #endif
 	argv++;
 	getargs(argc, argv);
+#if STATS
+	firstbrk = sbrk(0);
+#endif
+
 /*	Check to see if input file exits */
 	if ((fd = fopen(filenames[0],"r")) != NULL)
 		fclose(fd);

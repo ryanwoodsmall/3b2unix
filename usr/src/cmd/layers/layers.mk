@@ -5,29 +5,28 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)attwin:cmd/layers/makefile	1.12"
+#ident	"@(#)attwin:cmd/layers/makefile	1.13"
 #
 #		Copyright 1985 AT&T
 #
 
 CC = cc
 INC = $(ROOT)/usr/include
-LIB = $(ROOT)/usr/lib
 CFLAGS = -O -I$(INC)
 INS = install
 STRIP = strip
 
-all:	xt_driver wtinit_mk misc_mk libwindows_mk layers layersys/lsys.873 set_enc.j relogin xtd xts xtt 
+all:	wtinit_mk misc_mk layers layersys/lsys.873 set_enc.j relogin xtd xts xtt 
 
-layers:	libwindows_mk layers.o xtraces.o xtstats.o
-	$(CC) $(CFLAGS) -o layers layers.o xtraces.o xtstats.o ../../lib/libwindows/libwindows.a
+layers:	layers.o xtraces.o xtstats.o
+	$(CC) $(CFLAGS) -o layers layers.o xtraces.o xtstats.o $(LDLIBS) -lwindows
 
 relogin:	relogin.c
 relogin:	$(INC)/sys/types.h
 relogin:	$(INC)/utmp.h
 relogin:	$(INC)/stdio.h
 relogin:	$(INC)/pwd.h
-	$(CC) $(CFLAGS) -o relogin relogin.c
+	$(CC) $(CFLAGS) -o relogin relogin.c $(LDLIBS)
 
 xtd:	xtd.c
 xtd:	$(INC)/sys/param.h
@@ -37,13 +36,13 @@ xtd:	$(INC)/sys/jioctl.h
 xtd:	$(INC)/sys/xtproto.h
 xtd:	$(INC)/sys/xt.h
 xtd:	$(INC)/stdio.h
-	$(CC) $(CFLAGS) -o xtd xtd.c
+	$(CC) $(CFLAGS) -o xtd xtd.c $(LDLIBS)
 
 xts:	xts.o xtstats.o
-	$(CC) $(CFLAGS) -o xts xts.o xtstats.o
+	$(CC) $(CFLAGS) -o xts xts.o xtstats.o $(LDLIBS)
 
 xtt:	xtt.o xtraces.o
-	$(CC) $(CFLAGS) -o xtt xtt.o xtraces.o
+	$(CC) $(CFLAGS) -o xtt xtt.o xtraces.o $(LDLIBS)
 
 layers.o:	layers.c
 layers.o:	$(INC)/sys/types.h
@@ -87,17 +86,11 @@ xtstats.o:	$(INC)/sys/xtproto.h
 xtstats.o:	$(INC)/sys/xt.h
 xtstats.o:	$(INC)/stdio.h
 
-xt_driver:
-	cd ../../uts/3b2/io; $(MAKE) -f xt.mk
-
 wtinit_mk:
 	cd wtinit; $(MAKE) -f wtinit.mk
 
 misc_mk:
 	cd misc; $(MAKE) -f misc.mk
-
-libwindows_mk:
-	cd ../../lib/libwindows; $(MAKE) -f libwindows.mk
 
 install:	all
 	if [ ! -d $(ROOT)/usr/lib/layersys ] ;\
@@ -126,19 +119,13 @@ install:	all
 	$(STRIP) $(ROOT)/usr/lib/layersys/set_enc.j
 	cd wtinit; $(MAKE) -f wtinit.mk install
 	cd misc; $(MAKE) -f misc.mk install
-	cd ../../lib/libwindows; $(MAKE) -f libwindows.mk install
-	cd ../../uts/3b2/io; $(MAKE) -f xt.mk install
 
 clean:
 	rm -f layers.o xts.o xtt.o xtraces.o xtstats.o 
 	cd wtinit; $(MAKE) -f wtinit.mk clean
 	cd misc; $(MAKE) -f misc.mk clean
-	cd ../../lib/libwindows; $(MAKE) -f libwindows.mk clean
-	cd ../../uts/3b2/io; $(MAKE) -f xt.mk clean
 
 clobber:
 	rm -f layers.o xts.o xtt.o xtraces.o xtstats.o layers relogin xtd xts xtt
 	cd wtinit; $(MAKE) -f wtinit.mk clobber
 	cd misc; $(MAKE) -f misc.mk clobber
-	cd ../../lib/libwindows; $(MAKE) -f libwindows.mk clobber
-	cd ../../uts/3b2/io; $(MAKE) -f xt.mk clobber

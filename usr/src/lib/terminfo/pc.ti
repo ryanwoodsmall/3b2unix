@@ -1,4 +1,4 @@
-#ident	"@(#)terminfo:pc.ti	1.9"
+#ident	"@(#)terminfo:pc.ti	1.12"
 # # PC - Personal Computers and Workstations emulating terminals.
 #
 # Manufacturer:	PERSONAL COMPUTER TERMINALS
@@ -433,7 +433,7 @@ ibm|ibm3101|3101|i3101|IBM 3101-10,
 	cols#80, lines#24,
 	bel=^G, clear=\EK, cr=\r, cub1=\b, cud1=\n, cuf1=\EC,
 	cup=\EY%p1%'\s'%+%c%p2%'\s'%+%c, cuu1=\EA, ed=\EJ,
-	el=\EI, home=\EH, ht=\t, if=/usr/lib/tabset/3101,
+	el=\EI, home=\EH, ht=\t, hts=\E0, tbc=\EH,
 	ind=\n, kcub1=\ED, kcud1=\EB, kcuf1=\EC, kcuu1=\EA,
 ibm-system1|system1|ibm system/1 computer,
 	ind=^J, bel=^G, xt, am, cub1=^H,

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)graf:src/stat.d/pie.c	1.12"
+#ident	"@(#)graf:src/stat.d/pie.c	1.13"
 /* <: t-5 d :> */
 #include <stdio.h>
 #include "s.h"
@@ -213,7 +213,7 @@ int getkey(fdi,pkey)		/* get key delimited by < > */
 FILE *fdi;
 struct key *pkey;
 {
-#if u370 | u3b | u3b5 | u3b2
+#if u370 | u3b | u3b15 | u3b2
 	int c;
 #else
 	char c;
@@ -242,7 +242,7 @@ struct key *pkey;
 	}
 	else
 		if ( !feof(fdi) )  {
-#if u370 | u3b | u3b5 | u3b2
+#if u370 | u3b | u3b15 | u3b2
 			ungetc((char) c,fdi);
 #else
 			ungetc(c,fdi);

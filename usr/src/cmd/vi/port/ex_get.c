@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident "@(#)vi:port/ex_get.c	1.7"
+#ident "@(#)vi:port/ex_get.c	1.8"
 
 #include "ex.h"
 #include "ex_tty.h"
@@ -43,7 +43,6 @@ again:
 	c = getach();
 	if (c == EOF)
 		return (c);
-	c &= TRIM;
 	if (!inopen && slevel==0)
 		if (!globp && c == CTRL(d))
 			setlastchar('\n');
@@ -72,7 +71,7 @@ peekcd()
 int verbose;
 getach()
 {
-	register int c;
+	register int c, i, prev;
 	static char inline[128];
 
 	c = peekc;
@@ -88,11 +87,8 @@ getach()
 	}
 top:
 	if (input) {
-		if (c = *input++) {
-			if (c &= TRIM)
-				return (lastc = c);
-			goto top;
-		}
+		if(c = *input++)
+			return (lastc = c);
 		input = 0;
 	}
 	flush();
@@ -104,10 +100,12 @@ top:
 			inline[c++] = CTRL(d);
 		if (inline[c-1] == '\n')
 			noteinp();
-		inline[c] = 0;
-		for (c--; c >= 0; c--)
-			if (inline[c] == 0)
-				inline[c] = QUOTE;
+		prev = 0;
+		/* remove nulls from input buffer */
+		for (i = 0; i < c; i++)
+			if(inline[i] != 0)
+				inline[prev++] = inline[i];
+		inline[prev] = 0;
 		input = inline;
 		goto top;
 	}

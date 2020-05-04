@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:com/machdep.c	1.18"
+#ident	"@(#)sdb:com/machdep.c	1.23"
 
 /*
  ****		MACHINE and OPERATING SYSTEM DEPENDENT
@@ -15,6 +15,9 @@
 #include "head.h"
 #include "coff.h"
 
+
+
+
 extern BKPTR	bkpthead;
 extern MSG		NOPCS;
 
@@ -22,10 +25,15 @@ long rdsym();			/* in symt.c */
 extern SYMENT syment;		/* rdsym() stores symbol table entry */
 extern AUXENT auxent[];		/* rdsym() stores auxiliary entry */
 extern int gflag;		/* initfp() in symt.c sets */
-extern FILHDR filhdr;
 static int frameflg;		/* set if now past last frame */
+static int broken;		/* broken frame stack */
+static int nosave;
+static int savrflag;
+static ADDR topoffrm;		/* top of frame if ap < fp */
+static ADDR epargp;		/* Fortran entry point prologue builds an */
+				/* extra frame and saves the old ap */
 
-#define EVEN	(-2)
+
 
 /* initialize frame pointers to top of call stack */
 /*  MACHINE DEPENDENT */
@@ -52,78 +60,30 @@ initframe() {
 #if vax || u3b
 	argp = SDBREG(AP);
 	frame = SDBREG(FP);
+	callpc = SDBREG(PC);
 #else
 #if u3b5 || u3b15 || u3b2
 	argp = regvals[10];
 	frame = regvals[9];
-#endif
-#endif
-#if vax || u3b
-	callpc = SDBREG(PC);
-#else
-#if u3b5 || u3b15 || u3b2
 	callpc = regvals[15];
-#endif
-#endif
-
-#if u3b || u3b5 || u3b15 || u3b2
-
-
-	/* FP in 3B starts at USRSTACK and increases as stack grows */
-	if (frame < USRSTACK) {	/* 3B ?? other checks ?? */
-		frameflg = 1;
-#if DEBUG
-		if (debugflag == 1)
-		{
-			exit1();
-		}
-		else if (debugflag == 2)
-		{
-			exit2("initframe");
-			endofline();
-		}
-#endif
-		return(badproc);
-	}
-
-#if u3b2
- 	/*	If we have stopped in an assembly language
- 	**	routine which does not do a save, then
- 	**	the frame pointer will not have been saved
- 	**	and reset for the current frame.  Therefore,
- 	**	the following is necessary for the stack
- 	**	trace not to go crazy.
- 	*/
- 
- 	if(frame < argp + 9 * 4){
- 		frame = regvals[12] + 7 * 4;
- 	}
-#endif
- 
-#else
-#if vax
-
-	/* FP in VAX starts at maxstor = 1L << 31 and decreases */
-	if ((frame & 0xf0000000) != 0x70000000) {
-		frameflg = 1;
-#if DEBUG
-		if (debugflag == 1)
-		{
-			exit1();
-		}
-		else if (debugflag == 2)
-		{
-			exit2("initframe");
-			endofline();
-		}
-#endif
-		return(badproc);
-	}
 #endif
 #endif
 
 	procp = adrtoprocp(callpc);
 	frameflg = 0;
+	topoffrm = 0;
+	broken = 0;
+
+#if u3b || u3b2 || u3b5 || u3b15
+	/*
+	**	if (frame <= argp)  the stack frame is broken.
+	**	try to fix it.
+	*/	
+
+	if (frame <= argp) 
+		broken = fixframe(procp);
+#endif
+
 #if DEBUG
 	if (debugflag == 1)
 	{
@@ -138,11 +98,151 @@ initframe() {
 #endif
 	return(procp);
 }
+/*--------------------------------------*/
+
+fixframe(procp)
+register struct proct *procp;
+{
+	register struct proct *tmprocp;
+	extern ADDR dpstart, dpsize;
+	union word word;
+	
+#if DEBUG
+	if (debugflag == 2)
+	{
+		enter2("fixframe");
+		closeparen();
+		endofline();
+	}
+#endif
+/*
+ * if pc is in the range of doprnt.s text, reproduce a frame
+ */
+	if ((callpc > dpstart) && (callpc < dpstart + dpsize))
+	{
+#if u3b2 || u3b5 || u3b15
+		fixdprnt(regvals[12]);
+#else
+		fixdprnt(SDBREG(SP));
+#endif
+		return 0;
+	}
+
+/*
+ *  FORTRAN entry points. the prolog pushes the original ap on the stack,
+ *  followed by the arguments. ap is set to the first argument.
+ */
+	if ((argp - frame) == 2*WORDSIZE)
+	{
+		tmprocp = procp;
+		while ((tmprocp->notstab) && (tmprocp != badproc))
+			tmprocp = adrtoprocp(tmprocp->paddress -1);
+		if ((tmprocp->sfptr)->f_type == F77) {
+			epargp = get(argp - WORDSIZE, DSP); /*save the real ap*/
+			return 0;
+		}
+	}
+
+/*
+ *  Next instruction is 'RET', fp is restored,  (for 3b2, 3b5 )	
+ *  or just before the first instruction of the procedure.
+ *  In both cases, sp  points to top of frame.
+ */
+
+#if u3b2 || u3b5 || u3b15
+	word.w = get(callpc,ISP);
+	if (nosave  || (frame == argp) || (word.c[0]  == 0x08) || 
+				(callpc == procp->paddress)) 
+	{
+		topoffrm = regvals[12];
+		return 0;
+	}
+#else
+	if (nosave || (callpc == procp->paddress))
+	{
+		topoffrm = SDBREG(SP);	/* SP points to top of frame */
+		return 0;
+	}
+#endif
+
+	return 1;
+}
+/*--------------------------------------*/
+/*
+ * _doprnt uses fp as a general purpose register. 
+ * Before any of the printf routines jmp to doprnt, LOCALS bytes are pushed
+ * on the stack for local variables, and ap is saved at (SP - APSAVE).
+ * In doprnt itself a max of 3 words are pushed on the stack - so fixprnt
+ * checks up to 3 locations to find the last frame.
+ */
+#if u3b2 || u3b5 || u3b15
+#define LOCALS	468
+#else
+#define LOCALS	460
+#endif
+#define APSAVE	16
+
+fixdprnt(addr)
+ADDR addr;
+{
+	int i;
+
+#if DEBUG
+	if (debugflag == 2)
+	{
+		enter2("fixdprnt");
+		closeparen();
+		endofline();
+	}
+#endif
+	addr -= (LOCALS + SAVEDREGS*WORDSIZE) ;
+	
+	for (i = 0; i < 3; i++)
+	{
+	     if ( (isisp(get(addr, DSP))) &&
+		      (get (addr + WORDSIZE,DSP) > USRSTACK ) &&
+		      (get (addr + 2*WORDSIZE,DSP) > USRSTACK ) )
+				break;
+	      else
+				addr -= WORDSIZE;
+	}
+	frame = addr + (SAVEDREGS*WORDSIZE);
+	argp =  get(frame + LOCALS - APSAVE, DSP);
+	
+}
+/*--------------------------------------*/
+/*
+ *  savr frame
+ */
+fixsavr()
+{
+
+#if DEBUG
+	if (debugflag == 2)
+	{
+		enter2("fixsavr");
+		closeparen();
+		endofline();
+	}
+#endif
+#if u3b2 || u3b5 || u3b15
+	if (!isisp(callpc) && (callpc < USRSTACK)) {
+#else
+	if (!isisp(callpc)) {
+#endif
+		topoffrm = NEXTCALLPC - WORDSIZE;
+		callpc = get(topoffrm, DSP);
+		argp = get(frame +  3 * WORDSIZE,DSP);
+		frame = get(NEXTFRAME, DSP);
+	} 
+}
+/*--------------------------------------*/
 
 struct proct *
 nextframe() {
 	register struct proct *procp;
-	union word word;
+	extern ADDR dpstart, dpsize;
+	ADDR oldap;
 
 #if DEBUG
 	if (debugflag ==1)
@@ -155,105 +255,68 @@ nextframe() {
 		closeparen();
 	}
 #endif
-	callpc = get(NEXTCALLPC, DSP);
-	argp = get(NEXTARGP, DSP);
-#if vax || u3b
-	frame = get(NEXTFRAME, DSP) & EVEN;
-#else
-#if u3b5 || u3b15 || u3b2
-	frame = get(NEXTFRAME,DSP);
- 
- 	/*	If we have stopped in an assembly language
+#if u3b5 || u3b15 || u3b2 || u3b
+	/*
+ 	**	If we have stopped in an assembly language
  	**	routine which does not do a save, then
  	**	the frame pointer will not have been saved
- 	**	and reset for the current frame.  Therefore,
- 	**	the following is necessary for the stack
- 	**	trace not to go crazy.
+	**	and reset for the current frame. 
  	*/
+	if (broken) 
+		return(badproc);	/* broken stack frame */
+	if (epargp) {
+		argp = epargp;
+		epargp = 0;
+	}
+	oldap = argp;			/* save old AP */
+	if (frame <= argp) {
+		if (topoffrm == 0)  {		 /*topoffrm is not set */
+			frameflg = 1;
+			return(badproc);
+		}
+		callpc = get(topoffrm - 2*WORDSIZE, DSP);
+		if (savrflag)
+			fixsavr();
+		else 
+			argp = get(topoffrm - 1*WORDSIZE, DSP);
+	}
+	else {
+		callpc = get(NEXTCALLPC, DSP);
+		if (savrflag)
+			fixsavr();
+		else {
+			argp = get(NEXTARGP, DSP);
+			frame = get(NEXTFRAME, DSP);
+		}
+	}
  
- 	if(frame < argp + 9 * 4  ||  frame > regvals[12]){
- 		frame = regvals[9];
- 	}
 #endif
-#endif
-#if vax || u3b
-#if u3b
-	if (callpc > USRSTACK)	/* 3B ?? other checks ?? */
-#else
-	if (callpc > 0x70000000)	/* error handler kludge */
-#endif
-	{
-		callpc = get(frame + (16*WORDSIZE), DSP);
-		argp = get(NEXTARGP, DSP);
-		frame = get(NEXTFRAME, DSP) & EVEN;
-	}
-#endif
-#if u3b || u3b5 || u3b15 || u3b2
-
-
-	if (frame < USRSTACK) {	/* 3B ?? other checks ?? */
-		frameflg = 1;
-#if DEBUG
-		if (debugflag == 1)
-		{
-			exit1();
-		}
-		else if (debugflag == 2)
-		{
-			exit2("nextframe");
-			printf("0x%x",badproc);
-			endofline();
-		}
-#endif
-		return(badproc);
-	}
-#else
 #if vax
-
-	if ((frame & 0xf0000000) != 0x70000000) {
-		frameflg = 1;
-#if DEBUG
-		if (debugflag == 1)
-		{
-			exit1();
-		}
-		else if (debugflag == 2)
-		{
-			exit2("nextframe");
-			printf("0x%x",badproc);
-			endofline();
-		}
+	callpc = get(NEXTCALLPC, DSP);
+	argp = get(NEXTARGP, DSP);
+	frame = get(NEXTFRAME, DSP)
 #endif
-		return(badproc);
-	}
-#endif
-#endif
-	procp = adrtoprocp(callpc-1);
 
 #if u3b || u3b5 || u3b15 || u3b2
-	word.w = get( procp->paddress, ISP );
-#if u3b
-	if( word.c[ 0 ] != 0x7A )	/* opcode for 3B 'save' instr */
-#else
-	if (word.c[0] != 0x10)		/* opcode for 3B5 'save' instr */
+	if (!savrflag)
+		topoffrm = oldap;	/* save old AP in case next frame has no fp */
 #endif
-	{
-		frameflg = 1;
-#if DEBUG
-		if (debugflag == 1)
-		{
-			exit1();
-		}
-		else if (debugflag == 2)
-		{
-			exit2("nextframe");
-			printf("0x%x",badproc);
-			endofline();
-		}
-#endif
-		return( badproc );	/* cannot chain back anymore */
+
+/*
+ * if in _doprnt fix frame
+ */
+	if ((callpc > dpstart) && (callpc < dpstart + dpsize))
+		fixdprnt(oldap);
+	procp = adrtoprocp(callpc-1);
+	frameflg = ((procp == badproc) || (eqstr("_start", procp->pname)));
+	if (!frameflg) {
+		if (savrflag) 
+			savrflag = 0;
+		else if (argp >= frame)
+			broken = fixframe(procp);
+		if (eqstr("savr", procp->pname)) 
+			savrflag = 1;
 	}
-#endif
 
 #if DEBUG
 	if (debugflag == 1)
@@ -544,35 +607,40 @@ stackreg(reg) {
 #if u3b
 
 /*  The 3B saves 13 words worth of registers before saving arguments */
-#define NARGSTACK	( ((frame - argp) / WORDSIZE) -13)
+#define NARGSTACK(X)	( ((frame - X) / WORDSIZE) -13)
 #else
 #if u3b5 || u3b15 || u3b2
-#define NARGSTACK	(((frame - argp) / WORDSIZE) - 9)
+#define NARGSTACK(X)	(((frame - X) / WORDSIZE) - 9)
 #else
 #if vax
 /*  The number of words stored as arguments is in the first byte
  *	of the zero'th argument.  The remaining bytes of the word should
  *	be zero.  Argp is set to point to the first argument.
  */
-#define NARGSTACK    (argp += WORDSIZE, \
-			(narg = get(argp-WORDSIZE, DSP)) & ~0xff ? 0 : narg\
+#define NARGSTACK(X)    (X += WORDSIZE, \
+			(narg = get(X-WORDSIZE, DSP)) & ~0xff ? 0 : narg\
 		     )
 #endif
 #endif
 #endif
 
-prfrx(top) {
+prfrx(mode) 			/* mode = 2 assume no save instructin */
+int mode;			/* mode = 1  only top frame */
+{
 	int narg;		/* number of words that arguments occupy */
 	long offs;		/* offset into symbol table */
 	register char class;	/*storage class of symbol */
 	register int endflg;	/* 1 iff cannot find symbolic names of
 					more arguments */
 	int subsproc = 0;	/* 1 iff not top function on stack */
+	int top;
 	register char *p;	/* pointer to procedure (function) name */
 	int line_num;		/* line number in calling function */
 	register struct proct *procp;
 	SYMENT *syp = &syment;
 	AUXENT *axp = auxent;
+	ADDR argpl;	/* local copy of argp, nextframe() needs the original */
+	int val;
 	
 #if DEBUG
 	if (debugflag ==1)
@@ -587,6 +655,18 @@ prfrx(top) {
 		closeparen();
 	}
 #endif
+	switch(mode) {
+	case 1:
+			top = 1;
+			nosave = 0;
+			break;
+	case 2:
+			top = 0;
+			nosave = 1;
+			break;
+	default:
+			top = nosave = 0;
+	}
 	procp = initframe();
 	if (frameflg) {		/*  no initial frame */
 		if (pid == 0 && (fcor < 0 || fakecor))	{  /* usual error */
@@ -605,13 +685,19 @@ prfrx(top) {
 				endofline();
 			}
 #endif
+			nosave = 0;
 			return;
 		}
 	}
 	do {
 #if u3b || u3b5 || u3b15 || u3b2
+
+		argpl = argp;	/*  argp for the current frame */
+
 		/*  3B crt0 (start) has an old fp of zero */
-		if (get(NEXTFRAME, DSP) == 0)
+		if (frame < USRSTACK)
+			broken = 1;
+		else if (get(NEXTFRAME, DSP) == 0)
 		{
 #if DEBUG
 			if (debugflag == 1)
@@ -624,6 +710,7 @@ prfrx(top) {
 				endofline();
 			}
 #endif
+			nosave = 0;
 			return;
 		}
 #else
@@ -642,6 +729,7 @@ prfrx(top) {
 				endofline();
 			}
 #endif
+			nosave = 0;
 			return;
 		}
 #endif
@@ -660,6 +748,7 @@ prfrx(top) {
 				endofline();
 			}
 #endif
+			nosave = 0;
 			return;
 		}
 		if (procp == badproc) {		/*  if stripped a.out */
@@ -673,11 +762,15 @@ prfrx(top) {
 		}
 #endif
 		else {
-			printf("%s(", p);
+			if (nshlib) 
+				prpname(procp,"(");
+			else
+				printf("%s(", p);
 			endflg = 0;
 		}
 		if (endflg == 0) {
 			offs = procp->st_offset;
+			libn = procp->lib;
 			do {		/*  in COFF, always just 1 ? */
 				if( (offs = rdsym(offs)) == ERROR) {
 					endflg++;
@@ -691,23 +784,45 @@ prfrx(top) {
 					break;
 				}
 				class = syp->n_sclass;
-				if (ISFCN(syp->n_type)) {
+				if (ISFCN(syp->n_type) || 
+						eqstr(syp ->n_nptr,".ef")) {
 					endflg++;
 					break;
 				}
 			}
+
 		}
 
-/*
-if (get(NEXTCALLPC,DSP) > 0x70000000)
-	narg = 0;
-else
-*/
-		narg = NARGSTACK;
+#if u3b | u3b2 | u3b5 || u3b15
+		if (frame <= argp)     /* if fp wasn't saved in current frame */
+		{
+			if (broken)
+			{
+				narg = 0;
+			}
+			else if (epargp) {	/* Fortran entry point */
+				argpl = epargp;
+				narg = NARGSTACK(epargp);
+			}
+			else
+				narg = ((topoffrm - argp) / WORDSIZE) - 2;
+		}
+		else {
+			if (savrflag) 
+				narg = 0;
+			else
+#endif
+				narg = NARGSTACK(argp);
+#if u3b | u3b2 | u3b5 || u3b15
+		}
+#endif
 		while (narg) {
 			if (endflg) {
-				printf("%d", get(argp, DSP));
-				argp += WORDSIZE;
+				val = get(argpl,DSP);
+				if (val > 9 || val < 0)
+					printf("0x");
+				printf("%x", val);
+				argpl += WORDSIZE;
 			} else {
 				int length;
 				if ((syp->n_type == T_STRUCT) ||
@@ -727,8 +842,8 @@ else
 					printf("&%s=", syp->n_nptr);
 #endif
 #endif
-				    dispx(argp, "x", C_EXT, 
-						(short) (-1), 0, DSP);
+				    dispx(argpl, "x", C_EXT, 
+						(short) (-1), DSP);
 				    length = axp->x_sym.x_misc.x_lnsz.x_size;
 				}
 				else {
@@ -761,11 +876,11 @@ else
 				     * way.
 				     */
 				    if (length < WORDSIZE) {
-					dispx(argp+WORDSIZE-length,"",
-					    C_EXT,(short)syp->n_type,0,DSP);
+					dispx(argpl+WORDSIZE-length,"",
+					    C_EXT,(short)syp->n_type,DSP);
 				    } else {
-					dispx(argp, "", C_EXT,
-					    (short)syp->n_type, 0, DSP);
+					dispx(argpl, "", C_EXT,
+					    (short)syp->n_type, DSP);
 				    }
 #else
 #if vax
@@ -778,19 +893,19 @@ else
 				    {
 					printf( "%s=", syp->n_nptr );
 				    }
-				    dispx(argp, "", C_EXT, 
-					    (short) syp->n_type, 0, DSP);
+				    dispx(argpl, "", C_EXT, 
+					    (short) syp->n_type, DSP);
 #endif
 #endif
 				}
 				if (length > WORDSIZE) {
-					argp += length;
+					argpl += length;
 					/*  adjust for more than 1 word */
 					narg -= length/WORDSIZE -1;
 				}
 				/* bytes, shorts, longs pushed as ints */
 				else {
-					argp += WORDSIZE;
+					argpl += WORDSIZE;
 				}
 			}
 			do {
@@ -800,13 +915,16 @@ else
 					break;
 				}
 				class = syp->n_sclass;
-				if (ISFCN(syp->n_type)) {
+				if (ISFCN(syp->n_type)|| 
+					eqstr(syp ->n_nptr,".ef")) {
 					endflg++;
 					break;
 				}
 			} while (! ISARGV(class));
 			if (--narg != 0) printf(",");
 		}
+		if (broken)
+			printf("...");
 		printf(")");
 		if (procp->sfptr != badfile)
 			printf("   [%s",
@@ -818,11 +936,18 @@ else
 		if(procp->sfptr != badfile)
 			printf("]");
 		printf("\n");
+		if (broken)	/* top frame has no fp, SAVE was not executed */
+		{
+		  printf("Broken stack frame \n");
+		  break;
+		}
 		subsproc = 1;
 		procp = nextframe();
-	} while (!top && !frameflg);	/*  only one frame desired, or
+		libn = procp->lib;
+	} while (!top && !frameflg );	/*  only one frame desired, or
 						no frames left in backtrace */
 /* Vax:	} while (((procp = nextframe()) != badproc) && !top);*/
+	nosave = 0;
 #if DEBUG
 	if (debugflag == 1)
 	{
@@ -838,7 +963,7 @@ else
 
 
 /* machine dependent initialization */
-sdbenter(xflag) {
+sdbenter() {
 #if vax
 	mkioptab();
 #endif

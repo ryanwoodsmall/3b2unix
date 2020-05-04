@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/tic_hash.c	1.2"
+#ident	"@(#)curses:screen/tic_hash.c	1.3"
 /*********************************************************************
 *                         COPYRIGHT NOTICE                           *
 **********************************************************************
@@ -53,7 +53,7 @@
  *
  */
 
-#include "curses.ext"
+#include "curses_inc.h"
 #include "compiler.h"
 
 

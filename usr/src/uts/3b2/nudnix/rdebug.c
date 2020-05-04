@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/rdebug.c	10.16"
+#ident	"@(#)kern-port:nudnix/rdebug.c	10.16.1.1"
 
 #include "sys/inline.h"
 #include "sys/types.h"
@@ -91,14 +91,12 @@ struct sysnm sysnm[] =
 "COREDUMP",	111,
 "WRITEI",	112,
 "READI",	113,
-"LBMOUNT",	115,	/*  lbin mount (second namei in smount)	*/
-"LBUMOUNT",	116,	/*  lbin unmount			*/
+"LBMOUNT",	115,
 "RSIGNAL",	119,	/* remote signal */
 "GDPACK",	120,
 "GDPNACK",	121,
 "SYNCTIME",	122,
 "DOTDOT",	124,
-"LBIN",		125,
 "FUMOUNT",	126,
 "IPUT",		131,
 "IUPDAT",	132,

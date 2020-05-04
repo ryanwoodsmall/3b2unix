@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libns:ns_sendpass.c	1.4"
+#ident	"@(#)libns:ns_sendpass.c	1.4.2.1"
 #include <stdio.h>
 #include <sys/tiuser.h>
 #include <nsaddr.h>
@@ -16,6 +16,7 @@ char	*name, *oldpass, *newpass;
 {
 	struct nssend send;
 	struct nssend *ns_getblock();
+	char *malloc();
 
 	/*
 	 *	Initialize the information structure to send to the

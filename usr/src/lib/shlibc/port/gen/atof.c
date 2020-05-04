@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libc-port:gen/atof.c	2.14"
+#ident	"@(#)libc-port:gen/atof.c	2.16"
 /*LINTLIBRARY*/
 /*
  *	C library - ascii to floating (atof) and string to double (strtod)
@@ -183,8 +183,8 @@ register char *p;
 			c = -c;
 			fl_exp = 1.0;
 		}
-		if (c > DMAXEXP/2) /* outrageously large exponents */
-			c = DMAXEXP/2; /* will be handled by ldexp */
+		if (c >= DMAXEXP/2) /* outrageously large exponents */
+			c = DMAXEXP/2 - 1; /* will be handled by ldexp */
 		for ( ; ; powptr++) {
 			/* binary representation of ints assumed; otherwise
 			 * replace (& 01) by (% 2) and (>>= 1) by (/= 2) */

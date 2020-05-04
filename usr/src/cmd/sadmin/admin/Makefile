@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)sadmin:admin/Makefile	2.10"
+#ident	"@(#)sadmin:admin/Makefile	2.12"
 #	Makefile for admin
 #	Generated Wed Nov 28 17:54:44 EST 1984 from skeleton makefile:
 #    @(#)SKELMakefile  2.3  /sccs/src/cmd/sadmin/admin/s.SKELMakefile
@@ -56,8 +56,8 @@ install: \
 	@echo '\nThe following entries must be added to /etc/passwd:'
 	@cat passwd
 	@echo "\\nSee the "passwd" file in `pwd`\\n"
-	-umask 022;  mkdir $(ADMINHOME);  cd $(ADMINHOME); \
-	  mkdir $(DIRECTORIES)
+	-umask 022;  if test ! -d $(ADMINHOME); then mkdir $(ADMINHOME); fi;  cd $(ADMINHOME)
+	for dir in $(DIRECTORIES); do if test ! -d $$dir; then mkdir $$dir; fi; done
 	cp unixadmin $(BIN)
 	chmod +x,u+w,go-w $(BIN)/unixadmin
 	echo $(CMDS)  |  tr ' ' '\012'  | \
@@ -68,10 +68,12 @@ install: \
 	cd $(ADMINHOME);  ln -f profile.dot .profile
 
 remove:
-	-cd $(ADMINHOME);  rm -f $(PARTS) .profile
-	-cd $(ADMINHOME);  \
-	  rmdir `echo $(DIRECTORIES)  |  tr ' ' '\012'  |  sort -r`
-	-rmdir $(ADMINHOME)
+	if test -d $(ADMINHOME); then cd $(ADMINHOME);  rm -f $(PARTS) .profile; \
+	A=`echo $(DIRECTORIES)  |  tr ' ' '\012'  |  sort -r`; \
+	for dir in $$A; do if test -d $$dir; then if test `ls $$dir | wc -l` -eq 0; then rmdir $$dir; fi; fi; done;  \
+	cd $(BIN); \
+	if test `ls $(ADMINHOME) | wc -l` -eq 0; then rmdir $(ADMINHOME); fi; \
+	fi
 	cd $(BIN);  rm -f $(CMDS)
 
 $(BIN):

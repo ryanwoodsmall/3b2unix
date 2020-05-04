@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mkshlib:common/h_pobjs.c	1.4"
+#ident	"@(#)mkshlib:common/h_pobjs.c	1.5.1.6"
 
 #include <stdio.h>
 #include "filehdr.h"
@@ -17,6 +17,7 @@
 #include "sgs.h"
 #include "shlib.h"
 #include "hst.h"
+#include "trg.h"
 
 
 
@@ -64,9 +65,8 @@ init_trgsymtab()
 			fatal("Cannot read symbol table of %s",trgname);
 		i+= symbol.n_numaux;
 
-		/* make sure symbol is external */
-		if (symbol.n_sclass != C_EXT) 
-			continue;
+		if (symbol.n_sclass != C_EXT && symbol.n_sclass != C_STAT)
+		    continue;
 
 		if ((name= ldgetname(ldptr, &symbol)) == NULL)
 			fatal("Cannot get name of symbol in %s",trgname);
@@ -74,7 +74,8 @@ init_trgsymtab()
 		/* get a new structure for the target symbol hash table, trgsymtab,
 		 * and initialize it */
 		hval= hash(name,TRSIZ);
-		pstab= newstab(stralloc(name),(long)symbol.n_value, trgsymtab[hval]);
+		pstab= newstab(name,(long)symbol.n_value,
+			(long)symbol.n_sclass, trgsymtab[hval]);
 
 		/* Now put the new symbol entry in the hash table. */
 		trgsymtab[hval]=pstab;
@@ -202,12 +203,13 @@ long	idx;	/* index of object file in trgobjects */
 	/* Read in symbol and string tables.
 	 * First read in the string table. */
         (void)FSEEK(ldptr, STROFFSET(ldptr), 0);
-        if (FREAD( (char *)&strsize, 4, 1, ldptr) != 1)
+        if (FREAD( (char *)&strsize, sizeof(long), 1, ldptr) != 1)
                 strsize = 0;
         else {
                 if ((pobj->strtab = malloc((unsigned)strsize)) == NULL)
                         fatal("Out of space");
-                if (FREAD( (pobj->strtab)+4, (int)strsize-4, 1, ldptr) != 1)
+                if (FREAD( (pobj->strtab)+sizeof(long),
+				    (int)strsize-sizeof(long), 1, ldptr) != 1)
                         fatal("Cannot read string table of %s",onam);
         }
 
@@ -231,15 +233,21 @@ long	idx;	/* index of object file in trgobjects */
 			symptr->n_nptr= pobj->strtab + symptr->n_offset;
 	
 		/* now look at the defined symbols */
-		if (symptr->n_sclass == C_EXT && 
-				(symptr->n_scnum > 0 || symptr->n_scnum == N_ABS)) {
-			/* For each defined symbol, get its absolute address
-			 * (from trgsymtab) and add it to the archive
-		 	 * symbol table, arsymtab */
+		if (symptr->n_sclass == C_EXT &&
+			    (symptr->n_scnum > 0 || symptr->n_scnum == N_ABS)) {
+			long sclass, value;
+
 			name= getname(symptr);
-			symptr->n_scnum= N_ABS;	/* make the symbol absolute */
-			symptr->n_value= getabs(name);	/* get absolute value of
-							 * symbol from trgsymtab */
+			if (getsc(name, &sclass, &value) == -1)
+				fatal("symbol %s appears in input objects but not target\nThe target is out of sync with the supplied objects\n", name);
+			
+			if (sclass == C_STAT) {	/* static in the target */
+				symptr->n_sclass = C_STAT;
+				symptr->n_value = 0;
+			} else if (symptr->n_scnum > 0 || symptr->n_scnum == N_ABS) {
+				symptr->n_scnum = N_ABS; /* External, absolute */
+				symptr->n_value = value;
+			}
 
 			/* Stick symbol in archive symbol table, arsymtab.
 			/* First make sure symbol is not already defined. */
@@ -280,9 +288,19 @@ char	*fnam,
 {
 	char	*name;
 
-	if ((name= malloc((unsigned)(strlen(fnam) + strlen(suffix) + 2))) == NULL)
-		fatal("Out of space");
-	(void)sprintf(name,"%s.%s",fnam, suffix);
+	if (*fnam != '/')
+	{
+		if ((name= malloc((unsigned)(strlen(fnam) + strlen(suffix) + 3))) == NULL)
+			fatal("Out of space");
+		(void)sprintf(name,"%s[%s]",suffix,fnam);
+	}
+	else
+	{
+		if ((name= malloc((unsigned)(strlen(suffix) + 3))) == NULL)
+			fatal("Out of space");
+		(void)sprintf(name,"%s[]",suffix);
+	}
+		
 	return(name);
 }
 
@@ -305,12 +323,14 @@ char	*name;
 	symptr->n_numaux=0;
 }
 
-/* This routine gets the absolute address of a symbol as found in the target
- * shared library.  The routine looks up the symbol's value in trgsymtab.
+/* This routine provides the storage class and value of a
+ * symbol encountered in the target.
+ * Returns -1 if the symbol wasn't there, 0 if it was.
  */
-long
-getabs(name)
+int
+getsc(name,sclassp, valuep)
 char	*name;
+long *sclassp, *valuep;
 {
 	long	hval;
 	stab	*pstab;
@@ -319,10 +339,16 @@ char	*name;
 	pstab=trgsymtab[hval];
 	while (pstab != NULL) {
 		if (strcmp(pstab->name, name) == 0)
-			return(pstab->absaddr);
+		{
+			if (valuep)
+				*valuep = pstab->absaddr;
+			if (sclassp)
+				*sclassp = pstab->sclass;
+			return(0);	/* 0, name found in target */
+		}
 		pstab= pstab->next;
 	}
-	fatal("Target is out of synch with supplied objects");
+	return(-1);		/* -1, name not in target at all! */
 }
 
 
@@ -340,6 +366,10 @@ refchain()
 	char	*name;		/* name of current undefined symbol */
 	long	hval;		/* hash value of name in arsymtab */
 	long	nsyms;		/* number of symbols in current object */
+	usdef	*puslst;	/* Ptr to list of undefined symbols from target */
+	int	ss;		
+
+	extern	usdef	*lookus(); 	/* Look up an undefined symbol routine */
 
 	/* Scan through objects */
 	for (j=0; j<numobjs; j++) {
@@ -361,14 +391,47 @@ refchain()
 						break;
 					parstab= parstab->next;
 				}
+				/* Undefined symbol found */
 				if (parstab == NULL)
-					fatal("Undefined symbol %s in file %s not defined in archive",name,curobj->objname);
+				{
+					/* Look up in uslst created in target */
+					puslst = lookus(name);
+					if (puslst == NULL)
+						fatal("Undefined symbol %s in file %s should have been an undefined symbol in the target",name,curobj->objname);
+				/* Put each special symbol found in other object */
+				/* file into chainlst of current object file */
+					for (ss=0; ss<puslst->nobjdefs; ss++)
+					{
+						curobj->chainlst=merge(curobj->chainlst,puslst->objdefs[ss]);
+					}
+				}
+/*
+ * There are two cases: this undefined symbol is external and defined in the
+ * target, which means it will be an external symbol in some host object file;
+ * or, this undefined symbol is local to the target and we don't want to
+ * (get this) have it be an external to the host.
+ *
+ * In either case, we have to add the file definition symbol for the object
+ * in which the is defined, to preserve things like dependencies and .init
+ * and the like.
+ */
+				else
+				{
+					long sclass, value;
+					if (getsc(name, &sclass, &value) == -1)	/* not in target */
+						fatal("Reference to %s in one object file, but no such symbol was in the target.\nThe target is out of sync with the host.", name);
+					else if (sclass == C_STAT)	/* hidden in target */
+					{
+						symptr->n_sclass = C_STAT;
+						symptr->n_value = 0L;
+					} /* else, it's left as "undefined external" */
 
 				/* add the file definition symbol of the object in
 				 * which the undefined symbol is defined to the
 				 * chainlst of the current object */
-				curobj->chainlst= merge(curobj->chainlst,
+					curobj->chainlst= merge(curobj->chainlst,
 							parstab->objptr->fdefsym);
+				}
 			}
 	
 			i+= 1 + symptr->n_numaux;

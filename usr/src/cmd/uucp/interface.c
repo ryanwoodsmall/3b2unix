@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:interface.c	1.5"
+#ident	"@(#)uucp:interface.c	1.9"
 /*	interface( label )
 	provide alternate definitions for the I/O functions through global
 	interfaces.
@@ -47,12 +47,12 @@ static int	tread(), twrite(),	/* TLI i/o */
 static
   struct Interface {
 	char	*IN_label;		/* interface name */
-	int	(*IN_read)();		/* read fucntion */
-	int	(*IN_write)();		/* write fucntion */
-	int	(*IN_ioctl)();		/* ioctl fucntion */
-	int	(*IN_setup)();		/* setup fucntion, called before first
+	int	(*IN_read)();		/* read function */
+	int	(*IN_write)();		/* write function */
+	int	(*IN_ioctl)();		/* ioctl function */
+	int	(*IN_setup)();		/* setup function, called before first
 					i/o operation */
-	int	(*IN_teardown)();	/* teardown fucntion, called after last
+	int	(*IN_teardown)();	/* teardown function, called after last
 					i/o operation */
 } Interface[] = {
 			/* vanilla UNIX */
@@ -104,6 +104,7 @@ int	*fdreadp, *fdwritep;
 	{
 		*fdreadp = 0;
 		*fdwritep = 1;
+		/* 2 has been re-opened to RMTDEBUG in main() */
 	}
 	return(SUCCESS);
 }
@@ -123,10 +124,10 @@ uteardown( role, fdread, fdwrite )
 		DEBUG(4, "ret restline - %d\n", ret);
 		sethup(0);
 	}
-	if (fdwrite != -1) {
+	if (fdread != -1) {
 		ttyn = ttyname(fdread);
 		if (ttyn != NULL)
-			chmod(ttyn, 0644);	/* can fail, but who cares? */
+			chmod(ttyn, Dev_mode);	/* can fail, but who cares? */
 		(void) close(fdread);
 		(void) close(fdwrite);
 	}
@@ -147,7 +148,7 @@ int	role, fdread, fdwrite;
 	if ( role == MASTER ) {
 		ttyn = ttyname(fdread);
 		if ( ttyn != NULL )
-			chmod(ttyn, 0644);	/* can fail, but who cares? */
+			chmod(ttyn, Dev_mode);	/* can fail, but who cares? */
 	}
 
 	/*	must flush fd's for datakit	*/
@@ -175,26 +176,16 @@ int		fd;
 char		*buf;
 unsigned	nbytes;
 {
-	int		nreceived, rcvflags;
-	extern int	t_errno;
+	int		rcvflags;
 
-	t_errno = 0;
-	if ( t_getstate(fd) != T_DATAXFER ) {
-		tfaillog(fd, "tread: unexpected state\n");
-		return(FAIL);
-	}
-	t_errno = 0;
-	if ( (nreceived = t_rcv(fd, buf, nbytes, &rcvflags)) < 0 ) {
-		tfaillog(fd, "tread: t_rcv\n");
-		return(FAIL);
-	}
-	return(nreceived);
+	return(t_rcv(fd, buf, nbytes, &rcvflags));
 
 }
 
 /*
  *	twrite - tli write routine
  */
+#define	N_CHECK	100
 static
 int
 twrite(fd, buf, nbytes)
@@ -202,20 +193,40 @@ int		fd;
 char		*buf;
 unsigned	nbytes;
 {
-	int		nsent;
-	extern int	t_errno;
+	register int		i, ret;
+	static int		n_writ, got_info;
+	static struct t_info	info;
 
-	t_errno = 0;
-	if ( t_getstate(fd) != T_DATAXFER ) {
-		tfaillog(fd, "twrite: unexpected state\n");
-		return(FAIL);
+	if ( got_info == 0 ) {
+		if ( t_getinfo(fd, &info) != 0 ) {
+			tfaillog(fd, "twrite: t_getinfo\n");
+			return(FAIL);
+		}
+		got_info = 1;
 	}
-	t_errno = 0;
-	if ( (nsent = t_snd(fd, buf, nbytes, NULL)) < 0 ) {
-		tfaillog(fd, "twrite: t_snd\n");
+
+	/* on every N_CHECKth call, check that are still in DATAXFER state */
+	if ( ++n_writ == N_CHECK && t_getstate(fd) != T_DATAXFER )
 		return(FAIL);
+
+	if ( info.tsdu <= 0 || nbytes <= info.tsdu )
+		return(t_snd(fd, buf, nbytes, NULL));
+
+	/* if get here, then there is a limit on transmit size	*/
+	/* (info.tsdu > 0) and buf exceeds it			*/
+	i = ret = 0;
+	while ( nbytes >= info.tsdu ) {
+		if ( (ret = t_snd(fd,  &buf[i], info.tsdu, NULL)) != info.tsdu )
+			return( ( ret >= 0 ? (i + ret) : ret ) );
+		i += info.tsdu;
+		nbytes -= info.tsdu;
 	}
-	return(nsent);
+	if ( nbytes > 0 ) {
+		if ( (ret = t_snd(fd,  &buf[i], nbytes, NULL)) != nbytes )
+			return( ( ret >= 0 ? (i + ret) : ret ) );
+		i += nbytes;
+	}
+	return(i);
 }
 
 
@@ -244,9 +255,11 @@ int	*fdreadp, *fdwritep;
 	extern int	errno, t_errno;
 
 	if ( role == SLAVE ) {
-		*fdwritep = *fdreadp = 0;
+		*fdreadp = 0;
+		*fdwritep = 1;
+		/* 2 has been re-opened to RMTDEBUG in main() */
 		errno = t_errno = 0;
-		if ( t_sync( *fdreadp ) == -1 ) {
+		if ( t_sync(*fdreadp) == -1 || t_sync(*fdwritep) == -1 ) {
 			tfaillog(*fdreadp, "tsetup: t_sync\n");
 			return(FAIL);
 		}
@@ -287,7 +300,9 @@ int	*fdwritep;
 	extern int	getpop(), getpush();
 
 	if ( role == SLAVE ) {
-		*fdwritep = *fdreadp = 0;
+		*fdreadp = 0;
+		*fdwritep = 1;
+		/* 2 has been re-opened to RMTDEBUG in main() */
 		DEBUG(5, "tssetup: SLAVE mode: leaving ok\n", 0);
 		return(SUCCESS);
 	}

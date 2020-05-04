@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)ld:m32/special2.c	1.23"
+#ident	"@(#)ld:m32/special2.c	1.23.1.2"
 
 #include <stdio.h>
 
@@ -223,16 +223,9 @@ void
 adjaout(aout)
 AOUTHDR *aout;
 {
-	/*
-	 * Indicate, via the MAGIC NUMBER, when the data segment starts
-	 * on a m32 segment (512K bytes) boundary
-	 */
-
-	if( (aout->data_start & 0x7ffffL) == 0 )
-		aout->magic = (short) AOUT2MAGIC;
 }
 
-void
+int
 relocate(ifd, infl, isp, fdes, rdes, sect_buf, buffer_size)
 register LDFILE *ifd;
 INFILE *infl;
@@ -248,12 +241,12 @@ long buffer_size;
 	long sect_size, chunk_size, bytes_so_far;
 	long byte_offset, indx;
 	int reloc_read;
-
 	union
 	{
 		long	 l;
 		char	 c[4];
 	} value;
+	int offset = 0, numshlibs = 0;
 
 	vaddiff = isp->isnewvad - isp->ishdr.s_vaddr;
 	sect_size = isp->ishdr.s_size;
@@ -295,6 +288,11 @@ long buffer_size;
 		while (byte_offset > bytes_so_far + chunk_size)
 		{
 			bytes_so_far += chunk_size;
+			if ((isp->ishdr.s_flags & STYP_LIB) &&
+			   do_dotlib(&numshlibs, &offset, sect_buf, chunk_size))
+			   		lderror(2, 0, NULL, "Malformed .lib section %.8s of %s",
+					isp->ishdr.s_name, infl->flname);
+
 			fwrite( sect_buf, chunk_size, 1, fdes );
 			chunk_size = min( sect_size, buffer_size );
 			fseek( ifd, isp->ishdr.s_scnptr + bytes_so_far + infl->flfiloff, 0 );
@@ -309,6 +307,13 @@ long buffer_size;
 				   address is in buffer */
 		{
 			bytes_so_far += chunk_size - 4;
+
+			if ((isp->ishdr.s_flags & STYP_LIB) &&
+			   do_dotlib(&numshlibs, &offset, sect_buf, chunk_size - 4))
+			   		lderror(2, 0, NULL, "Malformed .lib section %.8s of %s",
+					isp->ishdr.s_name, infl->flname);
+
+
 			fwrite( sect_buf, chunk_size - 4, 1, fdes );
 			sect_buf[0] = sect_buf[chunk_size - 4];
 			sect_buf[1] = sect_buf[chunk_size - 3];
@@ -363,6 +368,12 @@ long buffer_size;
 
 	while (sect_size){
 		bytes_so_far += chunk_size;
+
+		if ((isp->ishdr.s_flags & STYP_LIB) &&
+		   do_dotlib(&numshlibs, &offset, sect_buf, chunk_size))
+		   		lderror(2, 0, NULL, "Malformed .lib section %.8s of %s",
+				isp->ishdr.s_name, infl->flname);
+
 		fwrite( sect_buf, chunk_size, 1, fdes );
 		chunk_size = min( sect_size, buffer_size );
 		fseek( ifd, infl->flfiloff + isp->ishdr.s_scnptr + bytes_so_far, 0 );
@@ -370,8 +381,17 @@ long buffer_size;
 			lderror( 2, 0, NULL, "cannot read section %.8s of %s", isp->ishdr.s_name, infl->flname );
 		sect_size -= chunk_size;
 		}
-	fwrite( sect_buf, chunk_size, 1, fdes ); 
 
+	if ((isp->ishdr.s_flags & STYP_LIB) &&
+	   do_dotlib(&numshlibs, &offset, sect_buf, chunk_size))
+	   		lderror(2, 0, NULL, "Malformed .lib section %.8s of %s",
+			isp->ishdr.s_name, infl->flname);
+
+	if (offset != 0)
+		lderror(2, 0, NULL, "Truncated section %.8s in %s",
+		isp->ishdr.s_name, infl->flname);
+	fwrite( sect_buf, chunk_size, 1, fdes ); 
+	return(numshlibs);
 }
 
 long

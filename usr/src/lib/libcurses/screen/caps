@@ -1,4 +1,4 @@
-#ident	"@(#)curses:screen/caps	1.7"
+#ident	"@(#)curses:screen/caps	1.17"
 # Be sure to add new capabilties at the END of the appropriate section!
 --- begin bool
 auto_left_margin,	"bw"	"bw"	cub1 wraps from column 0 to last column
@@ -27,6 +27,7 @@ prtr_silent,		"mc5i"	"5i"	Printer won't echo on screen.
 hard_cursor,		"chts"	"HC"	Cursor is hard to see.
 non_rev_rmcup,		"nrrmc"	"NR"	Smcup does not reverse rmcup.
 no_pad_char,		"npc"	"NP"	Pad character doesn't exist.
+non_dest_scroll_region,	"ndscr"	"ND"	Scrolling region is non-destructive.
 # Add new Booleans before this line.
 --- end bool
 
@@ -42,6 +43,11 @@ width_status_line,	"wsl"	"ws"	# columns in status line
 num_labels,		"nlab"	"Nl"	# of labels on screen (start at 1)
 label_height,		"lh"	"lh"	# rows in each label
 label_width,		"lw"	"lw"	# cols in each label
+max_attributes,		"ma"	"ma"	max combined video attributes terminal can display
+#
+#
+#
+maximum_windows,	"wnum"	"MW"	Maximum number of defineable windows
 # Add new numbers before this line.
 --- end num
 
@@ -284,7 +290,7 @@ key_f29,		"kf29"	"FJ"	KEY_F(29), 0445, function key f29.
 key_f30,		"kf30"	"FK"	KEY_F(30), 0446, function key f30.
 key_f31,		"kf31"	"FL"	KEY_F(31), 0447, function key f31.
 key_f32,		"kf32"	"FM"	KEY_F(32), 0450, function key f32.
-key_f33,		"kf33"	"FN"	KEY_F(13), 0451, function key f13.
+key_f33,		"kf33"	"FN"	KEY_F(33), 0451, function key f33.
 key_f34,		"kf34"	"FO"	KEY_F(34), 0452, function key f34.
 key_f35,		"kf35"	"FP"	KEY_F(35), 0453, function key f35.
 key_f36,		"kf36"	"FQ"	KEY_F(36), 0454, function key f36.
@@ -319,5 +325,32 @@ clr_bol,		"el1"	"cb"	Clear to beginning of line, inclusive
 clear_margins,		"mgc"	"MC"	Clear left and right soft margins
 set_left_margin,	"smgl"	"ML"	Set soft left margin
 set_right_margin,	"smgr"	"MR"	Set soft right margin
+label_format,		"fln"	"Lf"	Label format
+#
+#
+#
+set_clock,		"sclk"	"SC"	Set time-of-day clock
+display_clock,		"dclk"	"DK"	Display time-of-day clock
+remove_clock,		"rmclk"	"RC"	Remove time-of-day clock
+create_window,		"cwin"	"CW"	Define win #1 to go from #2,#3 to #4,#5
+goto_window,		"wingo"	"WG"	Got to window #1
+hangup,			"hup"	"HU"	Hang-up phone
+dial_phone,		"dial"	"DI"	Dial phone number #1
+quick_dial,		"qdial"	"QD"	Dial phone number #1, without progress detection
+tone,			"tone"	"TO"	Select touch tone dialing
+pulse,			"pulse"	"PU"	Select pulse dialing
+flash_hook,		"hook"	"fh"	Flash the switch hook
+fixed_pause,		"pause"	"PA"	Pause for 2-3 seconds
+wait_tone,		"wait"	"WA"	Wait for dial tone
+user0,			"u0"	"u0"	User string 0
+user1,			"u1"	"u1"	User string 1
+user2,			"u2"	"u2"	User string 2
+user3,			"u3"	"u3"	User string 3
+user4,			"u4"	"u4"	User string 4
+user5,			"u5"	"u5"	User string 5
+user6,			"u6"	"u6"	User string 6
+user7,			"u7"	"u7"	User string 7
+user8,			"u8"	"u8"	User string 8
+user9,			"u9"	"u9"	User string 9
 # Add new strings before this line.
 --- end str

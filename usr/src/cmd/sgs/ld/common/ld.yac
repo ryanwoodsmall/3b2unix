@@ -1,5 +1,5 @@
 %{
-#ident	"@(#)ld:common/ld.yac	1.19"
+#ident	"@(#)ld:common/ld.yac	1.20"
 #include "system.h"
 #include <stdio.h>
 #include "bool.h"
@@ -55,6 +55,9 @@ static secnum;					/* number of sections */
 static char *fnamptr;				/* latest input file name */
 static int nsecspcs, fillflag;			/* parsing status flags */
 static ACTITEM *aiptr, *afaiptr, *grptr;	/* pointers to action items */
+
+enum scope scope_directive = __undefined;/* hide or export */
+
 extern char *curfilnm;				/* name of current ifile */
 
 #if TRVEC
@@ -135,7 +138,8 @@ static int tempi;				/* temporary int */
 %token <ivalue> COMMN	63
 %token <ivalue> LSQBRACK 64
 %token <ivalue> RSQBRACK 65
-
+%token <ivalue> EXPORT 66
+%token <ivalue> HIDE 67
 
 
 %type <enode>	assnment	/* link value types with nonterminals */
@@ -193,6 +197,7 @@ cmd:		regspecs
 		| memspecs
 		| tvspecs
 		| secspecs
+		| changescope
 		| assnment = {
 			bldexp($1, &explist);
 			}
@@ -250,6 +255,23 @@ rgnspc:		NAME COLON ORG EQ LONGINT com LEN EQ LONGINT com vaddr = {
 			}
 		| error = {
 			yyerror("REGIONS specification ignored");
+			}
+		;
+
+changescope:	scopehead LBRACE RBRACE = {
+			scope_directive = __undefined;
+			}
+		| scopehead error RBRACE = {
+			yyerror("Error in scope directive, skipping past '}'");
+			scope_directive = __undefined;
+			}
+		;
+
+scopehead:	HIDE = {
+			scope_directive = __hidden;
+			}
+		| EXPORT = {
+			scope_directive = __exported;;
 			}
 		;
 

@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident "@(#)vi:port/ex_put.c	1.11"
+#ident "@(#)vi:port/ex_put.c	1.13"
 
 #include "ex.h"
 #include "ex_tty.h"
@@ -81,11 +81,10 @@ listchar(c)
 		break;
 
 	default:
-		if (c & QUOTE)
+		if(c & QUOTE)
 			break;
 		if (c < ' ' && c != '\n' || c == DELETE)
 			outchar('^'), c = ctlof(c);
-		break;
 	}
 	normchar(c);
 }
@@ -119,7 +118,13 @@ normchar(c)
 		}
 	else if (c < ' ' && (c != '\b' || !over_strike) && c != '\n' && c != '\t' || c == DELETE)
 		putchar('^'), c = ctlof(c);
-	else if (UPPERCASE)
+	else if (c >= 0200 && !isprint(c)) {
+		outchar('\\');
+		outchar(((c >> 6) & 07) + '0');
+		outchar(((c >> 3) & 07) + '0');
+		outchar((c & 07) + '0');
+		return;
+	} else if (UPPERCASE)
 		if (isupper(c)) {
 			outchar('\\');
 			c = tolower(c);
@@ -200,8 +205,8 @@ slobber(c)
  * The output buffer is initialized with a useful error
  * message so we don't have to keep it in data space.
  */
-static	char linb[66];
-char *linp = linb;
+static	short linb[66];
+short *linp = linb;
 
 /*
  * Phadnl records when we have already had a complete line ending with \n.
@@ -258,7 +263,7 @@ flush()
  */
 flush1()
 {
-	register char *lp;
+	register short *lp;
 	register short c;
 
 	*linp = 0;
@@ -782,7 +787,7 @@ putch(c)
 	if(c == '\n')	/* Fake "\n\r" for '\n' til fix in 3B firmware */
 		putch('\r');	/* vi does "stty -icanon" => -onlcr !! */
 #endif
-	*obp++ = c & 0177;
+	*obp++ = c;
 	if (obp >= &obuf[sizeof obuf])
 		flusho();
 }

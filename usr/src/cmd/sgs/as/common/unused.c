@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:common/unused.c	1.5"
+#ident	"@(#)as:common/unused.c	1.6.1.1"
 
 #if AR32W || AR32WR
 /*
@@ -30,7 +30,8 @@
 #include "scnhdr.h"
 #include "syms.h"
 
-#define TABLESZE	NSYMS
+extern unsigned short numsyms;
+#define TABLESZE	numsyms
 #define ENDNDX	x_sym.x_fcnary.x_fcn.x_endndx
 #define TAGNDX	x_sym.x_tagndx
 #define LNNOPTR	x_sym.x_fcnary.x_fcn.x_lnnoptr
@@ -407,7 +408,7 @@ reduce( symbols, output )
 							aux.ENDNDX -= removed;
 							if (!dlflag)
 							{
-								aux.LNNOPTR += sect_lnnoptrs[sym.n_scnum - 1];
+								aux.LNNOPTR += sect_lnnoptrs[sym.n_scnum];
 								if (fseek( fdtmp, aux.LNNOPTR, 0 ) != 0)
 									return( ERROR );
 								symndx = index - removed;
@@ -530,14 +531,14 @@ adjust_obj( nsyms )
 		{
 			for (i=0; i < scnptr->s_nreloc; i++, n += RELSZ)
 			{
-				if (fseek( fdout, n, 0 ) != 0)
+				if (fseek( fdout, (long) n, 0 ) != 0)
 					return( ERROR );
 				if (fread((char *)&reloc,RELSZ,1,fdout) != 1)
 					return( ERROR );
 				if ((entry = lookup(reloc.r_symndx)) == NULL)
 					return( ERROR );
 				reloc.r_symndx = entry->t_new_index;
-				if (fseek(fdout,n,0) != 0)
+				if (fseek(fdout,(long) n,0) != 0)
 					return( ERROR );
 				fwrite((char *)&reloc,RELSZ,1,fdout);
 			}

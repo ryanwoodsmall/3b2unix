@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libc-port:print/doprnt.c	3.10"
+#ident	"@(#)libc-port:print/doprnt.c	3.11"
 
 /*LINTLIBRARY*/
 /*
@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <varargs.h>
+#include <nan.h>
 #include <values.h>
 #include "print.h"	/* parameters & macros for doprnt */
 

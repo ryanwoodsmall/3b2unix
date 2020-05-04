@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)rm:rm.mk	1.1"
+#ident	"@(#)rm:rm.mk	1.2"
 
 #	Makefile for rm
 
@@ -56,7 +56,7 @@ clean:
 	rm -f $(OBJECTS)
 
 clobber:
-	rm -f $(OBJECTS)
+	rm -f $(OBJECTS) $(MAINS)
 
 newmakefile:
 	makefile -m -f $(MAKEFILE)  -s INC $(INC)

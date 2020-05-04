@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/tic_main.c	1.5"
+#ident	"@(#)curses:screen/tic_main.c	1.7"
 /*********************************************************************
 *                         COPYRIGHT NOTICE                           *
 **********************************************************************
@@ -74,6 +74,8 @@ char	*argv[];
 
 	debug_level = 0;
 	progname = argv[0];
+
+	umask(022);
 
 	for (i=1; i < argc; i++)
 	{
@@ -189,8 +191,8 @@ char dirletter;
 	    dir[0] = dirletter;
 	    if (stat(dir, &statbuf) < 0)
 	    {
-		mkdir(dir);
-		chmod(dir, 0755);
+		if (mkdir(dir, 0755) < 0)
+		    syserr_abort("mkdir %s returned bad status", dir);
 		dirnames[dirletter] = 1;
 	    }
 	    else if (access(dir, 7) < 0)
@@ -210,36 +212,41 @@ char dirletter;
 	}
 }
 
+#include <curses.h>
+#include <signal.h>
+#if (defined(SYSV) || defined(USG)) && !defined(SIG_POLL)
 /*
- *	mkdir(dirname)
+ *	mkdir(dirname, mode)
  *
  *	forks and execs the mkdir program to create the given directory
  *
  */
 
-mkdir(dirname)
+mkdir(dirname, mode)
 char	*dirname;
+int mode;
 {
-	int	fork_rtn;
-	int	status;
+    int	fork_rtn;
+    int	status;
 
-	fork_rtn = fork();
+    fork_rtn = fork();
 
-	switch (fork_rtn)
+    switch (fork_rtn)
 	{
-	    case 0:		/* Child */
-		execl("/bin/mkdir", "mkdir", dirname, 0);
-		exit(1);
+	case 0:		/* Child */
+	    (void) execl("/bin/mkdir", "mkdir", dirname, (char*)0);
+	    _exit(1);
 
-	    case -1:		/* Error */
-		fprintf(stderr, "%s: SYSTEM ERROR!! Fork failed!!!\n",
+	case -1:	/* Error */
+	    fprintf(stderr, "%s: SYSTEM ERROR!! Fork failed!!!\n",
 				progname);
-		abort();
+	    exit(1);
 
-	    default:
-		wait(&status);
-		if (status != 0)
-		    syserr_abort("mkdir returned bad status");
-		break;
+	default:
+	    (void) wait(&status);
+	    if ((status != 0) || (chmod(dirname, mode) == -1))
+		return -1;
+	    return 0;
 	}
 }
+#endif

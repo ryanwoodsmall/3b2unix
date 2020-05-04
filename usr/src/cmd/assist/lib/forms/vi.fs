@@ -1,23 +1,28 @@
 #ident	"@(#)forms.files:vi.fs	1.5"
 00000vi
 00701060030FILE NAME(S):
-01703060001DO THIS "ex" COMMAND AS THE FIRST COMMAND [+]:
+01703060001DO THIS "ex" COMMAND AS THE FIRST COMMAND [-c]:
 02705060101SET READ-ONLY MODE [-R] (y/n):
 03707060101DEFAULT WINDOW SIZE [-w]:
 04709060001EDIT THE FILE SPECIFIED BY THE TAG [-t]:
-05711060101ENCRYPTION MODE [-x] (y/n):
-06014020000RECOVER WORK SAVED IN SYSTEM CRASH
-07715060001RECOVER FILE SAVED IN SYSTEM CRASH [-r]:
-08716060101LIST ALL FILES SAVED IN SYSTEM CRASH [-r] (y/n):
+05912020000RECOVER WORK SAVED IN SYSTEM CRASH
+06714060001EDIT FILE SAVED IN SYSTEM CRASH [-r]:
+07716060101LIST ALL FILES SAVED IN SYSTEM CRASH [-L] (y/n):
+08919020030ENCRYPTION/DECRYPTION OF FILES
+09021060030READ IN FILE ASSUMING FILE IS ENCRYPTED AND
+10722080101WRITE OUT FILE IN ENCRYPTED FORM [-C] (y/n):
+11024060030READ IN FILE HAVING "vi" MAKE EDUCATED GUESS TO SEE IF
+12725080101FILE IS ENCRYPTED AND WRITE OUT FILE IN ENCRYPTED FORM [-x] (y/n):
 
 00090
 01020+
 02030-R
 03040-wset `/bin/stty`;if test $2 -gt 1200;then /bin/echo 23;elif test $2 -gt 300;then /bin/echo 16;else /bin/echo 5;fi
 04050-t 
-05060-x
-07070-r 
-08080-r
+06070-r 
+07080-r
+10060
+12060-x
 
 "vi" is an interactive command.
 Use the command :q!<CR> to exit "vi" without saving your editing changes.
@@ -36,13 +41,13 @@ scripts.
 the editing session.  ASSIST does not check whether your expression is
 a valid "ex" command. 
 
-USE single quotes around the expression you enter. 
+Use single quotes around the expression you enter. 
 
 For example, suppose the file "mary" contains the rhyme "Mary Had a
 Little Lamb." Entering '/everywhere/' in this "ex" field would
 position the cursor on the third line ("and everywhere that ...") of
 the file "mary" instead of the first line.  Entering the "ex" command
-'g/Mary/s/Mary/Sally/' would edit the file to read "Sally had ..' [+]
+'g/Mary/s/Mary/Sally/' would edit the file to read "Sally had ..' [-c]
 02If you enter "y" in this field, you will be able to read a file
 in "vi", but you will not be able to write your editing changes back
 to the file.  Use this option to prevent any accidental overwriting
@@ -61,56 +66,83 @@ For example, if the tags file contains the line: ev mary /everywhere/
 then entering the tag ev in this field would cause "vi" to read in the
 file named "mary" for editing, and would position the cursor on the line
 "and everywhere that ..."   [-t]
-05This is the encryption option.  Entering "y" in this field will cause 
-"vi" to encrypt your file as it is being written.  You will need an 
-encryption key to read the file.  Use ASSIST's command form for the 
-"crypt" command to learn more about encrypting files.  [-x]
-07"vi" tries to save work that was in progress when your system crashed.
+06"vi" tries to save work that was in progress when your system crashed.
 To recover that work, type the name of the file here.
-08Type a "y" here to see a list of files that "vi" has saved during
-system crashes.
+07Type a "y" here to see a list of files that "vi" has saved during
+system crashes [-L] .
+10You use a "vi" encryption option if you want to encode the
+file you are creating so that other people cannot read the
+file unless they know your encryption key.  You also use an
+encryption option to read files that you have previously
+encrypted.  When you execute the "vi" command, "vi" will
+prompt you for an encryption keyword.  Use ASSIST's command
+form for the "crypt" command to learn more about encrypting
+files. 
+
+The "-C" encryption option assumes that the files named are
+encrypted.  [-C]
+12You use a "vi" encryption option if you want to encode the
+file you are creating so that other people cannot read the
+file unless they know your encryption key.  You also use an
+encryption option to read files that you have previously
+encrypted.  When you execute the "vi" command, "vi" will
+prompt you for an encryption keyword.  Use ASSIST's command
+form for the "crypt" command to learn more about encrypting
+files. 
+
+The "-x" encryption option does not assume that the file
+named is encrypted.  Instead, it examines the contents of
+the file and tries to make an intelligent decision as to
+whether or not the file is encrypted.  [-x]
 
-000708
-0108
-0208
-0308
-0408
-0508
-070800
-0807000102030405
+000706
+0107
+0207
+0307
+0407
+060700
+070102030412001006
+101207
+121007
 
 
 020537n
 030732set `/bin/stty`;if test $2 -gt 1200;then /bin/echo 23;elif test $2 -gt 300;then /bin/echo 16;else /bin/echo 5;fi
-051134n
-081655n
+071655n
+102253n
+122575n
 
-0005
 0013
+0005
 0105
 0217yYnN
-0205
 0204yYnN
+0205
 0308
 0305
 0432if test ! -r tags && test ! -r /usr/lib/tags; then /bin/echo "Cannot find tags file";fi
 0405
-0517yYnN
-0505
-0504yYnN
+0605
+0704yYnN
 0705
-0805
-0804yYnN
+1004yYnN
+1005
+1204yYnN
+1205
 
 
 001110
-011010+
+011010-c 
 021011y-RY-RnN
 031010-wset `/bin/stty`;if test $2 -gt 1200;then /bin/echo 23;elif test $2 -gt 300;then /bin/echo 16;else /bin/echo 5;fi
 041010-t
-051011y-xY-xnN
-071010-r
-081011y-rY-rnN
+061010-r 
+071011y-LY-LnN
+081110
+091110
+101011y-CY-CnN
+111110
+121011y-xY-xnN
 
 
 

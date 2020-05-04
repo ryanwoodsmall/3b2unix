@@ -10,7 +10,7 @@
 	LUM	mentioned somewhere other than at the declaration
 	LDS	defined static object (like LDI)
 	*/
-#ident	"@(#)lint:lmanifest	1.6"
+#ident	"@(#)lint:lmanifest	1.8"
 # define LDI 01
 # define LIB 02
 # define LDC 04

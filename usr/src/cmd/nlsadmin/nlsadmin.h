@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)nlsadmin:nlsadmin.h	1.6"
+#ident	"@(#)nlsadmin:nlsadmin.h	1.8"
 
 #include "sys/param.h"
 /*
@@ -16,9 +16,9 @@
  * stuff from lsdbf.h
  */
 
-#define DBFCOMMENT      '#'     /* end of line comment char     */
-#define DBFWHITESP      " \t"	/* space, tab: white space      */
-#define DBFTOKENS       " \t:"	/* space, tab, cmnt token seps  */
+#define DBFCOMMENT      '#'     /* end of line comment char */
+#define DBFWHITESP      " \t"	/* space, tab: white space */
+#define DBFTOKENS       " \t:"	/* space, tab, cmnt token seps */
 #define SVC_CODE_SZ	16
 
 /*
@@ -26,30 +26,33 @@
  */
 
 #define DBF_ADMIN       0x01
-#define DBF_OFF	 0x02	    /* service is turned off	*/
-#define DBF_UNKNOWN     0x80	    /* indicates unkown flag character */
+#define DBF_OFF	 0x02		/* service is turned off */
+#define DBF_UNKNOWN     0x80	/* indicates unknown flag character */
 
 /*
  * service code parameters
  */
 
-#define DBF_INT_CODE    1	       /* intermediary proc svc code   */
-#define DBF_SMB_CODE    2	       /* MS-NET server proc svc code  */
+#define DBF_INT_CODE    1	/* intermediary proc svc code */
+#define DBF_SMB_CODE    2	/* MS-NET server proc svc code */
 
-#define N_DBF_ADMIN     2	       /* no. of admin entries	 */
-#define MIN_REG_CODE    101	     /* min normal service code      */
+#define N_DBF_ADMIN     2	/* no. of admin entries */
+#define MIN_REG_CODE    101	/* min normal service code */
 
 /*
  * stuff from lsparam.h
  */
 
-#define DBFLINESZ       BSIZE	   /* max line size in data base   */
+#define DBFLINESZ       BSIZE	/* max line size in data base */
 #define MAXNAMESZ	15
 
-#define PIDNAME "pid"		   /* listener's process id's      */
-#define DBFNAME "dbf"		   /* listener data base file      */
-#define LSUIDNAME	"listen"
-#define LSGRPNAME	"adm"
+#define VERSION	2		/* current database version */
+#define DEFAULTID	"listen"	/* default id for servers */
+#define PIDNAME "pid"		/* listener's process id's */
+#define DBFNAME "dbf"		/* listener data base file */
+#define LSUIDNAME	"root"
+#define LSGRPNAME	"sys"
+#define HOMEDIR	"/usr/net/nls"	/* root directory for listener files */
 
 /*
  * stuff from listen.h
@@ -136,6 +139,9 @@ extern int lockf();
 #define NLSEXEC		27		/* could not exec listener */
 #define NLSBUSY		28		/* tempfile busy */
 #define NLSNOTF		29		/* net_spec not found */
+#define NLSNOTUNIQ	30		/* listen addresses not unique */
+#define NLSVER		31		/* database file not current version */
+#define NLSDBFBAD	32		/* database file is corrupt */
 
 /* other defines */
 

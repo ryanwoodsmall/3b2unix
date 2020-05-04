@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/t_getinfo.c	1.4"
+#ident	"@(#)libnsl:nsl/t_getinfo.c	1.4.1.1"
 #include "sys/errno.h"
 #include "sys/types.h"
 #include "sys/stream.h"
@@ -19,7 +19,7 @@
 
 extern int t_errno;
 extern int errno;
-extern (*sigset())();
+extern void (*sigset())();
 
 t_getinfo(fd, info)
 int fd;
@@ -27,7 +27,7 @@ register struct t_info *info;
 {
 	struct T_info_ack inforeq;
 	int retlen;
-	int (*sigsave)();
+	void (*sigsave)();
 
 	if (_t_checkfd(fd) == 0)
 		return(-1);

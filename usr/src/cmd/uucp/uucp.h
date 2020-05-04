@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:uucp.h	2.7"
+#ident	"@(#)uucp:uucp.h	2.11"
 
 #include "parms.h"
 
@@ -158,6 +158,7 @@
 #define SQTIME		60
 #define TRYCALLS	2	/* number of tries to dial call */
 #define MINULIMIT	(1L<<11)	/* minimum reasonable ulimit */
+#define	MAX_LOCKTRY	5	/* number of attempts to lock device */
 
 /*
  * CDEBUG is for communication line debugging 
@@ -209,6 +210,17 @@
 #define	SIZEOFPID	10		/* maximum number of digits in a pid */
 #define EOTMSG "\004\n\004\n"
 #define CALLBACK 1
+
+/* manifests for sysfiles.c's sysaccess()	*/
+/* check file access for REAL user id */
+#define	ACCESS_SYSTEMS	1
+#define	ACCESS_DEVICES	2
+#define	ACCESS_DIALERS	3
+/* check file access for EFFECTIVE user id */
+#define	EACCESS_SYSTEMS	4
+#define	EACCESS_DEVICES	5
+#define	EACCESS_DIALERS	6
+
 
 /* manifest for chkpth flag */
 #define CK_READ		0
@@ -339,6 +351,8 @@ extern int Ifn, Ofn;
 extern int Debug, Verbose;
 extern int Bspeed;
 extern int Uid, Euid;		/* user-id and effective-uid */
+extern int Ulimit;
+extern ushort Dev_mode;		/* save device mode here */
 extern char Wrkdir[];
 extern long Retrytime;
 extern char **Env;

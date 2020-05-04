@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:uux.c	2.3"
+#ident	"@(#)uucp:uux.c	2.5"
 
 #include "uucp.h"
 
@@ -29,8 +29,8 @@ char	_Grade = 'N';
 /*
  *	uux
  */
-main(argc, argv)
-char *argv[];
+main(argc, argv, envp)
+char *argv[], *envp[];
 {
 	FILE *fprx = NULL, *fpc = NULL, *fpd = NULL, *fp = NULL;
 	extern onintr();
@@ -69,6 +69,9 @@ char *argv[];
 	Euid = geteuid();	/* this should be UUCPUID */
 	if (Uid == 0)
 	    setuid(UUCPUID);
+
+/* init environment for fork-exec */
+	Env = envp;
 
 	/* choose LOGFILE */
 	(void) strcpy(Logfile, LOGUUX);
@@ -225,9 +228,9 @@ char *argv[];
 	 */
 	ap = inargs;
 	xsys[0] = '\0';
-	while ((ap = getprm(ap, prm)) != NULL) {
+	while ((ap = getprm(ap, NULL, prm)) != NULL) {
 		if (prm[0] == '>' || prm[0] == '<') {
-			ap = getprm(ap, prm);
+			ap = getprm(ap, NULL, prm);
 			continue;
 		}
 
@@ -390,7 +393,7 @@ char *argv[];
 	 * parse command
 	 */
 	ap = inargs;
-	while ((ap = getprm(ap, prm)) != NULL) {
+	while ((ap = getprm(ap, NULL, prm)) != NULL) {
 		DEBUG(4, "prm - %s\n", prm);
 
 		/*

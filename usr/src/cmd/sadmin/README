@@ -1,4 +1,4 @@
-	@(#)sadmin:README	2.3	/sccs/src/cmd/sadmin/s.README
+	@(#)sadmin:README	2.3.1.1	/sccs/src/cmd/sadmin/s.README
 	Simple Administration (sadmin) software
 
 UPDATING A PREVIOUSLY INSTALLED SIMPLE ADMINISTRATION
@@ -87,7 +87,7 @@ etc/inittab must have the following entries:
 	RB:6:wait:echo Automatic Reboot >/dev/console 2>&1
 	rb:6:wait:/etc/uadmin 2 1 >/dev/console 2>&1	# reboot
 	su:1:wait:/etc/shutdown -is -y -g0 </dev/console >/dev/console 2>&1	# go to single user mode
-3B5 ONLY!!!!
+3B15 ONLY!!!!
 	s2:2:wait:/etc/rc2 >/dev/console 2>&1 </dev/console
 	fl:056:wait:/etc/restart -f >/dev/console 2>&1 </dev/console
 	s0:056:wait:/etc/rc0 >/dev/console 2>&1 </dev/console

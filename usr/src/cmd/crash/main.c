@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)crash-3b2:main.c	1.18"
+#ident	"@(#)crash-3b2:main.c	1.18.2.2"
 /*
  * This file contains code for the crash functions:  ?, help, redirect,
  * and quit, as well as the command interpreter.
@@ -71,9 +71,9 @@ struct func {
 };
 
 /* function table */
-/* entries with NA description fields should be removed in 3.1 */
+/* entries with NA description fields should be removed in next release */
 struct func functab[] = {
-	"adv","[-e] [-p] [-wfilename] [tbl_entry[s]]",
+	"adv","[-e] [-wfilename] [[-p] tbl_entry[s]]",
 		getadv,"advertise table",
 	"b"," ",getbuffer,"(buffer)",
 	"base","[-wfilename] number[s]",
@@ -81,7 +81,7 @@ struct func functab[] = {
 	"buf"," ",getbufhdr,"(bufhdr)",
 	"buffer","[-wfilename] [-b|-c|-d|-x|-o|-i|-r] (bufferslot |[-p] st_addr)",
 		getbuffer,"buffer data",
-	"bufhdr","[-f] [-p] [-wfilename] [tbl_entry[s]]",
+	"bufhdr","[-f] [-wfilename] [[-p] tbl_entry[s]]",
 		getbufhdr,"buffer headers",
 	"c"," ",getcallout,"(callout)",
 	"callout","[-wfilename]",
@@ -90,7 +90,7 @@ struct func functab[] = {
 		getdballoc,"dballoc table",
 	"dbfree","[-wfilename] [class[es]]",
 		getdbfree,"free data block headers",
-	"dblock","[-e] [-p] [-wfilename] ([-c class[es] | tbl_entry[s]])",
+	"dblock","[-e] [-wfilename] ([-c class[es] | [-p] tbl_entry[s]])",
 		getdblk,"allocated stream data block headers",
 	"defproc","[-wfilename] [-c | slot]",
 		getdefproc,"set default process slot",
@@ -99,27 +99,27 @@ struct func functab[] = {
 	"ds","[-wfilename] virtual_address[es]",
 		getsymbol,"data address namelist search",
 	"f"," ",getfile,"(file)",
-	"file","[-e] [-p] [-wfilename] [tbl_entry[s]]",
+	"file","[-e] [-wfilename] [[-p] tbl_entry[s]]",
 		getfile,"file table",
 	"findaddr","[-wfilename] table slot",
 		getfindaddr,"find address for given table and slot",
 	"findslot","[-wfilename] virtual_address[es]",
 		getfindslot,"find table and slot number for given address",
-	"fs","[-p] [-wfilename] [tbl_entry[s]]",
+	"fs","[-wfilename] [[-p] tbl_entry[s]]",
 		getfs,"file system information table",
-	"gdp","[-e] [-f] [-p] [-wfilename] [tbl_entry[s]]",
+	"gdp","[-e] [-f] [-wfilename] [[-p] tbl_entry[s]]",
 		getgdp,"gdp structure",
 	"help","[-wfilename] function[s]",
 		gethelp,"help function",
 	"i"," ",getinode,"(inode)",
-	"inode","[-e] [-f] [-p] [-wfilename] [tbl_entry[s]]",
+	"inode","[-e] [-f] [-wfilename] [[-p] tbl_entry[s]]",
 		getinode,"inode table",
 	"kfp","[-wfilename] [-sprocess] [-r | value]",
 		getkfp,"frame pointer for start of stack trace",
 	"l"," ",getlcks,"(lck)",
-	"lck","[-e] [-p] [-wfilename] [tbl_entry[s]]",
+	"lck","[-e] [-wfilename] [[-p] tbl_entry[s]]",
 		getlcks,"record lock tables",
-	"linkblk","[-e] [-p] [-wfilename] [tbl_entry[s]]",
+	"linkblk","[-e] [-wfilename] [[-p] tbl_entry[s]]",
 		getlinkblk,"linkblk table",
 	"m"," ",getmount,"(mount)",
 	"major","[-wfilename] [entry[ies]]",
@@ -128,71 +128,71 @@ struct func functab[] = {
 		getmap,"map structures",
 	"mbfree","[-wfilename]",
 		getmbfree,"free message block headers",
-	"mblock","[-e] [-p] [-wfilename] [tbl_entry[s]]",
+	"mblock","[-e] [-wfilename] [[-p] tbl_entry[s]]",
 		getmess,"allocated stream message block headers",
 	"mmu","[-wfilename]",
 		getmmu,"mmu registers",
 	"mode","[-wfilename] [v | p]",
 		getmode,"address mode",
-	"mount","[-e] [-p] [-wfilename] [tbl_entry[s]]",
+	"mount","[-e] [-wfilename] [[-p] tbl_entry[s]]",
 		getmount,"mount table",
 	"nm","[-wfilename] symbol[s]",
 		getnm,"name search",
 	"nvram","[-wfilename] fwnvr|unxnvr|systate|errlog",
 		getnvram,"non-volatile RAM",
-	"od","[-p] [-wfilename] [-c|-d|-x|-o|-a|-h] [-l|-t|-b] [-sprocess] st_addr [count]",
+	"od","[-wfilename] [-c|-d|-x|-o|-a|-h] [-l|-t|-b] [-sprocess] [-p] st_addr [count]",
 		getod,"dump symbol values",
 	"p"," ",getproc,"(proc)",
-	"pcb","[-p] [-wfilename] [[-u | -k] [process] | -i st_addr]",
+	"pcb","[-wfilename] [[-u | -k] [process] | -i [-p] st_addr]",
 		getpcb,"process control block",
 	"pdt","[-e] [-wfilename] [-sprocess] (section segment|[-p] st_addr [count])",
 		getpdt,"page descriptor tables",
-	"pfdat","[-e] [-p] [-wfilename] [tbl_entry[s]]",
+	"pfdat","[-e] [-wfilename] [[-p] tbl_entry[s]]",
 		getpfdat,"pfdat structure",
-	"proc","[-f] [-wfilename] [([-p] tbl_entry | #procid)[s] | -r)]",
+	"proc","[-e] [-f] [-wfilename] [([-p] tbl_entry | #procid)[s] | -r)]",
 		getproc,"process table",
 	"q"," ",getquit,"(quit)",
 	"qrun","[-wfilename]",
 		getqrun,"list of servicable stream queues",
-	"queue","[-e] [-p] [-wfilename] [tbl_entry[s]]",
+	"queue","[-e] [-wfilename] [[-p] tbl_entry[s]]",
 		getqueue,"allocated stream queues",
 	"quit"," ",
 		getquit,"exit",
-	"rcvd","[-e] [-f] [-p] [-wfilename] [tbl_entry[s]]",
+	"rcvd","[-e] [-f] [-wfilename] [[-p] tbl_entry[s]]",
 		getrcvd,"receive descriptor",
 	"rd"," ",getod,"(od)",
 	"redirect","[-wfilename] [-c | filename]",
 		getredirect,"output redirection",
-	"region","[-e] [-f] [-p] [-wfilename] [tbl_entry[s]]",
+	"region","[-e] [-f] [-wfilename] [[-p] tbl_entry[s]]",
 		getregion,"region table",
 	"regs"," ",getmmu,"(mmu)",
 	"s"," ",getstack,"(stack)",
 	"sdt","[-e] [-wfilename] [-sprocess] (section |[-p] st_addr [count])",
 		getsdt,"segment descriptor table",
-	"search","[-p] [-wfilename] [-mmask] [-sprocess] pattern st_addr length",
+	"search","[-wfilename] [-mmask] [-sprocess] pattern [-p] st_addr length",
 		getsearch,"memory search",
 	"size","[-x] [-wfilename] structurename[s]",
 		getsize,"symbol size",
-	"sndd","[-e] [-p] [-wfilename] [tbl_entry[s]]",
+	"sndd","[-e] [-f] [-wfilename] [[-p] tbl_entry[s]]",
 		getsndd,"send descriptor",
 	"srams","[-wfilename]",
 		getsrams,"srams",
-	"srmount","[-e] [-p] [-wfilename] [tbl_entry[s]]",
+	"srmount","[-e] [-wfilename] [[-p] tbl_entry[s]]",
 		getsrmount,"server mount table",
-	"stack","[-p] [-wfilename] [[-u | -k] [process] | -i st_addr]",
+	"stack","[-wfilename] [[-u | -k] [process] | -i [-p] st_addr]",
 		getstack,"stack dump",
 	"stat","[-wfilename]",
 		getstat,"dump statistics",
-	"stream","[-e] [-f] [-p] [-wfilename] [tbl_entry[s]]",
+	"stream","[-e] [-f] [-wfilename] [[-p] tbl_entry[s]]",
 		getstream,"allocated stream table slots",
 	"strstat","[-wfilename]",
 		getstrstat,"streams statistics",
 	"t"," ",gettrace,"(trace)",
-	"trace","[-p] [-wfilename] [[-r] [process] | -i st_addr]",
+	"trace","[-wfilename] [[-r] [process] | -i [-p] st_addr]",
 		gettrace,"kernel stack trace",
 	"ts","[-wfilename] virtual_address[es]",
 		getsymbol,"text address namelist search",
-	"tty","[-e] [-f] [-p] [-wfilename] [-ttype [tbl_entry[s]] | st_addr]",
+	"tty","[-e] [-f] [-wfilename] [-ttype [[-p] tbl_entry[s]] | [-p] st_addr]",
 		gettty,"tty structures (valid types: pp, iu)",
 	"u"," ",getuser,"(user)",
 	"user","[-f] [-wfilename] [process]",
@@ -252,11 +252,11 @@ char **argv;
 		exit(1);
 	fp = stdout;
 	strcpy(outfile,"stdout");
-	optind = 1;		/* remove in 3.1 */
+	optind = 1;		/* remove in next release */
 	opterr = 0;		/* suppress getopt error messages */
 
 	for(tabsize = 0,f = functab; f->name; f++,tabsize++) 
-		if(!strcmp(f->description,"NA"))  /* remove in 3.1 */
+		if(!strcmp(f->description,"NA"))  /* remove in next release */
 			break;
 
 	while((c = getopt(argc,argv,"d:n:w:")) !=EOF) {
@@ -281,7 +281,7 @@ char **argv;
 		if(argv[optind])
 			fatal("usage: crash [-d dumpfile] [-n namelist] [-w outfile]\n");
 	}
-	/* remove in SV3.1 */
+	/* remove in SVnext release */
 	if(rp)
 		fprintf(rp,"dumpfile = %s, namelist = %s, outfile = %s\n",dumpfile,namelist,outfile);
 	fprintf(fp,"dumpfile = %s, namelist = %s, outfile = %s\n",dumpfile,namelist,outfile);
@@ -310,7 +310,7 @@ char **argv;
 			arglength = strlen(args[0]);
 			for(f = functab; f->name; f++) {
 				if(!strcmp(f->description,"NA"))
-					break;     /* remove in 3.1 */
+					break;     /* remove in next release */
 				if(!strncmp(f->name,args[0],arglength)) {
 					found++;
 					a = f;
@@ -323,7 +323,7 @@ char **argv;
 			}	
 		}
 		if(found) {
-			if(!strcmp(f->description,"NA")) /* remove in 3.1 */
+			if(!strcmp(f->description,"NA")) /* remove in next release */
 				pralias(f);
 			if(setjmp(syn)) {
 				while(getopt(argcnt,args,"") != EOF);
@@ -337,7 +337,7 @@ char **argv;
 			}
 			else (*(f->call))();
 		}
-		else fprintf(fp,"eh?\n");
+		else prerrmes("unrecognized function name\n");
 		fflush(fp);
 		resetfp();
 	}
@@ -489,21 +489,25 @@ char *string;
 	}
 	if(!found)
 		error("%s does not match in function list\n",string);
-	if(!strcmp(ff->description,"NA"))  /* remove in 3.1 */
+	if(!strcmp(ff->description,"NA"))  /* remove in next release */
 		pralias(ff);
 	if(*ff->description == '(') {
 		for(a = functab;a->name != NULL;a++)
 			if((a->call == ff->call) && (*a->description != '('))
 					break;
 		fprintf(fp,"%s %s\n",ff->name,a->syntax);
-		fprintf(fp,"\ttbl_entry = slot number | address | symbol | expression | range\n");
-		fprintf(fp,"\tst_addr = address | symbol | expression\n");
+		if(findstring(a->syntax,"tbl_entry"))
+			fprintf(fp,"\ttbl_entry = slot number | address | symbol | expression | range\n");
+		if(findstring(a->syntax,"st_addr"))
+			fprintf(fp,"\tst_addr = address | symbol | expression\n");
 		fprintf(fp,"%s\n",a->description);
 	}
 	else {
 		fprintf(fp,"%s %s\n",ff->name,ff->syntax);
-		fprintf(fp,"\ttbl_entry = slot number | address | symbol | expression | range\n");
-		fprintf(fp,"\tst_addr = address | symbol | expression\n");
+		if(findstring(ff->syntax,"tbl_entry"))
+			fprintf(fp,"\ttbl_entry = slot number | address | symbol | expression | range\n");
+		if(findstring(ff->syntax,"st_addr"))
+			fprintf(fp,"\tst_addr = address | symbol | expression\n");
 		fprintf(fp,"%s\n",ff->description);
 	}
 	fprintf(fp,"alias: ");
@@ -515,7 +519,26 @@ char *string;
 	fprintf(fp,"\tacceptable aliases are uniquely identifiable initial substrings\n");
 }
 
-/* this function and all obsolete aliases should be removed in 3.1 */
+/* find tbl_entry or st_addr in syntax string */
+int
+findstring(syntax,substring)
+char *syntax;
+char *substring;
+{
+	char string[81];
+	char *token;
+
+	strcpy(string,syntax);
+	token = strtok(string,"[] ");
+	while(token) {
+		if(!strcmp(token,substring))
+			return(1);
+		token = strtok(NULL,"[] ");
+	}
+	return(0);
+}
+
+/* this function and all obsolete aliases should be removed in next release */
 /* print valid function names for obsolete aliases */
 int
 pralias(ff)

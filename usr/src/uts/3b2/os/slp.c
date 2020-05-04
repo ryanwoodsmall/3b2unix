@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/slp.c	10.10"
+#ident	"@(#)kern-port:os/slp.c	10.17"
 #include "sys/types.h"
 #include "sys/param.h"
 #include "sys/sbd.h"
@@ -62,14 +62,15 @@ extern int		userstack[];
 sleep(chan, disp)
 caddr_t chan;
 {
-	register proc_t *rp = u.u_procp;
+	register proc_t *p = u.u_procp;
 	register proc_t **q = sqhash(chan);
 	register s;
 	register tmpdisp;
+	int why;
 
 	s = splhi();
 	if (panicstr) {
-		spl0();
+		(void) spl0();
 		splx(s);
 		return(0);
 	}
@@ -77,48 +78,69 @@ caddr_t chan;
 	/* put on sleep queue */
 
 	ASSERT(secnum(&chan) == 3);
+	ASSERT(chan != 0);
 
-	rp->p_stat = SSLEEP;
-	rp->p_wchan = chan;
-	rp->p_link = *q;
-	*q = rp;
-	if (rp->p_time > TZERO)
-		rp->p_time = TZERO;
+	p->p_stat = SSLEEP;
+	p->p_wchan = chan;
+	p->p_link = *q;
+	*q = p;
+	if (p->p_time > TZERO)
+		p->p_time = TZERO;
 	tmpdisp = disp & PMASK;
-	if(rp->p_pri > tmpdisp)
-		rp->p_pri = tmpdisp;
+	if (p->p_pri > tmpdisp)
+		p->p_pri = tmpdisp;
 	if (tmpdisp > PZERO) {
-		rp->p_flag &= ~SNWAKE;
- 		if ((rp->p_flag & SPRSTOP) || (rp->p_sig && issig())) {
-
+		p->p_flag &= ~SNWAKE;
+		/*
+		 * If it's not safe to stop here the caller will have set
+		 * PNOSTOP in "disp"; in this case make sure that we won't
+		 * stop when issig() is called.
+		 */
+		if (disp & PNOSTOP) {
+			p->p_flag |= SNOSTOP;
+			why = JUSTLOOKING;
+		} else
+			why = FORREAL;
+		p->p_flag |= SASLEEP;
+ 		if (ISSIG(p, why)) {
 			/* signal pending: take off sleep queue */
-
-			rp->p_wchan = 0;
-			rp->p_stat = SRUN;
-			*q = rp->p_link;
+			unsleep(p);
+			p->p_stat = SONPROC;
 			goto psig;
 		}
+		/*
+		 * We may have stopped in issig(); make sure we're still
+		 * on the sleep queue.
+		 */
+		if (p->p_wchan == 0)
+			goto out;
+		p->p_stat = SSLEEP;
 		if (runin != 0) {
 			runin = 0;
 			wakeup((caddr_t)&runin);
 		}
+		p->p_flag &= ~SASLEEP;
 		swtch();
- 		if ((rp->p_flag & SPRSTOP) || (rp->p_sig && issig()))
+		p->p_flag |= SASLEEP;
+ 		if (ISSIG(p, why))
 			goto psig;
 	} else {
-		rp->p_flag |= SNWAKE;
+		p->p_flag |= SNWAKE;
 		swtch();
 	}
+out:
+	p->p_flag &= ~(SNWAKE|SNOSTOP|SASLEEP);
 	splx(s);
 	return(0);
 
 	/*
 	 * If priority was low (>PZERO) and there has been a signal,
-	 * if PCATCH is set, return 1, else
-	 * execute non-local goto to the qsav location.
+	 * then if PCATCH is set return 1, otherwise do a non-local
+	 * jump to the qsav location.
 	 */
 
 psig:
+	p->p_flag &= ~(SNOSTOP|SASLEEP);
 	splx(s);
 	if (disp & PCATCH)
 		return(1);
@@ -150,7 +172,10 @@ register struct proc *p;
 }
 
 /*
- * Wake up all processes sleeping on chan.
+ * Wake up all processes sleeping on chan.  Note that a process on a
+ * sleep queue may be either in state SSLEEP or in state SSTOP; if it
+ * was stopped we remove it from its sleep queue but we don't set it
+ * running here.
  */
 
 wakeup(chan)
@@ -164,10 +189,6 @@ register caddr_t chan;
 	s = splhi();
 	for (q = sqhash(chan); p = *q; ) {
 		ASSERT(p->p_stat == SSLEEP || p->p_stat == SSTOP);
-#if 1
-		if (p->p_stat != SSLEEP && p->p_stat != SSTOP)
-			panic("wakeup p_stat");
-#endif
 		if (p->p_wchan == chan) {
 			/* 
 			 * take off sleep queue, put on run queue
@@ -219,27 +240,21 @@ register struct proc *p;
 
 	s = splhi();
 	if (p->p_stat == SSLEEP || p->p_stat == SSTOP) {
-
 		/* take off sleep queue */
-
 		unsleep(p);
 	} else if (p->p_stat == SRUN) {
-
 		/* already on run queue */
-
 		splx(s);
 		return;
 	}
 
 	/* put on run queue */
-
 	ASSERT(p->p_wchan == 0);
 	p->p_stat = SRUN;
 	setrq(p);
 
 	/*
-	 * Make arrangements for swapin
-	 * or preemption if necessary
+	 * Make arrangements for swapin or preemption if necessary.
 	 */
 
 	if (!(p->p_flag&SLOAD)) {

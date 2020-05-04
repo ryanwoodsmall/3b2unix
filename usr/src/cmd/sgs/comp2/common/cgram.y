@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 %{
-#ident	"@(#)pcc2:common/cgram.y	10.6"
+#ident	"@(#)pcc2:common/cgram.y	10.13"
 %}
 %term NAME  2
 %term STRING  3
@@ -122,7 +122,7 @@
 %start ext_def_list
 
 %type <intval> con_e ifelprefix ifprefix doprefix switchpart
-		enum_head str_head name_lp
+		enum_head str_head name_lp statement
 %type <nodep> e .e term attributes oattributes type enum_dcl struct_dcl
 		cast_type null_decl funct_idn declarator fdeclarator
 		nfdeclarator elist
@@ -136,6 +136,9 @@
 %{
 	extern int wloop_level;	/* specifies while loop code generation */
 	extern int floop_level;	/* specifies for loop code generation */
+	int nolineno = 0;	/* "information tunnel" to debug line number
+				** output:  non-0 disables all line numbers
+				*/
 	static int fake = 0;
 	static char fakename[NCHNAM+1];
 			/*Flag: Turn on TYCHECK to accept but ignore
@@ -542,16 +545,16 @@ compoundstmt:	   begin dcl_stat_list stmt_list RC
 				blevel = 0;
 			    }
 			    checkst(blevel);
-			    autooff = *--psavbc;
-			    regvar = *--psavbc;
+			    autooff = asavbc[--psavbc];
+			    regvar = asavbc[--psavbc];
 			}
 		;
 
 begin:		  LC
 			{  if( blevel == 1 ) dclargs();
 			    ++blevel;
-			    if( psavbc > &asavbc[BCSZ-2] )
-					cerror( "nesting too deep" );
+			    if( psavbc+2 > BCSZ )	/* enlarge table */
+				td_enlarge(&td_asavbc, psavbc+2+1);
 #ifdef	REGSET
 			    /* array for saving stuff must be large enough
 			    ** to hold register set bit vectors.
@@ -559,16 +562,32 @@ begin:		  LC
 			    if (sizeof(RST) > sizeof(int))
 				cerror("asavbc[] too small for RST");
 #endif
-			    *psavbc++ = regvar;
-			    *psavbc++ = autooff;
+			    asavbc[psavbc++] = regvar;
+			    asavbc[psavbc++] = autooff;
+#ifdef STATSOUT
+			    if (td_asavbc.td_max < psavbc)
+				td_asavbc.td_max = psavbc;
+#endif
 			    }
 		;
 
-statement:	   e SM
+/* The return value from <statement> says whether {}'s were present.
+** This is used to guard against generating bogus line numbers when
+** for/while loop tests are done at the bottom of loops.
+*/
+
+statement:	   simplestmt { $$ = 0; }
+		|  compoundstmt { $$ = 1; }
+		/* plain ; acts like compound statement:  it gives a
+		** place to hang a line number for loop-end code.
+		*/
+		|  SM { $$ = 1; }
+		|  label statement { $$ = $2; }
+
+simplestmt:	e SM
 			{ ecomp( $1 ); }
 		|  ASM SM
 			{ asmout(); }
-		|  compoundstmt
 		|  ifprefix statement
 			{ deflab($1);
 			   reached = 1;
@@ -657,6 +676,11 @@ statement:	   e SM
 			}
 			statement
 		{
+			/* Prohibit line number output if <statement> is
+			** simple.
+			*/
+			if ($7 == 0) nolineno = 1;
+
 			switch (wloop_level)
 			{
 			default:
@@ -697,6 +721,7 @@ statement:	   e SM
 				reached = 1;
 			else
 				reached = 0;
+			nolineno = 0;		/* reenable line number output */
 			deflab(brklab);
 			resetbc(0);
 #ifdef M32B
@@ -794,11 +819,23 @@ statement:	   e SM
 			}
 			.e RP statement
 		{
+
 			if (flostat & FCONT)
 			{
 				deflab(contlab);
 				reached = 1;
 			}
+
+			/* Allow line numbers if <statement> was
+			** compound:  the } will be on the most
+			** recently read line, and users often
+			** think they can put breakpoints there to
+			** catch the iteration (for compatibility
+			** with older compilers) and the loop test.
+			** Disable them if <statement> was simple.
+			*/
+			if (! $11) nolineno = 1;
+
 			if ($9)
 				ecomp($9);
 			switch (floop_level)
@@ -824,6 +861,7 @@ statement:	   e SM
 					branch($<intval>8);
 				break;
 			}
+			nolineno = 0;		/* line numbers okay again */
 			deflab(brklab);
 			if ((flostat & FBRK) || !(flostat & FLOOP))
 				reached = 1;
@@ -918,10 +956,8 @@ statement:	   e SM
 			    branch( stab[idname].offset );
 			    goto rch;
 			    }
-		|   SM
 		|  error  SM
 		|  error RC
-		|  label statement
 		;
 label:		   NAME COLON
 			{  register NODE *q;
@@ -1102,8 +1138,21 @@ term:		   term INCOP
 				werror( "& before array or function: ignored" );
 				$$ = $2;
 				}
-			    else goto ubop;
+			    else {
+				/* catch bad struct uses that buildtree() can't */
+				if (   (BTYPE($2->in.type) == STRTY
+				       || BTYPE($2->in.type) == UNIONTY
+				       )
+				    && notlval($2, 0)
+				    )
+				    uerror("unacceptable operand of &");
+				else if ($2->fn.flags & FF_ISREG)
+				    werror("cannot take address of register");
+				else if ($2->fn.flags & FF_ISFLD)
+				    uerror("cannot take address of bitfield");
+				goto ubop;
 			    }
+			}
 		|  MINUS term
 			{  goto ubop; }
 		|  UNOP term
@@ -1137,16 +1186,16 @@ term:		   term INCOP
 		|  funct_idn elist  RP
 			{  $$=buildtree(CALL,$1,$2); }
 		|  term STROP NAME
-			{  if( $2 == DOT ){
-				if( notlval( $1 ) )uerror(
-				       "structure reference must be addressable"
-					);
-				$1 = buildtree( UNARY AND, $1, NIL );
-				}
-			    idname = $3;
-			    $$ = buildtree( STREF, $1,
-					buildtree( NAME, NIL, NIL ) );
-			    }
+		    {  if( $2 == DOT ){
+			/* struct reference okay as lvalue */
+			if( notlval( $1, 1 ) )
+			    uerror( "structure reference must be addressable");
+			$1 = buildtree( UNARY AND, $1, NIL );
+			}
+			idname = $3;
+			$$ = buildtree( STREF, $1,
+				    buildtree( NAME, NIL, NIL ) );
+		    }
 		|  NAME
 			{  idname = $1;
 			    if (stab[idname].sclass == LABEL)
@@ -1162,7 +1211,9 @@ term:		   term INCOP
 				defid( q, EXTERN );
 				}
 			    $$=buildtree(NAME,NIL,NIL);
-			    stab[$1].suse = -lineno;
+			    if (stab[idname].sflags & SISREG)
+				$$->fn.flags |= FF_ISREG;
+			    stab[idname].suse = -lineno;
 			}
 		|  ICON
 			{  $$=bcon(0);
@@ -1252,41 +1303,51 @@ bdty( op, p, v ) NODE *p; {
 	}
 
 dstash( n ){ /* put n into the dimension table */
-	if( curdim >= DIMTABSZ-1 ){
-		cerror( "dimension table overflow");
-		}
+	/* must always have at least one extra entry available:  see lxstr() */
+	if( curdim >= DIMTABSZ-1 )
+	    td_enlarge(&td_dimtab,0);	/* enlarge dimension table */
 	dimtab[ curdim++ ] = n;
+#ifdef STATSOUT
+	if (td_dimtab.td_max < curdim) td_dimtab.td_max = curdim;
+#endif
 	}
 
 savebc() {
-	if( psavbc > & asavbc[BCSZ-4 ] ){
-		cerror( "whiles, fors, etc. too deeply nested");
-		}
-	*psavbc++ = brklab;
-	*psavbc++ = contlab;
-	*psavbc++ = flostat;
-	*psavbc++ = swx;
+	if( psavbc+5 > BCSZ )		/* assume m32 case */
+	    td_enlarge(&td_asavbc, psavbc+5+1);
+
+	asavbc[psavbc++] = brklab;
+	asavbc[psavbc++] = contlab;
+	asavbc[psavbc++] = flostat;
+	asavbc[psavbc++] = sw_beg;
 #ifdef M32B
-	*psavbc++ = swregno;
+	asavbc[psavbc++] = swregno;
 #endif
 	flostat = 0;
+#ifdef STATSOUT
+	if (td_asavbc.td_max < psavbc) td_asavbc.td_max = psavbc;
+#endif
 	}
 
 resetbc(mask){
 
 #ifdef M32B
-	swregno = *--psavbc;
+	swregno = asavbc[--psavbc];
 #endif
-	swx = *--psavbc;
-	flostat = *--psavbc | (flostat&mask);
-	contlab = *--psavbc;
-	brklab = *--psavbc;
+	sw_beg = asavbc[--psavbc];
+	flostat = asavbc[--psavbc] | (flostat&mask);
+	contlab = asavbc[--psavbc];
+	brklab = asavbc[--psavbc];
 
 	}
 
 addcase(p) NODE *p; { /* add case to switch */
 	int type;
 
+	if( swidx <= 0 ){
+		uerror( "case not in switch");
+		return;
+	}
 	p = optim( p );  /* change enum to ints */
 	if (! nncon(p) ) {
 		uerror( "non-constant case expression");
@@ -1296,43 +1357,41 @@ addcase(p) NODE *p; { /* add case to switch */
 	if ( ( SZLONG > SZINT ) && ( type == LONG || type == ULONG ) )
 	    werror("long in case statement may be truncated");
 
-	if( swp == swtab ){
-		uerror( "case not in switch");
-		return;
-		}
-	if( swp >= &swtab[SWITSZ] ){
-		cerror( "switch table overflow");
-		}
+	if( swidx >= CSWITSZ )
+	    td_enlarge(&td_swtab, 0);	/* enlarge switch table */
+
 #ifdef MYCASEVAL
-	swp->sval = MYCASEVAL( p->tn.lval );
+	swtab[swidx].sval = MYCASEVAL( p->tn.lval );
 #else
-	swp->sval = p->tn.lval;
+	swtab[swidx].sval = p->tn.lval;
 #endif
-	deflab( swp->slab = getlab() );
-	++swp;
+	deflab( swtab[swidx].slab = getlab() );
+	++swidx;
+
+#ifdef STATSOUT
+		if (td_swtab.td_max < swidx) td_swtab.td_max = swidx;
+#endif
 	tfree(p);
 	}
 
 adddef(){ /* add default case to switch */
-	if( swtab[swx].slab >= 0 ){
-		uerror( "duplicate default in switch");
-		return;
-		}
-	if( swp == swtab ){
-		uerror( "default not inside switch");
-		return;
-		}
-	deflab( swtab[swx].slab = getlab() );
-	}
+	if( swidx <= 0 )
+	    uerror( "default not inside switch");
+	else if( swtab[sw_beg].slab >= 0 )
+	    uerror( "duplicate default in switch");
+	else
+	    deflab( swtab[sw_beg].slab = getlab() );
+	return;
+}
 
 swstart(){
 	/* begin a switch block */
-	if( swp >= &swtab[SWITSZ] ){
-		cerror( "switch table overflow");
-		}
-	swx = swp - swtab;
-	swp->slab = -1;
-	++swp;
+	if( swidx >= CSWITSZ )
+	    td_enlarge(&td_swtab, 0);	/* enlarge switch table */
+
+	sw_beg = swidx;
+	swtab[sw_beg].slab = -1;	/* no default yet */
+	++swidx;
 	}
 
 swend(){ /* end a switch block */
@@ -1341,12 +1400,12 @@ swend(){ /* end a switch block */
 	CONSZ temp;
 	int tempi;
 
-	swbeg = &swtab[swx+1];
+	swbeg = &swtab[sw_beg+1];
 
 	/* sort */
 
 	r1 = swbeg;
-	r = swp-1;
+	r = &swtab[swidx-1];
 
 	while( swbeg < r ){
 		/* bubble largest to end */
@@ -1368,7 +1427,7 @@ swend(){ /* end a switch block */
 
 	/* it is now sorted */
 
-	for( p = swbeg+1; p<swp; ++p ){
+	for( p = swbeg+1; p < &swtab[swidx]; ++p ){
 		if( p->sval == (p-1)->sval ){
 			uerror( "duplicate case in switch, %d", tempi=p->sval );
 			return;
@@ -1376,6 +1435,63 @@ swend(){ /* end a switch block */
 		}
 
 	reached = 1;
-	genswitch( swbeg-1, (int)(swp-swbeg) );
-	swp = swbeg-1;
+	genswitch( swbeg-1, swidx-sw_beg-1 );
+	swidx = sw_beg;			/* discard current switch */
 	}
+
+#ifdef	MAKEHEAP			/* standard heap sort support */
+
+/* static */ struct sw heapsw_init[INI_HSWITSZ];
+
+TD_INIT( td_heapsw, INI_HSWITSZ, sizeof(struct sw),
+		0, heapsw_init, "heap switch table");
+
+
+void
+makeheap( p, n )
+struct sw * p;				/* point at default label for
+					** current switch table
+					*/
+int n;					/* number of cases */
+{
+    static void make1heap();
+
+    if (n+1 > HSWITSZ)			/* make sure table is big enough */
+	td_enlarge(&td_heapsw, n+1);
+
+#ifdef STATSOUT
+    if (td_heapsw.td_max < n) td_heapsw.td_max = n;
+#endif
+
+    heapsw[0].slab = (p->slab >= 0 ? p->slab : getlab());
+
+    make1heap( p, n, 1 );		/* do the rest of the work */
+    return;
+}
+
+static void
+make1heap( p, m, n )
+	register struct sw *p;
+{
+	register int q;
+
+	q = select( m );
+	heapsw[n] = p[q];
+	if( q > 1 )
+		make1heap( p, q-1, 2*n );
+	if( q < m )
+		make1heap( p+q, m-q, 2*n+1 );
+}
+
+static int
+select( m )
+{
+	register int l, i, k;
+
+	for( i=1; ; i*=2 )
+		if( (i-1) > m ) break;
+	l = ((k = i/2 - 1) + 1)/2;
+	return( l + (m-k < l ? m-k : l) );
+}
+
+#endif

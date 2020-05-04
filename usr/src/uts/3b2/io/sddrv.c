@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/sddrv.c	10.2"
+#ident	"@(#)kern-port:io/sddrv.c	10.3"
 #include "sys/types.h"
 #include "sys/param.h"
 #include "sys/sysmacros.h"
@@ -14,6 +14,10 @@
 #include "sys/csr.h"
 
 extern struct r16 sbdrcsr;
+sdstart()
+{
+	ifstart();
+}
 sdinit()
 {
 	idinit();

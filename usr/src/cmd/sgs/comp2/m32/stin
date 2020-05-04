@@ -1,4 +1,4 @@
-#ident	"@(#)pcc2:m32/stin	1.27" 
+#ident	"@(#)pcc2:m32/stin	1.33" 
 #	stin - input description for pcc2 code generator
 #
 #
@@ -34,7 +34,8 @@ DAWD:	STK, R, N;		# directly addressable word
 IAWD:	*STK:5, *R:5, *N:5;	# indirectly addressable word
 
 AAWD:	& AWD1:1;
-STAWD:	AWD1, AAWD, C;		# structure AWD
+# structure operands: things which are pointers
+STAWD:	R, &STK, (R+C), (R-C);
 
 BC:	'CONV' AWD[cuc];	# character converted to int or short
 SC:	'CONV' AWD[s];		# short converted to int
@@ -552,7 +553,7 @@ IAWD[d]			{$1 $P $<}
 
 #	assignment ops -- mod N bits!
 
-+=[cuc] BDST,BSRC	{$L $C}		"	addb2	AR,AL\n":6;
++=[cuc] BDST,BSRC	{$L }		"	addb2	AR,AL\n":6;
 +=[s] HDST,HSRC		{$L $C}		"	addh2	AR,AL\n":6;
 +=[iuipus] WDST,WSRC	{$L $C}		"	addw2	AR,AL\n":5;
 +=[f] SSRC,SSRC		{$A $< $> $1 }
@@ -995,9 +996,12 @@ IAWD[d]			{$1 $P $<}
 
 # complicated. do it in zzzcode()
 
-'STASG'	STAWD,STAWD	{$L 3 $]}	"ZS":24;
+# For case where result is desired, might just as well demand a register
+# now as later.
+'STASG'	R,STAWD		{$L 3 $< $>}	"YZS1":24;	#need result
+'STASG'	STAWD,STAWD	{$N 3 $< $>}	"ZS0":20;
 
-'STARG'	STAWD	{$N 3 $[}		"Zs":24;
+'STARG'	STAWD	{$N 3 $<}		"Zs":24;
 
 #	goto (for fortran)
 

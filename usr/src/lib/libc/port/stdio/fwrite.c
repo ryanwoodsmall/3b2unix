@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libc-port:stdio/fwrite.c	3.10"
+#ident	"@(#)libc-port:stdio/fwrite.c	3.12"
 /*LINTLIBRARY*/
 /*
  * This version writes directly to the buffer rather than looping on putc.
@@ -31,15 +31,18 @@ int count;
 size_t size; 
 register FILE *iop;
 {
-	register unsigned nleft;
+	register unsigned long nleft;
 	register int n;
 	register unsigned char *cptr, *bufend;
 
-	if (size <= 0 || count <= 0 || _WRTCHK(iop))
+	if (count <= 0 || _WRTCHK(iop))
 	        return (0);
 
 	bufend = _bufend(iop);
-	nleft = count*size;
+	nleft = (unsigned long) count * size;	/* may overflow */
+	if (nleft < count || nleft < size)	/* overflow occured */
+		return (0);
+
 
 	/* if the file is unbuffered, or if the iop->ptr = iop->base, and there
 	   is > BUFSZ chars to write, we can do a direct write */
@@ -68,7 +71,7 @@ register FILE *iop;
 		/* done; flush if linebuffered with a newline */
 	        if ((nleft -= n) == 0)  { 
 			if (iop->_flag & (_IOLBF | _IONBF)) {
-	               		if ((iop->_flag & _IONBF) || (memchr(iop->_base,
+	               		if ((iop->_flag & _IONBF) || (memchr(cptr,
 					'\n',count * size) != NULL))  {
 				     	(void) _xflsbuf(iop);
 				}

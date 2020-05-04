@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident "@(#)vi:port/ex_vadj.c	1.7"
+#ident "@(#)vi:port/ex_vadj.c	1.8"
 
 #include "ex.h"
 #include "ex_tty.h"
@@ -348,7 +348,7 @@ vopenup(cnt, could, l)
 vadjAL(p, cnt)
 	int p, cnt;
 {
-	char *tlines[TUBELINES];
+	short *tlines[TUBELINES];
 	register int from, to;
 
 #ifdef ADEBUG
@@ -443,7 +443,7 @@ vscroll(cnt)
 	register int cnt;
 {
 	register int from, to;
-	char *tlines[TUBELINES];
+	short *tlines[TUBELINES];
 
 #ifdef ADEBUG
 	if (trace)
@@ -777,7 +777,7 @@ vdellin(p, cnt, l)
 vadjDL(p, cnt)
 	int p, cnt;
 {
-	char *tlines[TUBELINES];
+	short *tlines[TUBELINES];
 	register int from, to;
 
 #ifdef ADEBUG

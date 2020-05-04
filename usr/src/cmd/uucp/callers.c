@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:callers.c	2.9"
+#ident	"@(#)uucp:callers.c	2.21"
 
 #include "uucp.h"
 struct utsname	utsname;
@@ -24,6 +24,7 @@ struct utsname	utsname;
 int alarmtr();
 extern jmp_buf Sjbuf;
 extern char *fdig();
+extern int	Modemctrl;
 
 /*
  *	to add a new caller:
@@ -231,13 +232,23 @@ register char *flds[], *dev[];
 		}
 	}
 	if (dcf == -1) {
-		/* Here if not a built-in caller function */
+		/* Here if not a built-in caller function	*/
+
+		/* If "DIAL" is defined, the mlock will probably fail	*/
+		/* (/usr/spool/locks is usually 755 owned by uucp), but	*/
+		/* since are using advisory file locks anyway let it	*/
+		/* slide.						*/
 		if (mlock(dev[D_LINE]) == FAIL) { /* Lock the line */
+#ifdef DIAL
+			;
+		}
+#else /* !DIAL */
 			DEBUG(5, "mlock %s failed\n", dev[D_LINE]);
 			Uerror = SS_LOCKED_DEVICE;
 			return(FAIL);
 		}
 		DEBUG(5, "mlock %s succeeded\n", dev[D_LINE]);
+#endif /* DIAL */
 		/*
 		 * Open the line
 		 */
@@ -257,16 +268,38 @@ register char *flds[], *dev[];
 		}
 		(void) signal(SIGALRM, alarmtr);
 		(void) alarm(10);
-		dcf = open(dcname, 2);
+		if ( Modemctrl ) {
+			DEBUG(7, "opening with O_NDELAY set\n", 0);
+			dcf = open(dcname, (O_RDWR | O_NDELAY) );
+		} else
+			dcf = open(dcname, O_RDWR );
 		(void) alarm(0);
 		if (dcf < 0) {
-			(void) close(nullfd);
 			DEBUG(1, "generic open failed, errno = %d\n", errno);
 			logent("generic open", "FAILED");
 			Uerror = SS_CANT_ACCESS_DEVICE;
+			(void) close(nullfd);
 			goto bad;
 		}
-		fixline(dcf, atoi(fdig(flds[F_CLASS])), D_DIRECT);
+		if ( Modemctrl ) {
+			DEBUG(7, "clear O_NDELAY\n", 0);
+			if ( fcntl(dcf, F_SETFL,
+				(fcntl(dcf, F_GETFL, 0) & ~O_NDELAY)) < 0 ) {
+				DEBUG( 7, "clear O_NDELAY failed, errno %d\n", errno);
+				(void)close(dcf);
+				Uerror = SS_DEVICE_FAILED;
+				goto bad;
+			}
+		}
+#ifdef ATTSV
+		if ( filelock(dcf) != SUCCESS ) {
+			(void)close(dcf);
+			DEBUG(1, "failed to lock device %s\n", dcname);
+			Uerror = SS_LOCKED_DEVICE;
+			goto bad;
+		}
+#endif /* ATTSV */
+		fixline(dcf, atoi(fdig(dev[D_CLASS])), D_DIRECT);
 	}
 
 	/*	init device config info	*/
@@ -275,12 +308,10 @@ register char *flds[], *dev[];
 	setdevcfg(Progname, flds[F_TYPE]);
 
 	if ( (*Setup)( MASTER, &dcf, &dcf ) ) {
-		/*	any device lock files we should remove?	*/
+		/*	any device|system lock files we should remove?	*/
 		DEBUG(5, "MASTER Setup failed", 0);
 		Uerror = SS_DEVICE_FAILED;
-		/*	restore vanilla unix interface	*/
-		(void)interface("UNIX");
-		return(FAIL);
+		goto bad;
 	}
 	/*
 	 * Now loop through the remaining callers and chat
@@ -325,8 +356,11 @@ register char *flds[], *dev[];
 	strcpy(Dc, sdev[D_LINE]);
 	return(dcf);
 bad:
-	(void)close(dcf);
+	if ( dcf >= 0 )
+		(void)close(dcf);
 	delock(sdev[D_LINE]);
+	/*	restore vanilla unix interface	*/
+	(void)interface("UNIX");
 	return(FAIL);
 }
 
@@ -428,8 +462,8 @@ char *flds[], *dev[];
 	(void) signal(SIGALRM, alarmtr);
 	(void) alarm(15);
 	DEBUG(4, "tdkdial(%s", flds[F_PHONE]);
-	DEBUG(4, ", %d)\n", atoi(flds[F_CLASS]));
-    	if ((fd = tdkdial(flds[F_PHONE], atoi(flds[F_CLASS]))) >= 0)
+	DEBUG(4, ", %d)\n", atoi(dev[D_CLASS]));
+    	if ((fd = tdkdial(flds[F_PHONE], atoi(dev[D_CLASS]))) >= 0)
 	    if (dkproto(fd, cdkp_ld) < 0)
 	       {
 	    	close(fd);
@@ -620,6 +654,11 @@ char *flds[], *dev[];
 		delock(dev[D_LINE]);
 		return(FAIL);
 	}
+	if ( filelock(dcr) != SUCCESS ) {
+		(void)close(dcr);
+		DEBUG(1, "failed to lock device %s\n", dcname);
+		Uerror = SS_LOCKED_DEVICE;
+	}
 
 	sytfixline(dcr, atoi(fdig(dev[D_CLASS])), D_DIRECT);
 	(void) sleep(2);
@@ -798,10 +837,20 @@ char *dcname, *dnname, *phone;
 		return(FAIL);
 	}
 	DEBUG(5, "%s is open\n", dnname);
+	if ( filelock(dnf) != SUCCESS ) {
+		(void)close(dnf);
+		DEBUG(1, "failed to lock device %s\n", dnname);
+		Uerror = SS_LOCKED_DEVICE;
+	}
 	if (  (dcf = open(dcname, O_RDWR | O_NDELAY)) < 0 ) {
 		DEBUG(5, "can't open %s\n", dcname);
 		Uerror = SS_CANT_ACCESS_DEVICE;
 		return(FAIL);
+	}
+	if ( filelock(dcf) != SUCCESS ) {
+		(void)close(dcf);
+		DEBUG(1, "failed to lock device %s\n", dcname);
+		Uerror = SS_LOCKED_DEVICE;
 	}
 
 	DEBUG(4, "dcf is %d\n", dcf);
@@ -845,8 +894,8 @@ char *flds[];
     exphone(flds[F_PHONE], phone);
 
     DEBUG(4, "call dialout(%s", phone);
-    DEBUG(4, ", %s)\n", flds[F_CLASS]);
-    fd = dialout(phone, flds[F_CLASS]);
+    DEBUG(4, ", %s)\n", dev[D_CLASS]);
+    fd = dialout(phone, dev[D_CLASS]);
     if (fd == -1)
 	Uerror = SS_NO_DEVICE;
     if (fd == -3)
@@ -865,14 +914,17 @@ char *flds[];
  *
  * AT&T Transport Layer Interface
  *
- * expected in Systems:
- *	system time TLI speed number  
- *
  * expected in Devices
  *	TLI line1 - - TLI 
+ * or
+ *	TLIS line1 - - TLIS
+ *
  */
 
 #include <sys/tiuser.h>
+
+#define	CONNECT_ATTEMPTS	3
+#define	TFREE(p)	if ( (p) ) t_free( (p) )
 
 /*
  * returns fd to remote uucp daemon
@@ -886,11 +938,13 @@ char *dev[];
 	char		devname[MAXNAMESIZE];
 	int		fd, service;
 	register int	i, j;
-	struct t_bind	*bind_req = 0, *bind_ret = 0;
+	struct t_bind	*bind_ret = 0;
 	struct t_info	tinfo;
 	struct t_call	*sndcall = 0, *rcvcall = 0;
 	extern int	errno, t_errno;
 	extern char	*sys_errlist[], *t_errlist[];
+
+	extern struct netbuf	*stoa();
 
 	if ( dev[D_LINE][0] != '/' ) {
 		/*	dev holds device name relative to /dev	*/
@@ -907,19 +961,23 @@ char *dev[];
 		Uerror = SS_NO_DEVICE;
 		return(FAIL);
 	}
+	if ( filelock(fd) != SUCCESS ) {
+		(void)t_close(fd);
+		DEBUG(1, "tlicall: failed to lock device %s\n", devname);
+		Uerror = SS_LOCKED_DEVICE;
+		return(FAIL);
+	}
 
 	/* allocate tli structures	*/
 	errno = t_errno = 0;
-	if ( (bind_req = (struct t_bind *)t_alloc(fd, T_BIND, T_ALL)) == 
-	    (struct t_bind *)NULL
-	|| (bind_ret = (struct t_bind *)t_alloc(fd, T_BIND, T_ALL)) == 
+	if ( (bind_ret = (struct t_bind *)t_alloc(fd, T_BIND, T_ALL)) == 
 	    (struct t_bind *)NULL
 	|| (sndcall = (struct t_call *)t_alloc(fd, T_CALL, T_ALL)) == 
 	    (struct t_call *)NULL
 	|| (rcvcall = (struct t_call *)t_alloc(fd, T_CALL, T_ALL)) ==
 	    (struct t_call *)NULL ) {
 		tfaillog(fd, "t_alloc" );
-		tfreeall( bind_req, bind_ret, sndcall, rcvcall );
+		TFREE(bind_ret);TFREE(sndcall);TFREE(rcvcall);
 		Uerror = SS_NO_DEVICE;
 		return(FAIL);
 	}
@@ -928,7 +986,7 @@ char *dev[];
 	errno = t_errno = 0;
 	if (t_bind(fd, (struct t_bind *) 0, bind_ret ) < 0) {
 		tfaillog(fd, "t_bind" );
-		tfreeall( bind_req, bind_ret, sndcall, rcvcall );
+		TFREE(bind_ret);TFREE(sndcall);TFREE(rcvcall);
 		Uerror = SS_NO_DEVICE;
 		(void) t_close(fd);
 		return(FAIL);
@@ -937,72 +995,92 @@ char *dev[];
 
 	/*
 	 * Prepare to connect.
-	 * Walk thru dev[D_ARG], connection address, looking for \N,
-	 * change to NULLCHAR.
+	 *
+	 * If address begins with "\x", "\X", "\o", or "\O",
+	 * assume is hexadecimal or octal address and use stoa()
+	 * to convert it.
+	 *
+	 * Else is usual uucico address -- only \N's left to process.
+	 * Walk thru connection address, changing \N's to NULLCHARs.
 	 * Note:  If a NULLCHAR must be part of the connection address,
 	 * it must be overtly included in the address.  One recommended
 	 * way is to do it in the Devices file, thusly:
-	 *		Netname /dev/netport - - TLI \D\0
-	 * bsfix() turns \0 into \N and then the loop below makes it a real,
-	 * included-in-the-length null-byte.
+	 *		Netname /dev/netport - - TLI \D\000
+	 * bsfix() turns \000 into \N and then the loop below makes it a
+	 * real, included-in-the-length null-byte.
+	 *
+	 * The DEBUG must print the strecpy'd address (so that
+	 * non-printables will have been replaced with C escapes).
 	 */
+
 	DEBUG(5, "t_connect to addr \"%s\"\n",
 		strecpy( addrbuf, dev[D_ARG], "\\" ) );
-	for( i = j = 0; dev[D_ARG][i] != NULLCHAR; ++i, ++j ) {
-		if( dev[D_ARG][i] == '\\'  &&  dev[D_ARG][i+1] == 'N' ) {
-			addrbuf[j] = NULLCHAR;
-			++i;
+
+	if ( dev[D_ARG][0] == '\\' &&
+	( dev[D_ARG][1] == 'x' || dev[D_ARG][1] == 'X'
+	|| dev[D_ARG][1] == 'o' || dev[D_ARG][1] == 'O' ) ) {
+		if ( stoa(dev[D_ARG], &(sndcall->addr)) == (struct netbuf *)NULL ) {
+			DEBUG(5, "tlicall: stoa failed\n","");
+			logent("tlicall", "string-to-address failed");
+			Uerror = SS_NO_DEVICE;
+			(void) t_close(fd);
+			return(FAIL);
 		}
-		else {
-			addrbuf[j] = dev[D_ARG][i];
+	} else {
+		for( i = j = 0; i < BUFSIZ && dev[D_ARG][i] != NULLCHAR;
+		++i, ++j ) {
+			if( dev[D_ARG][i] == '\\'  &&  dev[D_ARG][i+1] == 'N' ) {
+				addrbuf[j] = NULLCHAR;
+				++i;
+			}
+			else {
+				addrbuf[j] = dev[D_ARG][i];
+			}
 		}
+		sndcall->addr.buf = addrbuf;
+		sndcall->addr.len = j;
 	}
-	sndcall->addr.buf = addrbuf;
-	sndcall->addr.maxlen = sndcall->addr.len = j;
 
 	if (setjmp(Sjbuf)) {
 		DEBUG(4, "timeout tlicall\n", 0);
 		logent("tlicall", "TIMEOUT");
-		tfreeall( bind_req, bind_ret, sndcall, rcvcall );
+		TFREE(bind_ret);TFREE(sndcall);TFREE(rcvcall);
 		Uerror = SS_NO_DEVICE;
-		(void) t_unbind(fd);
 		(void) t_close(fd);
 		return(FAIL);
 	}
 	(void) signal(SIGALRM, alarmtr);
 	(void) alarm(30);
 
-	/* connect to the service */
+	/* connect to the service -- some listeners can't handle */
+	/* multiple connect requests, so try it a few times */
 	errno = t_errno = 0;
-	if (t_connect(fd, sndcall, rcvcall) < 0) {
-		(void) alarm(0);
+	for ( i = 0; i < CONNECT_ATTEMPTS; ++i ) {
+		if (t_connect(fd, sndcall, rcvcall) == 0)
+			break;
+		if ( (t_errno == TLOOK) && (t_look(fd) == T_DISCONNECT)) {
+			t_rcvdis(fd,NULL);
+			(void) alarm(0);
+		} else {
+			(void) alarm(0);
+			tfaillog(fd, "t_connect");
+			TFREE(bind_ret);TFREE(sndcall);TFREE(rcvcall);
+			Uerror = SS_DIAL_FAILED;
+			(void) t_close(fd);
+			return(FAIL);
+		}
+	}
+	(void) alarm(0);
+	TFREE(bind_ret);TFREE(sndcall);TFREE(rcvcall);
+	if ( i == CONNECT_ATTEMPTS ) {
 		tfaillog(fd, "t_connect");
-		tfreeall( bind_req, bind_ret, sndcall, rcvcall );
-		Uerror = SS_NO_DEVICE;
-		(void) t_unbind(fd);
+		Uerror = SS_DIAL_FAILED;
 		(void) t_close(fd);
 		return(FAIL);
 	}
-	(void) alarm(0);
-	tfreeall( bind_req, bind_ret, sndcall, rcvcall );
 	errno = t_errno = 0;
-	(void) strcpy(Dc, dev[D_CALLER]);
 	return(fd);
 }
 
 
-static
-tfreeall( b1, b2, c1, c2 )
-struct t_bind	*b1, *b2;
-struct t_call	*c1, *c2;
-{
-	if( b1 )
-		t_free( b1 );
-	if( b2 )
-		t_free( b2 );
-	if( c1 )
-		t_free( c1 );
-	if( c2 )
-		t_free( c2 );
-}
 #endif /* TLI */

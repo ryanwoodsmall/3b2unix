@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:cntrl.c	2.4"
+#ident	"@(#)uucp:cntrl.c	2.5"
 
 #include "uucp.h"
 
@@ -101,6 +101,7 @@ char *Em_msg[] = {
 #define RESET	'X'	/* reset line modes */
 
 #define W_MAX		10	/* maximum number of C. files per line */
+#define W_MIN		7	/* min number of entries */
 #define W_TYPE		wrkvec[0]
 #define W_FILE1		wrkvec[1]
 #define W_FILE2		wrkvec[2]
@@ -398,7 +399,7 @@ process:
 		i = getargs(msg, wrkvec, W_MAX);
 
 		/* Check for bad request */
-		if (i < 7) {
+		if (i < W_MIN) {
 			WMESG(SNDFILE, EM_BADUUCP);
 			logent("DENIED", "TOO FEW ARGS IN SLAVE SNDFILE");
 			goto top;
@@ -437,6 +438,12 @@ process:
 		WMESG(SNDFILE, YES);
 		ret = (*Rddata)(Ifn, fp);
 		(void) fclose(fp);
+		if ( ret == EFBIG ) {
+			WMESG(RQSTCMPT, EM_NOTMP);
+			logent("FILE EXCEEDS ULIMIT","FAILED");
+			CDEBUG(1, "Failed: file size exceeds ulimit",0);
+			goto top;
+		}
 		if (ret != 0) {
 			(*Turnoff)();
 			logent("INPUT FAILURE", "IN SEND/SLAVE MODE");

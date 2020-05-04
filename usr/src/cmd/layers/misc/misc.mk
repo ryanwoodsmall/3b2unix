@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)attwin:cmd/layers/misc/makefile	1.5"
+#ident	"@(#)attwin:cmd/layers/misc/makefile	1.6"
 #
 #		Copyright 1985 AT&T
 #
@@ -21,15 +21,15 @@ all:	ismpx jterm jwin
 ismpx:	ismpx.c
 ismpx:	$(INC)/stdio.h
 ismpx:	$(INC)/sys/jioctl.h
-	$(CC) $(CFLAGS) -o ismpx ismpx.c
+	$(CC) $(CFLAGS) -o ismpx ismpx.c $(LDLIBS)
 
 jterm:	jterm.c
 jterm:	$(INC)/sys/jioctl.h
-	$(CC) $(CFLAGS) -o jterm jterm.c
+	$(CC) $(CFLAGS) -o jterm jterm.c $(LDLIBS)
 
 jwin:	jwin.c
 jwin:	$(INC)/sys/jioctl.h
-	$(CC) $(CFLAGS) -o jwin jwin.c
+	$(CC) $(CFLAGS) -o jwin jwin.c $(LDLIBS)
 
 install:	all
 	$(INS) -f $(ROOT)/usr/bin -u bin -g bin -m 755 ismpx

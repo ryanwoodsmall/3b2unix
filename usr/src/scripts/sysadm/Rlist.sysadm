@@ -9,6 +9,7 @@
 /etc/grpck
 /etc/ldsysdump
 /etc/link
+/etc/log/filesave.log
 /etc/mvdir
 /etc/ncheck
 /etc/pwck
@@ -16,4 +17,5 @@
 /etc/unlink
 /etc/volcopy
 /etc/whodo
+/usr/bin/chrtbl
 /usr/options/sysadm.name

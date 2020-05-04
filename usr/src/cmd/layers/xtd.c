@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)xt:xtd.c	2.4"
+#ident	"@(#)xt:xtd.c	2.5"
 
 /*	Copyright (c) 1984 AT&T	*/
 /*	  All Rights Reserved  	*/
@@ -17,6 +17,8 @@
 /*
 **	Print out Xt Link data structure
 */
+
+#define XTDRIVER 1
 
 char		Usage[]	=	"Usage: %s [-01234567f]\n";
 
@@ -174,15 +176,11 @@ Print_list	tty_list[]	=
 static void	print_list();
 #endif
 static int	xtdata();
-static void	error();
 
 extern char	_sobuf[];
 
-
 #define		Fprintf		(void)fprintf
 #define		SYSERROR	(-1)
-
-
 
 int
 main(argc, argv)
@@ -209,14 +207,18 @@ main(argc, argv)
 						}
 						notchan[c-'0'] = 0;
 						break;
-				 case 'f':	display++;
+				 case 'f':
+						display++;
 						break;
-				 default:	error("bad flag '%c'", (char *)c);
+				 default:
+						Fprintf(stderr, "%s: Bad flag '%c'\n", name, (char *)c);
+						Fprintf(stderr, Usage, name);
 						exit(1);
 				}
 		else
 		{
-			error("unrecognised argument '%s'", argv[0]);
+			Fprintf(stderr, "%s: Unrecognized argument '%s'\n", name, argv[0]);
+			Fprintf(stderr, Usage, name);
 			exit(1);
 		}
 		argv++;
@@ -224,30 +226,19 @@ main(argc, argv)
 
 	setbuf(stdout, _sobuf);
 
-	if ( xtdata(0, stdout) ) {
-		error("xt ioctl returned errno '%d'", errno);
+	if (ioctl(0, JMPX, 0) == -1) {
+		Fprintf(stderr, "%s: Must be invoked with stdin attached to an xt channel.\n", name);
 		exit(1);
 	}
+
+	if ( xtdata(0, stdout) )
+		exit(1);
 
 	if ( display )
 		Fprintf(stdout, "\f");
 
 	exit(0);
 }
-
-
-
-static void
-error(s1, s2)
-	char *	s1;
-	char *	s2;
-{
-	Fprintf(stderr, "%s - error - ", name);
-	Fprintf(stderr, s1, s2);
-	Fprintf(stderr, "\n");
-}
-
-
 
 static int
 xtdata(cfd, ofd)
@@ -257,8 +248,10 @@ xtdata(cfd, ofd)
 #	if	XTDATA == 1
 	register int	i;
 
-	if ( ioctl(cfd, XTIOCDATA, &Data) == SYSERROR )
+	if ( ioctl(cfd, XTIOCDATA, &Data) == SYSERROR ) {
+		Fprintf(stderr,"%s: xt ioctl failed - errno '%d'\n",name,errno);
 		return(1);
+	}
 
 	print_list(ofd, l_list, (char *)&Data, 0);
 

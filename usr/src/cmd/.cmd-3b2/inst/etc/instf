@@ -1,10 +1,10 @@
-#ident	"@(#)cmd-3b2:inst/etc/instf	1.22"
+#ident	"@(#)cmd-3b2:inst/etc/instf	1.22.1.10"
 #
-# instf
+# instf  
 #
 # Installs a basic UNIX system on the hard disk from a booted
 # floppy. The resultant hard disk system will install the remainder
-# of the core system from other floppies.
+# of the Essential Utilities floppies.
 #
 
 . /inst/etc/define
@@ -13,22 +13,23 @@ HARD=/inst/root			# Hard disk root fs mountpoint
 
 HELPFULL="\
 The \"Full Restore\" replaces everything on the integral hard disk(s) with
-a ${TM} core UNIX  system.  Nothing is assumed to be on the hard
-disk(s) and  nothing is retained.  Choose this option only if you have a
-brand-new system or are  willing to  DESTROY the files now on  your hard
-disk(s)."
+a ${TM} Essential Utilities  UNIX  system.  Nothing is assumed
+to  be  on the hard disk(s) and nothing is retained.  Choose this option
+only if you have a brand-new system or are willing to  DESTROY the files
+now on your hard disk(s)."
 
 PARTIALMSG="\
-The \"Partial Restore\" replaces the core files with ${TM} files on 
-the integral hard disk(s).  Other files are not affected.  This will UNDO 
-your terminal and user login configuration."
+The  \"Partial  Restore\"  replaces  the  Essential  Utilities files with
+${TM} files on the integral hard disk(s). Other files are not
+affected.  This will  UNDO  your terminal and user login configuration."
 
 HELPPARTIAL="\
-The \"Partial Restore\" replaces the core files with ${TM} files. 
-It does not destroy user-created files. Note that this RESETS the basic 
-configuration (terminals, logins, etc.) to those of a brand-new system. 
-This procedure may be useful to  restore a severely damaged system to a 
-usable state, or to remove a forgotten \"root\" password."
+The  \"Partial Restore\"  replaces the  Essential  Utilities files with
+${TM} files.  It does not destroy user-created files.  Note 
+that this RESETS the basic configuration (terminals, logins, etc.) to 
+those of a  brand-new system. This procedure may be useful to restore
+a severely damaged system to a usable state, or to remove a forgotten
+\"root\" password."
 
 DUALMSG="\
 The \"Dual Disk Upgrade\"  converts an existing  single-disk  system to a dual 
@@ -45,23 +46,22 @@ file system may be moved to disk 2.  Vacated and  new disk space (on disk 1
 and disk 2, respectively) is allocated to one or more additional partitions."
 
 RELEASEMSG="\
-The \"Release Upgrade\" option replaces most of the core system files on the
-integral hard disk(s) with ${TM} files. The system configuration,
-and user files are not affected."
+The \"Release Upgrade\" option replaces most of the Essential Utilities system
+files on the integral hard disk(s) with  ${TM}  files.  The system
+configuration, and user files are not affected."
 
 FEATURES="\
-	o Floating Boot
 	o Floating Point Assist software support
 	o XM (expansion module) software support"
 
 HELPRELEASE="\
-The \"Release Upgrade\" replaces most of the core system files with those
-distributed in ${TM}. User files and most configuration files
-are   retained.   Kernel  and  device driver  tunable
-parameters in  /etc/master.d  are set to ${TM} default  values.
-Optional  packages  must  be reinstalled.
-Replaced  configuration files are saved in /usr/old.  Upgrade features 
-include:
+The \"Release Upgrade\" replaces most of the  Essential Utilities system files
+with those distributed in ${TM}. User files and most configuration
+files  are  retained.  Kernel  and  device   driver  tunable  parameters  in
+/etc/master.d are set to ${TM} default values.  Optional  packages
+should be reinstalled.  Replaced  configuration files are saved in  /usr/old.
+Upgrade features include:
+
 ${FEATURES}"
 
 
@@ -83,7 +83,7 @@ istration  Utilities  Guide\"   for more information regarding hard disk
 partitioning."
 	FULLMSG="\
 The \"Full Restore\" will destroy EVERYTHING on both hard disks and install a 
-${TM} core UNIX system." 
+${TM} Essential Utilities UNIX system." 
 
 else
 	PARTITIONMSG="\
@@ -94,7 +94,7 @@ created at your discretion.  See the \"3B2 Computer System Administration
 Utilities Guide\" for more information about hard disk partitioning."
 	FULLMSG="\
 The \"Full Restore\" will destroy EVERYTHING on the hard disk and install a 
-${TM} core UNIX system." 
+${TM} Essential Utilities UNIX system." 
 	USRMSG="\
 Several configurations are available for the hard disk system.  The \"swap\" 
 and \"root\" partitions must always be on disk 1. The \"usr\" partition may be
@@ -182,11 +182,11 @@ ${FULLMSG}" \
 					    >> ${HARD}/etc/fstab
 				done
 				echo "\nDisk${DRIVEID_1:+ 1} partitioning:" >&2
-				prtvtoc -s -t ${HARD}/etc/fstab ${RSIX_0}
+				prtvtoc -s -t ${HARD}/etc/fstab ${RSIX_0} 2> /dev/null
 				if [ -n "${DRIVEID_1:-}" ]
 				then
 					echo "\nDisk 2 partitioning:" >&2
-					prtvtoc -s -t ${HARD}/etc/fstab ${RSIX_1}
+					prtvtoc -s -t ${HARD}/etc/fstab ${RSIX_1} 2> /dev/null
 				fi
 				case `askx -m "\
 This completes the interactive partitioning of your disk${DRIVEID_1:+s}. Enter
@@ -317,7 +317,7 @@ Your system is already configured with the ${dir} partition on disk 2
 		if [ "'${usr}'" = "''" ]
 		then
 			echo "
-There is no \"usr\" file system in your /etc/fstab. This is a required core
+There is no \"usr\" file system in your /etc/fstab. This is a required 
 file system. The \"Dual Disk Upgrade\" cannot be performed without it." >&2
 			exit 1
 		elif [ "'${usr}'" != "'${USR_0}'" ]
@@ -482,8 +482,8 @@ ignore mkdir ${HARD}/inst ${HARD}/inst/LOCK 2> /dev/null
 sync;sync;sync
 
 echo "
-Installing the initial core system files. This should take 
-no more than ten minutes." >&2
+Installing the initial Essential Utilities system files.
+This should take no more than ten minutes." >&2
 echo "${FILES}" | cpio -pdmu ${HARD}
 
 cd ${HARD}/inst/hard

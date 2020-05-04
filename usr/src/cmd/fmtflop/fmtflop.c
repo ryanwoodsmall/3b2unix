@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)fmtflop:fmtflop.c	1.5"
+#ident	"@(#)fmtflop:fmtflop.c	1.10"
 #include <stdio.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -16,6 +16,7 @@
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
 #include <sys/diskette.h>
+#include <signal.h>
 
 #define PASS 0
 #define FAIL 1
@@ -33,8 +34,6 @@ struct ifformat ifformat;
 
 struct fmtstruct fmtstruct ;
 
-int iffdes;
-char *ifdevice;
 
 
 main(argc,argv)
@@ -51,6 +50,8 @@ char **argv;
 	int argdev = 0;
 	int errflag = 0;
 	int optflag = 0;
+	int iffdes;
+	char *ifdevice;
 
 	
 	while ((c = getopt(argc,argv,"v")) != EOF) 
@@ -59,11 +60,8 @@ char **argv;
 			optflag++;
 			break;
 		case '?':
-			errflag++;
-		if(errflag){
 			fprintf(stderr,"Usage: fmtflop [-v] special\n");
 			exit(2);
-		}
 	}
 
 	if(argc - optind != 1){
@@ -107,7 +105,7 @@ char **argv;
 
 
 
-	iffdes = open(ifdevice,O_WRONLY);
+	iffdes = open(ifdevice, O_RDWR);
 	if(iffdes < 0){
 		fprintf(stderr,"fmtflop: open failed on device: %s\n",ifdevice);
 		exit(16);
@@ -166,34 +164,36 @@ char **argv;
 	for(i=0;i<=IFGAP4_SIZE;i++)
 		dsktrack[structnum].dskpost.GAP4b[i]=0x4e;
 
-	fmatdsk(structnum);
+	fmatdsk(structnum, iffdes);
 	if(optflag){
-		verify(ifdevice);
+		verify(iffdes);
 	}
 
 	/* Write the pdsector and defect map on innermost cylinder */
 
-	writepd(ifdevice);
+	writepd(iffdes);
+	close(iffdes);
 }
-fmatdsk(structnum)
+fmatdsk(structnum, iffdes)
 int structnum;
+int iffdes;
 {
 	int trkcnt=0;
 	char ifside;
 
 	while(trkcnt<IFTRKSIDE){
 		ifside=0;
-		fmatupdate(trkcnt,ifside,structnum);
+		fmatupdate(trkcnt,ifside,structnum, iffdes);
 		ifside=1;
-		fmatupdate(trkcnt,ifside,structnum);
+		fmatupdate(trkcnt,ifside,structnum, iffdes);
 		trkcnt++;
 	}
-	close(iffdes);
 }
-fmatupdate(trkcnt,ifside,structnum)
+fmatupdate(trkcnt,ifside,structnum, iffdes)
 int trkcnt;
 char ifside;
 int structnum;
+int iffdes;
 {
 	short cursect;
 	extern int errno;
@@ -216,19 +216,13 @@ int structnum;
 		}
 	}
 }
-verify(ifdevice)
+verify(iffdes)
 {
 	extern int errno;
 
 	ifformat.iftrack = 0;
 	ifformat.data = (caddr_t) &dsktrack[0];
 
-	iffdes = open(ifdevice,O_RDONLY);
-	if(iffdes < 0){
-		fprintf(stderr,"fmtflop: open failed on device: %s\n",ifdevice);
-		plock(UNLOCK);
-		exit(16);
-	}
 
 	while(ifformat.iftrack<IFTRKSIDE){
 		ifformat.ifside = 0;
@@ -247,21 +241,15 @@ verify(ifdevice)
 		}
 		ifformat.iftrack++;
 	}
-	close(iffdes);
 }
 
-writepd(ifdevice)
+writepd(iffdes)
 {
 	struct pdsector bufsect;
 	unsigned int bufdef[128];
 	int i;
 	
 
-	iffdes = open(ifdevice,O_WRONLY);
-	if(iffdes < 0){
-		fprintf(stderr,"fmtflop: open failed on device: %s\n",ifdevice);
-		exit(16);
-	}
 	/* Setup pdsector buffer */
 	bufsect.pdinfo.driveid = IFID;
 	bufsect.pdinfo.sanity = VALID_PD;
@@ -308,5 +296,4 @@ writepd(ifdevice)
 		fprintf(stderr,"fmtflop: Bad defect map write. Ioctl failed, errno = %d\n",errno);
 		exit(1);
 	}
-	close(iffdes);
 }

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/tty.h	10.1"
+#ident	"@(#)kern-port:sys/tty.h	10.2"
 /*
  * A clist structure is the head of a linked list queue of characters.
  * The routines getc* and putc* manipulate these structures.
@@ -94,7 +94,7 @@ struct inter {
 #define	TTIPRI	28
 #define	TTOPRI	29
 
-#ifdef u3b5
+#ifdef u3b15
 /* following defs allow for job control in both vpm and stand-alone
    tty environments */
 #define VPMTTY	1

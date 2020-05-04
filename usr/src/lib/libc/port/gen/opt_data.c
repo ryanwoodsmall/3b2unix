@@ -5,14 +5,13 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libc-port:gen/opt_data.c	1.2"
+#ident	"@(#)libc-port:gen/opt_data.c	1.3"
 /*
  * Global variables
  * used in getopt
  */
-#if SHLIB
+
 int	opterr = 1;
 int	optind = 1;
 int	optopt = 0;
 char	*optarg = 0;
-#endif

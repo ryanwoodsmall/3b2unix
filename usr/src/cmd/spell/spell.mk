@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)spell:spell.mk	1.11"
+#ident	"@(#)spell:spell.mk	1.12"
 #	spell make file
 
 #	Note:  In using the -f flag it is assumed that either
@@ -14,7 +14,7 @@
 #	not, it is assumed that the machine that does not need
 #	it will treat it appropriately.
 
-# _SH_ is used by 3B5 View-path environment
+# _SH_ is used by 3B15 View-path environment
 
 ROOT =
 OL = $(ROOT)/

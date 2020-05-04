@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sh:test.c	1.12"
+#ident	"@(#)sh:test.c	1.14"
 /*
  *      test expression
  *      [ expression ]

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)crash-3b2:page.c	1.10"
+#ident	"@(#)crash-3b2:page.c	1.10.2.3"
 /*
  * This file contains code for the crash functions: pfdat, region, sdt, and pdt.
  */
@@ -123,8 +123,6 @@ unsigned size;
 
 	readbuf(addr,(long)(pfdat+slot*sizeof (struct pfdat)),phys,-1,
 		(char *)&pfbuf,sizeof pfbuf,"pfdata table");
-	if(addr > -1)
-		slot = getslot(addr,(long)pfdat,sizeof pfbuf,phys);
 	if(!pfbuf.pf_flags && !all)
 		return;
 	/* calculate pfdata entry number of pointers */
@@ -136,9 +134,11 @@ unsigned size;
 	if ((hash < 0) || (hash > size)) hash = -1;
 		sizeof (struct inode);
 	if(addr > -1) 
-		slot = getslot(addr,(long)pfdat,sizeof pfbuf,phys);
-	fprintf(fp,"%4d %8d %3d %3u,%-3u %5d  %3d  %3d  %3d",
-		slot,
+		slot = getslot(addr,(long)pfdat,sizeof pfbuf,phys,size);
+	if(slot == -1)
+		fprintf(fp,"  - ");
+	else fprintf(fp,"%4d",slot);
+	fprintf(fp," %8d %3d %3u,%-3u %5d  %3d  %3d  %3d",
 		pfbuf.pf_blkno,
 		pfbuf.pf_use,
 		major(pfbuf.pf_dev),
@@ -430,7 +430,7 @@ getregion()
 	long arg1 = -1;
 	long arg2 = -1;
 	int c;
-	char * heading = "SLOT NSG PSZ #VL REF WAT   FSIZE  TYPE FOR BCK INO LISTADDR FLAGS\n";
+	char * heading = "SLOT NSG PSZ #VL RCNT WAT   FSIZE  TYPE FOR BCK INO LISTADDR FLAGS\n";
 
 	if(!Region)
 		if(!(Region = symsrch("region")))
@@ -461,7 +461,8 @@ getregion()
 				continue;
 			if(arg2 != -1)
 				for(slot = arg1; slot <= arg2; slot++)
-					prregion(all,full,slot,phys,addr,heading);
+					prregion(all,full,slot,phys,addr,
+						heading);
 			else {
 				if(arg1 < vbuf.v_region)
 					slot = arg1;
@@ -492,11 +493,14 @@ char *heading;
 	if(!all && !rbuf.r_refcnt)
 		return;
 	if(addr > -1) 
-		slot = getslot(addr,(long)Region->n_value,sizeof rbuf,phys);
+		slot = getslot(addr,(long)Region->n_value,sizeof rbuf,phys,
+			vbuf.v_region);
+	if(slot == -1)
+		fprintf(fp,"  - ");
+	else fprintf(fp,"%4d",slot);
 	if(full)
 		fprintf(fp,"%s",heading);
-	fprintf(fp,"%4d %3d %3d %3d %3d %3d %8x ",
-		slot,
+	fprintf(fp," %3d %3d %3d  %3d %3d %8x ",
 		rbuf.r_listsz,
 		rbuf.r_pgsz,
 		rbuf.r_nvalid,
@@ -526,13 +530,13 @@ char *heading;
 		fprintf(fp,"%8x",rbuf.r_list);
 	else fprintf(fp,"        ");
 	fprintf(fp,"%s%s%s%s%s%s%s",
-			rbuf.r_flags & XREMOTE ? " xremote" : "",
 			rbuf.r_flags & RG_NOFREE ? " nofree" : "",
 			rbuf.r_flags & RG_DONE ? " done" : "",
 			rbuf.r_flags & RG_NOSHARE ? " noshare" : "",
 			rbuf.r_flags & RG_LOCK ? " lock" : "",
 			rbuf.r_flags & RG_WANTED ? " want" : "",
-			rbuf.r_flags & RG_WAITING ? " wait" : "");
+			rbuf.r_flags & RG_WAITING ? " wait" : "",
+			rbuf.r_flags & RG_WASTEXT ? " wastext" : "");
 	if(full) { 
 		if(rbuf.r_pgsz) 
 			prlist(rbuf.r_list,(unsigned)(rbuf.r_pgsz + (NPGPT - 1))/NPGPT);

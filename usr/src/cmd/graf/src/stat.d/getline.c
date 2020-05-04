@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)graf:src/stat.d/getline.c	1.6"
+#ident	"@(#)graf:src/stat.d/getline.c	1.7"
 /* <: t-5 d :> */
 #include "stdio.h"
 #define ESCAPE(c,x) ( (c=x)!='\\' ? c : (x,c=x))
@@ -17,7 +17,7 @@ int size;
 {
 	char c, *bufe=bufs+size;
 
-#if u370 | u3b | u3b5 | u3b2
+#if u370 | u3b | u3b15 | u3b2
 	while( ESCAPE(c,getc(fp))!=(char)EOF )
 #else
 	while( ESCAPE(c,getc(fp))!=EOF )

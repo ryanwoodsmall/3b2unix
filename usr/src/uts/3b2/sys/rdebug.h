@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/rdebug.h	10.7"
+#ident	"@(#)kern-port:sys/rdebug.h	10.7.3.1"
 /* Debugging flags turned on and off by rdebug */
 
 #define DB_SYSCALL	0x001	/* remote system calls */
@@ -30,6 +30,8 @@
 #define NO_MONITOR      0x80000  /* turn off monitor */
 #define DB_CANON     	0x100000  /* canonical form conversion */
 #define	DB_FSS		0x200000  /* dufst debugging */
+#define DB_CACHE	0x400000  /* client cache debugging */
+#define DB_LOOPBCK	0x800000  /* allow machine to mount own resources */
 
 
 extern	long	dudebug;

@@ -5,13 +5,14 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)make:dosys.c	1.3.1.1"
+#ident	"@(#)make:dosys.c	1.3.1.2"
 
 # include "defs"
 # include "sys/types.h"
 # include "sys/stat.h"
 
 extern char Makecall;
+extern char funny[256];
 
 dosys(comstring, nohalt)
 register CHARSTAR comstring;
@@ -44,7 +45,7 @@ metas(s)   /* Are there are any  Shell meta-characters? */
 register CHARSTAR s;
 {
 	while(*s)
-		if( funny[*s++] & META)
+		if( funny[(unsigned char) *s++] & META)
 			return(YES);
 
 	return(NO);

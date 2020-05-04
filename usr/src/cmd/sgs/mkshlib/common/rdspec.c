@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mkshlib:common/rdspec.c	1.6"
+#ident	"@(#)mkshlib:common/rdspec.c	1.11"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -29,6 +29,8 @@
 #define	OBJECTS 4
 #define	INIT	5
 #define	IDENT	6
+#define EXPORT	7
+#define HIDE	8
 
 
 static struct {
@@ -41,7 +43,9 @@ static struct {
 	"branch",	BRANCH,
 	"objects",	OBJECTS,
 	"init",		INIT,
-	"ident",	IDENT
+	"ident",	IDENT,
+	"export",	EXPORT,
+	"hide",		HIDE
 };
 
 #define	NUMDIRS	(sizeof(dirs)/sizeof(dirs[0]))
@@ -51,8 +55,13 @@ static struct {
 #define	BRANCHL	1
 #define	OBJECTL	2
 #define	INITL	3
-
-#define	OBJCHUNK	500
+#define SLIBS 	4		/* #objects noload entries */
+#define	EXPL	5		/* Export linker directive */
+#define	EXPR	6		/* Export runtime */
+#define	HIDL	7		/* Hide linker */
+#define	HIDR	8		/* Hide runtime */
+#define	BR	9		/* Branch table entry must be exported */
+#define	IN	10		/* Init entry must be exported */
 
 /* Static variables needed for reading the shared library specification file. */
 static FILE	*ifil;		/* pointer to ifile */
@@ -61,13 +70,32 @@ static int	aflag=FALSE,	/* indicates if #address directive was given */
 		tflag=FALSE,	/* indicates if #target directive was given */
 		bflag=FALSE,	/* indicates if #branch directive was given */
 		oflag=FALSE,	/* indicates if #objects directive was given */
+		iflag=FALSE,	/* indicates if #init directive was given */
 		txtflag=FALSE,	/* indicates if start address of .text was given */
 		dataflag=FALSE,	/* indicates if start address of .data was given */
 		bssflag=FALSE;	/* indicates if start address of .bss was given */
+		someexp=FALSE;	/* Some symbols exported by #export-error handling */
+		somehide=FALSE;	/* Some symbols hidden by #hide-error handling */
 static initinfo *pinit=NULL;	/* hold init info. concerning current object file */
 static int	lineno,
 		curtype=BAD;	/* describes current type line being processed */
 
+/* Structure used to hold already input export and hide symbols */
+typedef struct ehstruct{
+	char	*symname;	/* Symbol name */
+	int	type;		/* Way symbol was read in - for error handling */
+	int	found;		/* indicates if symbol found */
+	struct	ehstruct *next;	
+} ehstruct;
+
+
+ehstruct *explst[EXPSIZ];	/* Hash table containing symbols for export */
+				/* entries - hashed on a function of symbol name */
+
+ehstruct *hidelst[HIDSIZ];	/* Hash table containing symbols for hide */
+				/* entries - hashed on a function of symbol name */
+
+btrec  **btorder;	/* array of ptrs to entries in the branch table; this
 /* Read the shared library specification file and set the appropriate 
  * global variables.
  */
@@ -86,6 +114,18 @@ rdspec()
 
         /* allocate and initialize trgobjects */
         if ((trgobjects= (char **)calloc(OBJCHUNK,sizeof(char *))) == NULL)
+                fatal("Out of space");
+
+	/* allocate and initialize objnold - other shared libraries */
+        if ((objnold= (char **)calloc(OBJCHUNK,sizeof(char *))) == NULL)
+                fatal("Out of space");
+
+	/* allocate and initialize expsyms - exported symbols */
+        if ((expsyms= (char **)calloc(OBJCHUNK,sizeof(char *))) == NULL)
+                fatal("Out of space");
+
+	/* allocate and initialize hidesyms - hidden symbols */
+        if ((hidesyms= (char **)calloc(OBJCHUNK,sizeof(char *))) == NULL)
                 fatal("Out of space");
 
 	/* if the target shared library is to be regenerated, then set up ifil2name
@@ -123,7 +163,9 @@ rdspec()
 			continue;
 
 		if (*tptr == '#')
+		{
 			directive(tptr);
+		}
 		else
 			spec(tptr);
 	}
@@ -144,10 +186,10 @@ rdspec()
                         fatal("Must specify the target pathname in %s- use the #target directive\n", specname);
 		if (!bflag)
                         fatal("Must specify the branch table in %s- use the #branch directive\n", specname);
-		if (!txtflag && !qflag)
-			(void)fprintf(stderr,"Warning: start address of the .text section of the target is not specified\n");
-		if (!dataflag && !qflag)
-			(void)fprintf(stderr,"Warning: start address of the .data section of the target is not specified\n");
+		if (!txtflag)
+			warn("start address of the .text section of the target is not specified\n");
+		if (!dataflag)
+			warn("start address of the .data section of the target is not specified\n");
 		if (!aflag)
 			fatal("Must specify the start address of loaded sections in %s- use the #address directive\n", specname);
 	}
@@ -184,14 +226,23 @@ char	*lptr;		/* pointer into current line */
 				 * table symbol */
 		tpos;
 	btrec	*pbtrec;	/* pointer to current branch table entry */
+	ehstruct *pehstruct;	/* Pointer to current export/hide hash entry */
+	ehstruct *newehstruct();	/* Function declared later */
 	long	hval;		/* hash value of tname in btlst */
 	char	*import;	/* name of imported symbol */
 	char	*pimport;	/* name of pointer to imported symbol */
+	char	*hid;		/* Temporarily hold hidden symbol */
+	char	*exp;		/* Temporarily hold exported symbol */
+	char	*iname;		/* Temp name of exported symbol from init section */
 
 	static int 	btordsiz=MAXBT;	/* current number of slots allocated in
 					 * btorder[] */
 	static int	maxnumobjs=OBJCHUNK;	/* current number of slots 
 						 * allocated in trgobjects[] */
+
+	static	int	maxnumlibs=OBJCHUNK;	/* current number of slots for objnold[] */
+	static	int	maxnexpsyms=OBJCHUNK;	/* current number of slots for expsyms[] */
+	static	int	maxnhidesyms=OBJCHUNK;	/* current number of slots for objnold[] */
 
 	switch (curtype) 
 	{
@@ -271,11 +322,46 @@ char	*lptr;		/* pointer into current line */
 				fatal("%s, line %d: branch table slot number %d is multiply specified",specname,lineno,tpos);
 			btorder[tpos-1]= pbtrec;
 		}
+
+		/* All branch table entries must be exported.  Look up name */
+		/* in hash table explst.   If not there, add tname to hash  */
+		/* table, and expsyms list.				    */
+
+		hval = hash(tname, EXPSIZ);	/* Hash value of branch name */
+		pehstruct = explst[hval];	/* Pointer to entry in explst */
+		while (pehstruct != NULL) {
+			if (strcmp(pehstruct->symname, tname) == 0) 
+				break;
+			pehstruct = pehstruct->next;
+		}
+		if (pehstruct == NULL) {
+			/* tname not found in export/hide table- 
+			 * allocate and set pehstruct */
+			pehstruct=newehstruct(tname, BR, explst[hval]);
+			explst[hval]=pehstruct; /* add pehstruct to e.h. table  */
+				
+			/* Add name to list of exported symbols */	
+			/* This list is printed in loader ifile */
+			nexpsyms++;	
+
+			/* make sure that expsyms[] is large 
+			 * enough to hold new exported name */
+			if (nexpsyms > maxnexpsyms) {
+				maxnexpsyms += OBJCHUNK;
+				if ((expsyms=(char **)realloc((char *)expsyms,
+					sizeof(char *) * maxnexpsyms)) == NULL)
+					fatal("Out of space");
+			}
+
+			expsyms[nexpsyms-1]= stralloc(tname);
+			if (hasmeta (expsyms [nexpsyms-1]) != 0)
+				fatal ("%s, line %d:  regular expressions not allowed in branch table\n",specname,lineno);
+			
+		}
 		break;
 
 	case OBJECTL:
 		/* object file specification line */
-		oflag= TRUE;
 
 		/* scan line file object file names */
 		rest= gettok(lptr);
@@ -298,12 +384,131 @@ char	*lptr;		/* pointer into current line */
 			rest= gettok(lptr);
 		}
 		break;
+	case SLIBS:
+		rest= gettok(lptr);
+		while (*lptr != '\0') {
+			numnold++;
+
+			/* make sure that objnold[] is large 
+			 * enough to hold new library name */
+			if (numnold > maxnumlibs) {
+				maxnumlibs+= OBJCHUNK;
+				if ((objnold=(char **)realloc((char *)objnold,
+					sizeof(char *) * maxnumlibs)) == NULL)
+					fatal("Out of space");
+			}
+
+			objnold[numnold-1]= stralloc(lptr);
+			if (rest == NULL)
+				break;
+			lptr=rest;
+			rest= gettok(lptr);
+		}
+		break;
+
+	case EXPL:
+		someexp = FALSE;	/* Turn off error handling flag */
+		if (allexp == TRUE)
+			fatal ("%s, line %d:  can't list symbols explicitly if all symbols are exported\n",specname,lineno);
+		rest= gettok(lptr);
+		while (*lptr != '\0') {
+
+			exp = stralloc(lptr);		/* Save exported symbol */
+			hval = hash(exp, EXPSIZ);	/* Hash value of exported symbol */
+			pehstruct = explst[hval];	/* Pointer to entry in explst */
+			while (pehstruct != NULL) {
+				if (strcmp(pehstruct->symname, exp) == 0) 
+					break;
+				pehstruct = pehstruct->next;
+			}
+			if (pehstruct == NULL) {
+				/* exp not found in export/hide table- 
+			 	* allocate and set pehstruct */
+				pehstruct=newehstruct(exp, EXPL, explst[hval]);
+				explst[hval]=pehstruct; /* add pehstruct to e.h. table  */
+
+
+				/* Add name to list of exported symbols */	
+				/* This list is printed in loader ifile */
+				nexpsyms++;	
+
+				/* make sure that expsyms[] is large 
+			 	* enough to hold new exported name */
+				if (nexpsyms > maxnexpsyms) {
+					maxnexpsyms += OBJCHUNK;
+					if ((expsyms=(char **)realloc((char *)expsyms,
+						sizeof(char *) * maxnexpsyms)) == NULL)
+						fatal("Out of space");
+				}
+
+				expsyms[nexpsyms-1]= stralloc(exp);
+				if (hasmeta (expsyms [nexpsyms-1]) < 0)
+					fatal ("%s, line %d:  syntax error in regular expression\n",specname,lineno);
+			
+			}
+			else		/* Found in hash table */
+			{
+				if (pehstruct->type == EXPL)
+					fatal ("%s, line %d:  %s exported twice\n",specname,lineno,exp);
+			}
+
+			if (rest == NULL)
+				break;
+			lptr=rest;
+			rest= gettok(lptr);
+		}
+		break;
+
+	case HIDL:
+		somehide = FALSE;	/* Turn off error handling flag */
+		if (allhide == TRUE)
+			fatal ("%s, line %d:  can't list symbols explicitly if all symbols are hidden",specname,lineno);
+		rest= gettok(lptr);
+		while (*lptr != '\0') {
+			nhidesyms++;
+
+			/* make sure that hidesyms[] is large 
+			 * enough to hold new hidden name */
+			if (nhidesyms > maxnhidesyms) {
+				maxnhidesyms += OBJCHUNK;
+				if ((hidesyms=(char **)realloc((char *)hidesyms,
+					sizeof(char *) * maxnhidesyms)) == NULL)
+					fatal("Out of space");
+			}
+
+			hidesyms[nhidesyms-1]= stralloc(lptr);
+			hid = hidesyms[nhidesyms-1];
+			if (hasmeta (hidesyms[nhidesyms-1]) < 0)
+				fatal ("%s, line %d:  syntax error in regular expression\n",specname,lineno);
+
+			hval = hash(hid, HIDSIZ);	/* Hash value of hidden symbol */
+			pehstruct = hidelst[hval];	/* Pointer to entry in hidelst */
+			while (pehstruct != NULL) {
+				if (strcmp(pehstruct->symname, hid) == 0) 
+					break;
+				pehstruct = pehstruct->next;
+			}
+			if (pehstruct == NULL) {
+				/* hid not found in export/hide table- 
+			 	* allocate and set pehstruct */
+				pehstruct=newehstruct(hid, HIDL, hidelst[hval]);
+				hidelst[hval]=pehstruct; /* add pehstruct to e.h. table  */
+			}
+			else		/* Found in hash table */
+			{
+				if (pehstruct->type == HIDL)
+					fatal ("%s, line %d:  %s hidden twice\n",specname,lineno,hid);
+			}
+
+			if (rest == NULL)
+				break;
+			lptr=rest;
+			rest= gettok(lptr);
+		}
+		break;
 
 	case INITL:
 		/* initialization specification line */
-		if (makehost == FALSE)
-			break;
-
 		/* get name of pointer to imported symbol */
 		if ((rest=gettok(lptr)) == NULL)
 			fatal("%s, line %d: bad init. spec. file line",specname,lineno);
@@ -316,11 +521,51 @@ char	*lptr;		/* pointer into current line */
 		import= lptr;
 	
 		/* generate initialization code */
-		initpr(assemf, import, pimport);
+		if (makehost == TRUE)
+		{
+			initpr(assemf, import, pimport);
+		}
+				
+		/* All init entries must be exported.  Look up name */
+		/* in hash table explst.   If not there, add name to hash  */
+		/* table, and expsyms list.				    */
+
+		iname = stralloc(pimport);
+
+		hval = hash(iname, EXPSIZ);	/* Hash value of branch name */
+		pehstruct = explst[hval];	/* Pointer to entry in explst */
+		while (pehstruct != NULL) {
+			if (strcmp(pehstruct->symname, iname) == 0) 
+				break;
+			pehstruct = pehstruct->next;
+		}
+		if (pehstruct == NULL) {
+			/* symbol not found in export/hide table- 
+			 * allocate and set pehstruct */
+			pehstruct=newehstruct(iname, IN, explst[hval]);
+			explst[hval]=pehstruct; /* add pehstruct to e.h. table  */
+				
+			/* Add name to list of exported symbols */	
+			/* This list is printed in loader ifile */
+			nexpsyms++;	
+
+			/* make sure that expsyms[] is large 
+			 * enough to hold new exported name */
+			if (nexpsyms > maxnexpsyms) {
+				maxnexpsyms += OBJCHUNK;
+				if ((expsyms=(char **)realloc((char *)expsyms,
+					sizeof(char *) * maxnexpsyms)) == NULL)
+					fatal("Out of space");
+			}
+			expsyms[nexpsyms-1]= stralloc(iname);
+			if (hasmeta (expsyms [nexpsyms-1]) < 0)
+				fatal ("%s, line %d:  syntax error in regular expression\n",specname,lineno);
+			
+		}
 		break;
 
 	default:
-		fatal("%s, line %d: missing #branch, #object or #init line",specname,lineno);
+		fatal("%s, line %d: missing #<directive> line",specname,lineno);
 	}
 }
 
@@ -342,6 +587,12 @@ char	*lptr;	/* pointer into current line */
 	if (*lptr == '#')
 		/* comment line */
 		return;
+
+	/* if #export linker (or hide) is not followed by one or more symbols */
+	/* Flags set to true in directive() and false when symbol line encountered */
+	/* in spec() 	*/
+	if ((someexp == TRUE) || (somehide == TRUE))
+		fatal("%s, line %d: must have symbols after #export or #hide directive\n",specname,lineno);
 
 	rest= gettok(lptr);
 	for (i=0; i < NUMDIRS; i++) { 
@@ -392,10 +643,10 @@ char	*lptr;	/* pointer into current line */
 		break;
 
 	case TARGET:
+		if (tflag == TRUE)
+			fatal("%s, line %d: multiple #target directives",specname,lineno);
 		/* #target- specifies pathname of target on target machine */
 		curtype= BAD;
-		if (maketarg == FALSE)
-			break;
 		tflag = TRUE;
 
 		/* get pathname of target (on target machine) */
@@ -405,6 +656,8 @@ char	*lptr;	/* pointer into current line */
 		break;
 
 	case BRANCH:
+		if (bflag == TRUE)
+			fatal("%s, line %d: multiple #branch directives",specname,lineno);
 		/* #branch- start of branch table specificaton */
 		curtype= BRANCHL;
 		if (maketarg == FALSE)
@@ -416,10 +669,84 @@ char	*lptr;	/* pointer into current line */
 
 	case OBJECTS:
 		/* #objects- start of list of input objects */
-		/* should be no other token on the line */
-		if (lptr != NULL)
-			fatal("%s, line %d: bad #objects line",specname,lineno);
-		curtype= OBJECTL;
+		if (lptr != NULL)		/* Look for noload keyword */
+		{
+			extern int nflag;
+			gettok(lptr);
+			if (strcmp(lptr,"noload") != 0)
+				fatal("%s, line %d: bad #objects line",specname,lineno);
+			if (maketarg == FALSE)
+				fatal(
+"%s, line %d: \"#objects noload\" not implemented under \"-n\" option\n\
+(Omit the \"-n\" option to build a target, use chkshlib(1) to compare\n\
+it against the target you were using for this \"-n\" run.)\n",
+				specname, lineno);
+
+			curtype = SLIBS;	/* List of shared libraries */
+		}
+		else				/* #objects line */
+		{
+			if (oflag == TRUE)
+				fatal("%s, line %d: multiple #objects directives",specname,lineno);
+			oflag = TRUE;		/* Only one #objects line allowed */
+			curtype= OBJECTL;
+		}
+		break;
+
+	case EXPORT:
+		rest = gettok(lptr);	/* Save returned value from gettok */
+		if (*lptr == '\0')	/* Must have linker */
+			fatal("%s, line %d: must have keyword linker after #export directive",specname, lineno);
+		if (strcmp (lptr,"linker") == 0)
+			curtype = EXPL;
+		else
+		{
+			if (strcmp (lptr,"runtime") == 0)
+				fatal("%s, line %d: Not applicable to static shared libraries",specname, lineno);
+			else
+				fatal("%s, line %d: must have keyword linker after #export directive",specname, lineno);
+		}	
+		if (rest != NULL)	/* '*' allowed after {runtime,linker} */
+		{
+			lptr = rest;
+			rest = gettok(lptr);
+			if ((rest != NULL) || (*lptr == '\0'))
+				fatal("%s, line %d: usage #export linker [*]",specname, lineno);
+			if (strcmp (lptr,"*") != 0)
+			{
+				fatal("%s, line %d: usage #export linker [*]",specname, lineno);
+			}
+			allexp = TRUE;	/* All symbols exported - global flag */
+		}
+		else
+			someexp = TRUE;	/* Some symbols exported */
+		break;
+
+	case HIDE:
+		rest = gettok(lptr);	/* Save returned value from gettok */
+		if (*lptr == '\0')	/* Must have linker */
+			fatal("%s, line %d: must have keyword linker after #hide directive",specname, lineno);
+		if (strcmp (lptr,"linker") == 0)
+			curtype = HIDL;		/* Hide linker */
+		else
+		{
+			if (strcmp (lptr,"runtime") == 0)
+				fatal("%s, line %d: not applicable to static shared libraries",specname, lineno);
+			else
+				fatal("%s, line %d: must have keyword linker after #hide directive",specname, lineno);
+		}	
+		if (rest != NULL)	/* '*' allowed after {runtime,linker} */
+		{
+			lptr = rest;
+			if ((gettok(lptr) != NULL) || (*lptr == '\0'))
+				fatal("%s, line %d: usage #hide linker [*]",specname, lineno);
+			if (strcmp (lptr,"*") != 0)
+				fatal("%s, line %d: usage #hide linker [*]",specname, lineno);
+			allhide = TRUE;	/* All symbols hidden - global flag */
+		}
+		else
+			somehide = TRUE;	/* Some symbols hidden */
+		hidef=TRUE;	/* Hiding symbols, so ld will be called for each object file */
 		break;
 
 	case INIT:
@@ -546,4 +873,71 @@ char	*lptr;
 		return(NULL);
 
 	return(stralloc(lptr));
+}
+
+/*
+ * Return 1 if "s" contains special characters that
+ * make "s" a r.e.;
+ * return -1 if it's a malformed r.e.;
+ * return 0 if it contains no metacharacters.
+ */
+
+hasmeta(s)
+	char *s;
+{
+	int foundmeta = 0;
+	enum { inbracket, notinbracket} state = notinbracket;
+
+	do
+	{
+		switch (*s)
+		{
+		    case '*':
+		    case '?':
+			foundmeta = 1;
+			break;
+		    case '\\':	
+			s++; /* Ignore next character */
+			if (*s == '\0')
+				return(-1);
+			break;
+		    case '[':
+			if (state == inbracket) return(-1);
+			state = inbracket;
+			foundmeta = 1;
+			break;
+		    case ']':
+		    case '-':
+		    case '!':
+			if (state == notinbracket) return(-1);
+			foundmeta = 1;
+			if (*s == ']') state = notinbracket;
+			break;
+		}
+	} while (*s++ != '\0');
+	if (state == inbracket) return(-1);
+	return(foundmeta);
+}
+
+/* newehstruct
+	
+	Create a new node for the hash table explst.
+								*/
+
+ehstruct *newehstruct(name, type, next)
+char	*name;
+int	type;
+ehstruct	*next;
+{
+	
+	ehstruct *tnode;
+
+	if ((tnode = (ehstruct *)malloc(sizeof(ehstruct))) == NULL)
+		fatal("Out of space for export/hide hash table");
+
+	tnode->symname = name;
+	tnode->type = type;
+	tnode->found = FALSE;
+	tnode->next = next;
+	return(tnode);
 }

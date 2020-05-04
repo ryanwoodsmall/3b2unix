@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sh:defs.h	1.12"
+#ident	"@(#)sh:defs.h	1.14"
 /*
  *	UNIX shell
  */
@@ -161,7 +161,7 @@ extern struct ionod		*iotemp;	/* files to be deleted sometime */
 extern struct ionod		*fiotemp;	/* function files to be deleted sometime */
 extern struct ionod		*iopend;	/* documents waiting to be read at NL */
 extern struct fdsave	fdmap[];
-
+extern int savpipe;
 
 /* substitution */
 extern int				dolc;
@@ -353,8 +353,14 @@ extern char				libacc[];
 extern char				libbad[];
 extern char				libscn[];
 extern char				libmax[];
+extern char                             emultihop[];
+extern char                             nulldir[];
+extern char                             enotdir[];
+extern char                             enoent[];
+extern char                             eacces[];
+extern char                             enolink[];
 
-/*	'builtin' error messages	*/
+/*	'builtin'nerror messages	*/
 
 extern char				btest[];
 extern char				badop[];

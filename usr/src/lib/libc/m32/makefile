@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)libc-m32:makefile	1.43"
+#ident	"@(#)libc-m32:makefile	1.45"
 #
 #  makefile for libc/m32
 #
@@ -31,7 +31,7 @@ OBJECTS=\
 crt/cerror.o	  crt/mcount.o	    csu/crt0.o	      csu/mcrt0.o	\
 csu/fcrt0.o	  csu/fmcrt0.o	    \
 csu/crt1.o	  csu/fcrt1.o       csu/fmcrt1.o      csu/mcrt1.o	\
-csu/crtn.o	  \
+csu/crtn.o	  csu/pcrt1.o	\
 gen/abs.o	  gen/atof.o        \
 gen/biglitpow.o	  gen/cuexit.o      gen/dtop.o	      \
 gen/ecvt.o	  gen/fakcu.o	    gen/frexp.o	      gen/gen_def.o     \
@@ -172,6 +172,7 @@ archive:
 	mv getpid.o getpid.x
 	mv cerror.o cerror.x
 	mv fpsetmask.o fpsetmask.x
+	-rm -f old_toupper.o old_tolower.o
 	$(LORDER) *.o | tsort >objlist
 	mv cuexit.x cuexit.o
 	mv fakcu.x fakcu.o

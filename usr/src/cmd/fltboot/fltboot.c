@@ -5,15 +5,10 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)fltboot:fltboot.c	1.5"
+#ident	"@(#)fltboot:fltboot.c	1.5.1.1"
 /**********************************************************************/
 /*                                                                    */
 /*    Function Name: fltboot.c                                        */
-/*                                                                    */
-/*          Author: G. L. Commons                                     */
-/*								      */
-/*          Adopted from boot.c by Laggis and Halt                    */
-/*          and edit_tbl.c by  Loren Weber                            */
 /*                                                                    */
 /*          Purpose: Interface to Simple Admin Menu for Autoboot      */
 /*                                                                    */
@@ -108,8 +103,11 @@ struct edt *nedtp;
 /* read nvram to get current autoload program data */
 
 	sys3b(RNVR,&nvparams,0);
-	if ( errno != 0 )
+	if ( errno != 0 )  {
 		printf("ERROR: Not invoked by superuser");
+		exit(1);
+	}
+
 	printf("\nEnter name of default program for manual load [ %s ]: ",fw_nvr.b_name);
 	a=gets(fw_nvr.b_name);
 

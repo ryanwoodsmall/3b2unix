@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)uname:uname.mk	1.1"
+#ident	"@(#)uname:uname.mk	1.2"
 
 #	Makefile for uname 
 
@@ -68,7 +68,7 @@ clean:
 	rm -f $(OBJECTS)
 
 clobber:
-	rm -f $(OBJECTS)
+	rm -f $(OBJECTS) $(MAINS)
 
 newmakefile:
 	makefile -m -f $(MAKEFILE)  -s INC $(INC)

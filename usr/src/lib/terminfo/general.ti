@@ -1,4 +1,4 @@
-#ident	"@(#)terminfo:general.ti	1.6"
+#ident	"@(#)terminfo:general.ti	1.7"
 # # --------------------------------
 #
 # general: GENERAL TERMINAL (formerly INFOTON)
@@ -14,6 +14,11 @@ i100|gt100|gt100a|General Terminal 100A (formerly Infoton 100),
 	lines#24, cols#80, il1=\EL, dl1=\EM, cuu1=\EA, cuf1=\EC,
 	home=\EH, cup=\Ef%p2%' '%+%c%p1%' '%+%c,
 	flash=\Eb\Ea, am, cub1=^H, smso=\Eb, rmso=\Ea,
+infoton,
+	am,
+	cols#80, lh#0, lines#24, lw#0, nlab#0,
+	bel=^G, clear=\f, cr=\r, cub1=^Z, cud1=\n, cuf1=^Y,
+	cuu1=^\, ed=^K, ind=\n, ll=\b^\,
 # Info:
 #	Looks like an ANSI terminal, but look at dch1! I bet smdc/rmdc
 #	could be used.

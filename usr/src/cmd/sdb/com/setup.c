@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:com/setup.c	1.27"
+#ident	"@(#)sdb:com/setup.c	1.31"
 
 /*
  *	UNIX debugger
@@ -40,21 +40,23 @@ extern INT		signo;
 extern INT		magic;
 extern int		errno;
 
-extern STRING		symfil;
+extern STRING		symfil[];
 extern STRING		corfil;
 
-#define AOUTHDRSIZ	(filhdr.f_opthdr)
+#define AOUTHDRSIZ	(filhdr[libn].f_opthdr)
 
 #define	maxfile		(1L<<24)
 
-FILHDR	filhdr;		/* a.out file header */
+FILHDR	filhdr[MAXNLIB];		/* a.out file header */
 AOUTHDR	aouthdr;	/* a.out Unix (optional) header */
-SCNHDR	*scnhdrp;	/* pointer to first section header (space by sbrk) */
-int		hcnt,txt,dat;
+SCNHDR	*scnhdrp[MAXNLIB];	/* pointer to first section header (space by sbrk) */
+int		hcnt,gtxt[MAXNLIB],gdat[MAXNLIB];
 
 setsym()
 {
 	int	i;
+	int	txt, dat;
+	int lib = 0;
 #if DEBUG
 	if (debugflag ==1)
 	{
@@ -66,18 +68,19 @@ setsym()
 		closeparen();
 	}
 #endif
-	fsym = getfile(symfil,1);
-	txtmap.ufd = fsym;
+	fsym[libn] = getfile(symfil[libn],1);
+	txtmap[libn].ufd = fsym[libn];
 	errno = 0;
-	if (read(fsym,&filhdr,FILHSZ) == FILHSZ	&&
-	   ISMAGIC(filhdr.f_magic)		&&
+	if (read(fsym[libn],&filhdr[libn],FILHSZ) == FILHSZ	&&
+	   ISMAGIC(filhdr[libn].f_magic)		&&
 	   AOUTHDRSIZ == sizeof aouthdr		&&
-	   read(fsym, &aouthdr, AOUTHDRSIZ)==AOUTHDRSIZ)
+	   read(fsym[libn], &aouthdr, AOUTHDRSIZ)==AOUTHDRSIZ)
 	{
 		magic=aouthdr.magic;
 		if (magic==OMAGIC   || 	/* Writable text: private */
 		    magic==PMAGIC   ||	/* Paging text: private.  */
-		    magic==NMAGIC)	/* Readonly text: private */
+		    magic==NMAGIC   || 	/* Readonly text: private */
+		    magic==LMAGIC )	/* Readonly text: shared libs  */
 		{
 			txtsiz=aouthdr.tsize;
 			datsiz=aouthdr.dsize + aouthdr.bsize;
@@ -85,80 +88,99 @@ setsym()
 			hcnt = rdschdrs();
 			for (i = 0 ; i < hcnt ; i++ )
 			{
-				if (strcmp(scnhdrp[i].s_name,".text")==0)
+				if (strcmp(scnhdrp[libn][i].s_name,".text")==0)
 				{
-					txt = i;
+					gtxt[libn] = i;
 				}
-				else if (strcmp(scnhdrp[i].s_name,".data")==0)
+				else if (strcmp(scnhdrp[libn][i].s_name,".data")==0)
 				{
-					dat = i;
+					gdat[libn] = i;
+				}
+				else if (strcmp(scnhdrp[libn][i].s_name,".lib")==0)
+				{
+					lib = i;
 				}
 			}
 
+			
+			txt = gtxt[libn];
+			dat = gdat[libn];
+
+			if (lib && (libn == 0))
+			{
+				/* # of shared libs */
+				nshlib = scnhdrp[0][lib].s_paddr; 
+				/* get paths for shared libs */
+				setslnames( scnhdrp[0][lib].s_scnptr);
+			}
 			switch (magic) {
 			/*  use to have many more "magic" cases here */
 			/*	assuming text is first section */
 
 			case OMAGIC:	/* 0407 */
-				txtmap.b1=scnhdrp[txt].s_vaddr;
-				txtmap.e1=txtmap.b1 + symbas;
-				txtmap.f1=scnhdrp[txt].s_scnptr;
-				txtmap.b2=datbas=scnhdrp[dat].s_vaddr;
-				txtmap.e2=symbas;
-				txtmap.f2=txtmap.f1;
+				txtmap[libn].b1=scnhdrp[libn][txt].s_vaddr;
+				txtmap[libn].e1=txtmap[libn].b1 + symbas;
+				txtmap[libn].f1=scnhdrp[libn][txt].s_scnptr;
+				txtmap[libn].b2=datbas=scnhdrp[libn][dat].s_vaddr;
+				txtmap[libn].e2=symbas;
+				txtmap[libn].f2=txtmap[libn].f1;
 				break;
 
 			case PMAGIC:	/* 0413 */
 			case NMAGIC:	/* 0410 */
-				txtmap.b1=scnhdrp[txt].s_vaddr;
-				txtmap.e1=txtmap.b1 + txtsiz;
-				txtmap.f1=scnhdrp[txt].s_scnptr;
-				txtmap.b2=datbas=scnhdrp[dat].s_vaddr;
-				txtmap.e2=datbas+datsiz;
-				txtmap.f2=scnhdrp[dat].s_scnptr;
+			case LMAGIC:	/* 0443 */
+				txtmap[libn].b1=scnhdrp[libn][txt].s_vaddr;
+				txtmap[libn].e1=txtmap[libn].b1 + txtsiz;
+				txtmap[libn].f1=scnhdrp[libn][txt].s_scnptr;
+				txtmap[libn].b2=datbas=scnhdrp[libn][dat].s_vaddr;
+				txtmap[libn].e2=datbas+datsiz;
+				txtmap[libn].f2=scnhdrp[libn][dat].s_scnptr;
 				break;
 
 			}
 			entrypt = aouthdr.entry;
-			ststart = filhdr.f_symptr;
+			ststart[libn] = filhdr[libn].f_symptr;
 		}
 		else {
 			magic = 0;
-			fprintf(FPRT1, "Warn: No magic for %s;\n", symfil);
+			fprintf(FPRT1, "Warn: No magic for %s;\n", symfil[libn]);
 		}
 	}
 	else {		/*  may be a ".o" file */
-		if (ISMAGIC(filhdr.f_magic))
+		if (ISMAGIC(filhdr[libn].f_magic))
 		{
-			magic = filhdr.f_magic;
+			magic = filhdr[libn].f_magic;
 			hcnt = rdschdrs();
 			for (i = 0 ; i < hcnt ; i++ )
 			{
-				if (strcmp(scnhdrp[i].s_name,".text")==0)
+				if (strcmp(scnhdrp[libn][i].s_name,".text")==0)
 				{
-					txt = i;
+					gtxt[libn] = i;
 				}
-				else if (strcmp(scnhdrp[i].s_name,".data")==0)
+				else if (strcmp(scnhdrp[libn][i].s_name,".data")==0)
 				{
-					dat = i;
+					gdat[libn] = i;
 				}
 			}
-			txtsiz = scnhdrp[txt].s_size;
-			datsiz = scnhdrp[dat].s_size;
+			txt = gtxt[libn];
+			dat = gdat[libn];
+
+			txtsiz = scnhdrp[libn][txt].s_size;
+			datsiz = scnhdrp[libn][dat].s_size;
 			symbas = txtsiz+datsiz;
-			txtmap.b1 = 0;
-			txtmap.e1 = txtsiz;
-			txtmap.f1 = scnhdrp[txt].s_scnptr;
-			txtmap.b2 = datbas = scnhdrp[txt].s_paddr;
-			txtmap.e2 = txtsiz+datsiz;
-			txtmap.f2 = scnhdrp[dat].s_scnptr;
+			txtmap[libn].b1 = 0;
+			txtmap[libn].e1 = txtsiz;
+			txtmap[libn].f1 = scnhdrp[libn][txt].s_scnptr;
+			txtmap[libn].b2 = datbas = scnhdrp[libn][txt].s_paddr;
+			txtmap[libn].e2 = txtsiz+datsiz;
+			txtmap[libn].f2 = scnhdrp[libn][dat].s_scnptr;
 			entrypt = 0;
-			ststart = filhdr.f_symptr;
+			ststart[libn] = filhdr[libn].f_symptr;
 		}
 	}
 	if (magic == 0)
 	{
-		txtmap.e1 = maxfile;
+		txtmap[libn].e1 = maxfile;
 	}
 #if DEBUG
 	if (debugflag == 1)
@@ -173,12 +195,36 @@ setsym()
 #endif
 }
 
+setslnames(sloff)
+long sloff;
+{
+	char *slptr, slbuf[128];
+	int i, *slinc;
+
+
+
+	if ( (lseek(fsym[0],sloff,0L) != sloff) ||
+	     (read(fsym[0],slbuf,128) <= 0)        ) {
+		nshlib = 0; 	/* something is wrong with .lib section*/
+		return;		/* ignore it */
+	}
+	slptr = slbuf;
+	for (i = 0; i < nshlib; i++) {
+		slinc = (int *) slptr;
+		strcpy(slnames[i], slptr + 2 * WORDSIZE);
+		slptr += (*slinc) * WORDSIZE;		/* path for next lib */
+	}
+}
+
 setcor()
 {
+	int dat,txt;
 #if u3b2
 	struct utsname sysinfo;
 #endif
 
+	txt = gtxt[libn];
+	dat = gdat[libn];
 #if DEBUG
 	if (debugflag ==1)
 	{
@@ -207,17 +253,16 @@ setcor()
 		return;
 	}
 	   /*  sure a core file */
-	if (read(fcor, uu, XTOB(USIZE))==XTOB(USIZE)
-	   && magic
-#if !(u3b5 || u3b15 || u3b2)
-	   && magic == ((struct user *)uu)->u_exdata.ux_mag
-#endif
-/*
+	if (read(fcor, uu, XTOB(USIZE))==XTOB(USIZE)) {
+/*	   && magic
+** #if !(u3b5 || u3b15 || u3b2)
+**	   && magic == ((struct user *)uu)->u_exdata.ux_mag
+** #endif
+**
 ** ANDF (((struct user *)uu)->u_pcb.pcb_ksp & 0xF0000000L)==0x80000000L removed
 ** ANDF (((struct user *)uu)->u_pcb.pcb_usp & 0xF0000000L)==0x70000000L	removed
 */
-	   )
-	{
+
 #if vax || u3b
 	/* ((struct user *)uu)->u_ar0 is an absolute address, currently
 	   0x7fff ffb8 in the VAX, and 0x00a0 07b8 in the 3B-20.
@@ -241,14 +286,17 @@ setcor()
 		datsiz = XTOB(((struct user *)uu)->u_dsize);
 		stksiz = XTOB(((struct user *)uu)->u_ssize);
 #if vax || u3b	/* really should do this for the 3b2, but it works this way */
-		datbas=scnhdrp[dat].s_vaddr;
-		datbas=datmap.b1=(magic==PMAGIC ? datbas & (~POFFMASK) : datbas);
-#else
+		datbas=scnhdrp[libn][dat].s_vaddr;
+/*
+ * no need to round the address
+ *
+ *		datbas=datmap.b1=(magic==PMAGIC ? datbas & (~POFFMASK) : datbas);
+ */
+#endif
 #if u3b2 && SWAPPING
 		datbas=datmap.b1=(magic==PMAGIC ? datbas & (~0x1fff) : datbas);
 #else
-		datbas=datmap.b1=scnhdrp[dat].s_vaddr;
-#endif
+		datbas=datmap.b1=scnhdrp[libn][dat].s_vaddr;
 #endif
 		datmap.e1=datmap.b1+(magic==OMAGIC?datsiz+txtsiz:datsiz);
 		datmap.f1 = XTOB(USIZE);
@@ -425,7 +473,7 @@ STRING	filnam;
 rdschdrs()
 {
 	register unsigned nb;
-	extern FILHDR filhdr;		/* a.out file header */
+	extern FILHDR filhdr[];		/* a.out file header */
 
 #if DEBUG
 	if (debugflag ==1)
@@ -438,9 +486,9 @@ rdschdrs()
 		closeparen();
 	}
 #endif
-	nb = filhdr.f_nscns * SCNHSZ;
-	scnhdrp = (SCNHDR *) sbrk(nb);
-	if (read(fsym, scnhdrp, nb) != nb)
+	nb = filhdr[libn].f_nscns * SCNHSZ;
+	scnhdrp[libn] = (SCNHDR *) sbrk(nb);
+	if (read(fsym[libn], scnhdrp[libn], nb) != nb)
 		fprintf(FPRT1, "Warn: section header read error\n");
 	/* chkerr();	 does longjmp and haven't done setjmp yet */
 #if DEBUG
@@ -451,17 +499,17 @@ rdschdrs()
 	else if (debugflag == 2)
 	{
 		exit2("rdschdrs");
-		printf("%d",filhdr.f_nscns);
+		printf("%d",filhdr[libn].f_nscns);
 		endofline();
 	}
 #endif
-	return(filhdr.f_nscns);
+	return(filhdr[libn].f_nscns);
 }
 
 #if u3b2 || u3b5 || u3b15
 
 #ifndef SIG_ERR
-#define SIG_ERR (int(*)()) -1
+#define SIG_ERR (void(*)()) -1
 #endif
 
 extern int	mauflag;

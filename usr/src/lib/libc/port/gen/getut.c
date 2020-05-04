@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libc-port:gen/getut.c	1.9"
+#ident	"@(#)libc-port:gen/getut.c	1.10"
 
 /*	Routines to read and write the /etc/utmp file.			*/
 /*									*/
@@ -67,8 +67,7 @@ struct utmp *getutent()
 /* If the open failed for permissions, try opening it only for
  * reading.  All "pututline()" later will fail the writes.
  */
-			if (errno == EACCES
-			    && (fd = open(utmpfile, O_RDONLY)) < 0)
+		if ((fd = open(utmpfile, O_RDONLY)) < 0)
 				return(NULL);
 		}
 	}

@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident	"@(#)vi:port/ex_vmain.c	1.12"
+#ident	"@(#)vi:port/ex_vmain.c	1.14"
 
 #include "ex.h"
 #include "ex_tty.h"
@@ -25,7 +25,7 @@
 vmain()
 {
 	register int c, cnt, i;
-	char esave[TUBECOLS];
+	short esave[TUBECOLS];
 	char *oglobp;
 	short d;
 	line *addr;
@@ -539,7 +539,7 @@ reread:
 			{
 				char mbuf[2048];
 				int tmp;
-
+				char tmp1;
 				setLAST();
 				for (tmp = 0; tmp/3<((cnt<2048/3-2) ? cnt : 512); tmp+=3) {
 				/*
@@ -563,8 +563,11 @@ reread:
 				 * change the case.
 				 */
 
-				if (isalpha(mbuf[tmp+1]))
-					mbuf[tmp+1] ^= ' '; /* toggle the case */
+				tmp1 = mbuf[tmp+1];
+				if (isupper((unsigned char)tmp1))
+					mbuf[tmp+1] = tolower((unsigned char)tmp1);
+				else
+					mbuf[tmp+1] = toupper((unsigned char)tmp1);
 
 				/* 
 				 * If we are at the end of the line,
@@ -759,7 +762,7 @@ insrt:
 			 * use insert mode on intelligent terminals.
 			 */
 			if (!vreg && DEL[0]) {
-				forbid ((DEL[0] & (QUOTE|TRIM)) == OVERBUF);
+				forbid ((unsigned char)DEL[128] == 0200);
 				vglobp = DEL;
 				ungetkey(c == 'p' ? 'a' : 'i');
 				goto reread;
@@ -988,7 +991,7 @@ doinit:
 #ifndef CBREAK
 				vraw();
 #endif
-				copy(esave, vtube[WECHO], TUBECOLS);
+				copy(esave, vtube[WECHO], TUBECOLS * sizeof(short));
 			ENDCATCH
 			fixol();
 			Pline = OPline;
@@ -1053,7 +1056,7 @@ fixup:
 				addr = zero;
 				vcnt = 0;
 				if (esave[0] == 0)
-					copy(esave, vtube[WECHO], TUBECOLS);
+					copy(esave, vtube[WECHO], TUBECOLS * sizeof(short));
 			}
 
 			/*

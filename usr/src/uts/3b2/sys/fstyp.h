@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/fstyp.h	10.10"
+#ident	"@(#)kern-port:sys/fstyp.h	10.10.1.1"
 #define NULL_FS	0		/* Null FS type - Invalid */
 
 #define FSTYPSZ		16	/* max size of fs identifier */
@@ -18,11 +18,12 @@
 #define GETNFSTYP	3	/* return the number of fstypes */
 
 /* Bit settings for fs_flags */
-#define FS_NOICACHE	0x1	/* Retain old inodes in in-core cache. */
-				/* Should an iput be done on last */
-				/* reference?  If this flag is set, an */
-				/* iput() is done.  System V fs should have */
-				/* this clear */
+#define FS_NOICACHE	0x1	/* Don't retain old inodes in in-core cache
+				 * after last reference.  Should be off for
+				 * the S5 fstyp.
+				 */
+#define	FS_RECYCLE	0x2	/* Always call FS_IPUT for a recycled inode */
+#define	FS_NOTBUFFERED	0x4	/* Fstyp unsuitable for, e.g., RFS caching */
 
 #define	FSBSIZE(ip)	((ip)->i_mntdev)->m_bsize
 

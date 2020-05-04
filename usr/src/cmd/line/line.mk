@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)line:line.mk	1.2"
+#ident	"@(#)line:line.mk	1.3"
 
 #	Makefile for line
 
@@ -45,7 +45,7 @@ clean:
 	rm -f $(OBJECTS)
 
 clobber:
-	rm -f $(OBJECTS)
+	rm -f $(OBJECTS) $(MAINS)
 
 newmakefile:
 	makefile -m -f $(MAKEFILE)  -s INC $(INC)

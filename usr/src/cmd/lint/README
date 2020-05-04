@@ -1,4 +1,4 @@
-#ident	"@(#)lint:README	1.5"
+#ident	"@(#)lint:README	1.7"
 Lint consists of two programs:  lint1 and lint2.  Lint1 is based on the
 machine independent front-end of PCC.  Lint1 processes each input file 
 separately producing binary information about external symbols.  This

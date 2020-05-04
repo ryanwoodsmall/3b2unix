@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libc-port:stdio/doscan.c	2.17"
+#ident	"@(#)libc-port:stdio/doscan.c	2.18"
 /*LINTLIBRARY*/
 #include <stdio.h>
 #include <ctype.h>
@@ -113,7 +113,7 @@ va_list va_alist;
                  }
 		   if (size) 
 		          nmatch += stow;   
-                   else return(nmatch);
+                   else return ((flag_eof && !nmatch) ? EOF : nmatch);
                 continue;
 	}
 	return (nmatch != 0 ? nmatch : EOF); /* end of input */

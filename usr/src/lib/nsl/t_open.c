@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/t_open.c	1.5"
+#ident	"@(#)libnsl:nsl/t_open.c	1.5.2.2"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/errno.h"
@@ -21,12 +21,14 @@
 extern struct _ti_user *_ti_user;
 extern int t_errno;
 extern int errno;
+extern long openfiles;
 extern char *calloc();
-extern int (*sigset())();
+extern void (*sigset())();
 extern int ioctl();
 extern int open();
 extern int close();
-extern int ulimit();
+extern long ulimit();
+
 
 t_open(path, flags, info)
 char *path;
@@ -37,7 +39,7 @@ register struct t_info *info;
 	struct T_info_ack inforeq;
 	register struct _ti_user *tiptr;
 	int retlen;
-	int (*sigsave)();
+	void (*sigsave)();
 
 
 	if ((fd = open(path, flags)) < 0) {
@@ -97,12 +99,14 @@ register struct t_info *info;
 	 * then allocate the ti_user structures
 	 * for all file desc.
 	 */
-	 if (!_ti_user) 
-		if ((_ti_user = (struct _ti_user *)calloc(1, (unsigned)(OPENFILES*sizeof(struct _ti_user)))) == NULL) {
+	 if (!_ti_user) { 
+		openfiles = OPENFILES;
+		if ((_ti_user = (struct _ti_user *)calloc(1, (unsigned)(openfiles*sizeof(struct _ti_user)))) == NULL) {
 			t_errno = TSYSERR;
 			close(fd);
 			return(-1);
 		}
+	}
 
 
 	/*
@@ -119,5 +123,7 @@ register struct t_info *info;
 			return(-1);
 		}
 	}
+
+	tiptr->ti_state = TLI_NEXTSTATE(T_OPEN, tiptr->ti_state);
 	return(fd);
 }

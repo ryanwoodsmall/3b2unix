@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/t_rcvrel.c	1.7"
+#ident	"@(#)libnsl:nsl/t_rcvrel.c	1.7.1.2"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/errno.h"
@@ -22,7 +22,7 @@ extern int t_errno;
 extern int errno;
 extern struct _ti_user *_t_checkfd();
 extern int getmsg();
-extern int (*sigset())();
+extern void (*sigset())();
 
 
 t_rcvrel(fd)
@@ -34,7 +34,7 @@ int fd;
 	int flg = 0;
 	union T_primitives *pptr;
 	struct _ti_user *tiptr;
-	int (*sigsave)();
+	void (*sigsave)();
 
 
 	if ((tiptr = _t_checkfd(fd)) == 0)
@@ -60,6 +60,8 @@ int fd;
 	if (tiptr->ti_lookflg && (*((long *)tiptr->ti_lookcbuf) == T_ORDREL_IND)) {
 		tiptr->ti_lookflg = 0;
 		sigset(SIGPOLL, sigsave);
+
+		tiptr->ti_state = TLI_NEXTSTATE(T_RCVREL, tiptr->ti_state);
 		return(0);
 	} else {
 		if (retval != T_ORDREL) {
@@ -104,5 +106,6 @@ int fd;
 		return(-1);
 	}
 
+	tiptr->ti_state = TLI_NEXTSTATE(T_RCVREL, tiptr->ti_state);
 	return(0);
 }

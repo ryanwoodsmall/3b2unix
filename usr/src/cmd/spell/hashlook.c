@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)spell:hashlook.c	1.7"
+#ident	"@(#)spell:hashlook.c	1.8"
 #include <stdio.h>
 #include "hash.h"
 #include "huff.h"
@@ -46,7 +46,7 @@ char *s;
 			 bp -= decode((fetch(wp,bp)>>1)&MASK, &t);*/
 			long y;
 			long v;
-#if u3b || u3b5	|| u3b2 /* shift 32 on 3b leaves destination unchanged */
+#if u3b || u3b15	|| u3b2 /* shift 32 on 3b leaves destination unchanged */
 			if (bp == 0)
 				y = 0;
 			else

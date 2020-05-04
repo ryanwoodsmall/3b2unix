@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)initpkg:./rmount.sh	1.8"
+#ident	"@(#)initpkg:./rmount.sh	1.9"
 
 if u3b2
 then echo "#	mount remote resources
@@ -58,6 +58,12 @@ do
 	ps -e | grep nserve >/dev/null 2>&1
 	if [ \$? != 0 ]
 	then 
+		exit 0
+	fi
+#	make sure the resource wasn't manually mounted while we slept
+	/etc/mount | /bin/grep \" \$2 \"
+	if [ \$? -eq 0 ]
+	then
 		exit 0
 	fi
 

@@ -1,4 +1,4 @@
-#ident	"@(#)terminfo:hp.ti	1.13"
+#ident	"@(#)terminfo:hp.ti	1.17"
 # # --------------------------------
 #
 # hp: HEWLETT PACKARD
@@ -132,6 +132,7 @@ hp2621-k45|hp2621k45|2621k45|k45|hp 2621 with 45 keyboard,
 	dim=\E&dH, rev=\E&dB, smul=\E&dD, blink=\E&dA, sgr0=\E&d@,
 	sgr=\E&d%'@'%?%p1%t%'B'%|%;%?%p2%t%'D'%|%;%?%p3%t%'B'%|%;%?%p4%t%'A'%|%;%?%p5%t%'H'%|%;%?%p6%t%'B'%|%;%c,
 	kcuu1=\EA, kcud1=\EB, kcub1=\ED, kcuf1=\EC, khome=\Eh,
+	kctab=\E2, khts=\E1,
 	smkx=\E&s1A, rmkx=\E&s0A, knp=\EU, kpp=\EV, kri=\ET, kind=\ES,
 	kil1=\EL, kdl1=\EM, kich1=\EQ, kdch1=\EP,
 	kel=\EK, ked=\EJ, krmir=\ER, pb#9600, cr=^M$<20>, use=hp,
@@ -302,6 +303,7 @@ hp150|Hewlett Packard Model 150,
 #
 hp2382a|hp2382|Hewlett Packard 2382a,
 	da, db, lm#48,
+	pln=\E&f0a%p1%dk%p2%l%Pa%?%ga%t%ga%d%e1%;d0L%?%ga%!%t %;%p2%s,
 	lh#1, use=hp+labels,
 	rmacs@, smacs@, acsc@,
 	sgr0=\E&d@,
@@ -382,7 +384,7 @@ hp+labels|"standard" label info for new HP ttys,
 	smln=\E&jB,
 
 hp+printer| "standard" printer info for HP ttys,
-	ff=\E&p4u0C, mc0=\EH&p4dF, mc4=\E&p13C, mc5=\E&p11C,
+	ff=\E&p4u0C, mc0=\EH\E&p4dF, mc4=\E&p13C, mc5=\E&p11C,
 
 # Info:
 #	The new hp2621b is kind of a cross between the old 2621 and the

@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident	"@(#)vi:port/ex_cmds2.c	1.10"
+#ident	"@(#)vi:port/ex_cmds2.c	1.11"
 
 #include "ex.h"
 #include "ex_argv.h"
@@ -128,7 +128,7 @@ error0()
 	if (vcatch) {
 		if (splitw == 0)
 			fixech();
-		if (!enter_standout_mode || !exit_standout_mode)
+		if (!enter_standout_mode || !exit_bold)
 			dingdong();
 		return;
 	}
@@ -141,7 +141,7 @@ error0()
 	setoutt();
 	flush();
 	resetflav();
-	if (!enter_standout_mode || !exit_standout_mode)
+	if (!enter_standout_mode || !exit_bold)
 		dingdong();
 	if (inopen) {
 		/*

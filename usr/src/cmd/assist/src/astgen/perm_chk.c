@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)tools:perm_chk.c	1.7"
+#ident	"@(#)tools:perm_chk.c	1.8"
 #include "../forms/muse.h"
 #include "tools.h"
 #include "vdefs.h"
@@ -33,6 +33,8 @@ struct labels pnames[] = {
 	{0,13,41," User should have 'execute' permission:"},
 	{0,14,10," Message:"},
 };
+/*this routine is used to allow users to select file permissions.
+*It is called from the validations screen*/
 
 VOID pprompt(f_pt,locp)	/*display prompt that is appropriate for cur field*/
 struct field *f_pt;
@@ -61,9 +63,11 @@ char *locp;
 	refresh();
 } /*prompt*/
 			
+/*set_perms() does the actual job of updating the data structure, with
+the new permissions*/
 set_perms(f_pt,v_pt)
-struct field *f_pt;
-struct vfunc *v_pt;
+struct field *f_pt;	/* a pointer to the field*/
+struct vfunc *v_pt;	/* pointer to the validation struct*/
 {
 	int tmp,c;
 
@@ -103,7 +107,7 @@ struct vfunc *v_pt;
 			case F_T_M:
 			case RD_M:
 			case WR_M:
-			case EX_M:
+			case EX_M: /*toggle warning or error*/
 				if (*(v_pt->pr_pt->name+cur_p) == '0')
 					*(v_pt->pr_pt->name+cur_p) = '1';
 				else *(v_pt->pr_pt->name+cur_p) = '0';
@@ -142,7 +146,7 @@ struct vfunc *v_pt;
 		case CTRL(r):
 			clear();
 			return(1); /*user wants new field*/
-		default:
+		default: /*1st letter match*/
 			if ((tmp=firstlet(pnames,pfields,c,cur_p)) == -1)
 				flushinp();
 			else 
@@ -158,7 +162,7 @@ struct vfunc *v_pt;
 } /*procedure*/
 
 
-pdisplay(f_pt,locp)
+pdisplay(f_pt,locp)	/*show updated screen*/
 struct field *f_pt;
 char *locp;
 {

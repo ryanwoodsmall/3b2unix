@@ -12,7 +12,7 @@ Description:
      programs to identify the type of computer.  It insures that the system
      executes the machine-specific lines that are appropriate to the VAX-
      11/750 or VAX-11/780.  See also:  false(1), pdp11(1), sh(1), test(1),
-     true(1), u370(1), u3b(1), u3b2(1), and u3b5(1) for commands with
+     true(1), u370(1), u3b(1), u3b2(1), and u3b15(1) for commands with
      functions similar to \Svax\S, and make(1) for a command that might be
      used with \Svax\S.  See the manual page for cpp(1) for an explanation of
      the "D" option.

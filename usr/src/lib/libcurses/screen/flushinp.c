@@ -5,47 +5,41 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/flushinp.c	1.4.1.1"
+#ident	"@(#)curses:screen/flushinp.c	1.4.1.5"
 
-#include "curses.ext"
+#include	"curses_inc.h"
 
 flushinp()
 {
-	register short *inputQ;
-	register int i, j, ch;
-#ifdef DEBUG
-	if(outf) fprintf(outf, "flushinp(), file %x, SP %x\n", SP->term_file, SP);
-#endif
-#ifdef SYSV
-	(void) ioctl(cur_term -> Filedes, TCFLSH, 0);
-#else
-	/* for insurance against someone using their own buffer: */
-	(void) ioctl(cur_term -> Filedes, TIOCGETP, &(PROGTTY));
+#ifdef	DEBUG
+    if (outf)
+	fprintf(outf, "flushinp(), file %x, SP %x\n", cur_term->Filedes, SP);
+#endif	/* DEBUG */
 
-	/*
-	 * SETP waits on output and flushes input as side effect.
-	 * Really want an ioctl like TCFLSH but Berkeley doesn't have one.
-	 */
-	(void) ioctl(cur_term -> Filedes, TIOCSETP, &(PROGTTY));
-#endif
-	/*
-	 * Get rid of any typeahead which was read().
-	 * Leave characters which were ungetch()'d.
-	 */
-	inputQ = SP->input_queue;
-	for (i = 0, j = 0; j < INP_QSIZE; j++) {
-		ch = inputQ[j];
-		if (ch < 0) {
-			inputQ[i++] = ch;
-			if (ch == -1)
-				break;
-		}
-	}
+#ifdef	SYSV
+    (void) ioctl(cur_term -> Filedes, TCFLSH, 0);
+#else	/* SYSV */
+    /* for insurance against someone using their own buffer: */
+    (void) ioctl(cur_term -> Filedes, TIOCGETP, &(PROGTTY));
 
-	/*
-	 * Have to doupdate() because, if we've stopped output due to
-	 * typeahead, now that typeahead is gone, so we'd better catch up.
-	 */
-	if (inputQ[0] == -1)
-		doupdate();
+    /*
+     * SETP waits on output and flushes input as side effect.
+     * Really want an ioctl like TCFLSH but Berkeley doesn't have one.
+     */
+    (void) ioctl(cur_term -> Filedes, TIOCSETP, &(PROGTTY));
+#endif	/* SYSV */
+
+    /*
+     * Get rid of any typeahead which was read().
+     * Leave characters which were ungetch()'d.
+     */
+    cur_term->_chars_on_queue = cur_term->_ungotten;
+
+    /*
+     * Have to doupdate() because, if we have stopped output due to
+     * typeahead, now that typeahead is gone, so we had better catch up.
+     */
+    if (_INPUTPENDING)
+	(void) doupdate();
+    return (OK);
 }

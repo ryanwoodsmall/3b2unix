@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:m32/operand.c	1.7"
+#ident	"@(#)as:m32/operand.c	1.7.1.1"
 #include <stdio.h>
 #include <ctype.h>
 #include "as_ctype.h"
@@ -15,7 +15,7 @@
 
 extern char	*oplexptr;	/* set up for oplex() by yyparse() */
 
-upsymins *lookup();
+upsymins lookup();
 
 extern OPERAND *opertop;/* bottom of expression stack & target for current operand */
 OPERAND	*tiptop;	/* top of the expression stack, always starts at opertop */
@@ -357,10 +357,10 @@ oplex()
 		while (IDFOLLOW(*++ahead)) ;
 		if (tmpchar = *ahead) {
 			*ahead = '\0';
-			symptr = lookup(oplexptr, INSTALL, USRNAME)->stp;
+			symptr = lookup(oplexptr, INSTALL, USRNAME).stp;
 			*ahead = tmpchar;
 		} else
-			symptr = lookup(oplexptr, INSTALL, USRNAME)->stp;
+			symptr = lookup(oplexptr, INSTALL, USRNAME).stp;
 		oplexptr = ahead;
 		if ((tiptop->exptype = symptr->styp & TYPE) == ABS) {
 			tiptop->expval = symptr->value;

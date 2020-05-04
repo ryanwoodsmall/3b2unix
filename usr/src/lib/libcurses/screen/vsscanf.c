@@ -5,8 +5,8 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/vsscanf.c	1.2"
-#include "curses.ext"
+#ident	"@(#)curses:screen/vsscanf.c	1.5"
+#include "curses_inc.h"
 #include <varargs.h>
 
 /*
@@ -14,6 +14,7 @@
  *	as one is available in the system (if ever).
  */
 
+/*VARARGS2*/
 vsscanf(buf, fmt, ap)
 char	*buf;
 char	*fmt;

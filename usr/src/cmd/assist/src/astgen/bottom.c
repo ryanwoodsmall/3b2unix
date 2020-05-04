@@ -5,9 +5,11 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)tools:bottom.c	1.14"
+#ident	"@(#)tools:bottom.c	1.16"
 
 #include <curses.h>
+/*This routine is used to place the 2-line string of legal commands at the
+  bottom of the screen.  The exact string is determined by the context*/
 
 show_cmd(msg,num)
 char *msg;	/*string to be inserted*/
@@ -68,7 +70,7 @@ int num;	/*which command prompt template is desired 0-9*/
 "[Enter character and RETURN]            f2/^V Restart mapping module");
 		clrtoeol();
 		mvaddstr(LINES-1,0, 
-"f3/^L Redraw   f3/^R Field Attributes   f6/^Y Help     f5/^T TOP astgen Menu");
+"f3/^L Redraw   f4/^R Field Attributes   f6/^Y Help     f5/^T TOP astgen Menu");
 		clrtoeol();
 		break;
 	case 8:	/*FIELDTYPE: INSERT MODE (askstring)*/
@@ -205,7 +207,7 @@ int num;	/*which command prompt template is desired 0-9*/
 		move(LINES-1,0);
 		clrtoeol();
 		break;
-	default:
+	default:	/*should not get here*/
 		move(LINES-2,0);
 		clrtoeol();
 		move(LINES-1,0);

@@ -230,7 +230,7 @@ d--775 0 3
 		$
 		3bnet	d--775 0 3
 		$
-		lib	d--755 0 3
+		lib	d--755 2 2
 			config	d--775 2 2
 			$
 			cron	d--755 0 3
@@ -281,4 +281,4 @@ d--775 0 3
 		$
 	$
 $
-:#ident	"@(#)core:proto.core5	1.12"
+:#ident	"@(#)core:proto.core5	1.13"

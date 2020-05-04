@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:admin/menu/usermgmt/modadduser	2.2"
+#ident	"@(#)sadmin:admin/menu/usermgmt/modadduser	2.3"
 #menu# modify defaults used by adduser
 #help# 
 #help#	Modadduser allows you to change some of the defaults used when
@@ -48,38 +48,46 @@ then
 			-fe "Enter group ID number or group name [?, q]:" \
 			'^[0-9a-z]*$' 'Answer contains an illegal character.
 	Only numbers and lower case letters are permitted.'`
-		x=`grep "^${groupid}:" /etc/group  |  cut -d: -f3`
-		if [ -n "${x}" ]
+		
+		ERR=0
+		if num "${groupid}"
 		then
-			if [ "${x}" -lt ${minid}  -a  "${x}" -ne 1 ]
+			x=`cut -d: -f3 /etc/group | grep "${groupid}"`
+			if [ -n "${x}" ]
 			then
-				echo "\\t${groupid} has group ID ${x} which is less than ${minid}.
-	q  for quit"
-				continue
+				groupname=`cut -d: -f1,3 /etc/group | 
+					grep ":${groupid}$" | cut -d: -f1`
 			else
-				groupname="${groupid}"
-				groupid=${x}
-				break
+				echo "\\tUnknown groupid number."
+				ERR=1
+			fi
+		else
+			x=`grep "^${groupid}:" /etc/group`
+			if [ -n "${x}" ]
+			then
+				groupname=${groupid}
+				groupid=`echo "$x" | cut -d: -f3`
+			else
+				echo "\\t${groupid} is not a known group name."
+				ERR=2
 			fi
 		fi
-		if  num "${groupid}"
+		if [ $ERR -ne 0 ]
 		then
-			if [ "${groupid}" -le ${maxid}  -a  \
-			\( "${groupid}" -ge ${minid} -o "${groupid}" -eq 1 \) ]
-			then
-				groupname=`cut -d: -f1,3 /etc/group  |
-					grep ":${groupid}$"  |  cut -d: -f1`
-				break
-			fi
-			echo "\\tGroup ID must be all digits.  Permitted values are
-	1, or at least ${minid} and not larger than ${maxid}.
-	q  for quit"
-		else
-			echo "\\t${groupid} is not a known group name.  Known groups (group ID):" \
+			echo "\\tKnown groups (group ID):" \
 			"\\n`cut -d: -f1,3 /etc/group  |  sort  |
 				sed 's/:\(.*\)/	(\1)/'  |  pr -o4 -t -3`" \
 			'\nq  for quit'
+			continue
+		else
+			if [ "${groupid}" -gt ${maxid} -o \( "${groupid}" -lt ${minid} -a "${groupid}" -ne 1 \) ]
+			then
+				echo "\\tGroupid number out of range."
+				echo "\\tMust be between ${minid} and ${maxid}."
+				continue
+			fi
 		fi
+	break
 	done
 	defgroup=${groupid}
 	defgroupname=${groupname}

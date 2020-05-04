@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/space.c	10.7"
+#ident	"@(#)kern-port:os/space.c	10.7.3.2"
 #include "sys/types.h"
 #include "sys/param.h"
 #include "sys/immu.h"
@@ -55,6 +55,7 @@ struct sysinfo sysinfo;
 struct	syswait	syswait;
 struct	syserr	syserr;
 struct	dinfo	dinfo;		/* DU perf stat's */
+struct	rcinfo	rcinfo;		/* DU perf stat's */
 struct  minfo minfo;
 
 #include	"sys/swap.h"
@@ -63,6 +64,21 @@ struct  minfo minfo;
 int	remote_acct;		/* REMOTE flag for acctp */
 int	bootstate;		/* DU boot flag */
 short	dufstyp;		/* DU file system switch index */
+
+#include "sys/fs/s5macros.h"
+#include "sys/rbuf.h"
+
+/* parameters for remote (RFS) network access (which uses buffers from 
+ * local buffer pool) */
+struct rbuf rbfreelist;
+unsigned long lbuf_ct;
+unsigned long rbuf_ct;
+unsigned long nrbuf;
+unsigned long nlbuf;
+unsigned long maxbufage = 0;
+int	rcache_enable = 0;
+int	rcacheinit = 0;		/* RFS client caching initialized*/
+unsigned long rfs_vcode = 1;	/* version code for RFS caching */
 
 swpt_t	swaptab[MSFILES];
 int	nextswap;

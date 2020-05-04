@@ -5,7 +5,15 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)forms:muse.c	1.19"
+#ident	"@(#)forms:muse.c	1.20"
+
+/* muse.c -- main() routine of mforms.  Does following steps:
+ *  1. Command line parsing.
+ *  2. Initialization of global variables and of curses stdscr window.
+ *  3. Reading in of help files and popup menu file.
+ *  4. Do a while() loop with read_in() [reads new fs file] and
+ *     fill_out() [handles all user/form/menu interaction]
+ */
 #include "musedefs.h"
 #include "mmusedefs.h"
 
@@ -32,6 +40,8 @@ char *argv[];
 
 
 
+/* Initialize labels[] array, containing the names of all
+   traversed fs files plus the selected menu items (memory) */
    lab_pt = labels;
    lab_pt->files_name = (char *)calloc(6,sizeof(char));
    strcpy(lab_pt->files_name,"UNIX");
@@ -39,7 +49,7 @@ char *argv[];
    lab_pt->memory = 0;
 
 /*
- * Define various paths.
+ * Define paths for fs files, tutorials, scripts, and mecho.
  */
 
    sprintf(muse,"/usr/lib/assist/");
@@ -71,24 +81,22 @@ char *argv[];
    
    strcpy(fs_forms,forms);
 
-/* Command line parsing.  Teletype 5420 is assumed to have reverse video
-   and full graphics character set; netty-vi
-   has reverse video but only limited graphics character set.                    */  
-
+/* Command line parsing.  fs_forms is .fs file directory.
+   next_screen stores name of next screen in labels[] */
    switch(argc)
    {
-      case 1:
+      case 1:                            /* assist */
          localflag = 0;
          next_screen("TOP",NEW);
          break;
       case 2:
-         if (strcmp(argv[1],"-c")==0)
+         if (strcmp(argv[1],"-c")==0)    /* assist -c */
          {
             *fs_forms = '\0';
             localflag = 1;
             next_screen("TOP",NEW);
          }
-         else
+         else                            /* assist <cmd> */
          {
             MINFS(argv[1]);
             if (strlen(argv[1]) > 128) 
@@ -101,7 +109,7 @@ char *argv[];
          }
          break;
       case 3:
-         if (strcmp(argv[1],"-c")==0)
+         if (strcmp(argv[1],"-c")==0)    /* assist -c <cmd> */
          {
             *fs_forms = '\0';
             MINFS(argv[2]);
@@ -125,6 +133,7 @@ char *argv[];
          break;
    }
 
+/* Parse $PATH into separate strings */
    test = 1;
    s0 = s = (char*)getenv("PATH");
    b = binpaths;
@@ -142,14 +151,17 @@ char *argv[];
       s++;
    }
 
+/* Check of fs file is accessible */
    if (implement(lab_pt->files_name,1)==0) {
       fprintf(stderr,"%s\n",error_mess);
       exit(1);
    }
 
+/* Give friendly message */
    printf("\nSTARTING UP.  PLEASE WAIT ... \n");
    fflush(stdout);
 
+/* Parse $CDPATH into separate strings */
    test = 1;
    s0 = s = (char*)getenv("CDPATH");
    b = cdpaths;
@@ -168,6 +180,7 @@ char *argv[];
    }
 
    
+/* Set terminal parameters */
    term = 0;
    if ((c_pt=(char*)getenv("MSTANDOUT")) != NULL && *c_pt=='1')
       term |= STANDOUT;
@@ -178,6 +191,7 @@ char *argv[];
    if ((termin=(char*)getenv("TERM")) == NULL) 
       termin="vt100";
 
+/* Define special characters for smooth lines */
    if (term & ALTCHAR)
    {
       HOR = hor = 'q';
@@ -197,6 +211,7 @@ char *argv[];
       BR  = br  = SPACE;
    }
 
+/* Define key labels */
    if (term & FKEYS)
    {
       strcpy(f[1],"f1");
@@ -221,14 +236,16 @@ char *argv[];
       strcpy(f[8],"^A");
    }
 
+/* Some very special processing for dmd-netty windows and for 5425 */
    if (equaln(termin,"netty",5)) {
       for (i=0;i<14;i++) putchar('\n');
-      fkeys();
+      fkeys();  /* Download function keys */
    }
    else if (equal(termin,"5420") || equal(termin,"5425")) {
       for (i=0;i<22;i++) putchar('\n');
    }
 
+/* Initialize ">" pointer */
    arrow.row = arrow_buff.row = 0;
    arrow.col = arrow_buff.col = 0;
    arrow.word = (char *)calloc(3,sizeof(char));
@@ -236,15 +253,20 @@ char *argv[];
    strcpy(arrow.word,">");
    *arrow_buff.word = null;
 
+/* Set mode to "neutral" */
    mode = NEWFIELD;
   
+/* Exit status */
    status = 0;
 
+/* Store terminal state */
    catchtty(&termbuf);
 
+/* Get into "curses" state */
    curses(ON);
 
 
+/* Check screen dimensions */
    if (LINES<24)
    {
       status = 17;
@@ -255,11 +277,14 @@ char *argv[];
       status = 18;
       done();
    }
+
+ /* Initialize horizonal lines */
    for (i=0;i<COLS;i++)   stripes[i] = hor;
    stripes[COLS] = null;
 
 
-/* READ MENU HELP FILE                                                          */
+/* READ MENU HELP FILE  */
+   /* 1: f8 help */
 
    sprintf(help_name,"%sg_help_m",forms);
    if (stat(help_name,&buf)!=0 && access(help_name,04)!=0) {
@@ -276,6 +301,7 @@ char *argv[];
 
 
 
+   /* 2: ^A help */
    sprintf(help_name,"%sd_help_m",forms);
    if (stat(help_name,&buf)!=0 && access(help_name,04)!=0) {
       endwin();
@@ -291,7 +317,8 @@ char *argv[];
 
 
 
-/* READ CF HELP FILE                                                          */
+/* READ CF HELP FILE */
+   /* 1: f8 help */
 
    sprintf(help_name,"%sg_help_c",forms);
    if (stat(help_name,&buf)!=0 && access(help_name,04)!=0) {
@@ -307,6 +334,7 @@ char *argv[];
    *c_pt = null;
 
 
+   /* 2: ^A help */
    sprintf(help_name,"%sd_help_c",forms);
    if (stat(help_name,&buf)!=0 && access(help_name,04)!=0) {
       endwin();
@@ -320,7 +348,7 @@ char *argv[];
    fclose(fp);
    *c_pt = null;
 
-/* READ TOP HELP FILE                                                          */
+/* READ TOP HELP FILE (obsolete: old popup menu item)  */
 
    sprintf(help_name,"%sg_help_t",forms);
    if (stat(help_name,&buf)!=0 && access(help_name,04)!=0) {
@@ -349,6 +377,8 @@ char *argv[];
    fclose(fp);
    *c_pt = null;
 
+/* READ POPUP MENU HELP */
+   /* 1: f8 help */
    sprintf(help_name,"%sg_help_p",forms);
    if (stat(help_name,&buf)!=0 && access(help_name,04)!=0) {
       endwin();
@@ -362,6 +392,7 @@ char *argv[];
    fclose(fp);
    *c_pt = null;
 
+   /* 2: ^A help */
    sprintf(help_name,"%sd_help_p",forms);
    if (stat(help_name,&buf)!=0 && access(help_name,04)!=0) {
       endwin();
@@ -377,7 +408,7 @@ char *argv[];
 
 
 
-/* Read in menu                                                                     */
+/* READ IN POPUP MENU  */
    sprintf(help_name,"%spu_menu.fs",forms);
    if (stat(help_name,&buf)!=0 && access(help_name,04)!=0) {
       endwin();
@@ -386,17 +417,32 @@ char *argv[];
    }
    fp=fopen(help_name,"r");
 
-   mode = 0; /* 0: processing segment, 1: processing item help */
+   mode = 0; /* 0: processing segment, 1: processing item help; 
+                an misuse of "mode" */
+
+   /* Initialize first menu field */
    f_pt = menus;
    f_pt->type = 1;
    s_pt = f_pt->first_s_pt = 
                      (struct segment *)calloc(1,sizeof(struct segment));
    s_pt->word = (char *)calloc(32,sizeof(char));
    c_pt = s_pt->word;
+
+   /* Now read and store file 
+      File format is not that of ordinary fs file:
+      <selectable>^X<multi-line item help>^Z<2-digit location index>
+      <selectable>^X<multi-line item help>^Z<2-digit location index>
+      ...
+      ^R
+      <menu help>  
+
+      The location indices are hardcoded [in menu() and fill_out()].
+      They also determine the action taken when an item is selected.
+   */
    while ((c=getc(fp))!=CTRL(R))
    switch(c)
    {
-   case CTRL(X):   /* Terminate segment */
+   case CTRL(X):   /* Terminate selectable */
       *c_pt = null;
       m_length = (strlen(s_pt->word)>m_length) ? strlen(s_pt->word) :
                    m_length;
@@ -407,7 +453,8 @@ char *argv[];
       c_pt = f_pt->help = (char *)calloc(1024,sizeof(char));
       mode = 1;
       break;
-   case CTRL(Z):
+   case CTRL(Z):   /* Terminate item help. Compute locations.
+                      Initialize next segment to receive next selectable */
       *c_pt++ = '\n';
       *c_pt = null;
       c = getc(fp);
@@ -426,10 +473,11 @@ char *argv[];
       *c_pt++ = c;
       break;
    }
-   m_length-=1;
+   m_length-=1;  /* Adjust menu box size */
    m_lines-=2;
    *c_pt  = null;
 
+   /* Now read popup menu help */
    c=getc(fp);  /*Dummy read <CR> */
    c_pt = pu_menu_help = (char*)calloc(1024,sizeof(char));;
    while ((c=getc(fp))!=EOF)
@@ -446,7 +494,7 @@ char *argv[];
    buffer = NULL;
 
 
-/* CENTRAL LOOP                                                                     */
+/* CENTRAL LOOP  */
 
    while (diffn(lab_pt->files_name,"UNIX",4))
    {

@@ -5,8 +5,8 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)sa:sa.mk	1.6.1.6"
-#/*	sa.mk 1.6.1.6 of 2/25/86	*/
+#ident	"@(#)sa:sa.mk	1.6.1.11"
+#/*	sa.mk 1.6.1.11 of 8/25/86	*/
 # how to use this makefile
 # to make sure all files  are up to date: make -f sa.mk all
 #
@@ -39,7 +39,7 @@ LDFLAGS = -s
 ARGS = all
  
 
-all:	sadc sar sa1 sa2 perf timex sag sadp
+all:	sadc sar sa1 sa2 perf timex sag sadp sar3.0 sadc3.0 timex3.0
 
 
 sadc:: sadc.c sa.h 
@@ -80,6 +80,18 @@ sadp:: sadp.c
 	$(CC) $(FFLAG) $(CFLAGS) $(LDFLAGS) -o $(TESTDIR)/sadp sadp.c
 sadp::
 	$(INS) -f $(ROOT)/usr/bin -m 2755 -g sys $(TESTDIR)/sadp 
+sadc3.0::	3.0sadc.c sa.h
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $(TESTDIR)/sadc3.0 3.0sadc.c 
+sadc3.0::
+	$(INS) -o -f $(INSDIR) -m 2755 -g sys $(TESTDIR)/sadc3.0 $(INSDIR)
+sar3.0::	3.0sar.c sa.h
+	$(CC) $(FFLAG) $(CFLAGS) $(LDFLAGS) -o $(TESTDIR)/sar3.0 3.0sar.c
+sar3.0::
+	$(INS) -f $(ROOT)/usr/bin $(TESTDIR)/sar3.0 
+timex3.0::	3.0timex.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $(TESTDIR)/timex3.0 3.0timex.c 
+timex3.0::
+	$(INS) -f $(ROOT)/usr/bin $(TESTDIR)/timex3.0
 test:		testai
 
 testbi:		#test for before installing
@@ -88,42 +100,44 @@ testbi:		#test for before installing
 testai:		#test for after install
 	sh $(TESTDIR)/runtest new
 
-install:
-	if [ ! -d $(INSDIR) ];\
-	then	mkdir $(INSDIR);\
-		chmod 775 $(INSDIR);\
-		$(CH) chown adm $(INSDIR);\
-		$(CH) chgrp bin $(INSDIR);\
-	fi;
+$(INSDIR):
+		mkdir $@;
+		chmod 775 $@;
+		$(CH) chown adm $@;
+		$(CH) chgrp bin $@;
+
+$(CRONDIR):
+		mkdir $@;
+		chmod 755 $@;
+		$(CH) chown root $@;
+		$(CH) chgrp sys $@;
+
+$(CRONTAB):
+		> $@;
+		chmod 644 $@;
+		$(CH) chown root $@;
+		$(CH) chgrp sys $@;
+
+install: $(INSDIR) $(CRONDIR) $(CRONTAB)
 	-make -f sa.mk $(ARGS) FFLAG=$(FFLAG) "INS=install" INSDIR=$(INSDIR)
 	rm -rf $(ROOT)/etc/rc2.d/S21perf
 	ln $(ROOT)/etc/init.d/perf $(ROOT)/etc/rc2.d/S21perf
-	if [ -d $(CRONDIR) ];\
-		then	if [ ! -f $(CRONTAB) ];\
-			   then  >  $(CRONTAB);\
-			   chmod 644  $(CRONTAB);\
-			   $(CH) chown root $(CRONTAB);\
-			   $(CH) chgrp sys  $(CRONTAB);\
-		fi;\
-	else\
-			echo "***WARNING**** cannot install cron entries";\
-	fi;
-	if [ -f $(CRONTAB) ];\
-		then  if grep "sa1" $(CRONTAB) >/dev/null 2>&1 ; then :;\
-		else\
-			echo $(ENTRY1) >> $(CRONTAB);\
-			echo $(ENTRY2) >> $(CRONTAB);\
-		fi;\
-		if grep "sa2" $(CRONTAB) >/dev/null 2>&1 ; then :;\
-		else\
-			echo $(ENTRY3) >> $(CRONTAB);\
-		fi;\
-	fi;
+	$(CH)if [ -f $(CRONTAB) ];\
+	$(CH)	then  if grep "sa1" $(CRONTAB) >/dev/null 2>&1 ; then :;\
+	$(CH)	else\
+	$(CH)		echo $(ENTRY1) >> $(CRONTAB);\
+	$(CH)		echo $(ENTRY2) >> $(CRONTAB);\
+	$(CH)	fi;\
+	$(CH)	if grep "sa2" $(CRONTAB) >/dev/null 2>&1 ; then :;\
+	$(CH)	else\
+	$(CH)		echo $(ENTRY3) >> $(CRONTAB);\
+	$(CH)	fi;\
+	$(CH)fi;
 
 clean:
 	-rm -f *.o
- 
+
 clobber:	clean
-		-rm -f sadc sar sa1 sa2 perf sag timex sadp
+		-rm -f sadc sar sa1 sa2 perf sag timex sadp sadc3.0 sar3.0 timex3.0
 
 FRC:

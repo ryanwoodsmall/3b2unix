@@ -10,7 +10,6 @@
 /usr/include/assert.h
 /usr/include/core.h
 /usr/include/ctype.h
-/usr/include/curses.h
 /usr/include/dial.h
 /usr/include/dirent.h
 /usr/include/errno.h
@@ -51,12 +50,10 @@
 /usr/include/stropts.h
 /usr/include/strselect.h
 /usr/include/syms.h
-/usr/include/term.h
 /usr/include/termio.h
 /usr/include/time.h
 /usr/include/tiuser.h
 /usr/include/tp_defs.h
-/usr/include/unctrl.h
 /usr/include/unistd.h
 /usr/include/ustat.h
 /usr/include/utmp.h

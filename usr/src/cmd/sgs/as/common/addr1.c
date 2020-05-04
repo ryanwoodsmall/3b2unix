@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:common/addr1.c	1.15"
+#ident	"@(#)as:common/addr1.c	1.16.1.2"
 /*
  */
 
@@ -64,7 +64,7 @@ extern FILHDR
 	filhead;
 
 extern upsymins
-	*lookup();
+	lookup();
 
 extern stent
 	*pop();
@@ -118,7 +118,7 @@ setflags(sym,code)
 }
 
 setfile(sym,code)
-	upsymins sym;
+	symbol * sym;
 	codebuf *code;
 {
 	register char c;
@@ -131,8 +131,8 @@ setfile(sym,code)
 		werror("'.file' must precede all '.def's");
 		return;
 	}
-	sym = *lookup(".file",INSTALL,USRNAME);
-	define(sym.stp,code);
+	sym = lookup(".file",INSTALL,USRNAME).stp;
+	define(sym,code);
 
 	sment.n_numaux = 1;
 	auxchar = ((union auxent *)(&axent))->x_file.x_fname;
@@ -616,7 +616,7 @@ endef(sym,code)
 			if (sttop > 0)
 				aerror("Unbalanced Symbol Table Entries-Too Many Scope Beginnings");
 		} /* popptr == NULL */
-		popptr->fcnlen = newdot - savsym->value;
+		popptr->fcnlen = sment.n_value - savsym->value;
 		/* don't put out this symbol table entry */
 		return;
 	} /* sment.n_sclass == C_EFCN */
@@ -653,5 +653,5 @@ codebuf *code;
 		code->cvalue -= sizeof(OUTWTYPE);
 		}
 	if (code->cvalue)
-		codgen(code->cvalue * BITSPBY, 0L);
+		codgen((short) (code->cvalue * BITSPBY), 0L);
 } /* dotzero */

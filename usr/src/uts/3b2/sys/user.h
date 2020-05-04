@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/user.h	10.15"
+#ident	"@(#)kern-port:sys/user.h	10.15.6.5"
 
 /*
  * The user structure.
@@ -35,13 +35,15 @@
  **********************************************************************
  * 
  */
- 
-#define	PSARGSZ	80	/* Space in u-block for exec arguments.	*/
-			/* Used by ps command.			*/
+#define PSARGSZ		80	/* Space in u-block for exec arguments */ 
+				/* Used by ps command */
 
 #define	PSCOMSIZ	DIRSIZ	/* For the time being set PSCOMSIZ */
 				/* to DIRSIZ until we can get rid of */
 				/* struct direct u_dent */
+
+#define	SYSMASKLEN	4	/* Number of longs in syscall bit masks */
+
 typedef	struct	user
 {
 	struct 	ipcb  u_ipcb;
@@ -87,27 +89,30 @@ typedef	struct	user
 	char	*u_nextcp;	/* pointer to beginning of next */
 					/* following for Distributed UNIX */
 	ushort 		u_rflags;	/* flags for distripution */
-	struct cookie	u_rrcookie;	/* pointer to remote root inode */
 	int 		u_syscall;	/* system call number */
 	int		u_mntindx;	/* mount index from sysid */
 	struct sndd	*u_gift;	/* gift from message      */
-	struct cookie	 u_newgift;	/* cookie to be returned to client*/
 	struct response	*u_copymsg;	/* copyout unfinished business */
 	struct msgb	*u_copybp;	/* copyin premeditated send    */
 	char 		*u_msgend;	/* last byte of copymsg + 1    */
 					/* end of Distributed UNIX */
 	
 	long	u_bsize;		/* block size of device */
-	char	u_psargs[PSARGSZ];	/* arguments from exec system call */
+	char 	u_psargs[PSARGSZ];	/* arguments from exec */	
+	char	u_filler1a[16];	/* Padding for swap compatibility */
 	char	*u_tracepc;	/* Return PC if tracing enabled */
-	char	u_filler[600];	/* Padding for swap compatibility */
+	int	u_sysabort;	/* Debugging: if set, abort syscall */
+	int	u_systrap;	/* Are any syscall mask bits set? */ 
+	long	u_entrymask[SYSMASKLEN]; /* syscall stop-on-entry mask */
+	long	u_exitmask[SYSMASKLEN];	/* syscall stop-on-exit mask */
+	long 	u_rcstat; 	/* Client cache status flags */
+
+	char	u_filler[556];	/* Padding for swap compatibility */
 
 	void(*u_signal[MAXSIG])();	/* disposition of signals */
 
 	int	u_pgproc;	/* use by the MAU driver */
-	int	u_shmcnt;	/* no. of shared segments attached  */
-				/* to this process.		    */
-
+	int	u_fpovr;	/* flag for fl. pt. overflow work-around */
 	label_t	u_qsav;		/* label variable for quits and	*/
 				/* interrupts			*/
 
@@ -257,6 +262,10 @@ extern struct user u;
 #define	u_roff	u_r.r_off
 #define	u_rtime	u_r.r_time
 
+/* rcstat values: for client caching */
+
+#define	U_RCACHE	0x1
+
 /* ioflag values: Read/Write, User/Kernel, Ins/Data */
 
 #define	U_WUD	0
@@ -270,12 +279,8 @@ extern struct user u;
 
 /* distribution: values for u_rflags */
 #define FREMOTE	0x0002	/* file is remote  */
-#define RFLOCK	0x0004	/* for remote record locking*/
 
-#define	U_RCDIR		0x0001	/* remote current directory */
-#define	U_RRDIR		0x0002	/* remote root directory    */
 #define	U_RSYS		0x0004	/* system call has gone remote */
-#define	U_LBIN		0x0100	/* dotdot at lbin mount */
 #define	U_DOTDOT	0x0200
 #define U_RCOPY		0x0400	/* used by copyout for non-delay copy */
 

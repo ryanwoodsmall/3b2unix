@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)graf:include/gpl.h	1.5"
+#ident	"@(#)graf:include/gpl.h	1.6"
 #define TEXLEN     256
 #define MAXLINES   256
 #define LINES      0
@@ -27,7 +27,7 @@
 /*	the proper bytes in the word allocated for the union.
 */
 
-#if u370 | u3b | u3b5 | u3b2
+#if u370 | u3b | u3b15 | u3b2
 
 union cmdword{
 	struct { int pntw;

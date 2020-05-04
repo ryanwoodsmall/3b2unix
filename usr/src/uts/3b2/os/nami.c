@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/nami.c	10.10"
+#ident	"@(#)kern-port:os/nami.c	10.10.2.2"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/systm.h"
@@ -103,6 +103,9 @@ register struct argnamei *flagp;
 	case -1:	/* bad user address */
 		u.u_error = EFAULT;
 		goto out;
+	default:
+		if (server())
+			rnamei0();
 	}
 
 	if (i > nmmaxlen)
@@ -124,7 +127,7 @@ restart:
 			switch (rnamei1(u.u_rdir, &rem_dp)) {
 			case 1:  /* done */
 				dp = rem_dp;
-				goto out;
+				goto pout;
 			case 0:  /* more */
 				dp = rem_dp;
 				cp = u.u_nextcp;
@@ -150,7 +153,7 @@ restart:
 			switch (rnamei1(u.u_cdir, &rem_dp)) {
 			case 1:
 				dp = rem_dp;
-				goto out;
+				goto pout;
 			case 0:
 				dp = rem_dp;
 				cp = u.u_nextcp;
@@ -241,7 +244,7 @@ nmount:
 	/*
 	 * Check if server is doing a '..' at a REMOTEly mounted point
 	 */
-	if (server() && (dp->i_flag & (IDOTDOT|ILBIN)) &&
+	if (server() && (dp->i_flag & IDOTDOT) &&
 			(comp[0] == '.' && comp[1] == '.' && comp[2] == '\0')){
 		if (u.u_rdir == dp) {
 			if (u.u_nextcp == '\0')
@@ -289,29 +292,11 @@ nmount:
 			else if ((p.flags&NX_ISROOT) && (dp->i_flag&IISROOT)
 			  && mp != &mount[0]) {
 				iput(dp);
-				/* LBIN mount inodp is remote inode */
-				if (mp->m_inodp->i_fstyp == dufstyp) {
-					rem_dp = dp;
-					switch (rnamei3(&rem_dp)) {
-					case 1:
-						dp = rem_dp;
-						goto out;
-					case 0:
-						dp = rem_dp;
-						cp = u.u_nextcp;
-						goto dirloop;
-					case -1: 
-					default:
-						dp = NULL;
-						goto out;
-					}
-				} else {
-					comp = u.u_comp; /* May have changed */
-					dp = mp->m_inodp;
-					plock(dp);
-					dp->i_count++;
-					goto nmount;
-				}
+				comp = u.u_comp; /* May have changed */
+				dp = mp->m_inodp;
+				plock(dp);
+				dp->i_count++;
+				goto nmount;
 			}
 		}
 		ASSERT(*cp != '/');
@@ -332,29 +317,15 @@ nmount:
 		/* if this is the last component - leave */
 		/* after putting the name into u.u_dent.d_name */
 		/* so that ps can work.. */
-		if (*u.u_nextcp == '\0') {
+pout:		if (*u.u_nextcp == '\0') {
 			cp = u.u_dent.d_name;
+			comp = u.u_comp;		/*may have changed*/
 			i = 0;
 			while (*comp && i++ < PSCOMSIZ)
 				*cp++ = *comp++;
 			if (i <= PSCOMSIZ - 1)
 				*cp ='\0';
 			goto out;
-		}
-		if (u.u_rflags & (U_RSYS|U_DOTDOT)) {
-			/* should ? have gone REM in iget */
-			switch (rnamei4(dp)) {
-			case 1:
-				goto out;
-			case 0:
-				cp = u.u_nextcp;
-				goto dirloop;
-			case -1:
-				dp = NULL;
-				goto out;
-			default:
-				panic ("namei: switch (rnamei4)"); 
-			}
 		}
 		cp = u.u_nextcp;
 		goto dirloop;

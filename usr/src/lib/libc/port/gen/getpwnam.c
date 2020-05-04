@@ -5,11 +5,10 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libc-port:gen/getpwnam.c	1.9"
+#ident	"@(#)libc-port:gen/getpwnam.c	1.10"
 /*	3.0 SID #	1.2	*/
 /*LINTLIBRARY*/
 #include <pwd.h>
-#include <stdio.h>	/* for definition of L_cuserid */
 
 extern struct passwd *getpwent();
 extern void setpwent(), endpwent();
@@ -22,7 +21,7 @@ char	*name;
 	register struct passwd *p;
 
 	setpwent();
-	while ((p = getpwent()) && strncmp(name, p->pw_name, L_cuserid - 1))
+	while ((p = getpwent()) && strcmp(name, p->pw_name))
 		;
 	endpwent();
 	return (p);

@@ -5,10 +5,11 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/sys4.c	10.16"
+#ident	"@(#)kern-port:os/sys4.c	10.17"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/sysmacros.h"
+#include "sys/mount.h"
 #include "sys/systm.h"
 #include "sys/tuneable.h"
 #include "sys/fs/s5dir.h"
@@ -520,8 +521,12 @@ utime()
 			FS_ACCESS(ip, IWRITE);
 	}
 	if (u.u_error == 0) {
-		ip->i_flag |= IACC|IUPD|ICHG;
-		FS_IUPDAT(ip, &tv[0], &tv[1]);
+		if (rdonlyfs(ip->i_mntdev))
+			u.u_error = EROFS;
+		else {
+			ip->i_flag |= IACC|IUPD|ICHG;
+			FS_IUPDAT(ip, &tv[0], &tv[1]);
+		}
 	}
 	iput(ip);
 }

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:getprm.c	2.2"
+#ident	"@(#)uucp:getprm.c	2.5"
 
 #include "uucp.h"
 
@@ -24,21 +24,27 @@ extern char *bal();
 /*
  * get next parameter from s
  *	s	-> string to scan
+ *	whsp	-> pointer to use to return leading whitespace
  *	prm	-> pointer to use to return token
  * return:
  *	 s	-> pointer to next character 
  *		NULL at end
  */
 char *
-getprm(s, prm)
-register char *s, *prm;
+getprm(s, whsp, prm)
+register char *s, *whsp, *prm;
 {
 	register char *c;
 	char rightq;		/* the right quote character */
 
-	/* skip white space */
-	while (charType(*s) == WHITE)
-		s++;
+	if ( whsp != (char *)NULL ) {
+		/* skip white space */
+		while (charType(*s) == WHITE)
+			*whsp++ = *s++;
+		*whsp = '\0';
+	} else
+		while (charType(*s) == WHITE)
+			s++;
 
 	*prm = '\0';
 	if (*s == '\0')
@@ -59,7 +65,7 @@ register char *s, *prm;
 		rightq = *s;
 
 	    c = bal(s, rightq);
-	    (void) strcpy(prm, s, c-s+1);
+	    (void) strncpy(prm, s, c-s+1);
 	    prm[c-s+1] = '\0';
 	    if ( *(s=c) == rightq) /* if end of string don't increment */
 		s++;

@@ -1,22 +1,25 @@
-#ident	"@(#)sadmin3b2:admin/menu/diskmgmt/harddisk/rmdisk	1.4"
+#ident	"@(#)sadmin3b2:admin/menu/diskmgmt/harddisk/rmdisk	1.7"
 #menu# remove a hard disk
 #help# 
-#help#	Removes a hard disk from the system configuration.  It may
-#help#	then be physically disconnected (once the machine has been
-#help#	turned off) or freshly partitioned (after the system has
-#help#	been restarted).
+#help#	Remove one or more hard disks from the system configuration. They
+#help#	may then be physically disconnected (once the power has been shut
+#help#	off) or freshly partitioned (after the system has been restarted).
 
 set -u
 flags="-qq -k$$"
 trap 'rm -f /tmp/$$.*' 0
-trap 'exit 0' 1 2 15
+trap '' 1 2 3 15
 
 DIRPATH=${MENUTOP}/menu/diskmgmt/harddisk
 PATTERN=`ls ${DIRPATH}/rmdisk.d`
+
+myname=${DIRPATH}/rmdisk
+args=
+
 ddrive=`selectdevice -b $$ /dev/SA ${PATTERN}`
 if [ "${ddrive}" = "" ]
 then
-	exit 0
+	exit 1
 fi
 ndrive=`drivename ${ddrive}`
 bdrive=`basename ${ddrive}`
@@ -34,7 +37,7 @@ sel_min=`expr "${ls_select}" : '.*, *\([0-9][0-9]*\)'`
 if [ ${root_maj} -eq ${sel_maj} -a ${root_min} -eq ${sel_min} ]
 then
 	echo "
-The ${ndrive} contains the root file system.  It may not be removed." >&2
+The ${ndrive} contains the root file system. It may not be removed." >&2
 	exit 1
 fi
 
@@ -42,15 +45,22 @@ fi
 
 dskname=`samedev ${ddrive} /dev/dsk/c*d*s6`
 dskname=`expr "${dskname}" : '.*/\([^/]*\).$'`
-eval `basename ${dskname} | sed -e 's:^c\([0-9]*\)d\([0-9]*\).*$:slot=\1 drv=\2:'`
-slot=`expr ${slot} - 1`
-echo "
-Removing ${ndrive} from configuration (hardware slot ${slot} drive ${drv})."
+havet=`expr "${dskname}" : '.*\(t\).*'`
+if [ -n "${havet}" ]
+then
+  eval `basename ${dskname} | sed -e 's:^c\([0-9]*\)t\([0-9]*\)d\([0-9]*\).*$:slot=\1 tc=\2 drv=\3:'`
+  echo "\nRemoving ${ndrive} from configuration (hardware slot ${slot},"
+  echo "target controller ${tc}, drive ${drv})."
+else
+  eval `basename ${dskname} | sed -e 's:^c\([0-9]*\)d\([0-9]*\).*$:slot=\1 drv=\2:'`
+  slot=`expr ${slot} - 1`
+echo "\nRemoving ${ndrive} from configuration (hardware slot ${slot} drive ${drv})."
+fi
 
 > /tmp/$$.lose
 > /tmp/$$.keep
 
-exec 3<&0 < /etc/fstab # Kludge to make "exit" work within while
+exec 3<&0 < /etc/fstab # Redirect stdin to make "exit" work within while
 
 while read dev dir ronly junk
 do
@@ -59,7 +69,7 @@ do
 		if [ "${dir}" = /usr ]
 		then
 			echo "
-This disk contains the /usr file system.  It may not be removed." >&2
+The ${ndrive} contains the /usr file system. It may not be removed." >&2
 			exit 1
 		fi
 		echo "${dev} ${dir} ${ronly} ${junk}" >> /tmp/$$.lose
@@ -93,7 +103,7 @@ then
 		:
 	else
 		echo "\nAborted."
-		exit 0
+		exec sh ${myname} ${args}
 	fi
 fi
 
@@ -118,12 +128,12 @@ do
 				(umask 022 ; mkdir ${dir})
 				/etc/mount ${dev} ${dir} ${ronly}
 			done
-			exit 1
+			exec sh ${myname} ${args} <&3 3<&-
 		fi
 	fi
 done
 
-exec <&3 3<&- # Undo kludge
+exec <&3 3<&- # Restore stdin, close temporary fd 
 
 cp /etc/fstab /etc/Ofstab
 cp /tmp/$$.keep /etc/fstab
@@ -131,4 +141,8 @@ cp /tmp/$$.keep /etc/fstab
 eval rm /dev/dsk/${dskname}? /dev/SA/${bdrive} \
 	/dev/rdsk/${dskname}? /dev/rSA/${bdrive}
 
-exit 0
+echo "
+The ${ndrive} (hardware slot ${slot} drive ${drv}) has been
+removed from the configuration."
+
+exec sh ${myname} ${args}

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)head:time.h	1.3"
+#ident	"@(#)head:time.h	1.5"
 /*	3.0 SID #	1.2	*/
 struct	tm {	/* see ctime(3) */
 	int	tm_sec;
@@ -20,7 +20,8 @@ struct	tm {	/* see ctime(3) */
 };
 extern struct tm *gmtime(), *localtime();
 extern char *ctime(), *asctime();
+int  cftime(),  ascftime();
 extern void tzset();
-extern long timezone;
+extern long timezone, altzone;
 extern int daylight;
 extern char *tzname[];

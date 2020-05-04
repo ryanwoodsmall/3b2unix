@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)tools:cf_field.c	1.23"
+#ident	"@(#)tools:cf_field.c	1.24"
 #include "../forms/muse.h"
 #include "tools.h"
 #include "vdefs.h"
@@ -18,10 +18,18 @@
 #define	INC 6
 #define	REQ 7
 #define	LEAST 8
+/*routines in this file are specific to the attribute setting of command
+  form fields.  Similar files exist for menus, and for the global attribute
+  setting of menus and command forms*/
 
 #define	NUMVARS	9 /*number of fields*/
 
-/*the index to this array is the assist validation number (0-34) */
+/*the index to this array is the assist validation number (0-34) *
+ *A 1 means that the validation exists in assist, but should not
+ *be counted when showing the user the number of selected validations.
+ *There are two reasons why this would be true:  1.  some obsolete
+ *validations still exist in assist.  2.  Things like "incomp" are not
+ *counted*/
 int bad[]={0,0,0,0,0,1,1,0,0,0,1,1,0,1,1,0,1,0,0,1,0,
 		0,1,1,0,1,0,0,1,1,1,1,0,0,0,0}; /*1 means should be
 						skipped in counting*/
@@ -153,7 +161,7 @@ register struct field *f_pt;
 		"[1 field in group]");
 }
 
-VOID fig_val(f_pt) /*figures the number of validations fields*/
+VOID fig_val(f_pt) /*figures the number of validations selected*/
 register struct field *f_pt; /*only those validations selectable thru*/
 {			     /*astgen are counted*/
 	int i=0;
@@ -211,6 +219,7 @@ struct field *f_pt;
 }
 
 vedit(f_pt)	/*routine where the action is*/
+		/*we stay in this loop until the user hits ^R or ^T*/
 register struct field *f_pt;
 {
 	char *editstr();
@@ -225,6 +234,8 @@ register struct field *f_pt;
 		case KEY_F(4):
 		case CTRL(r):
 			return(1); /*allow new field to be selected*/
+				   /*then back to this vedit() with a */
+				   /*field*/
 		case KEY_F(5):
 		case CTRL(t):
 			return(0); /*all the way to TOP menu*/
@@ -235,46 +246,56 @@ register struct field *f_pt;
 				case OPT:
 				case MULTI:
 				case EXP:
-					f_toggle(f_pt);
+					f_toggle(f_pt); /*toggle value*/
 					break;
-				case MAP:
+				case MAP:	/*call mapping module*/
 					if (field_type(f_pt) == 0)
-						return(0); /*to top*/
+						return(0); /*user hit ^T
+							   while in 
+							   field_type, so
+							   to top*/
 					clear();
 					redisplay(f_pt);
 					refresh();
 					break;
-				case INC:
+				case INC:	/*allow user to mark 
+						incompatible fields*/
 					if (set_icmp(f_pt) == 0)
 						return(0); /*to top*/
 					clear();
 					redisplay(f_pt);
 					refresh();
 					break;
-				case REQ:
+				case REQ:	/*allow user to mark
+						required fields*/
 					if (set_reqs(f_pt) == 0)
 						return(0); /*to top*/
 					clear();
 					redisplay(f_pt);
 					refresh();
 					break;
-				case LEAST:
+				case LEAST:	/*allow user to mark
+						least_one fields*/
 					if (set_atlone(f_pt) == 0)
 						return(0); /*to top*/
 					clear();
 					redisplay(f_pt);
 					refresh();
 					break;
-				case VAL:
+				case VAL:	/*user wants to pick
+						validations*/
 					if (selectval(f_pt) == 0)
 						return(0); /*to top*/
 					clear();
 					redisplay(f_pt);
 					refresh();
 					break;
-				case I_H_M:
+				case I_H_M:	/*call editor to allow
+						editing of item help*/
 					f_pt->help=editstr(f_pt->help);
 					while ((tmp=helpchk(f_pt->help)) != 0)
+					/*something wrong with help message:
+					either too long or too wide*/
 						{
 						clear();
 						redisplay(f_pt);
@@ -309,7 +330,7 @@ register struct field *f_pt;
 		case '\r': /*return*/
 			mvaddstr(fixed[cur_cff].ylab,fixed[cur_cff].xlab,
 			fixed[cur_cff].name);
-			cur_cff=nextvar(NUMVARS,cur_cff);
+			cur_cff=nextvar(NUMVARS,cur_cff); /*move down*/
 			break;
 		case CTRL(p):
 		case KEY_UP:
@@ -317,7 +338,8 @@ register struct field *f_pt;
 			fixed[cur_cff].name);
 			cur_cff=prevvar(NUMVARS,cur_cff);
 			break;
-		default:
+		default:	/*check for first letter match with one
+				of the menu items.  If so, move there*/
 			if ((tmp=firstlet(fixed,NUMVARS,c,cur_cff)) == -1)
 				flushinp(); /*no first letter match*/
 			else 
@@ -352,7 +374,7 @@ register struct field *f_pt;
 	else mvaddstr(fixed[MULTI].ylab,fixed[MULTI].xval,"allowed");
 	clrtoeol();
 	move(fixed[EXP].ylab,fixed[EXP].xval);
-	if ((f_pt->first_cpr_pt != (struct fix*)0 &&
+	if ((f_pt->first_cpr_pt != (struct fix*)0 && /*is bundling disabled?*/
              f_pt->first_cpr_pt->name != (char*)0 &&
              *(f_pt->first_cpr_pt->name + 3) == '1') 
             || f_pt->bundle==1)
@@ -376,7 +398,8 @@ struct field *f_pt;
 	char *c_pt, *tmp, *view_type();
 	int maxl;
 
-	maxl = COLS - fixed[MAP].xval - 1;
+	maxl = COLS - fixed[MAP].xval - 1;	/*figure how long the
+						message can be*/
 	move(fixed[MAP].ylab + 1,fixed[MAP].xval); /*goes on next line*/
         clrtoeol();
 	c_pt=tmp=view_type(f_pt,0); /*make sure not too long*/
@@ -384,7 +407,7 @@ struct field *f_pt;
 	{
         	if (strlen(tmp)>maxl) 
 		{
-			*(tmp+maxl-11) = null;
+			*(tmp+maxl-11) = null;	/*need to truncate*/
 			strcat(tmp," ... [more]");
 		}
         	for (;*c_pt && c_pt-tmp<maxl; c_pt++) addch(*c_pt);

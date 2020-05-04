@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)initpkg:./rc2.sh	1.15"
+#ident	"@(#)initpkg:./rc2.sh	1.16"
 
 if u3b2
 then echo "
@@ -50,10 +50,6 @@ then
 			/bin/sh \${f} start
 		fi
 	}
-fi
-if [ \"\${BOOT}\" = \"yes\" ]
-then
-	stty sane tab3 2>/dev/null
 fi
 
 if [ \"\${BOOT}\" = \"yes\" -a -d /etc/rc.d ]

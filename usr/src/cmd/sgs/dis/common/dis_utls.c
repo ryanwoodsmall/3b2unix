@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)dis:common/dis_utls.c	1.35"
+#ident	"@(#)dis:common/dis_utls.c	1.35.1.1"
 
 
 #define	DEBUG
@@ -1254,8 +1254,7 @@ symfind:
 			printf ("\t**           RESTART POINT IS REACHED\t\t**\n");
 		}
 	}
-	dumpaddr = (loc < paddr - scnhdr.s_paddr && !fflag)?
-					(paddr-scnhdr.s_paddr): paddr;
+	dumpaddr = paddr;
 	for (; loc < dumpaddr; ) {
 		/* Dump bytes until the restart point is reached. */
 #ifdef OLIST

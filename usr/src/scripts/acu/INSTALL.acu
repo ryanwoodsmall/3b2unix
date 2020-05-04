@@ -1,4 +1,4 @@
-#ident	"@(#)pkg.acu:INSTALL.acu	1.1"
+#ident	"@(#)pkg.acu:INSTALL.acu	1.2"
 #
 # Single Floppy INSTALL Script
 #
@@ -12,7 +12,7 @@ INSPATH=/install/new
 PKGNAME=`cat ${INSPATH}/usr/options/acu.name`
 
 echo "Installing the ${PKGNAME}."
-echo "Copyright (c) 1985 AT&T Technologies, Inc."
+echo "Copyright (c) 1985 AT&T" 
 echo "All Rights Reserved"
 
 # Check that an old Issue and Version of the package will not accidentally

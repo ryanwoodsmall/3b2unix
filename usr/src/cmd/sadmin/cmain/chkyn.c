@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sadmin:cmain/chkyn.c	2.1.1.1"
+#ident	"@(#)sadmin:cmain/chkyn.c	2.1.1.3"
 /*
 	chkyn - Get Yes/No Response from User or Check Answer to Question
 */
@@ -572,7 +572,7 @@ char	*s;
 {
 	extern int fork(), execl(), wait();
 	int	status, pid, w;
-	register int (*istat)(), (*qstat)();
+	void (*istat)(), (*qstat)();
 
 	if((pid = fork()) == 0) {
 		close(1);	/* redirect standard out to standard err */

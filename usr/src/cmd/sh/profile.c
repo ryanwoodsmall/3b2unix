@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sh:profile.c	1.4"
+#ident	"@(#)sh:profile.c	1.6"
 char *mktemp();
 
 monitor(lowpc, highpc, buf, bufsiz, cntsiz)

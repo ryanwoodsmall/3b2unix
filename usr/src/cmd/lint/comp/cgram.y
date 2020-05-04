@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 %{
-#ident	"@(#)comp:common/cgram.y	1.13"
+#ident	"@(#)comp:common/cgram.y	1.17"
 %}
 %{
 %}

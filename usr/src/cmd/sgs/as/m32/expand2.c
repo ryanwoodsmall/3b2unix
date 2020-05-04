@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:m32/expand2.c	1.5"
+#ident	"@(#)as:m32/expand2.c	1.6"
 
 #include "systems.h"
 #include "symbols.h"
@@ -42,14 +42,14 @@ rangetag range[NITYPES] = {
 char pcincr[NITYPES] = {
 	2,
 	2,
-	3,
+	2,
 #ifdef	CALLPCREL
 	2,
 	3,
 #endif
 	3,
 	3,
-	4
+	3
 };
 
 /*

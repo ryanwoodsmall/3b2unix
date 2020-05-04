@@ -1,4 +1,4 @@
-#ident	"@(#)initpkg:init.d/autoconfig	1.3"
+#ident	"@(#)initpkg:init.d/autoconfig	1.4"
 
 #  if a self configuration occurred during the boot
 #  sequence, the following must be done:
@@ -8,18 +8,19 @@
 #  ckauto -- is a program that is used to determine if an
 #   	     auto configuration took place
 #
+#  /etc/.madeunix -- is an empty file whose presence signals
+#            that a mkunix has been done since the last boot.
+#            This file is explicitly removed each time the system
+#            is booted by the /etc/bcheckrc script.
 
-set `who -r`
-#		$7 is current state (2 or 3)
-#		$8 is number of times in this state previously
-#		$9 is the previous state we were in
-
-if [ "$9" = "S" -a "$8" = "0" ]
+/etc/ckauto
+if  [ $? -eq 1 ]
 then
-	/etc/ckauto
-	if [ $? -eq 1 ]
+	if [ ! -f /etc/.madeunix ]
 	then
 		echo 'Generating a new /unix'
 		/etc/mkunix -o /unix > /dev/null
+		> /etc/.madeunix
 	fi
 fi
+

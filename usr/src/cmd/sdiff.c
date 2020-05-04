@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdiff:sdiff.c	1.4"
+#ident	"@(#)sdiff:sdiff.c	1.4.1.1"
 	/*	sdiff [-l] [-s] [-w #] [-o output] file1 file2
 	*	does side by side diff listing
 	*	-l leftside only for identical lines
@@ -596,7 +596,7 @@ char *file;
 {
 	int i, pid;
 
-	int (*oldintr) ();
+	void (*oldintr) ();
 
 	switch(pid=fork()){
 

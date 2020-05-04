@@ -5,18 +5,13 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/notimeout.c	1.1"
-/*
- * Routines to deal with setting and resetting modes in the tty driver.
- * See also setupterm.c in the termlib part.
- */
-#include "curses.ext"
+#ident	"@(#)curses:screen/notimeout.c	1.6"
+#include	"curses_inc.h"
 
-/*
- * TRUE => don't wait for input, but return -1 instead.
- */
 notimeout(win,bf)
-WINDOW *win; int bf;
+WINDOW	*win;
+int	bf;
 {
-	win->_notimeout = bf;
+    win->_notimeout = (bf) ? TRUE : FALSE;
+    return (OK);
 }

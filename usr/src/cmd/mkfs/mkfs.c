@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mkfs:mkfs.c	1.25"
+#ident	"@(#)mkfs:mkfs.c	1.26"
 /*	mkfs	COMPILE:	cc -O mkfs.c -s -i -o mkfs
  * Make a file system prototype.
  * usage: mkfs filsys size[:inodes] [gap blocks/cyl]
@@ -52,7 +52,7 @@
 
 /* file system block size */
 
-#if u3b5  && (FsTYPE == 2)	/* BSIZE=2048 (see param.h) */
+#if u3b15  && (FsTYPE == 2)	/* BSIZE=2048 (see param.h) */
 #undef itod
 #define	itod(x)	(daddr_t)(((x+63)>>5)&017777)
 #undef itoo
@@ -87,7 +87,7 @@ char	buf[FSBSIZE];
 int work0[FSBSIZE/sizeof(int)];
 struct fblk *fbuf = (struct fblk *)work0;
 
-#if u3b || u3b5 || u3b2 || vax
+#if u3b || u3b15 || u3b2 || vax
 struct aouthdr head;
 #else
 struct exec head;
@@ -216,7 +216,7 @@ char *argv[];
 		else {
 			read(f, (char *)&head, sizeof head);
 
-#if u3b || u3b5 || u3b2 || vax
+#if u3b || u3b15 || u3b2 || vax
 			c = head.tsize + head.dsize;
 #else
 			c = head.a_text + head.a_data;
@@ -760,7 +760,7 @@ bflist()
 	ibc = 0;
 	bfree((daddr_t)0);
 	filsys->s_tfree = 0;
-#if u3b2 || u3b5
+#if u3b2 || u3b15
 	d = filsys->s_fsize;
 #else
 	d = filsys->s_fsize-1;

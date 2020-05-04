@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)cron:elm.c	1.2"
+#ident	"@(#)cron:elm.c	1.3"
 /**************************************************************************
  ***		General-Purpose Event List Manager			***
  **************************************************************************
@@ -63,7 +63,7 @@ struct notice {	time_t	time;
 		short int	isdummy;
 		struct key	*key;
 		struct notice	*left;
-		struct notice	*right };
+		struct notice	*right; };
 
 /* current points to the front of the list of notices (events)	*/
 struct notice	*current=NULL;

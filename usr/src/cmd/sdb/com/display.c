@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:com/display.c	1.13"
+#ident	"@(#)sdb:com/display.c	1.15"
 
 #include "head.h"
 #include "coff.h"
@@ -291,9 +291,15 @@ char *proc, *var, *fmt; {
 	/* nullflag && colonflag == true -> user said :var (global only) */
 	/* eqany(var[0], "->[") == true -> user gave address.var	 */
 	if (!match && !eqany(var[0], "->.[") && !(nullflag && colonflag)) {
-		for (procp=initframe(); procp != badproc;
-					procp = nextframe()) {
+		for (procp=initframe(); procp != badproc; procp = nextframe()) 
+		{
 			if (eqpatu(proc, procp->pname)) {
+			/*
+ 			 * make sure procp is not just an external
+		 	 */
+				while ((procp->notstab) && (procp != badproc))
+					procp = adrtoprocp(procp->paddress -1);
+
 				match++;
 				/* if correct occurence of proc, or need all */
 				if (--depthcnt==0 || integ==0) {
@@ -395,7 +401,7 @@ char *proc, *var, *fmt; {
 		}
 		else if (debugflag == 2)
 		{
-			exit2("findproc");
+			exit2("findvar");
 			printf("0x%x",-1);
 			endofline();
 		}
@@ -814,32 +820,6 @@ char *s; struct proct *procp; ADDR dot; {
 #endif
 }
 
-/* print call frame */
-prframe() {
-#if DEBUG
-	if (debugflag ==1)
-	{
-		enter1("prframe");
-	}
-	else if (debugflag == 2)
-	{
-		enter2("prframe");
-		closeparen();
-	}
-#endif
-	prfrx(0);
-#if DEBUG
-	if (debugflag == 1)
-	{
-		exit1();
-	}
-	else if (debugflag == 2)
-	{
-		exit2("prframe");
-		endofline();
-	}
-#endif
-}
 
 extern INT		signo;
 extern STRING		signals[];

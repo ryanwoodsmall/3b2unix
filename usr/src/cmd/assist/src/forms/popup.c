@@ -5,24 +5,31 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)forms:popup.c	1.7"
+#ident	"@(#)forms:popup.c	1.8"
 #include "muse.h"
 #include "mmuse.h"
 
+/* popup.c contains three functions:
+ *  bottom_write(), cf(), refer(), and shell().
+ */
 
 
+/*
+ * Displays prompt on bottom line.  Allows user to enter and edit 
+ * string.  Returns 1 if user enters string, 2 if user
+ * enters only a RETURN, and 0 o.w.  
+ */
 int bottom_write(prompt,flag,rmbl)   
-                             /* Puts cursor on bottom line.
-                                Allows user to enter and edit string.
-                                Returns 1 if user enters string, 0 o.w.      */
-char *prompt;
-int flag, rmbl;
+char *prompt;  /* Prompt string */
+int flag, rmbl;  /* flag=1: highlight current item (on menu) */
+                 /* rmbl=1: remove superfluous blanks from user string */
 {  register int c;
    register int i, j, i0;
    char *c_pt, *d_pt, *b_pt, helpmess[80];
    int help();
    int x, y;
 
+/* Display prompt */
    move(LINES-1,0); clrtoeol();
    if (mode==MENU && flag) highlight(Segm_pt,ON,(struct field *)0);
    REV;
@@ -32,16 +39,19 @@ int flag, rmbl;
    j = strlen(prompt)+2;
    refresh();
 
+/* Prepare bottom_str -- a global char* to store user input */
    i=0;
    i0 = LINES-1;
    c_pt = bottom_str + strlen(bottom_str);
    while (c_pt>bottom_str) *--c_pt = null;
    b_pt = c_pt = bottom_str;
    c = getch();
+
+/* Main loop */
    while (c!=KEY_F(2) && c!= CTRL(V) && c!=CTRL(G) &&
-          c!=KEY_F(1) && c!=CTRL(D) && c!='\015')
+          c!=KEY_F(1) && c!=CTRL(D) && c!='\015')  /* Exit chars */
    {
-      if (c == CTRL(A) || c == KEY_F(8)) {
+      if (c == CTRL(A) || c == KEY_F(8)) {  /* Show command help */
          getyx(stdscr,y,x);
          if (c==CTRL(A))
             sprintf(helpmess,
@@ -84,11 +94,13 @@ int flag, rmbl;
             else if (*d_pt == SPACE) b_pt=d_pt+1;
             move(i0,j);
          }
-      }
+      }  /* End of show command help */
 
       switch(c)
       {
-         case '\010':
+         case '\010':   /* Backspace.  Non-trivial, because
+                           function allows for dynamic
+                           multi-line input. */
             if (c_pt>bottom_str)
             {
                *(c_pt--) = null;  *c_pt = null;  
@@ -132,7 +144,8 @@ int flag, rmbl;
             else
                goto OUT;
             break;
-         default:
+         default:   /* Character insertion. Non-trivial for
+                       same reason as backspace */
             if (!isprint(c)) beep();
             else
             {
@@ -178,10 +191,10 @@ int flag, rmbl;
       c = getch();
    }
 
-SWITCH:
+SWITCH:  /* Switch on exit character */
    switch(c)
    {
-   case KEY_F(1):
+   case KEY_F(1):  /* "go" */
    case CTRL(G):
    case '\015':
       if (rmbl) rmblnks(bottom_str);
@@ -195,7 +208,7 @@ SWITCH:
          return(2);
       }
       break;
-   case KEY_F(2):
+   case KEY_F(2):  /* Abort bottom line prompting */
    case CTRL(V):
 OUT:  move (2,0);
       clrtobot();
@@ -205,7 +218,7 @@ OUT:  move (2,0);
       else if (mode != MENU) show_cmd(command);
       return(0);
       break;
-   case CTRL(D):
+   case CTRL(D):  /* Exit ASSIST */
       status=0;
       done();
       break;
@@ -216,7 +229,7 @@ OUT:  move (2,0);
 
 
 
-int cf()   /* Must return character pointer, to be used by next_screen().  */
+int cf()   /* Used by popup menu [COMMAND FORMS]. */
 {  
    int code;
    if (code=bottom_write(
@@ -228,8 +241,10 @@ int cf()   /* Must return character pointer, to be used by next_screen().  */
 
 
 
-int refer(flag)   /* Must return character pointer, to be used by next_screen().  */
-int flag;
+int refer(flag)   /* Called from popup menu.  Collects keyword(s)
+                     and passes "msearch .. " command line back
+                     (stored in bottom_str)  */
+int flag;   /* Obsolete; always 1 */
 {  char s[500];
    int code;
    if (flag)
@@ -247,7 +262,7 @@ int flag;
          strcpy(bottom_str,s);
          return(code);
       }
-      else if (!flag)
+      else if (!flag)   /* Obsolete: always 1 */
       {
          sprintf(s,"%smsearch -m ",musebin);
          strcat(s,bottom_str);
@@ -263,6 +278,7 @@ int flag;
 
 #define  CMDSIZE   80
 
+/* Shell escape prompter */
 int shell()
 {  register int c1 = CTRL(E);
    register int flag = 1;

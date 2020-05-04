@@ -5,12 +5,12 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)kern-port:boot/mboot/makefile	10.2"
+#ident	"@(#)kern-port:boot/mboot/makefile	10.2.1.1"
 
 ROOT =
-INCRT = ../..
+INC = $(ROOT)/usr/include
 INCLOC = ..
-CFLAGS = -I$(INCLOC) -I$(INCRT)
+CFLAGS = -I$(INCLOC) -I$(INC)
 SIZE = size
 DIS = dis
 NM = nm
@@ -51,9 +51,9 @@ FRC:
 #
 
 mboot.o: mboot.c \
-	$(INCRT)/sys/boot.h \
-	$(INCRT)/sys/firmware.h \
+	$(INC)/sys/boot.h \
+	$(INC)/sys/firmware.h \
 	$(INCLOC)/sys/param.h \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/vtoc.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/vtoc.h \
 	$(FRC)

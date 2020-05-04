@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)cxref:cxref.mk	1.14"
+#ident	"@(#)cxref:cxref.mk	1.15"
 FLG=
 OWNER=$(ROOT)/usr/lib
 CC=cc
@@ -105,6 +105,9 @@ cpp.o:	$(CPP)/cpp.c
 	elif u3b5; \
 	then \
 		$(CC) $(FFLAG) $(CFLAGS) -I$(CPP) -DPD_MACH=D_u3b5 -DPD_SYS=D_unix $(CPP)/cpp.c; \
+	elif u3b15; \
+	then \
+		$(CC) $(FFLAG) $(CFLAGS) -I$(CPP) -DPD_MACH=D_u3b15 -DPD_SYS=D_unix $(CPP)/cpp.c; \
 	elif u3b; \
 	then \
 		$(CC) $(FFLAG) $(CFLAGS) -I$(CPP) -DPD_MACH=D_u3b -DPD_SYS=D_unix $(CPP)/cpp.c; \

@@ -1,5 +1,5 @@
 %{
-#ident	"@(#)ld:common/ld.lex	1.26"
+#ident	"@(#)ld:common/ld.lex	1.26.1.7"
 #include "system.h"
 #include <stdio.h>
 #include <signal.h>
@@ -40,12 +40,13 @@ long lsavarea[LSAVSIZE];	/* save area for integer tokens */
 int lsavndx = 0;
 extern long *savelng();
 
+extern enum scope scope_directive;
 #define CSAVSIZE 1024
 char csavarea[CSAVSIZE];	/* save area for string tokens */
 char *csavptr = &csavarea[0];
 extern char *savestr();
 
-char inline[256];		/* global save area for the current input line */
+char inline[1024];		/* global save area for the current input line */
 char *inptr = &inline[0];
 
 char **argptr;		/* main procedure argument list */
@@ -69,21 +70,23 @@ int	assigncnt;	/* number of assignment slots		*/
 #endif
 /*eject*/
 %}
-%start A MEMoREG COMA COMoMR
+%start A INaNAME MEMoREG COMA COMoMR INaCOM
 %p 4096
-%a 3200
-%o 5000
 %%
 %{
 		long longint;	/* local variables used in processing */
 		char *p;	/* numbers and strings		      */
+		int  symbols_seen; /* For hide/export processing */
+		char *badscope = "No symbols specified in hide/export statement!";
 %}
 
 <A>"/*"		BEGIN COMA;
 <MEMoREG>"/*"	BEGIN COMoMR;
 <COMA>"*/"	BEGIN A;
 <COMoMR>"*/"	BEGIN MEMoREG;
-<COMA,COMoMR>.	;
+<INaNAME>"/*"	BEGIN INaCOM;
+<INaCOM>"*/"	BEGIN INaNAME;
+<INaCOM,COMA,COMoMR>.	;
 
 <A>MEMORY	{ BEGIN MEMoREG; RET1(MEMORY); } 
 <A>REGIONS	{ BEGIN MEMoREG; RET1(REGIONS); } 
@@ -97,6 +100,9 @@ int	assigncnt;	/* number of assignment slots		*/
 <A>OVERLAY	RET1(OVERLAY);
 <A>COMMON	RET1(COMMN);
 
+<A>HIDE	{ BEGIN INaNAME; RET1(HIDE); }
+<A>EXPORT	{ BEGIN INaNAME; RET1(EXPORT); }
+
 <MEMoREG>"}"		{ BEGIN A; RET1(RBRACE); }
 <MEMoREG>ORIGIN|origin|org|o   RET1(ORG);
 <MEMoREG>LENGTH|length|len|l   RET1(LEN);
@@ -104,6 +110,23 @@ int	assigncnt;	/* number of assignment slots		*/
 <MEMoREG>RANGE|range	RET1(RANGE);
 <MEMoREG>ASSIGN|assign	RET1(ASSIGN);
 
+<INaNAME>[\!\\a-zA-Z0-9$._\*?\[\]\/-]+	{
+			if (scope_directive == __undefined) {
+				REJECT;
+				}
+			sym_scope(yytext, scope_directive);
+			symbols_seen++;
+			}
+<INaNAME>"{"		{
+			symbols_seen = 0;
+			RET1(LBRACE);
+			}
+<INaNAME>"}"		{
+			if (symbols_seen == 0)
+				lderror(2, 0, NULL, badscope);
+			BEGIN A;
+			RET1(RBRACE);
+			}
 <A,MEMoREG>"."		RET1(DOT);
 <A,MEMoREG>"}"		RET1(RBRACE);
 <A,MEMoREG>"{"		RET1(LBRACE);
@@ -156,6 +179,10 @@ int	assigncnt;	/* number of assignment slots		*/
 	*inptr++ = ' ';
 	*inptr   = '\0';
 	}
+<INaNAME>.	{
+		lderror(0, 0, NULL, "Discarding '%c' in scope/hide directive",
+			yytext[0]);
+		}
 
 
 <A,MEMoREG>[0][0-7]*	{
@@ -317,8 +344,7 @@ char *argv[];
  */
 
 	if( Vflag ) {
-		fprintf( stderr, "%sld : %s : Version %s",
-			SGS, RELEASE, version );
+		fprintf( stderr, "%sld : %s",SGS, RELEASE );
 		if( Vflag == 2 ) {
 #if AR16WR
  			fprintf( stderr, " : PDP 11/70-45 : " );

@@ -5,13 +5,15 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:uucpdefs.c	2.3"
+#ident	"@(#)uucp:uucpdefs.c	2.5"
 
 #include "uucp.h"
 
 int	Ifn, Ofn;
 int	Debug = 0;
 int	Uid, Euid;		/* user-id and effective-uid */
+int	Ulimit;
+ushort	Dev_mode;		/* save device mode here */
 char	Progname[NAMESIZE];
 char	Pchar;
 char	Rmtname[MAXFULLNAME];

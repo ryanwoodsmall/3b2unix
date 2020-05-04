@@ -5,10 +5,21 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)forms:command.c	1.6"
+#ident	"@(#)forms:command.c	1.7"
 #include "muse.h"
 #include "mmuse.h"
 
+/* Command_line() -- routine that collects user input from
+ * all fields, generates the command line and stores the result
+ * in char *command.  It uses special-pupose routines for chmod
+ * and umask command forms.
+ * Program collects command-line substrings in char *strings[][],
+ * where the first index is the relative location on the command line
+ * (loc) and the second a counter for this location.  int strings_n[]
+ * contains the max counters for each location.
+ * bundles[] contains single-letter option names to be bundled
+ * together at location right after command name.
+ */
 
 VOID command_line()
 {  
@@ -26,6 +37,7 @@ VOID command_line()
 
    command[0] = null;
 
+/* Check how many locations have to be considered */
    for (f_pt=fields; f_pt<=last_field_pt; f_pt++) 
       if (maxloc<f_pt->loc) maxloc=f_pt->loc;
 
@@ -37,7 +49,8 @@ VOID command_line()
    }
    bundle_n = 0;
 
-   switch(clt_code)
+   switch(clt_code)  /* If clt_code!=0, special command line generation
+                        modules are used (umask, chmod). */
    {
    case 0:
 
@@ -50,6 +63,11 @@ VOID command_line()
          case 9:                   /* Header: no effect on command line            */
             break;
          case 1:                   /* No option, simply strings expected           */
+                                   /* Obsolete field type                */
+
+
+
+
             for (s_pt=f_pt->first_s_pt;s_pt!=NULL;s_pt=s_pt->next)
             {
                if (s_pt->word!=NULL && *(s_pt->word)!=null)
@@ -60,7 +78,9 @@ VOID command_line()
             }
             break;
          case 2:                     /* Option implied by strings                  */
+                                   /* Obsolete field type                */
          case 3:                     /* Option implied if string != default        */
+                                   /* Obsolete field type                */
             s_pt = f_pt->first_s_pt;
             test = 0;
             if (s_pt!=NULL && s_pt->word!=NULL && *(s_pt->word)!=null)
@@ -84,6 +104,7 @@ VOID command_line()
             }
             break;
          case 4:                   /* Simple yes/no option without arguments      */
+                                   /* Obsolete field type                */
             if (*(f_pt->first_s_pt->word) == 'y' || *(f_pt->first_s_pt->word) == 'Y')
             {
                if (f_pt->bundle==1)
@@ -109,6 +130,7 @@ VOID command_line()
          case 5:
             /* Assumes the following are not NULL: first_cpr_pt,
                first_cpr_pt->next, first_cpo_pt, first_cpo_pt->next  */
+                                   /* Obsolete field type                */
             for (s_pt=f_pt->first_s_pt;s_pt!=NULL;s_pt=s_pt->next)
             {
                if (((s_pt->word==NULL || *(s_pt->word)==null) &&
@@ -136,6 +158,7 @@ VOID command_line()
             break;
          case 6: /*word is one of k pre-fixes; find out which one;
                    then put correspnding "command prefix" on command line */
+                                   /* Obsolete field type                */
             for (s_pt=f_pt->first_s_pt;s_pt!=NULL;s_pt=s_pt->next)
             {
                if (s_pt->word!=NULL && *(s_pt->word)!=null)
@@ -168,8 +191,7 @@ VOID command_line()
             }
             break;
          case 7:
-            /* General mapping.
-               Format: nms^XA^XB^Zxyxyxyxyxyxyxy */
+            /* General mapping. Consult with ASSIST Development Tools Guide */
  
             /* Use first cpr_pt character (n) to see whether
                there should be a space between strings in this field and
@@ -190,7 +212,7 @@ VOID command_line()
                    && isset(f_pt,s_pt))
                   strings[loc][strings_n[loc]++] = " ";
 
-               /* Now check whether word matches any of the even
+               /* now check whether word matches any of the even
                   numbered cpo_pt->name's; if it does, map it onto
                   the next, odd-numbered cpo_pt->name.
                   The even-numbered cpo_pt->names (cpo0_pt->name) play
@@ -255,6 +277,7 @@ VOID command_line()
          }
       }
 
+/* Contruct bundle of 1-letter options right after command name */
       if (bundle_n)
       {
          sprintf(command," %1c",delim);
@@ -263,6 +286,7 @@ VOID command_line()
          strcat(command," ");
       }
 
+/* Concatename strings stored in char *strings[][], in order of "loc" */
       for (loc=0;loc<=maxloc;loc++)
       for (j=0;j<strings_n[loc];j++)    
       {
@@ -275,13 +299,13 @@ VOID command_line()
       else rmblnks(command);
       break;
    case 10:
-      chmod_cmd();
+      chmod_cmd();  /* Special processing of chmod command form */
       break;
    case 11:
-      umask_cmd();
+      umask_cmd();  /* Special processing of umask command form */
       break;
    case 12:
-      ar_r_cmd();
+      ar_r_cmd();  /* Obsolete: Now uses regular generator */
       break;
    default:
       break;
@@ -290,6 +314,7 @@ VOID command_line()
 }
 
 
+/* Special processing of chmod command form */
 int corder[] = {10,11,12,1,2,3,4,5,6,7,8,9,-1};
 VOID chmod_cmd()
 {
@@ -323,6 +348,7 @@ VOID chmod_cmd()
 
 
 
+/* Special processing of umask command form */
 VOID umask_cmd()
 {
    unsigned int mask, s=0;
@@ -341,8 +367,9 @@ VOID umask_cmd()
 
 
 int order[] = {5,6,7,8,2,3,0,1,-1};
+/* Obsolete */
 
-VOID ar_r_cmd()
+VOID ar_r_cmd() /* Obsolete: Now uses regular generator */
 {
    register struct field *f_pt;
    register struct segment *s_pt;

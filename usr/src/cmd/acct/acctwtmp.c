@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)acct:acctwtmp.c	1.3"
+#ident	"@(#)acct:acctwtmp.c	1.4"
 /*
  *	acctwtmp reason >> /etc/wtmp
  *	writes utmp.h record (with current time) to end of std. output
@@ -18,6 +18,7 @@
 #include <utmp.h>
 
 struct	utmp	wb;
+extern	time_t time();
 
 main(argc, argv)
 char **argv;

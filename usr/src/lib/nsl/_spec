@@ -1,4 +1,4 @@
-#ident	"@(#)libnsl:nsl/_spec	1.10"
+#ident	"@(#)libnsl:nsl/_spec	1.10.1.1"
 ##
 ## WARNING - anyone changing this file without a knowledge
 ##           of shared libraries will probably make a mistake and
@@ -100,9 +100,17 @@ __write_def.o
 __open_def.o
 __close_def.o
 __ulimit_def.o
+##
+##
 ## everything else
 ##
 _dummy.o
+##
+##
+## Additional internal library  data here
+##
+##
+_data2.o
 ##
 ## initialization rules
 ##

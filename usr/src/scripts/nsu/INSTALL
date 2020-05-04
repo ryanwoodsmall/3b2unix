@@ -1,4 +1,4 @@
-#ident	"@(#)pkg.nsu:INSTALL	1.4"
+#ident	"@(#)pkg.nsu:INSTALL	1.4.1.2"
 #
 #	Installation script for AT&T NSU Package for AT&T 3B2 Computer.
 #
@@ -9,10 +9,74 @@
 
 INSPATH=/install/new
 PKGNAME=`cat ${INSPATH}/usr/options/nsu.name`
+PKGNAME1=/usr/options/nsu.name #the name on the machine
 
 echo "Installing the ${PKGNAME}."
 echo "Copyright (c) 1984 AT&T"
 echo "All Rights Reserved"
+
+#
+# Check that an old Release and Version of the package will not accidentally
+#	 install over a later Release and Version
+#
+
+if
+	test -r ${PKGNAME1}
+then		 #package is already on machine - check for Release and Version
+	REL=`expr "\`cat ${PKGNAME1}\`" : '.*Release[ 	]*\([^ 	]\).*'`
+	VER=`expr "\`cat ${PKGNAME1}\`" : '.*Version[ 	]*\([^ 	]\).*'`
+	if
+		test -n "$REL"
+	then
+		FREL=`expr "${PKGNAME}" : '.*Release[ 	]*\([^ 	]\).*'`
+		FVER=`expr "${PKGNAME}" : '.*Version[ 	]*\([^ 	]\).*'`
+
+		if
+			test $REL -gt $FREL
+		then
+			echo "**WARNING**  This will install an older"
+			echo "Release.Version ($FREL.$FVER) over the current Release.Version ($REL.$VER)"
+			answer=""
+			while 
+				[ "$answer" != y -a "$answer" != n ]
+			do
+				echo "Type 'y' to install over current Release or\c"
+				echo " 'n' to stop installation:  \c"
+				read answer
+				case $answer in
+					n)	exit
+						;;
+				
+					y)	;; #continue installation
+				esac
+			done
+		elif
+			test $REL -eq $FREL
+		then
+			if
+				test $VER -gt $FVER
+			then
+				echo "**WARNING**  This will install an older"
+				echo "Release.Version ($FREL.$FVER) over the current Release.Version ($REL.$VER)"
+				answer=""
+				while 
+					[ "$answer" != y -a "$answer" != n ]
+				do
+					echo "Type 'y' to install over current Release or\c"
+					echo " 'n' to stop installation:  \c"
+					read answer
+					case $answer in
+						n)	exit
+							;;
+					
+						y)	;; #continue installation
+					esac
+				done
+			fi
+		fi
+	fi
+fi
+
 
 #
 # Verify that the system has at least 2 Mb of mainstore
@@ -30,6 +94,23 @@ then
 	echo "**ERROR**   ${PKGNAME} cannot be installed --"
 	echo "At least 2 Megabytes of memory must be available."
 	exit
+fi
+
+#
+# Verify that no listeners are running - cannot install pkg
+#	if 'listen' text file is busy.
+#
+if
+	test -r ${PKGNAME1}
+then		 #package is installed on machine - check for active listener
+	if nlsadmin -x | grep '[ 	]ACTIVE' >/dev/null
+	then
+		echo "**ERROR**  ${PKGNAME} cannot be installed --"
+		echo "All active listeners must first be killed."
+		echo "Execute 'nlsadmin -x' to find active listener(s)."
+		echo "Execute 'nlsadmin -k net_spec' to kill each active listener."
+		exit
+	fi
 fi
 
 #

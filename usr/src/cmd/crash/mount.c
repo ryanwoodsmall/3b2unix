@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)crash-3b2:mount.c	1.14"
+#ident	"@(#)crash-3b2:mount.c	1.14.1.1"
 /*
  * This file contains code for the crash functions:  mount, srmount.
  */
@@ -58,7 +58,7 @@ getmount()
 		}
 	}
 	fprintf(fp,"MOUNT TABLE SIZE = %d\n",vbuf.v_mount);
-	fprintf(fp,"SLOT FS BSZ  MAJ/MIN  BUFPTR  BCOUNT IPTR MPTR RFLG FLAGS RD NAME\n");
+	fprintf(fp,"SLOT FS BSZ  MAJ/MIN  BUFPTR  BCOUNT IPTR MPTR RFLAG FLAGS RD NAME\n");
 	if(args[optind]) {
 		all = 1;
 		do {
@@ -110,8 +110,11 @@ long addr;
 	if(!mbuf.m_flags && !all)
 		return ;
 	if(addr > -1) 
-		slot = getslot(addr,(long)Mount->n_value,sizeof mbuf,phys);
-	fprintf(fp,"%4u",slot);
+		slot = getslot(addr,(long)Mount->n_value,sizeof mbuf,phys,
+			vbuf.v_mount);
+	if(slot == -1)
+		fprintf(fp,"  - ");
+	else fprintf(fp,"%4d",slot);
 	if(!mbuf.m_rflags)
 		fprintf(fp," %2d %4u",
 			mbuf.m_fstyp,
@@ -129,31 +132,17 @@ long addr;
 		sizeof (struct inode);
 	if((slot >= 0) && (slot < vbuf.v_inode))
 		fprintf(fp," I%3d",slot);
-	else if(send) {
-		slot = ((long)mbuf.m_up - (long)Sndd->n_value)/
-			sizeof (struct sndd);
-		if((slot >= 0) && (slot < nsndd))
-			fprintf(fp," U%3d",slot);
-		else fprintf(fp,"  -  ");
-	}
 	else fprintf(fp,"  -  ");
 	slot = ((long)mbuf.m_mount - (long)Inode->n_value)/
 		sizeof (struct inode);
 	if((slot >= 0) && (slot < vbuf.v_inode))
 		fprintf(fp," I%3d",slot);
-	else if(send){
-		slot = ((long)mbuf.m_down - (long)Sndd->n_value)/
-			sizeof (struct sndd);
-		if((slot >= 0) && (slot < nsndd))
-			fprintf(fp," D%3d",slot);
-		else fprintf(fp,"  -  ");
-	}
 	else fprintf(fp,"  -  ");
-	switch(mbuf.m_rflags) {
-		case MLBIN	: fprintf(fp," lbin"); break;
-		case MDOTDOT	: fprintf(fp,"  .. "); break;
-		default		: fprintf(fp,"   - "); break;
-	}
+	fprintf(fp,"  %s%s%s%s",
+		(mbuf.m_rflags & MDOTDOT) ? "D" : "-",
+		(mbuf.m_rflags & MCACHE) ? "C" : "-",
+		(mbuf.m_rflags & MLINKDOWN) ? "L" : "-",
+		(mbuf.m_rflags & MFUMOUNT) ? "F" : "-");
 	switch(mbuf.m_flags & 03) {
 		case MINUSE	: fprintf(fp," inuse"); break;
 		case MINTER	: fprintf(fp," inter"); break;
@@ -213,24 +202,24 @@ getsrmount()
 				continue;
 			if(arg2 != -1)
 				for(slot = arg1; slot <= arg2; slot++)
-					prsrmount(all,slot,phys,addr);
+					prsrmount(all,slot,phys,addr,nsrmount);
 			else {
 				if(arg1 < vbuf.v_mount)
 					slot = arg1;
 				else addr = arg1;
-				prsrmount(all,slot,phys,addr);
+				prsrmount(all,slot,phys,addr,nsrmount);
 			}
 			slot = addr = arg1 = arg2 = -1;
 		}while(args[++optind]);
 	}
 	else for(slot = 0; slot < nsrmount; slot++)
-		prsrmount(all,slot,phys,addr);
+		prsrmount(all,slot,phys,addr,nsrmount);
 }
 
 /* print server mount table */
 int
-prsrmount(all,slot,phys,addr)
-int all,slot,phys;
+prsrmount(all,slot,phys,addr,max)
+int all,slot,phys,max;
 long addr;
 {
 	struct srmnt srmntbuf;
@@ -240,9 +229,12 @@ long addr;
 	if((srmntbuf.sr_flags == MFREE) && !all)
 		return;
 	if(addr > -1) 
-		slot = getslot(addr,(long)Srmount->n_value,sizeof srmntbuf,phys);
-	fprintf(fp,"%4d  %4x %4u %4u %4u %6u %6u %4u",
-		slot,
+		slot = getslot(addr,(long)Srmount->n_value,sizeof srmntbuf,
+			phys,max);
+	if(slot == -1)
+		fprintf(fp,"  - ");
+	else fprintf(fp,"%4d",slot);
+	fprintf(fp,"  %4x %4u %4u %4u %6u %6u %4u",
 		srmntbuf.sr_sysid,
 		((unsigned) srmntbuf.sr_rootinode - (unsigned) Inode->n_value) /
 		 	sizeof(struct inode),
@@ -252,9 +244,10 @@ long addr;
 		srmntbuf.sr_bcount,
 		srmntbuf.sr_slpcnt);
 	fprintf(fp," %s",(srmntbuf.sr_flags & MRDONLY) ? "ro" : "rw");
-	fprintf(fp,"%s%s%s%s\n",
+	fprintf(fp,"%s%s%s%s%s\n",
 		(srmntbuf.sr_flags & MINUSE) ? " inuse" : "",
 		(srmntbuf.sr_flags & MLINKDOWN) ? " ldown" : "",
 		(srmntbuf.sr_flags & MFUMOUNT) ? " fumnt" : "",
-		(srmntbuf.sr_flags & MINTER) ? " inter" : "");
+		(srmntbuf.sr_flags & MINTER) ? " inter" : "",
+		(srmntbuf.sr_flags & MCACHE) ? " cache" : "");
 }

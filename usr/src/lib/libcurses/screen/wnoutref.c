@@ -5,84 +5,126 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/wnoutref.c	1.4"
-/*
- * make the current screen look like "win" over the area covered by
- * win.
- *
- */
+#ident	"@(#)curses:screen/wnoutref.c	1.11"
+#include	"curses_inc.h"
 
-# include	"curses.ext"
+/* Like refresh but does not output */
 
-/* Put out window but don't actually update screen. */
 wnoutrefresh(win)
-register WINDOW	*win;
+register	WINDOW	*win;
 {
-	register int copycnt, temp;
-	register int wy, y;
-	register chtype	*nsp;
+    register	short	*bch, *ech, *sbch, *sech;
+    register	chtype	**wcp, **scp, *wc, *sc;
+    register	int	*hash;
+    int		y, x, xorg, yorg, scrli, scrco,
+		boty, sminy, smaxy, minx, maxx, lo, hi;
+    bool	doall;
 
-	if (win == NULL)
-		return ERR;
+    if (win->_parent)
+	wsyncdown(win);
 
-# ifdef DEBUG
-	if(outf)
-		if (win == stdscr)
-			(void) fprintf(outf, "REFRESH(stdscr %x)", win);
-		else if (win == curscr)
-			(void) fprintf(outf, "REFRESH(curscr %x)", win);
-		else
-			(void) fprintf(outf, "REFRESH(%x)", win);
-	if(outf) fprintf(outf, " (win == curscr) = %d, maxy %d\n", win, (win == curscr), win->_maxy);
-	if (win != curscr)
-		_dumpwin(win);
-	if(outf) fprintf(outf, "REFRESH:\n\tfirstch\tlastch\n");
-# endif
-	/*
-	 * initialize loop parameters
-	 */
+    doall = win->_clear;
 
-	if (win->_clear || win == curscr || SP->doclear) {
-# ifdef DEBUG
-		if (outf) fprintf(outf, "refresh clears, win->_clear %d, curscr %d\n", win->_clear, win == curscr);
-# endif
-		SP->doclear = 1;
-		win->_clear = FALSE;
-		if (win != curscr)
-			touchwin(win);
+    sminy = SP->Yabove;
+    smaxy = sminy + LINES;
+    scrli = curscr->_maxy;
+    scrco = curscr->_maxx;
+
+    yorg = win->_begy + win->_yoffset;
+    xorg = win->_begx;
+
+    /* save flags, cursor positions */
+    if (!win->_leave && ((y = win->_cury + yorg) >= 0) && (y < scrli) &&
+	((x = win->_curx + xorg) >= 0) && (x < scrco))
+    {
+	_virtscr->_cury = y;
+	_virtscr->_curx = x;
+    }
+    if (!(win->_use_idc))
+	_virtscr->_use_idc = FALSE;
+    if (win->_use_idl)
+	_virtscr->_use_idl = TRUE;
+    if (win->_clear)
+    {
+	_virtscr->_clear = TRUE;
+	win->_clear = FALSE;
+	win->_flags |= _WINCHANGED;
+    }
+
+    if (!(win->_flags & _WINCHANGED))
+	goto done;
+
+    /* region to update */
+    boty = win->_maxy+yorg;
+    if (yorg >= sminy && yorg < smaxy && boty >= smaxy)
+	boty = smaxy;
+    else
+	if (boty > scrli)
+	    boty = scrli;
+    boty -= yorg;
+
+    minx = 0;
+    if ((maxx = win->_maxx+xorg) > scrco)
+	maxx = scrco;
+    maxx -= xorg + 1;
+
+    /* update structure */
+    bch = win->_firstch;
+    ech = win->_lastch;
+    wcp = win->_y;
+
+    hash = _VIRTHASH + yorg;
+    sbch = _virtscr->_firstch + yorg;
+    sech = _virtscr->_lastch + yorg;
+    scp  = _virtscr->_y + yorg;
+
+    /* first time around, set proper top/bottom changed lines */
+    if (curscr->_sync)
+    {
+	_VIRTTOP = scrli;
+	_VIRTBOT = -1;
+    }
+
+    /* update each line */
+    for (y = 0; y < boty; ++y, ++hash, ++bch, ++ech, ++sbch, ++sech, ++wcp, ++scp)
+    {
+	if (!doall && *bch == _INFINITY)
+	    continue;
+
+	lo = (doall || *bch == _REDRAW || *bch < minx) ? minx : *bch;
+	hi = (doall || *bch == _REDRAW || *ech > maxx) ? maxx : *ech;
+
+	if (hi < lo)
+	    continue;
+
+	/* update the change structure */
+	if (*bch == _REDRAW || *sbch == _REDRAW)
+	    *sbch =  _REDRAW;
+	else
+	{
+	    if (*sbch > lo+xorg)
+		*sbch = lo+xorg;
+	    if (*sech < hi+xorg)
+		*sech = hi+xorg;
 	}
+	if ((y + yorg) < _VIRTTOP)
+	    _VIRTTOP = y+yorg;
+	if ((y + yorg) > _VIRTBOT)
+	    _VIRTBOT = y + yorg;
+	*bch = _INFINITY;
+	*ech = -1;
 
-	if (win == curscr) {
-		_ll_refresh(FALSE);
-		return OK;
-	}
+	/* update the image */
+	wc = *wcp + lo;
+	sc = *scp + lo + xorg;
+	(void) memcpy((char *) sc, (char *) wc, (int) (((hi - lo) + 1) * sizeof(chtype)));
 
-	if (win->_flags & _WINCHANGED) {
-		for (wy = 0; wy < win->_maxy; wy++) {
-			if (win->_firstch[wy] != _NOCHANGE) {
-				y = wy + win->_begy + win->_yoffset;
-				nsp = &win->_y[wy][0];
-				_ll_move(y, win->_begx);
-				copycnt = win->_maxx;
-				temp = columns - SP->virt_x;
-				if (temp < copycnt) copycnt = temp;
-				if (copycnt > 0)
-					memcpy ((char *)SP->curptr,
-						(char *)nsp,
-						copycnt*sizeof(*nsp));
-				SP->curptr += copycnt;
-				SP->virt_x += copycnt;
-				win->_firstch[wy] = _NOCHANGE;
-			}
-		}
-		win->_flags &= ~_WINCHANGED;
-	}
-	win->_flags &= ~_WINMOVED;
+	/* the hash value of the line */
+	*hash = _NOHASH;
+    }
 
-	SP->leave_lwin = win;
-	SP->leave_leave = win->_leave;
-	SP->leave_use_idl |= win->_use_idl==2 ? win->_need_idl : win->_use_idl;
-	SP->leave_x = win->_curx + win->_begx;
-	SP->leave_y = win->_cury + win->_begy + win->_yoffset;
-	return OK;
+done:
+    _virtscr->_flags |= _WINCHANGED;
+    win->_flags &= ~(_WINCHANGED | _WINMOVED | _WINSDEL);
+    return (OK);
 }

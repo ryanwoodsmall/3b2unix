@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)graf:src/stat.d/list.c	1.7"
+#ident	"@(#)graf:src/stat.d/list.c	1.8"
 /* <:t-5 d:> */
 #include "stdio.h"
 #include "s.h"
@@ -73,21 +73,21 @@ char *deltab;					/* or EOF if no number is found */
 FILE *fdi;
 double *x;
 {
-#if u370 | u3b | u3b5 | u3b2
+#if u370 | u3b | u3b15 | u3b2
 	int c;
 #else
 	char c;
 #endif
 	int s;
 	while ((s=fscanf(fdi,"%F",x)) != EOF)
-#if u370 | u3b | u3b5 | u3b2
+#if u370 | u3b | u3b15 | u3b2
 		if (s>0 && strchr(deltab, (char) (c=getc(fdi)))!=NULL)
 #else
 		if (s>0 && strchr(deltab,(c=getc(fdi)))!=NULL)
 #endif
 			return(1);
 		else  {
-#if u370 | u3b | u3b5 | u3b2
+#if u370 | u3b | u3b15 | u3b2
 			for (c=getc(fdi); (strchr(deltab,(char)c)==NULL) 
 #else
 			for (c=getc(fdi); (strchr(deltab,c)==NULL) 

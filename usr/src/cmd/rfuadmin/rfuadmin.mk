@@ -5,12 +5,12 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)rfuadmin:rfuadmin.mk	1.2"
+#ident	"@(#)rfuadmin:rfuadmin.mk	1.3"
 
 #	rfuadmin make file
 
 ROOT=
-INSDIR = $(ROOT)/usr/bin
+INSDIR = $(ROOT)/usr/nserve
 INS=/etc/install
 
 all:	install clobber

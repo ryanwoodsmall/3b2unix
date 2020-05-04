@@ -223,7 +223,7 @@ odd parity:glossary:define98
 PDP-11/45:glossary:define99
 PDP-11/70:glossary:define99
 3B20:glossary:define99
-3B5:glossary:define99
+3B15:glossary:define99
 3B2:glossary:define99
 VAX-11/750:glossary:define99
 VAX-11/780:glossary:define99
@@ -388,5 +388,5 @@ unpack:getdesc,listcmds,getexample,getoption,usage,keysrch:getdoe
 usage:getdesc,listcmds,getexample,getoption,usage,keysrch:getdoe
 wait:getdesc,listcmds,getexample,getoption,usage,keysrch:getdoe
 xargs:getdesc,listcmds,getexample,getoption,usage,keysrch:getdoe
-u3b5:getdesc,listcmds,getexample,getoption,usage,keysrch:getdoe
+u3b15:getdesc,listcmds,getexample,getoption,usage,keysrch:getdoe
 vax:getdesc,listcmds,getexample,getoption,usage,keysrch:getdoe

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:com/decode.c	1.10"
+#ident	"@(#)sdb:com/decode.c	1.11"
 
 #include <signal.h>
 #include "head.h"
@@ -50,7 +50,12 @@ char *p; {
 	int commaflag = 0;
 	int cntcomma = 0;    /* flag for comma delimeter before count field */
 	int syst;
+
+#if u3b2 || u3b5 || u3b15
+	void (*oldresp)();
+#else
 	int (*oldresp)();
+#endif
 
 #if DEBUG
 	if (debugflag ==1)

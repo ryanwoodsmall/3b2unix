@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)xt:xtstats.c	2.3"
+#ident	"@(#)xt:xtstats.c	2.4"
 
 /*	Copyright (c) 1984 AT&T	*/
 /*	  All Rights Reserved  	*/
@@ -18,12 +18,15 @@
 **	Routine to print 'xt' driver statistics
 */
 
+#include	"stdio.h"
+#include	"errno.h"
 #include	"sys/types.h"
 #include	"sys/tty.h"
 #include	"sys/jioctl.h"
 #include	"sys/xtproto.h"
 #include	"sys/xt.h"
-#include	"stdio.h"
+
+#define Fprintf (void)fprintf
 
 #if	XTSTATS == 1
 Stats_t		Stats[S_NSTATS];
@@ -66,18 +69,21 @@ extern char *		ctime();
 
 
 
-void
-xtstats(cfd, ofd)
-	int		cfd;
+int
+xtstats(name, cfd, ofd)
+	char *name;
+	int   cfd;
 	register FILE *	ofd;
 {
-#	if	XTSTATS == 1
+#if	XTSTATS == 1
 	register long	l;
 	register int	i;
 	register int	count = 0;
 
-	if ( ioctl(cfd, XTIOCSTATS, Stats) == SYSERROR )
-		return;
+	if ( ioctl(cfd, XTIOCSTATS, Stats) == SYSERROR ) {
+		Fprintf(stderr,"%s: xt ioctl failed - errno '%d'\n",name,errno);
+		return(1);
+	}
 
 	for ( i = 0 ; i < S_NSTATS ; i++ )
 		if ( l = Stats[i] )
@@ -93,5 +99,6 @@ xtstats(cfd, ofd)
 		}
 	if ( count )
 		(void)fflush(ofd);
-#	endif
+	return(0);
+#endif
 }

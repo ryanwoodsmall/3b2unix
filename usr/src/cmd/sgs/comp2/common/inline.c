@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)pcc2:common/inline.c	10.1"
+#ident	"@(#)pcc2:common/inline.c	10.5"
 #include <ctype.h>
 #include "mfile2.h"
 
@@ -36,15 +36,25 @@
 
 struct Sym_ent { char *name; int class; NODE *pnode; };
 
-#define N_MAC_ARGS 10
+/* static */ struct Sym_ent mat_init[INI_N_MAC_ARGS];
 
-static struct Sym_ent macarg_tab[N_MAC_ARGS];
+#ifndef STATSOUT
+static
+#endif
+	TD_INIT( td_macarg_tab, INI_N_MAC_ARGS, sizeof(struct Sym_ent),
+			TD_ZERO,  mat_init, "inline argument table");
+
+#define macarg_tab ((struct Sym_ent *)(td_macarg_tab.td_start))
+#define N_MAC_ARGS (td_macarg_tab.td_allo)
 
 extern int asmdebug;
 
-extern char inlargs[];
-extern int ninlargs;
+/* static */ char inlargs_init[INI_SZINLARGS];
 
+	TD_INIT( td_inlargs, INI_SZINLARGS, sizeof(char),
+			0, inlargs_init, "inline formals table" );
+
+extern int ninlargs;
 static int nargs;
 
 static int expanding = 0;		/* non-zero if currently expanding */
@@ -130,18 +140,19 @@ register NODE *p;
 	    /* tree, then fill in the assignment node and produce
 	    /* code for the store.
 	    */
-	    aop = talloc();
-	    l = talloc();
-	    r = talloc();
 
+	    l = talloc();
 	    l->tn.op = TEMP;
 	    l->tn.lval = freetemp( argsize(p)/SZINT );
 	    l->tn.lval = BITOOR( l->tn.lval );
 	    l->tn.name = (char *) 0;
 	    l->tn.type = p->tn.type;
 
+	    r = talloc();
 	    *r = *p;
 	    *p = *l;
+
+	    aop = talloc();
 	    aop->in.op = ASSIGN;
 	    aop->in.left = l;
 	    aop->in.right = r;
@@ -214,7 +225,7 @@ int goal;
 	/* Change name delimiting '#'s to '\0's and final '\0' to '\n'
 	*/
 
-			s = fgets( inlargs, BUFSIZ, inlfp);
+			s = fgets( inlargs, SZINLARGS, inlfp);
 			if ( *s != '#') 
 		    	    cerror(" error in asm formal argument storage");
 			s++;
@@ -279,8 +290,11 @@ int goal;
 							continue;     
 							  /* strange loop */
 					}
-				fseek(inlfp, 0L, 2);
 				      /* in case we see another def */
+				fseek(inlfp, 0L, 2);
+				inlargs[0] = 0;
+				sz_inlargs = 0;
+				ninlargs = 0;
 				return;
 				}
 			}
@@ -456,20 +470,28 @@ static struct Sym_ent *
 mac_lookup(name)
 char *name;
 {
-	register int n = N_MAC_ARGS;
+	register int n;
 	struct Sym_ent *p = macarg_tab;
 
-	while (n--)
-	{
-		if (!p->name || !strcmp(p->name, name))
-{
-			return (p);
-}
+	for (n = 0; n < N_MAC_ARGS; ++n) {
+		if (!p->name || !strcmp(p->name, name)) {
+#ifdef STATSOUT
+		    if (td_macarg_tab.td_max < n) td_macarg_tab.td_max = n;
+#endif
+		    return (p);
+		}
 		else
-			++p;
+		    ++p;
 	}
-	cerror("asm expansion error: off end of macro arg table");
-	/*NOTREACHED*/
+	/* ran off table; expand it, return next */
+	td_enlarge(&td_macarg_tab, 0);
+	/* (Beware:  can't use p or N_MAC_ARGS, since the location
+	** of the table and its length change.)
+	*/
+#ifdef STATSOUT
+	if (td_macarg_tab.td_max < n) td_macarg_tab.td_max = n;
+#endif
+	return( &macarg_tab[n] );
 }
 
 
@@ -536,12 +558,13 @@ clmacst()
 	register int n = N_MAC_ARGS;
 	register struct Sym_ent *p = macarg_tab;
 
-	while (n--)
+	while (n-- && p->name)
 	{
 		if (p->class == ISCL_lab)
 			tfree(p->pnode);
 		p->class = ISCL_undef;
-		p->name = (char *) (p->pnode = (NODE *) NULL);
+		p->pnode = (NODE *) 0;
+		p->name = (char *) 0;
 		p++;
 	}
 }
@@ -702,11 +725,32 @@ expmac()
 squirrelmacro(name) 	/* called from grammar to put it away */
 char *name;
 {
+	extern char * exname();
 	int c;
+	char tmpbuf[20];		/* temporary buffer for figuring sizes */
+	char * extname = exname(name);	/* Want external form of name, because
+					** that's what we'll see in pass2 when
+					** we expand the macro.
+					*/
+	int needsize;
 
-	/* use external form of name, because that's what we'll see in
-	** pass2 when we expand the macro
+
+	/* We will write out a line of the form:
+	**	$ <external-name> # <# of args> # <list of formals> \n
+	** We must make sure the buffer will be large enough to read
+	** it in later including a trailing NUL.
 	*/
+	sprintf(tmpbuf, "#%d#", ninlargs);
+	needsize = 1 + strlen(extname) +
+			sprintf(tmpbuf, "#%d#", ninlargs) + sz_inlargs + 1 + 1;
+	if (needsize > SZINLARGS) 
+	    td_enlarge(&td_inlargs, SZINLARGS-needsize);
+	
+#ifdef	STATSOUT
+	if (needsize > td_inlargs.td_max)
+	    td_inlargs.td_max = needsize;
+#endif
+
 	fprintf(inlfp, "$%s\n", exname(name));
 #ifndef NODBG
 	if (asmdebug)
@@ -722,10 +766,10 @@ char *name;
         /* by '#'.  
         */
 
-	fprintf(inlfp,"#%d#%s\n",ninlargs,inlargs);
+	fprintf(inlfp, "%s%s\n", tmpbuf, inlargs);
 #ifndef NODBG
 	if (asmdebug)
-		printf("#%d#%s\n",ninlargs,inlargs);
+		printf("%s%s\n", tmpbuf, inlargs);
 #endif
 
 	while ((c = getchar()) != '}')
@@ -768,6 +812,7 @@ char *name;
 	ungetc('}', stdin);	
 	/* clear argument list and count */
 	inlargs[0] = '\0';
+	sz_inlargs = 0;
 	ninlargs = 0;
 }
 

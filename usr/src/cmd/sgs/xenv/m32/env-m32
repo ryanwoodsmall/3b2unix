@@ -6,8 +6,8 @@
 #	first in the user's path and to define environment variables used
 #	when building the cross-libraries.
 #
-PATH=/xe/3b2sgs/3.0/n12/bin:$PATH
-ROOT=/xe/3b2/3.0
+PATH=/xe/3b2sgs/3.1/e8.1/bin:$PATH
+ROOT=/xe/3b2/3.1
 SHELL=/bin/sh
 PS1="3b2crossenv: "
 export PATH ROOT SHELL PS1
@@ -24,8 +24,8 @@ LIBP=
 PROF=
 DONE=
 DEFLIST=
-INC=/xe/3b2sgs/3.0/n12/usr/include
-INCSYS=/xe/3b2sgs/3.0/n12/usr/include/sys
+INC=/xe/3b2sgs/3.1/e8.1/usr/include
+INCSYS=/xe/3b2sgs/3.1/e8.1/usr/include/sys
 CH='#'
 export VARIANT CFLAGS PCFLAGS PFX CC AR STRIP LORDER LIB LIBP PROF DONE DEFLIST INC INCSYS CH
 if [ $# = 0 ]

@@ -6,7 +6,7 @@
 #	actual or intended publication of such source code.
 
 	.file	"fcrt1.s"
-	.ident	"@(#)libc-m32:csu/fcrt1.s	1.3"
+	.ident	"@(#)libc-m32:csu/fcrt1.s	1.5"
 
 #
 #	C language startup routine with compatibility
@@ -29,6 +29,7 @@
 	.globl	main		# entry for user code
 	.globl	__fpstart	# floating point startup for 2.0p
 	.globl	fptrap		# floating point emulation for 2.0
+	.globl	setchrclass	# Routine that initializes _ctype[]
 	.globl	exit
 
 	.data
@@ -84,6 +85,8 @@ _start:
 
 	CALL	0(%sp),__fpstart# initialize the 2.0p floating point state
 
+	PUSHW	&0
+	CALL    -4(%sp), setchrclass    # initialize _ctype array
 	CALL	-12(%sp),main	# main( argc, argv envp )
 
 	PUSHW	%r0
@@ -310,7 +313,6 @@ _fpopcode:
 _mcount:			# dummy version for the case when
 	rsb			# files have been compiled with -p but
 				# not loaded with load module
-
 	.section	.init,"x"
 _istart:
 	SAVE	%fp

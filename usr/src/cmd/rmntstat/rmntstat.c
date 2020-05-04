@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)rmntstat:rmntstat.c	1.3"
+#ident	"@(#)rmntstat:rmntstat.c	1.4"
 #include <stdio.h>
 #include <fcntl.h>
 #include <sys/types.h>
@@ -47,6 +47,10 @@ char **argv;
 		exit(1);
 	}
 
+	if (geteuid() != 0) {
+		fprintf(stderr, "%s: must be super-user\n", argv[0]);
+		exit(1);
+	}
 
 	if (nlload() != 0)
 		exit(1);

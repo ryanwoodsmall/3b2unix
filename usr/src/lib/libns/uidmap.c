@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libns:uidmap.c	1.5"
+#ident	"@(#)libns:uidmap.c	1.7.2.1"
 #include <stdio.h>
 #include "idload.h"
 #include <sys/utsname.h>
@@ -33,6 +33,7 @@ static	char *m_malloc();
 static	char *read_file();
 static	char *get_mname();
 static	unsigned short getid();
+static	unsigned short ch_atoi();
 
 uidmap(i_map, i_rules, i_passdir, map_mach, n_update)
 int    i_map;
@@ -42,7 +43,7 @@ char  *map_mach;
 int    n_update;
 {
 	FILE	*fp;
-	char	 curr_str[256];
+	char	 curr_str[BUFSIZ];
 	char	*token;
 	char	*this_mach;
 	struct	 mach	*head = NULL;
@@ -51,12 +52,25 @@ int    n_update;
 	int	 error=0;
 	int	 global_set = 0, default_set = 0, order = 0;
 	int 	 count, ignore;
+	int	 cr_files = 0;
 
 	mapping = i_map;
+
+	/*
+	 *	If a rules file was given and the mapping information
+	 *	is to be pushed into the kernel (i.e., n_update == 0),
+	 *	then set cr_files to 1, which will cause the creation
+	 *	of the "official" mapping files (which are used by
+	 *	mount(1M) and rfsetup).  If no rules file was given,
+	 *	use the official mapping files.
+	 */
+
 	if (i_rules != NULL) {
 		rulesfile = i_rules;
+		if (n_update == 0)
+			cr_files = 1;
 	} else {
-		rulesfile = (mapping == UID_MAP)? DEF_USR_RULES : DEF_GRP_RULES;
+		rulesfile = (mapping == UID_MAP)? OFF_USR_RULES : OFF_GRP_RULES;
 	}
 
 	passdir = (i_passdir == NULL)? DEF_PASSDIR : i_passdir;
@@ -84,6 +98,14 @@ int    n_update;
 	while (fgets(curr_str, sizeof(curr_str), fp) != NULL) {
 
 		line ++;
+		if (curr_str[strlen(curr_str) - 1] != '\n') {
+			int c = 0;
+			parse_err(P_LINE2BIG, NULL, NULL);
+			while ((c = getc(fp)) != '\n' && c != EOF)
+				;
+			continue;
+		}
+
 		if ((token = strtok(curr_str, " \t\n")) == NULL)
 			continue;
 
@@ -109,6 +131,7 @@ int    n_update;
 			curr_mach->m_nmlist = NULL;
 			curr_mach->m_name   = NULL;
 			curr_mach->m_next   = NULL;
+			strcpy(curr_mach->m_defname, "guest_id");
 
 			default_set = 0;
 			order = 0;
@@ -221,16 +244,19 @@ int    n_update;
 				continue;
 			}
 
+			strcpy(curr_mach->m_defname, "n/a");
+
 			if (EQ(token, "transparent")) {
 				curr_mach->m_def = 0;
 			} else {
 				if (isnum(token)) {
-					curr_mach->m_def = atoi(token);
+					curr_mach->m_def = ch_atoi(token);
 				} else {
 					if ((curr_mach->m_def = getid(NULL, token)) == GETID_FAIL) {
 						parse_err(P_LNONAME, token, NULL);
 						error = 1;
 					}
+					strncpy(curr_mach->m_defname, token, MAX_USERNAME);
 				}
 				/*
 				 *	The default value cannot be
@@ -338,6 +364,15 @@ int    n_update;
 		return(pr_out(head));
 
 	/*
+	 *	Create the "official" uid rules files.  These files
+	 *	will be used by mount(1M) and rfsetup to map users
+	 *	when virtual circuits are established.
+	 */
+
+	if (cr_files && cr_new(head) == FAILURE)
+		return(FAILURE);
+
+	/*
 	 *	Populate the translation tables in kernel.
 	 */
 
@@ -357,6 +392,9 @@ static
 isnum(str)
 char	*str;
 {
+	if (*str == '\0')
+		return(0);
+
 	while (*str != '\0') {
 		if (!DIGIT(*str))
 			return(0);
@@ -419,6 +457,10 @@ char	    *token;
 		if (*ptr == ':') {
 			*ptr = '\0';
 			local = ptr + 1;
+			if (*local == '\0') {
+				parse_err(P_NOVAL, "local id", NULL);
+				return(FAILURE);
+			}
 			break;
 		}
 		ptr ++;
@@ -435,12 +477,12 @@ char	    *token;
 	 */
 
 	if (isnum(remote)) {
-		nmlist->idmap->i_rem = (unsigned short)atoi(remote);
+		nmlist->idmap->i_rem = ch_atoi(remote);
 		strncpy(nmlist->nm_map->n_rem, "n/a", MAX_USERNAME);
 	} else {
 		/*
-		 *	Only numeric values are accepted for global
-		 *	maps.
+		 *	Only numeric values are accepted for remote
+		 *	values of global maps.
 		 */
 		if (EQ(curr_mach->m_name->l_val, ".")) {
 			parse_err(P_NUMONLY, NULL, NULL);
@@ -458,13 +500,9 @@ char	    *token;
 	 */
 
 	if (isnum(local)) {
-		nmlist->idmap->i_loc = (unsigned short)atoi(local);
+		nmlist->idmap->i_loc = ch_atoi(local);
 		strncpy(nmlist->nm_map->n_loc, "n/a", MAX_USERNAME);
 	} else {
-		if (EQ(curr_mach->m_name->l_val, ".")) {
-			parse_err(P_NUMONLY, NULL, NULL);
-			return(FAILURE);
-		}
 		if ((nmlist->idmap->i_loc = getid(NULL, local)) == GETID_FAIL) {
 			parse_err(P_LNONAME, local, NULL);
 			return(FAILURE);
@@ -565,7 +603,7 @@ char	    *token;
 
 	if (last != NULL) {
 		if (!isnum(first) || !isnum(last) || 
- 	      	    atoi(first) >= atoi(last)) {
+ 	      	    ch_atoi(first) >= ch_atoi(last)) {
 			parse_err(P_RANGE, NULL, NULL);
 			return(FAILURE);
 		}
@@ -576,7 +614,7 @@ char	    *token;
 	nmlist->nm_map = (struct nm_tab *)m_malloc(sizeof(struct nm_tab));
 
 	if (isnum(first)) {
-		nmlist->idmap->i_rem = (unsigned short)atoi(first);
+		nmlist->idmap->i_rem = ch_atoi(first);
 		strncpy(nmlist->nm_map->n_rem, "n/a", MAX_USERNAME);
 	} else {
 		/*
@@ -610,7 +648,7 @@ char	    *token;
 		strncpy(nmlist->nm_map->n_loc, "-", MAX_USERNAME);
 		nmlist->next = (struct nmlist *)m_malloc(sizeof(struct nmlist));
 		nmlist->next->idmap = (struct idtab *)m_malloc(sizeof(struct idtab));
-		nmlist->next->idmap->i_rem = (unsigned short)atoi(last);
+		nmlist->next->idmap->i_rem = ch_atoi(last);
 		nmlist->next->idmap->i_loc = OTHERID;
 		nmlist->next->nm_map = (struct nm_tab *)m_malloc(sizeof(struct nm_tab));
 		strncpy(nmlist->next->nm_map->n_rem, "n/a", MAX_USERNAME);
@@ -816,7 +854,9 @@ char	*name;
 			}
 			*ptr = '\0';
 			if (isnum(val))
-				rtn = (unsigned short)atoi(val);
+				rtn = ch_atoi(val);
+			else
+				inval = 1;
 			*ptr = ':';
 			break;
 		}
@@ -947,7 +987,7 @@ struct mach *curr_mach;
 		}
 		*ptr = '\0';
 		if (isnum(rid))
-			rem = (unsigned short)atoi(rid);
+			rem = ch_atoi(rid);
 		else {
 			inval = 1;
 			break;
@@ -999,6 +1039,36 @@ struct mach *curr_mach;
 		return(FAILURE);
 	}
 	return(SUCCESS);
+}
+
+static
+unsigned short
+ch_atoi(str)
+char   *str;
+{
+	int	s_len, b_len;
+	char	buf[20];
+
+	/*
+	 *	Since atoi(3) does not care how big the string is,
+	 *	this routine will determine if the string will map
+	 *	into a number greater than the biggest unsigned
+	 *	short number (i.e., unsigned short "-1").
+	 *	If it does, a warning will be given.
+	 */
+
+	sprintf(buf, "%d", (unsigned short)-1);
+
+	s_len = strlen(str);
+	b_len = strlen(buf);
+
+	if (s_len > b_len)
+		parse_err(P_TOOBIG, str, NULL);
+
+	if (s_len == b_len && strcmp(str, buf) > 0)
+		parse_err(P_TOOBIG, str, NULL);
+
+	return((unsigned short)atoi(str));
 }
 
 static
@@ -1135,8 +1205,8 @@ struct mach	*curr_mach;
 				sprintf(machdef, "%d", curr_mach->m_def);
 
 			printf("%-5s %-14s %-11s %-14s %-14s %-14s\n",
-			       machtype, machname, "DEFAULT", "n/a", machdef,
-			       curr_mach->m_def == OTHERID? "guest_id":"n/a");
+			       machtype, machname, "DEFAULT", "n/a",
+			       machdef, curr_mach->m_defname);
 
 			list = curr_mach->m_nmlist;
 			while (list != NULL) {
@@ -1157,6 +1227,90 @@ struct mach	*curr_mach;
 		}
 		curr_mach = curr_mach->m_next;
 	}
+	return(SUCCESS);
+}
+
+static
+cr_new(curr_mach)
+struct mach	*curr_mach;
+{
+	struct	lname   *name;
+	struct	nmlist  *list;
+	char	machname[64];
+	char	machdef[64];
+	char	mach_idrem[64];
+	int	excludes, temp;
+	FILE	*fp;
+	char	*rulesfile;
+
+	rulesfile = (mapping == UID_MAP)? OFF_USR_RULES : OFF_GRP_RULES;
+
+	if ((fp = fopen(rulesfile, "w")) == NULL) {
+		if (print_err_msg)
+			fprintf(stderr, "%s: cannot create official rules file <%s>\n", cmd_name, rulesfile);
+		return(FAILURE);
+	}
+
+	/*
+	 *	Go through the parsed tables and re-write the resolved
+	 *	information into the official files.
+	 */
+
+	while (curr_mach != NULL) {
+		name = curr_mach->m_name;
+		while (name != NULL) {
+			if (EQ(name->l_val, "."))
+				strcpy(machname, "global");
+			else {
+				strcpy(machname, "host ");
+				strcat(machname, name->l_val);
+			}
+
+			if (curr_mach->m_def == 0)
+				strcpy(machdef, "default transparent");
+			else
+				sprintf(machdef, "default %d", curr_mach->m_def);
+
+			fprintf(fp, "\n%s\n%s\n", machname, machdef);
+
+			/*
+			 *	The "excludes" flag is used to determine
+			 *	when the mappings are exclude statements
+			 *	and when the mappings are "map"
+			 *	statements.  All excludes must come
+			 *	before the map statements.  Therefore,
+			 *	as long as the local value is OTHERID
+			 *	or the entry represents a continuation,
+			 *	the line will be printed as an "exclude"
+			 * 	statement.  Once a "map" statement is
+			 *	printed, no more excludes can occur.
+			 */
+
+			excludes = 1;
+			list = curr_mach->m_nmlist;
+			while (list != NULL) {
+				if (excludes && list->idmap->i_loc != OTHERID)
+					excludes = 0;
+
+				if (EQ(list->nm_map->n_loc, "-")) {
+					excludes = 1;
+					temp = list->idmap->i_rem;
+					list = list->next;
+					sprintf(mach_idrem, "%d-%d", temp, list->idmap->i_rem);
+				} else {
+					sprintf(mach_idrem, "%d", list->idmap->i_rem);
+				}
+				if (excludes)
+					fprintf(fp, "exclude %s\n", mach_idrem);
+				else
+					fprintf(fp, "map %s:%d\n", mach_idrem, list->idmap->i_loc);
+				list = list->next;
+			}
+			name = name->l_next;
+		}
+		curr_mach = curr_mach->m_next;
+	}
+	fclose(fp);
 	return(SUCCESS);
 }
 
@@ -1189,6 +1343,9 @@ char	*token2;
 	case P_INVTOK:
 		fprintf(stderr, "illegal token <%s>\n", token1);
 		break;
+	case P_LINE2BIG:
+		fprintf(stderr, "line exceeds <%d> characters\n", BUFSIZ);
+		break;
 	case P_RANGE:
 		fprintf(stderr, "error in range of exclude\n");
 		break;
@@ -1201,8 +1358,11 @@ char	*token2;
 	case P_MAPERR:
 		fprintf(stderr, "warning: maped value of %s is within previously exclude range; map ignored\n", token1);
 		break;
+	case P_TOOBIG:
+		fprintf(stderr, "warning: id <%s> is too large; using modulated value of <%d>\n", token1, (unsigned short)atoi(token1));
+		break;
 	case P_EXCERR:
-		fprintf(stderr, "warning: value of %s previously excluded; exclud ignored\n", token1);
+		fprintf(stderr, "warning: value of %s previously excluded; exclude ignored\n", token1);
 		break;
 	case P_EXOVER:
 		fprintf(stderr, "warning: excluded range inconsistent with previously excluded value; exclude ignored\n");
@@ -1211,10 +1371,10 @@ char	*token2;
 		fprintf(stderr, "host <%s> must be specified as domain.hostname\n", token1);
 		break;
 	case P_EXISTS:
-		fprintf(stderr, "warning: value of %s previously mapped; map ignored\n", token1);
+		fprintf(stderr, "warning: value of %s previously mapped or excluded; map ignored\n", token1);
 		break;
 	case P_NUMONLY:
-		fprintf(stderr, "must specify only numeric values for global mappings\n");
+		fprintf(stderr, "must specify only numeric values for remote ids in global section\n");
 		break;
 	case P_NOHOST:
 		fprintf(stderr, "must specify host name\n");

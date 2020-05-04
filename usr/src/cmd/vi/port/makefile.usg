@@ -1,4 +1,4 @@
-#ident	"@(#)vi:port/makefile.usg	1.36"
+#ident	"@(#)vi:port/makefile.usg	1.38"
 
 #	Makefile for vi
 
@@ -14,7 +14,7 @@ LINC = ../local
 
 LDFLAGS = -n -s -lcurses -lcrypt -lgen
 
-OPTIONS = -DCRYPT -DUSG -DSTDIO 
+OPTIONS = -DUSG -DSTDIO 
 
 DEBUGFLAGS = -DTRACE -g
 NONDEBUGFLAGS = -O

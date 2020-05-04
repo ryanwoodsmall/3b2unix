@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/id.h	10.1"
+#ident	"@(#)kern-port:sys/id.h	10.2"
 /* 3B2 Integral Winchester Disk Definitions */
 
 #define IDNULL		0
@@ -49,6 +49,7 @@ struct idsave {
 	caddr_t	b_addr;
 	daddr_t b_blkno;
 	unsigned int b_bcount;
+	int	b_pad;		/* round size to 2^n */
 } ;
 
 /* disk address structures */
@@ -107,6 +108,7 @@ struct idxferstruct {
 	unsigned char	dmacop;	/* dmac command opcode */
 	unsigned int	b_addr; /* memory address */
 	unsigned int	unitno; /* drive number */
+	int		pad[2];	/* round size to 2^n */
 };
 
 #define IDXFERCNT 	6
@@ -145,6 +147,7 @@ struct idstatstruct {
 	unsigned char	scnt;		/* sector count */
 	int		retries;	/* number of retries left */
 	unsigned char	reseeks;	/* number of reseeks left */
+	int		idpad;		/* round size to 2^n */
 };
 
 /* open states and special not-a-device partition definitions */

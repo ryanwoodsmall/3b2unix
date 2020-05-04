@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:fs/s5/s5blklist.c	10.6"
+#ident	"@(#)kern-port:fs/s5/s5blklist.c	10.6.1.1"
 #include	"sys/types.h"
 #include	"sys/sema.h"
 #include	"sys/param.h"
@@ -142,7 +142,7 @@ ASSERT(s5ip != NULL);
 			else
 				bp = bread(edev, *bnptr, bsize);
 		} else {
-			bp = geteblk();
+			bp = (struct buf *)geteblk();
 			clrbuf(bp);
 		}
 		bnptr++;

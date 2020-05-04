@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/t_rcvudata.c	1.4"
+#ident	"@(#)libnsl:nsl/t_rcvudata.c	1.4.1.1"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/errno.h"
@@ -111,6 +111,7 @@ int *flags;
 					(int)pptr->unitdata_ind.OPT_length);
 				unitdata->opt.len = pptr->unitdata_ind.OPT_length;
 	
+				tiptr->ti_state = TLI_NEXTSTATE(T_RCVUDATA, tiptr->ti_state);
 				return(0);
 	
 			case T_UDERROR_IND:
@@ -134,6 +135,8 @@ int *flags;
 		 */
 		if (retval)
 			*flags = T_MORE;
+
+		tiptr->ti_state = TLI_NEXTSTATE(T_RCVUDATA, tiptr->ti_state);
 		return(0);
 	}
 }

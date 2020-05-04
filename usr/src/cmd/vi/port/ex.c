@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident	"@(#)vi:port/ex.c	1.15"
+#ident	"@(#)vi:port/ex.c	1.19"
 #include "ex.h"
 #include "ex_argv.h"
 #include "ex_temp.h"
@@ -81,10 +81,10 @@ char	*strrchr();
  * This sets the Version of ex/vi for both the exstrings file and
  * the version command (":ver"). The following comment puts the text
  * into the /usr/lib/exstrings file:
- * 					error("Version 5.3a");
+ * 					error("Version SVR3.1");
  */
 
-char *Version = "Version 5.3a";	/* variable used by ":ver" command */
+char *Version = "Version SVR3.1";	/* variable used by ":ver" command */
 
 /*
  * NOTE: when changing the Version number, it must be changed in the
@@ -94,11 +94,6 @@ char *Version = "Version 5.3a";	/* variable used by ":ver" command */
  *			  port/ex.c  (the *two* occurrences above)
  *			  port/ex.news
  *
- *	 The number scheme is as follows: 5.3 stands for System V Release 3.0;
- *	 the letter following is an aid to the developer to determine if the
- *       /usr/lib/exstrings file is in sync with the current version of ex/vi.
- *	 Whenever the developer has altered an error message, causing a new
- * 	 version of /usr/lib/exstrings, the letter should be bumped up.
  */
 
 /*
@@ -119,7 +114,7 @@ main(ac, av)
 	extern	char	*argval;
 	extern	char	argtyp;
 	extern 	int	argind;
-	char	*rcvname;
+	char	*rcvname = 0;
 	char	usage[80];
 	register char *cp;
 	register int c;
@@ -222,17 +217,6 @@ main(ac, av)
 	signal(SIGPIPE, oncore);
 
 	/*
-	 * Initialize end of core pointers.
-	 * Normally we avoid breaking back to fendcore after each
-	 * file since this can be expensive (much core-core copying).
-	 * If your system can scatter load processes you could do
-	 * this as ed does, saving a little core, but it will probably
-	 * not often make much difference.
-	 */
-	fendcore = (line *) sbrk(0);
-	endcore = fendcore - 2;
-
-	/*
 	 * Process flag arguments based on editor, argument type, and command.
 	 * Show proper usage messages and allow proper options/commands
 	 * based on defines.
@@ -243,9 +227,9 @@ main(ac, av)
 		case VIEW:
 		case VEDIT:
 #ifdef TRACE
-		while ((c = tmpgetopt(ac,av,"VS:Lc:T;t:r;lw:xR","+:")) != EOF)
+		while ((c = tmpgetopt(ac,av,"VS:Lc:T;t:r;lw:xRC","+:")) != EOF)
 #else
-		while ((c = tmpgetopt(ac,av,"VLc:t:r;lw:xR","+:")) != EOF)
+		while ((c = tmpgetopt(ac,av,"VLc:t:r;lw:xRC","+:")) != EOF)
 #endif
 		{
 			switch(argtyp) {
@@ -273,7 +257,7 @@ main(ac, av)
 						break;
 #endif
 					case 'c':
-						firstpat = argval;
+						firstpat = (argval ? argval : "");
 						break;
 					
 					case 'l':
@@ -303,14 +287,19 @@ main(ac, av)
 						else for (cp = argval; isdigit(*cp); cp++)
 							defwind = 10*defwind + *cp - '0';
 						break;
-#ifdef CRYPT
+					
+					case 'C':
+						crflag = 1;
+						xflag = 1;
+						break;
+
 					case 'x':
 						/* 
 						 * encrypted mode
 						 */
 						xflag = 1;
+						crflag = -1;
 						break;
-#endif
 					default:
 #ifdef TRACE
 			sprintf(usage,"Usage: %s [-l] [-L] [-r [file]] [-t tag] [-T [-S suffix]] \n", cmdnam);
@@ -318,7 +307,7 @@ main(ac, av)
 			sprintf(usage,"Usage: %s [-l] [-L] [-r [file]] [-t tag]\n", cmdnam);
 #endif
 			write(2,usage,strlen(usage));
-			sprintf(usage, "           [-R] [-V] [-wn] [-x] [+cmd | -c cmd] file...\n");
+			sprintf(usage, "           [-R] [-V] [-wn] [-x] [-C] [+cmd | -c cmd] file...\n");
 			write(2,usage,strlen(usage));
 			exit(1);
 			}
@@ -327,7 +316,7 @@ main(ac, av)
 			case COMMANDS:
 				switch(c) {
 					case '\0':
-						firstpat = argval;
+						firstpat = (argval ? argval : "");
 						break;
 					default:
 #ifdef TRACE
@@ -336,7 +325,7 @@ main(ac, av)
 			sprintf(usage,"Usage: %s [-l] [-L] [-r [file]] [-t tag]\n", cmdnam);
 #endif
 			write(2,usage,strlen(usage));
-			sprintf(usage, "           [-R] [-V] [-wn] [-x] [+cmd | -c cmd] file...\n");
+			sprintf(usage, "           [-R] [-V] [-wn] [-x] [-C] [+cmd | -c cmd] file...\n");
 			write(2,usage,strlen(usage));
 			exit(1);
 
@@ -346,9 +335,9 @@ main(ac, av)
 	break;
 	case EDIT:
 #ifdef TRACE
-		while ((c = tmpgetopt(ac,av,"S:LT;r;","")) != EOF)
+		while ((c = tmpgetopt(ac,av,"S:LTxC;r;","")) != EOF)
 #else
-		while ((c = tmpgetopt(ac,av,"Lr;","")) != EOF)
+		while ((c = tmpgetopt(ac,av,"LxCr;","")) != EOF)
 #endif
 		{
 		  switch (c) {
@@ -375,6 +364,16 @@ main(ac, av)
 					setbuf(trace,tracbuf);
 				break;
 #endif
+			case 'x':	
+				xflag =1;
+				crflag = -1;
+				break;
+
+			case 'C':	
+				xflag = 1;
+				crflag = 1;
+				break;
+
 			default:
 #ifdef TRACE
 				sprintf(usage,"Usage: %s [-L] [-r [file]] [-T [-S suffix]] file....\n", cmdnam);
@@ -388,9 +387,9 @@ main(ac, av)
 			break;
 		case EX:
 #ifdef TRACE
-		while ((c = tmpgetopt(ac,av,"-VLsS:c:T;vt:r;Rlx","+:")) != EOF)
+		while ((c = tmpgetopt(ac,av,"-VLsS:c:T;vt:r;RlxC","+:")) != EOF)
 #else
-		while ((c = tmpgetopt(ac,av,"-VLsc:vt:r;Rlx","+:")) != EOF)
+		while ((c = tmpgetopt(ac,av,"-VLsc:vt:r;RlxC","+:")) != EOF)
 #endif
 		{
 		switch (argtyp) {
@@ -424,7 +423,7 @@ main(ac, av)
 					break;
 #endif
 				case 'c':
-					firstpat = argval;
+					firstpat = (argval ? argval : "");
 					break;
 				case 'l':
 					value(vi_LISP) = 1;
@@ -449,14 +448,19 @@ main(ac, av)
 				case 'v':
 					ivis = 1;
 					break;
-#ifdef CRYPT
+				
+				case 'C':
+					crflag = 1;
+					xflag = 1;
+					break;
+
 				case 'x':
 					/* 
 					 * encrypted mode
 					 */
+					crflag = -1;
 					xflag = 1;
 					break;
-#endif
 				default:
 #ifdef TRACE
 			sprintf(usage,"Usage: %s [- | -s] [-l] [-L] [-R] [-r [file]] [-t tag] [-T [-S suffix]]\n", cmdnam);
@@ -464,7 +468,7 @@ main(ac, av)
 			sprintf(usage,"Usage: %s [- | -s] [-l] [-L] [-R] [-r [file]] [-t tag]\n", cmdnam);
 #endif
 			write(2,usage,strlen(usage));
-			sprintf(usage, "       [-v] [-V] [-x] [+cmd | -c cmd] file...\n");
+			sprintf(usage, "       [-v] [-V] [-x] [-C] [+cmd | -c cmd] file...\n");
 			write(2,usage,strlen(usage));
 			exit(1);
 			}
@@ -473,7 +477,7 @@ main(ac, av)
 			case COMMANDS:
 				switch(c) {
 					case '\0':
-						firstpat = argval;
+						firstpat = (argval ? argval : "");
 						break;
 					default:
 #ifdef TRACE
@@ -482,7 +486,7 @@ main(ac, av)
 						sprintf(usage,"Usage: %s [- | -s] [-l] [-L] [-R] [-r [file]] [-t tag]\n", cmdnam);
 #endif
 						write(2, usage, strlen(usage));
-						sprintf(usage, "       [-v] [-V] [-x] [+cmd | -c cmd] file...\n");
+						sprintf(usage, "       [-v] [-V] [-x] [-C] [+cmd | -c cmd] file...\n");
 						write(2, usage, strlen(usage));
 						exit(1);
 						}
@@ -497,18 +501,27 @@ main(ac, av)
 		signal(SIGTSTP, onsusp), dosusp++;
 #endif
 
-#ifdef CRYPT
 	if(xflag) {
-		if (recov)
-			write(2, "Encryption key for this editing session\n", 40);
-		if ((kflag = run_setkey(perm, getpass("Enter key:"))) == -1) {
+		if ((kflag = run_setkey(perm, (key = getpass("Enter key:")))) == -1) {
 			kflag = 0;
 			xflag = 0;
 			smerror("Encryption facility not available\n");
 		}
+		if(kflag == 0)
+			crflag = 0;
 	}
-#endif
 
+	/*
+	 * Initialize end of core pointers.
+	 * Normally we avoid breaking back to fendcore after each
+	 * file since this can be expensive (much core-core copying).
+	 * If your system can scatter load processes you could do
+	 * this as ed does, saving a little core, but it will probably
+	 * not often make much difference.
+	 */
+	fendcore = (line *) sbrk(0);
+	endcore = fendcore - 2;
+	
 	/*
 	 * If we are doing a recover and no filename
 	 * was given, then execute an exrecover command with
@@ -648,7 +661,6 @@ init()
 	for (i = 0; i <= 'z'-'a'+1; i++)
 		names[i] = 1;
 	anymarks = 0;
-#ifdef CRYPT
         if(xflag) {
                 xtflag = 1;
                 if (makekey(tperm) != 0) {
@@ -656,7 +668,6 @@ init()
 			smerror("Warning--Cannot encrypt temporary buffer\n");
         	}
 	}
-#endif
 }
 
 /*

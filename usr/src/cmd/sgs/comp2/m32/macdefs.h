@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)pcc2:m32/macdefs.h	10.5"
+#ident	"@(#)pcc2:m32/macdefs.h	10.6"
 /*	macdefs - machine dependent macros and parameters
  *
  *		Bellmac32 w/Mao/Berenbaum stack frame
@@ -201,14 +201,13 @@ extern int regout[]; 	/* only used for the OUTREGNO(p) macro */
 
 #define	MYINIT	sincode
 
-/* extend DIMTAB and SYMTAB size for kernel and friends */
+/* use standard switch handling code */
 
-#define	DIMTABSZ	1700
-#define	SYMTSZ		1300
+#define	MAKEHEAP
 
 /* floating point routine definitions for cross environment */
 
-#ifdef uts
+#if defined(uts) && !defined(REGSET)
 #define	FP_FLOAT long			/* prevent unfortunate conversions */
 #define FP_CMPD(d1,d2)	flcmp(d1,d2)
 #define FP_DTOFP(d)	dtofp(d)

@@ -5,8 +5,10 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)forms:mmuse.h	1.4"
+#ident	"@(#)forms:mmuse.h	1.5"
 
+/* mmusedefs.h -- header file that contains declarations only
+             for mforms only.  See mmusedefs.h for explanations */
 #define MENUFIELDS      10  /*  Number of popup menu items                        */
 #define ESIZE          256  /* Used for regular expression validation             */
 extern struct field menus[MENUFIELDS], *last_menu;

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/t_bind.c	1.3"
+#ident	"@(#)libnsl:nsl/t_bind.c	1.3.3.2"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/errno.h"
@@ -21,7 +21,7 @@
 extern int t_errno;
 extern int errno;
 extern struct _ti_user *_t_checkfd();
-extern int (*sigset())();
+extern void (*sigset())();
 extern char *memcpy();
 
 
@@ -34,7 +34,7 @@ register struct t_bind *ret;
 	register struct T_bind_req *ti_bind;
 	int size;
 	register struct _ti_user *tiptr;
-	int (*sigsave)();
+	void (*sigsave)();
 
 
 	if ((tiptr = _t_checkfd(fd)) == NULL)
@@ -53,17 +53,20 @@ register struct t_bind *ret;
 
 
 	if (ti_bind->ADDR_length) {
-		_t_aligned_copy(buf, ti_bind->ADDR_length, size,
+		_t_aligned_copy(buf, (int)ti_bind->ADDR_length, size,
 			     req->addr.buf, &ti_bind->ADDR_offset);
 		size = ti_bind->ADDR_offset + ti_bind->ADDR_length;
 	}
 			       
 
-	if (!_t_do_ioctl(fd, buf, size, TI_BIND, 0)) {
+	if (!_t_do_ioctl(fd, buf, size, TI_BIND, NULL)) {
 		sigset(SIGPOLL, sigsave);
 		return(-1);
 	}
 	sigset(SIGPOLL, sigsave);
+
+	tiptr->ti_ocnt = 0;
+	tiptr->ti_state = TLI_NEXTSTATE(T_BIND, tiptr->ti_state);
 
 	if ((ret != NULL) && (ti_bind->ADDR_length > ret->addr.maxlen)) {
 		t_errno = TBUFOVFLW;

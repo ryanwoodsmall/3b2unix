@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sh:fault.c	1.8"
+#ident	"@(#)sh:fault.c	1.13.1.1"
 /*
  * UNIX shell
  */
@@ -42,25 +42,25 @@ BOOL	trapflg[MAXTRAP] =
 (*(sigval[]))() = 
 {
 	0,
-	done,
-	fault,
-	fault,
-	done,
-	done,
-	done,
-	done,
-	done,
-	0,
-	done,
-	done,
-	done,
-	done,
-	fault,
-	fault,
-	done,
-	done,
-	done,
-	done
+	done, 	/* hangup */
+	fault,	/* interrupt */
+	fault,	/* quit */
+	done,	/* illegal instr */
+	done,	/* trace trap */
+	done,	/* IOT */
+	done,	/* EMT */
+	done,	/* floating pt. exp */
+	0,	/* kill */
+	done, 	/* bus error */
+	done,	/* memory faults */
+	done, 	/* bad sys call */
+	done,	/* bad pipe call */
+	fault,	/* alarm */
+	fault,	/* software termination */
+	done,	/* unassigned */
+	done,	/* unassigned */
+	done,	/* death of child */
+	done	/* power fail */
 };
 
 /* ========	fault handling routines	   ======== */
@@ -71,7 +71,6 @@ register int	sig;
 {
 	register int	flag;
 
-	signal(sig, fault);
 	if (sig == SIGSEGV)
 	{
 		if (setbrk(brkincr) == -1)
@@ -103,10 +102,10 @@ stdsigs()
 	setsig(SIGEMT);
 	setsig(SIGFPE);
 	setsig(SIGBUS);
-	signal(SIGSEGV, fault);
+	sigset(SIGSEGV, fault);
 	setsig(SIGSYS);
 	setsig(SIGPIPE);
-	setsig(SIGALRM);
+	sigset(SIGALRM, fault);
 	setsig(SIGTERM);
 	setsig(SIGUSR1);
 	setsig(SIGUSR2);
@@ -116,12 +115,8 @@ ignsig(n)
 {
 	register int	s, i;
 
-	if ((i = n) == SIGSEGV)
-	{
-		clrsig(i);
-		failed(badtrap, "cannot trap 11");
-	}
-	else if ((s = (signal(i, SIG_IGN) == SIG_IGN)) == 0)
+	i = n;
+	if ((s = (sigset(i, SIG_IGN) == SIG_IGN)) == 0)
 	{
 		trapflg[i] |= SIGMOD;
 	}
@@ -133,7 +128,7 @@ getsig(n)
 	register int	i;
 
 	if (trapflg[i = n] & SIGMOD || ignsig(i) == 0)
-		signal(i, fault);
+		sigset(i, fault);
 }
 
 
@@ -142,7 +137,7 @@ setsig(n)
 	register int	i;
 
 	if (ignsig(i = n) == 0)
-		signal(i, sigval[i]);
+		sigset(i, sigval[i]);
 }
 
 oldsigs()
@@ -169,7 +164,7 @@ int	i;
 	if (trapflg[i] & SIGMOD)
 	{
 		trapflg[i] &= ~SIGMOD;
-		signal(i, sigval[i]);
+		sigset(i, sigval[i]);
 	}
 }
 

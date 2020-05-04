@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sadmin:check/sesystem.c	1.3"
+#ident	"@(#)sadmin:check/sesystem.c	1.5"
 /*
 	system(3S) with standard out redirected to standard error
 */
@@ -19,7 +19,7 @@ char	*s;
 	extern int fork(), execl(), wait();
 	register int	pid, w;
 	int	status;
-	register int (*istat)(), (*qstat)();
+	void (*istat)(), (*qstat)();
 
 	if((pid = fork()) == 0) {
 		close(1);	/* redirect standard out to standard err */

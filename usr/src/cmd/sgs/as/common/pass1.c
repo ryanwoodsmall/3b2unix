@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:common/pass1.c	1.16"
+#ident	"@(#)as:common/pass1.c	1.17.1.1"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -90,14 +90,6 @@ extern unsigned short
 	line,
 	sdicnt;
 
-
-#if DEBUG
-extern unsigned
-	numcalls,
-	numids,
-	numcoll;
-#endif
-
 extern short
 	anyerrs;
 
@@ -106,9 +98,6 @@ extern int
 	delexit(),
 #if !ONEPROC
 	dmpstb(),
-#endif
-#if MC68
-	ckalign(),	/* force even section alignment */
 #endif
 	fixsyms(),
 	flags(),
@@ -125,7 +114,7 @@ extern FILE
 #endif
 
 extern upsymins
-	*lookup();
+	lookup();
 
 #if !ONEPROC
 char	*xargp[15];
@@ -164,6 +153,11 @@ symbol	*dot;
 #endif
 
 FILE	*fdin;
+
+#if DEBUG
+FILE	*perfile;
+#endif
+
 #if !ONEPROC
 FILE	*fdstring,
 	*fdlong;
@@ -359,7 +353,7 @@ aspass1()
 	strtabinit();
 #endif
 	creasyms();
-	dot = (*lookup(".",INSTALL, USRNAME)).stp;
+	dot = lookup(".",INSTALL, USRNAME).stp;
 	dot->value = newdot = 0L;
 	dot->sectnum = 0;
 	yyparse();	/* pass 1 */
@@ -395,7 +389,7 @@ aspass1()
 	if (ferror(fd))
 		aerror("trouble writing; probably out of temp-file space");
 	fclose(fd);
-	ptr = (*lookup("(sdicnt)",INSTALL,USRNAME)).stp;
+	ptr = lookup("(sdicnt)",INSTALL,USRNAME).stp;
 	ptr->value = (long)sdicnt; /* has to be set after fixsyms is called */
 	ptr->sectnum = N_ABS;
 
@@ -409,12 +403,6 @@ aspass1()
 #endif
 
 #if DEBUG
-	if (tstlookup) {
-		printf("Number of calls to lookup: %u\n",numcalls);
-		printf("Number of identifiers: %u\n",numids);
-		printf("Number of identifier collisions: %u\n",numcoll);
-		fflush(stdout);
-	}
 /*
  *	Performance data collected and written out here
  */

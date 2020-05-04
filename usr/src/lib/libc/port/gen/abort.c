@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libc-port:gen/abort.c	1.11"
+#ident	"@(#)libc-port:gen/abort.c	1.12"
 /*	3.0 SID #	1.4	*/
 /*LINTLIBRARY*/
 /*
@@ -20,7 +20,7 @@ static pass = 0;		/* counts how many times abort has been called*/
 int
 abort()
 {
-	int (*sig)();
+	void (*sig)();
 
 	if ((sig = signal(SIGABRT,SIG_DFL)) != SIG_DFL) 
 		(void) signal(SIGABRT,sig); 

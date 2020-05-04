@@ -1,5 +1,5 @@
 /*LINTLIBRARY*/
-#ident	"@(#)lint:llib-lm	2.6"
+#ident	"@(#)lint:llib-lm	2.8"
 #include <math.h>
 
 /* BESSEL(3M) */

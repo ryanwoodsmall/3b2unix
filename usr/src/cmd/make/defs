@@ -1,4 +1,4 @@
-#ident	"@(#)make:defs	1.3.1.1"
+#ident	"@(#)make:defs	1.3.1.2"
 #include <stdio.h>
 
 #define NEWLINE	'\n'
@@ -120,7 +120,6 @@ extern CHARSTAR *linesptr;
 
 #define META 01
 #define TERMINAL 02
-extern char funny[128];
 
 
 

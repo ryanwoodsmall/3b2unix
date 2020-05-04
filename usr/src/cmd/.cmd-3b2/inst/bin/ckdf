@@ -1,4 +1,4 @@
-#ident	"@(#)cmd-3b2:inst/bin/ckdf	1.6"
+#ident	"@(#)cmd-3b2:inst/bin/ckdf	1.6.1.1"
 
 # Calculate the space needed to install the package.
 
@@ -26,7 +26,7 @@ eval `fstab < ${HARD}/etc/fstab | while read dev dir ronly junk
 if [ "'${usr}'" = "''" ]
 then
 	echo "
-There is no \"usr\" file system in your /etc/fstab. This is a required core
+There is no \"usr\" file system in your /etc/fstab. This is a required 
 file system. The installation cannot be performed without it.\n" >&2
 	SPACEFLAG=1
 else

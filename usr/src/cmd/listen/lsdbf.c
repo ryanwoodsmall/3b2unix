@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)listen:lsdbf.c	1.5"
+#ident	"@(#)listen:lsdbf.c	1.8.1.1"
 
 /*
  * data base routines for the network listener process
@@ -44,6 +44,7 @@ static char *dbfsvccmsg = "Data base file: Illegal service code: <%s>";
 static char *dbfignomsg = "Data base file ignored -- 0 entries";
 static char *dbfstatmsg = "Trouble checking data base file.  (Ignored)";
 static char *dbfnewdmsg = "Using new data base file";
+static char *dbfcorrupt = "Data base file has been corrupted";
 
 static int   Dbflineno;		/* current line number in dbf		*/
 static unsigned Dbfentries;	/* number of non-comment lines		*/
@@ -64,17 +65,15 @@ static time_t Dbfmtime;		/* from stat(2)				*/
 int
 init_dbf()
 {
-	extern read_dbf();
-
 	return(read_dbf(0));
 }
+
 
 int
 check_dbf()
 {
 	int ret = 0;
 	struct stat statbuf;
-	extern read_dbf();
 
 	if (stat(DBFNAME, &statbuf))  {
 		logmessage(dbfstatmsg);
@@ -102,16 +101,15 @@ check_dbf()
  */
 
 read_dbf(re_read)
-	int	re_read;	/* zero means first time	*/
+int	re_read;	/* zero means first time	*/
 {
-
 	register unsigned size;
 	int exit_flag = EXIT | NOCORE;
 	register int n;
 	register dbf_t *dbf_p;
 	register char  *cmd_p;
 	struct stat statbuf;
-	extern unsigned scan_dbf();
+	unsigned scan_dbf();
 	extern char *calloc();
 	extern char *Home;
 	char buf[128];
@@ -122,6 +120,9 @@ read_dbf(re_read)
 	 * if first time, stat the data base file so we can save the
 	 * modification time for later use.
 	 */
+
+	if (check_version())
+		error(E_BADVER, EXIT | NOCORE);
 
 	if (re_read)
 		exit_flag = CONTINUE;
@@ -192,8 +193,8 @@ read_dbf(re_read)
 	DEBUG((7,"read_dbf: data base dump..."));
 	if (Dbfhead)
 		for (dbf_p = Dbfhead; dbf_p->dbf_svc_code; ++dbf_p)
-			DEBUG((7, "svc code <%s>; modules: %s; cmd line: %s", 
-			dbf_p->dbf_svc_code, dbf_p->dbf_modules, dbf_p->dbf_cmd_line));
+			DEBUG((7, "svc code <%s>; id: %s; reserved: %s; modules: %s; cmd line: %s", 
+			dbf_p->dbf_svc_code, dbf_p->dbf_id, dbf_p->dbf_reserved, dbf_p->dbf_modules, dbf_p->dbf_cmd_line));
 #endif	/* DEBUGMODE */
 
 	return(0);
@@ -206,8 +207,8 @@ read_dbf(re_read)
  */
 
 get_dbf(dbf_p, cmd_p)
-	register dbf_t *dbf_p;
-	register char *cmd_p;
+register dbf_t *dbf_p;
+register char *cmd_p;
 {
 	dbf_t *dbfhead = dbf_p;
 	register unsigned size;
@@ -216,12 +217,14 @@ get_dbf(dbf_p, cmd_p)
 	register char *p = buf;
 	char scratch[128];
 	FILE *dbfilep;
-	char	*cmd_line_p;
-	int	flags;
-	char	*svc_code_p;
-	char 	*module_p;
+	char *cmd_line_p;
+	int flags;
+	char *svc_code_p;
+	char *id_p;
+	char *res_p;
+	char *module_p;
 	register dbf_t *tdbf_p;
-	extern int rd_dbf_line(), isdigits(), atoi();
+	extern int isdigits(), atoi();
 
 	Dbflineno = 0;
 
@@ -230,8 +233,7 @@ get_dbf(dbf_p, cmd_p)
 		error(E_DBF_IO, EXIT | NOCORE | NO_MSG);
 	}
 
-	while (n = rd_dbf_line(dbfilep,p,
-	    &svc_code_p,&flags,&module_p,&cmd_line_p))  {
+	while (n = rd_dbf_line(dbfilep,p,&svc_code_p,&flags,&id_p,&res_p,&module_p,&cmd_line_p))  {
 
 		if (n == -1)  {			/* read error	*/
 			fclose(dbfilep);
@@ -279,6 +281,12 @@ get_dbf(dbf_p, cmd_p)
 		strcpy(cmd_p, cmd_line_p);	/* copy temp to alloc'ed buf */
 		dbf_p->dbf_cmd_line = cmd_p;
 		cmd_p += strlen(cmd_line_p) + 1;
+		strcpy(cmd_p, id_p);
+		dbf_p->dbf_id = cmd_p;
+		cmd_p += strlen(id_p) + 1;	/* user id + null char */
+		strcpy(cmd_p, res_p);
+		dbf_p->dbf_reserved = cmd_p;
+		cmd_p += strlen(res_p) + 1;	/* not used, a place holder */
 		strcpy(cmd_p, module_p);
 		dbf_p->dbf_modules = cmd_p;
 		cmd_p += strlen(module_p) + 1;	/* cmd line + null char */
@@ -310,7 +318,7 @@ reject:
 
 unsigned
 scan_dbf(path)
-	register char *path;
+register char *path;
 {
 	register unsigned int size = 0;
 	register int n;
@@ -321,6 +329,8 @@ scan_dbf(path)
 	int flags;
 	char *cmd_line_p;
 	char *module_p;
+	char *id_p;
+	char *res_p;
 	extern Validate;
 
 	DEBUG((9, "In scan_dbf.  Scanning data base file %s.", path));
@@ -333,9 +343,8 @@ scan_dbf(path)
 		return(-1);
 	}
 
-	do  {
-		n = rd_dbf_line(dbfilep,p,
-			&svc_code_p,&flags,&module_p,&cmd_line_p);
+	do {
+		n = rd_dbf_line(dbfilep,p,&svc_code_p,&flags,&id_p,&res_p,&module_p,&cmd_line_p);
 		if (n == -1)  {
 			fclose(dbfilep);
 			return(-1);
@@ -350,7 +359,6 @@ scan_dbf(path)
 }
 
 
-
 /*
  * rd_dbf_line:	Returns the next non-comment line into the
  *		given buffer (up to DBFLINESZ bytes).
@@ -359,6 +367,8 @@ scan_dbf(path)
  *		Returns:	0 = done, -1 = error, 
  * 				other = cmd line size incl. terminating null.
  *				*svc_code_p = service code;
+ *				*id_p = user id string
+ *				*res_p = reserved for future use
  *				*flags_p = decoded flags;
  *				cnd_line_p points to null terminated cmd line;
  *
@@ -366,19 +376,22 @@ scan_dbf(path)
  */
 
 int
-rd_dbf_line(fp, bp, svc_code_p, flags_p, module_p, cmd_line_p)
-	register FILE *fp;
-	register char *bp;
-	char **svc_code_p;
-	int *flags_p;
-	char **module_p;
-	char **cmd_line_p;
+rd_dbf_line(fp, bp, svc_code_p, flags_p, id_p, res_p, module_p, cmd_line_p)
+register FILE *fp;
+register char *bp;
+char **svc_code_p;
+int *flags_p;
+char **id_p;
+char **res_p;
+char **module_p;
+char **cmd_line_p;
 {
 	register int length;
 	register char *p;
 
-	do  {
-		++Dbflineno;  length = 0;
+	do {
+		++Dbflineno;
+		length = 0;
 
 		if (!fgets(bp, DBFLINESZ, fp))  {
 			if (feof(fp))  {
@@ -419,9 +432,9 @@ rd_dbf_line(fp, bp, svc_code_p, flags_p, module_p, cmd_line_p)
 			else
 				break;
 
-		if (strlen(bp))  {		/* anything left?	*/
+		if (strlen(bp)) {		/* anything left?	*/
 
-		   if (!(length=scan_line(bp,svc_code_p,flags_p,module_p,cmd_line_p)) ||
+		   if (!(length=scan_line(bp,svc_code_p,flags_p,id_p,res_p,module_p,cmd_line_p)) ||
 		     (*flags_p & DBF_UNKNOWN))  {  /* if bad line...	*/
 
 			DEBUG((1, "rd_dbf_line line %d, unknown flag character",
@@ -436,9 +449,10 @@ rd_dbf_line(fp, bp, svc_code_p, flags_p, module_p, cmd_line_p)
 
 	DEBUG((5,"rd_dbf_line: line: %d,cmd line len: %d",Dbflineno, length+1));
 
-	return(length + 4);
+	return(length + 6);
 
 }
+
 
 /*
  * scan a non-white space line
@@ -447,16 +461,18 @@ rd_dbf_line(fp, bp, svc_code_p, flags_p, module_p, cmd_line_p)
  *
  *	non-null lines have the following format:
  *
- *	service_code: flags: modules: cmd_line # comments
+ *	service_code: flags: id: reserved: modules: cmd_line # comments
  */
 
 int
-scan_line(bp, svc_code_p, flags_p, module_p, cmd_line_p)
-	register char *bp;
-	register char **svc_code_p;
-	register int *flags_p;
-	char **module_p;
-	register char **cmd_line_p;
+scan_line(bp, svc_code_p, flags_p, id_p, res_p, module_p, cmd_line_p)
+register char *bp;
+register char **svc_code_p;
+register int *flags_p;
+char **id_p;
+char **res_p;
+char **module_p;
+register char **cmd_line_p;
 {
 	register char *p;
 	int length;
@@ -466,7 +482,7 @@ scan_line(bp, svc_code_p, flags_p, module_p, cmd_line_p)
 	length = strlen(bp);
 
 	if (!(p = strtok(bp, DBFTOKENS))) {	/* look for service code string */
-		DEBUG((9,"scan_line failed first strtok"));
+		DEBUG((9,"scan_line failed 1st strtok"));
 		return(0);
 	}
 
@@ -506,6 +522,18 @@ scan_line(bp, svc_code_p, flags_p, module_p, cmd_line_p)
 		DEBUG((9,"scan_line failed 3rd strtok"));
 		return(0);
 	}
+	*id_p = p;
+
+	if (!(p = strtok((char *)0, DBFTOKENS))) {
+		DEBUG((9,"scan_line failed 4th strtok"));
+		return(0);
+	}
+	*res_p = p;
+
+	if (!(p = strtok((char *)0, DBFTOKENS))) {
+		DEBUG((9,"scan_line failed 5th strtok"));
+		return(0);
+	}
 	*module_p = p;
 
 	p += strlen(p) + 1;			/* go past separator */
@@ -516,9 +544,8 @@ scan_line(bp, svc_code_p, flags_p, module_p, cmd_line_p)
 	DEBUG((9,"scan_line: modules: %s; line: %s; len: %d", *module_p, p, strlen(*module_p)+strlen(p)));
 
 	*cmd_line_p = p;
-	return(strlen(*svc_code_p)+strlen(*module_p)+strlen(p));
+	return(strlen(*svc_code_p)+strlen(*id_p)+strlen(*res_p)+strlen(*module_p)+strlen(p));
 }
-
 
 
 /*
@@ -528,7 +555,7 @@ scan_line(bp, svc_code_p, flags_p, module_p, cmd_line_p)
 
 dbf_t *
 getdbfentry(svc_code_p)
-	register char *svc_code_p;
+register char *svc_code_p;
 {
 	register dbf_t 	*dbp = Dbfhead;
 
@@ -557,50 +584,137 @@ getdbfentry(svc_code_p)
  */
 
 static char *dbfargv[50];
-static char *hor_ws = " \t";		/* horizontal white space	*/
+static char *delim = " \t'\"";		/* delimiters */
 
 char **
 mkdbfargv(dbp)
-	register dbf_t	*dbp;
+register dbf_t	*dbp;
 {
 	register char **argvp = dbfargv;
 	register char *p = dbp->dbf_cmd_line;
+	char delch;
+	register char *savep;
+	register char *tp;
+	char scratch[BUFSIZ];
+	char *strpbrk();
 #ifdef	DEBUGMODE
 	register int i = 0;
 #endif
 
-	*argvp = (char *)0;
-	p = strtok(p, hor_ws);
+	*argvp = 0;
+	savep = p;
+	while (p && *p) {
+		if (p = strpbrk(p, delim)) {
+			switch (*p) {
+			case ' ':
+			case '\t':
+				/* "normal" cases */
+				*p++ = '\0';
+				*argvp++ = savep;
+				DEBUG((9, "argv[%d] = %s", i++, savep));
+				/* zap trailing white space */
+				while (isspace(*p))
+					p++;
+				savep = p;
+				break;
+			case '"':
+			case '\'':
+				/* found a string */
+				delch = *p; /* remember the delimiter */
+				savep = ++p;
 
-	if (p)  {
-		*argvp++ = p;
-		while (p = strtok((char *)0, hor_ws))  {
-			*argvp++ = p;
-			DEBUG((9,"mkdbfargv: argv[%d] = %s", i++, p));
+/*
+ * We work the string in place, embedded instances of the string delimiter,
+ * i.e. \" must have the '\' removed.  Since we'd have to do a compare to
+ * decide if a copy were needed, it's less work to just do the copy, even
+ * though it is most likely unnecessary.
+ */
+
+				tp = p;
+				for (;;) {
+					if (*p == '\0') {
+						sprintf(scratch, "invalid command line, non-terminated string for service code %s", dbp->dbf_svc_code);
+						logmessage(scratch);
+						exit(2); /* server, don't log */
+					}
+					if (*p == delch) {
+						if (*(tp - 1) == '\\') { /* \delim */
+							*(tp - 1) = *p;
+							p++;
+						}
+						else { /* end of string */
+							*tp = 0;
+							*argvp++ = savep;
+							DEBUG((9, "argv[%d] = %s", i++, savep));
+							p++;
+							/* zap trailing white space */
+							while (isspace(*p))
+								p++;
+							savep = p;
+							break;
+						}
+					}
+					else {
+						*tp++ = *p++;
+					}
+				}
+				break;
+			default:
+				logmessage("Internal error in parse routine");
+				exit(2); /* server, don't log */
+			}
+		}
+		else {
+			*argvp++ = savep;
+			DEBUG((9, "argv[%d] = %s", i++, savep));
 		}
 	}
-
+	*argvp = 0;
 	return(dbfargv);
 }
 
-/*
- * getdbfmod:	For a given entry in the data base file,
- *		returns the first and successive modules
- *		(on successive calls) in the module list.
- *		To call:
- *
- *		char *s = NULL;
- *
- *		while ((s = getdbfmod(dbp, s)) != "NULL")
- *			process module s;
- *
- *		Successive calls to getdbfmod works similar to
- *		successive calls to strtok. (They both work
- *		through the input, eating bytes as they go.)
- *
- *		Warning: Calling getdbfmod() writes null characters
- *		to the string in dbp->dbf_modules making it unusable
- *		for further processing.
- *
- */
 
+#define VERSIONSTR	"# VERSION="
+
+check_version()
+{
+	FILE *fp;
+	char *line, *p, *tmp;
+	int version;
+
+	if ((fp = fopen(DBFNAME, "r")) == NULL) {
+		logmessage(dbfopenmsg);
+		error(E_DBF_IO, EXIT | NOCORE | NO_MSG);
+	}
+	if ((line = (char *) malloc(DBFLINESZ)) == NULL)
+		error(E_DBF_ALLOC, EXIT | NOCORE);
+	p = line;
+	while (fgets(p, DBFLINESZ, fp)) {
+		if (!strncmp(p, VERSIONSTR, strlen(VERSIONSTR))) {
+			/* pitch the newline */
+			tmp = strchr(p, '\n');
+			if (tmp)
+				*tmp = '\0';
+			else {
+				logmessage(dbfcorrupt);
+				error(E_DBF_CORRUPT, EXIT | NOCORE);
+			}
+			p += strlen(VERSIONSTR);
+			if (*p)
+				version = atoi(p);
+			else {
+				logmessage(dbfcorrupt);
+				error(E_DBF_CORRUPT, EXIT | NOCORE);
+			}
+			free(line);
+			fclose(fp);
+			if (version != VERSION)
+				return(1);	/* wrong version */
+			else
+				return(0);	/* version ok */
+		}
+		p = line;
+	}
+	logmessage(dbfcorrupt);
+	error(E_DBF_CORRUPT, EXIT | NOCORE);
+}

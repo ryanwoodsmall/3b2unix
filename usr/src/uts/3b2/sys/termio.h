@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/termio.h	10.3"
+#ident	"@(#)kern-port:sys/termio.h	10.4"
 #define	NCC	8
 
 /* control characters */
@@ -127,7 +127,7 @@
 #define	ECHONL	0000100
 #define	NOFLSH	0000200
 
-#ifndef u3b5
+#ifndef u3b15
 #define	SSPEED	7	/* default speed: 300 baud */
 #else
 #define SSPEED	9	/* default speed: 1200 baud */
@@ -154,7 +154,7 @@ struct termio {
 #define	TCSBRK	(TIOC|5)
 #define	TCXONC	(TIOC|6)
 #define	TCFLSH	(TIOC|7)
-#ifdef u3b5
+#ifdef u3b15
 #define TTYTYPE (TIOC|8)
 #endif
 #define	TCDSET	(TIOC|32)

@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:shell/SKELMakefile	1.5"
+#ident	"@(#)sadmin:shell/SKELMakefile	1.6"
 #	skeleton Makefile for shell
 
 ROOT = /
@@ -12,7 +12,7 @@ PARTS = $(CMDS) --FILES--
 ALL:		$(PARTS)
 
 install:	$(PARTS) $(DIR) remove
-	umask 022;  ls $(PARTS)  |  cpio -pdum $(DIR)
+	umask 022;  ls $(PARTS)  |  cpio -pdu $(DIR)
 	cd $(DIR);  chmod go-w,u+w $(PARTS)
 	cd $(DIR);  chmod +x $(CMDS)
 

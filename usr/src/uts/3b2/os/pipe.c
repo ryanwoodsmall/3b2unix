@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/pipe.c	10.12"
+#ident	"@(#)kern-port:os/pipe.c	10.12.2.1"
 #include "sys/types.h"
 #include "sys/sysmacros.h"
 #include "sys/param.h"
@@ -68,22 +68,18 @@ pipe()
 }
 
 /*
- * Lock a pipe.
- * If it's already locked,
- * set the WANT bit and sleep.
+ * Lock a pipe. If it's already locked, set the WANT
+ * bit and sleep.
+ *
+ * NOTE: Use assembly coded plock/prele in ml/misc.s
+ *       when DEBUG is off.
  */
-#ifndef DEBUG
-plock(ip)
-	register struct inode *ip;
-#else
+#ifdef DEBUG
 plock(ip, caller)
 	register struct inode *ip;
 	int *caller;
-#endif
 {
-#ifdef DEBUG
 	ilog(ip, 3, caller);
-#endif
 	ASSERT(ip->i_count > 0);
 	while (ip->i_flag & ILOCK) {
 		ip->i_flag |= IWANT;
@@ -95,26 +91,15 @@ plock(ip, caller)
 }
 
 /*
- * Unlock a pipe.
- * If WANT bit is on,
- * wakeup.
- * This routine is also used
- * to unlock inodes in general.
+ * Unlock a pipe. If WANT bit is on, wakeup. This
+ * routine is also used to unlock inodes in general.
  */
-#ifndef DEBUG
-prele(ip)
-	register struct inode *ip;
-#else
 prele(ip, caller)
 	register struct inode *ip;
 	int *caller;
-#endif
 {
-#ifdef DEBUG
 	ilog(ip, 4, caller);
-#endif
 	ASSERT(ip->i_flag & ILOCK);
-#ifdef DEBUG
 	/*
 	 * This assertion is bogus since i_count can be 0 when
 	 * an inode has just been put back on the freelist.  This
@@ -124,7 +109,6 @@ prele(ip, caller)
 	 * inline code (also temporarily).
 	 */
 	ASSERT(ip->i_count > 0);
-#endif
 
 	ip->i_flag &= ~ILOCK;
 	if (ip->i_flag & IWANT) {
@@ -133,3 +117,4 @@ prele(ip, caller)
 	}
 	ASSERT(rmilock(ip) == 0);
 }
+#endif

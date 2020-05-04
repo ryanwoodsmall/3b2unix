@@ -5,11 +5,11 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)dname:dname.mk	1.3"
+#ident	"@(#)dname:dname.mk	1.4"
 ROOT =
 TESTDIR = .
 INSDIR = $(ROOT)/usr/bin
-INCRT = $(ROOT)/usr/include
+INC = $(ROOT)/usr/include
 INS = :
 CFLAGS = -O -s
 LDFLAGS = -lns $(LDLIBS)
@@ -18,7 +18,7 @@ FRC =
 all: dname
 
 dname: dname.c 
-	$(CC) -I$(INCRT) $(CFLAGS) -o $(TESTDIR)/dname dname.c $(LDFLAGS)
+	$(CC) -I$(INC) $(CFLAGS) -o $(TESTDIR)/dname dname.c $(LDFLAGS)
 
 install: all
 	install -n $(INSDIR) $(TESTDIR)/dname

@@ -5,9 +5,12 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:parms.h	2.6"
+#ident	"@(#)uucp:parms.h	2.9"
 
 /* go through this carefully, configuring for your site */
+
+/* If running SVR3, #define both ATTSVR3 and ATTSV */
+#define ATTSVR3	/* System V Release 3 */
 
 /* One of the following four lines should not be commented out.
  * The other three should be unless you are running a unique hybrid.
@@ -83,9 +86,12 @@
 
 #endif /* ! STANDALONE */
 
+#if	defined ( ATTSVR3 ) && ! defined ( DIAL )
+
 #define TLI		/* for AT&T Transport Layer Interface networks */
 #define TLIS		/* for AT&T Transport Layer Interface networks */
 			/* with streams module "tirdwr" */
+#endif /* ATTSVR3, not from dial(3) */
 
 
 #define MAXCALLTRIES	2	/* maximum call attempts per Systems file line */
@@ -101,8 +107,10 @@
 /* Systems file and Devices file allow Any */
 #define DEFAULT_BAUDRATE "9600"	/* */
 
-/*define permission modes for the device uucico is calling the remote machine on */
-#define DEVICEMODE 0640
+/*define permission modes for the device */
+#define M_DEVICEMODE 0640	/* MASTER device mode */
+#define S_DEVICEMODE 0666	/* SLAVE device mode */
+#define R_DEVICEMODE 0644	/* default mode to restore */
 
 /* NO_MODEM_CTRL - define this if you have very old hardware
  * that does not know how to correctly handle modem control

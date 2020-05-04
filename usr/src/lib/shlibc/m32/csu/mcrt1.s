@@ -6,7 +6,7 @@
 #	actual or intended publication of such source code.
 
 	.file	"mcrt1.s"
-	.ident	"@(#)libc-m32:csu/mcrt1.s	1.2"
+	.ident	"@(#)libc-m32:csu/mcrt1.s	1.4"
 #	C runtime startup and exit with profiling
 #
 
@@ -32,6 +32,7 @@
 	.globl	monitor		# libc: monitor(3C)
 	.globl	sbrk		# libc: brk(2) system call
 	.globl	write		# libc: write(2) system call
+	.globl	setchrclass	# Routine that initializes _ctype[]
 
 #
 #	C language startup routine with profiling
@@ -82,6 +83,8 @@ _start:
 	PUSHW	&CBUFS
 	CALL	-5*4(%sp),monitor		# monitor(lowpc,highpc,buffer,bufsiz,CBUFS)
 
+	PUSHW   &0
+	CALL    -4(%sp), setchrclass    # initialize _ctype array
 	CALL	-3*4(%sp),main			# main(argc,argv,environ)
 
 	PUSHW	%r0

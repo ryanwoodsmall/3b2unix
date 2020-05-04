@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)sadmin:shell/Makefile	2.3"
+#ident	"@(#)sadmin:shell/Makefile	2.5"
 #	Makefile for shell
 #	Generated Mon Aug 19 17:26:19 EDT 1985 from skeleton makefile:
 #  sadmin:shell/SKELMakefile  1.4  /sccs/src/cmd/sadmin/shell/s.SKELMakefile
@@ -15,7 +15,7 @@ ROOT = /
 DIR = $(ROOT)/usr/lbin
 
 CMDS = admerr agefile disklabel diskumount drivename filecheck labelfsname \
-largest lightenfs mktable ncpio oldfile rmjunk samedev selectdevice \
+largest lightenfs mktable oldfile rmjunk samedev selectdevice \
 selpattern spacewatch 
 
 PARTS = $(CMDS) restorefiles 
@@ -23,7 +23,7 @@ PARTS = $(CMDS) restorefiles
 ALL:		$(PARTS)
 
 install:	$(PARTS) $(DIR) remove
-	umask 022;  ls $(PARTS)  |  cpio -pdum $(DIR)
+	umask 022;  ls $(PARTS)  |  cpio -pdu $(DIR)
 	cd $(DIR);  chmod go-w,u+w $(PARTS)
 	cd $(DIR);  chmod +x $(CMDS)
 

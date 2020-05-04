@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:tty.c	1.8"
+#ident	"@(#)mailx:tty.c	1.9"
 /*
  * mailx -- a modified version of a University of California at Berkeley
  *	mail program
@@ -15,8 +15,7 @@
 
 
 #include "rcv.h"
-typedef	int	(*sigtype)();
-extern sigtype m_sigset();
+typedef	SIG	(*sigtype)();
 
 #ifdef	USG_TTY
 
@@ -44,7 +43,8 @@ static	int	erasing;		/* we are erasing characters */
 grabh(hp, gflags)
 register struct header *hp;
 {
-	int (*savesigs[2])();
+	SIG (*savesigs[2])();
+	int hdrintr();
 	register int s;
 
 	Out = fileno(stdout);
@@ -57,8 +57,7 @@ register struct header *hp;
 	c_intr = savtty.c_cc[VINTR];
 	c_quit = savtty.c_cc[VQUIT];
 	for (s = SIGINT; s <= SIGQUIT; s++)
-		if ((savesigs[s-SIGINT] = m_sigset(s, SIG_IGN)) == (sigtype) SIG_DFL)
-			m_sigset(s, SIG_DFL);
+		savesigs[s-SIGINT] = sigset(s, hdrintr);
 	if (gflags & GTO) {
 		hp->h_to = readtty("To: ", hp->h_to);
 		if (hp->h_to != NOSTR)
@@ -80,7 +79,7 @@ register struct header *hp;
 			hp->h_seq++;
 	}
 	for (s = SIGINT; s <= SIGQUIT; s++)
-		m_sigset(s, savesigs[s-SIGINT]);
+		sigset(s, savesigs[s-SIGINT]);
 	return(0);
 }
 
@@ -156,9 +155,10 @@ readtty(pr, src)
 						cp++;
 				}
 		} else if (c==EOF || ferror(stdin) || c==c_intr || c==c_quit) {
-			resetty(Out);
+/*			resetty(Out);
 			write(Out, "\n", 1);
-			xhalt();
+			xhalt(); */
+			hdrintr(c);
 		} else switch (c) {
 			case '\n':
 			case '\r':
@@ -293,6 +293,15 @@ Echo(cc)
 		}
 	}
 }
+
+hdrintr(s)
+int s;
+{
+	resetty(Out);
+	write(Out, "\n", 1);
+	savedead(s);
+}
+
 #else
 
 static	int	c_erase;		/* Current erase char */
@@ -320,7 +329,7 @@ grabh(hp, gflags)
 	int errs;
 
 # ifdef VMUNIX
-	savecont = m_sigset(SIGCONT, signull);
+	savecont = sigset(SIGCONT, signull);
 # endif /* VMUNIX */
 	errs = 0;
 #ifndef TIOCSTI
@@ -336,8 +345,8 @@ grabh(hp, gflags)
 	ttybuf.sg_erase = 0;
 	ttybuf.sg_kill = 0;
 	for (s = SIGINT; s <= SIGQUIT; s++)
-		if ((savesigs[s-SIGINT] = m_sigset(s, SIG_IGN)) == SIG_DFL)
-			m_sigset(s, SIG_DFL);
+		if ((savesigs[s-SIGINT] = sigset(s, SIG_IGN)) == SIG_DFL)
+			sigset(s, SIG_DFL);
 #endif
 	if (gflags & GTO) {
 #ifndef TIOCSTI
@@ -376,7 +385,7 @@ grabh(hp, gflags)
 			hp->h_seq++;
 	}
 # ifdef VMUNIX
-	m_sigset(SIGCONT, savecont);
+	sigset(SIGCONT, savecont);
 # endif /* VMUNIX */
 #ifndef TIOCSTI
 	ttybuf.sg_erase = c_erase;
@@ -384,7 +393,7 @@ grabh(hp, gflags)
 	if (ttyset)
 		stty(fileno(stdin), &ttybuf);
 	for (s = SIGINT; s <= SIGQUIT; s++)
-		m_sigset(s, savesigs[s-SIGINT]);
+		sigset(s, savesigs[s-SIGINT]);
 #endif
 	return(errs);
 }
@@ -436,7 +445,7 @@ readtty(pr, src)
 	if (setjmp(rewrite))
 		goto redo;
 # ifdef VMUNIX
-	m_sigset(SIGCONT, ttycont);
+	sigset(SIGCONT, ttycont);
 # endif /* VMUNIX */
 	while (cp2 < canonb + BUFSIZ) {
 		c = getc(stdin);
@@ -446,7 +455,7 @@ readtty(pr, src)
 	}
 	*cp2 = 0;
 # ifdef VMUNIX
-	m_sigset(SIGCONT, signull);
+	sigset(SIGCONT, signull);
 # endif /* VMUNIX */
 	if (c == EOF && ferror(stdin) && hadcont) {
 redo:
@@ -500,7 +509,7 @@ ttycont(s)
 {
 
 	hadcont++;
-	m_sigrelse(SIGCONT);
+	sigrelse(SIGCONT);
 	longjmp(rewrite, 1);
 }
 # endif /* VMUNIX */

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mkshlib:common/shlib.h	1.3"
+#ident	"@(#)mkshlib:common/shlib.h	1.5"
 
 #define FALSE	0
 #define TRUE	1
@@ -17,11 +17,24 @@ extern char	*idstr,
 		*progname,
 		*prefix,
 		*ldname,
+		*trgpath,
 		*asname;
 extern char	**trgobjects;
 extern long	numobjs;
+extern char	**libdirs;
+extern long	nldirs;
+extern char	**objnold;
+extern long	numnold;
+extern char	**expsyms;
+extern long	nexpsyms;
+extern char	**hidesyms;
+extern long	nhidesyms;
 extern int	maketarg,
 		makehost,
+		hidef,
+		allexp,
+		allhide,
+		usflag,
 		qflag;
 
 

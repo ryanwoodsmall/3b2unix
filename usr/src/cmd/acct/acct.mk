@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)acct:acct.mk	1.9.1.11"
+#ident	"@(#)acct:acct.mk	1.9.1.13"
 ROOT =
 TESTDIR = .
 FRC =
@@ -14,7 +14,6 @@ ARGS =
 INSDIR = $(ROOT)/usr/lib/acct
 ADMDIR = $(ROOT)/usr/adm
 ROOTBIN = $(ROOT)/bin
-ETCINIT = $(ROOT)/etc/init.d
 WKDIR	= $(ADMDIR) $(ADMDIR)/acct $(ADMDIR)/acct/nite $(ADMDIR)/acct/fiscal $(ADMDIR)/acct/sum
 CC = cc
 CFLAGS = -O
@@ -27,7 +26,7 @@ all:	library acctcms acctcom acctcon1\
 	diskusg fwtmp wtmpfix\
 	chargefee ckpacct dodisk lastlogin\
 	monacct nulladm prctmp prdaily\
-	prtacct remove runacct acct\
+	prtacct remove runacct\
 	shutacct startup turnacct holtable \
 	awkecms awkelus
 
@@ -123,9 +122,6 @@ remove:		remove.sh $(FRC)
 runacct:	runacct.sh $(FRC)
 		cp runacct.sh $(TESTDIR)/runacct
 
-acct:		acct.sh $(FRC)
-		cp acct.sh $(TESTDIR)/acct
-
 shutacct:	shutacct.sh $(FRC)
 		cp shutacct.sh $(TESTDIR)/shutacct
 
@@ -153,7 +149,7 @@ $(WKDIR):
 		$(CH) chown adm $@
 		$(CH) chgrp adm $@
 
-install:	all $(INSDIR) $(ADMDIR)
+install:	all $(INSDIR) $(WKDIR)
 		$(INS) -f $(INSDIR) $(TESTDIR)/acctcms
 		$(INS) -f $(ROOTBIN) $(TESTDIR)/acctcom
 		$(INS) -f $(INSDIR) $(TESTDIR)/acctcon1
@@ -179,17 +175,12 @@ install:	all $(INSDIR) $(ADMDIR)
 		$(INS) -f $(INSDIR) $(TESTDIR)/prtacct
 		$(INS) -f $(INSDIR) $(TESTDIR)/remove
 		$(INS) -f $(INSDIR) $(TESTDIR)/runacct
-		$(INS) -f $(ETCINIT) -u root -g sys -m 444 $(TESTDIR)/acct
 		$(INS) -f $(INSDIR) $(TESTDIR)/shutacct
 		$(INS) -f $(INSDIR) $(TESTDIR)/startup
 		$(INS) -f $(INSDIR) $(TESTDIR)/turnacct
 		$(INS) -f $(INSDIR) $(TESTDIR)/holidays
 		$(INS) -f $(INSDIR) $(TESTDIR)/ptecms.awk
 		$(INS) -f $(INSDIR) $(TESTDIR)/ptelus.awk
-	rm -rf $(ROOT)/etc/rc2.d/S22acct
-	rm -rf $(ROOT)/etc/rc0.d/K22acct
-	/bin/ln $(ETCINIT)/acct $(ROOT)/etc/rc2.d/S22acct
-	/bin/ln $(ETCINIT)/acct $(ROOT)/etc/rc0.d/K22acct
 
 clean:
 		-rm -f *.o
@@ -223,7 +214,6 @@ clobber:	clean
 			$(TESTDIR)/prtacct		\
 			$(TESTDIR)/remove		\
 			$(TESTDIR)/runacct		\
-			$(TESTDIR)/acct			\
 			$(TESTDIR)/shutacct		\
 			$(TESTDIR)/startup		\
 			$(TESTDIR)/turnacct

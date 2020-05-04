@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/t_rcvdis.c	1.9"
+#ident	"@(#)libnsl:nsl/t_rcvdis.c	1.9.1.2"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/errno.h"
@@ -23,7 +23,7 @@ extern int errno;
 extern struct _ti_user *_t_checkfd();
 extern int getmsg(), ioctl();
 extern char *memcpy();
-extern int (*sigset())();
+extern void (*sigset())();
 
 
 t_rcvdis(fd, discon)
@@ -36,7 +36,7 @@ struct t_discon *discon;
 	int flg = 0;
 	union T_primitives *pptr;
 	register struct _ti_user *tiptr;
-	int (*sigsave)();
+	void (*sigsave)();
 
 
 	if ((tiptr = _t_checkfd(fd)) == NULL)
@@ -113,6 +113,21 @@ struct t_discon *discon;
 		return(-1);
 	}
 
+	/*
+	 * clear more and expedited flags
+	 */
+	tiptr->ti_flags &= ~(MORE | EXPEDITED);
+
+	if (tiptr->ti_ocnt <= 0)
+		tiptr->ti_state = TLI_NEXTSTATE(T_RCVDIS1, tiptr->ti_state);
+	else {
+		if (tiptr->ti_ocnt == 1)
+			tiptr->ti_state = TLI_NEXTSTATE(T_RCVDIS2, tiptr->ti_state);
+		else
+			tiptr->ti_state = TLI_NEXTSTATE(T_RCVDIS3, tiptr->ti_state);
+		tiptr->ti_ocnt--;
+	}
+
 	if (discon != NULL) {
 		if (databuf.len > (int)discon->udata.maxlen) {
 			t_errno = TBUFOVFLW;
@@ -124,11 +139,6 @@ struct t_discon *discon;
 		discon->udata.len = databuf.len;
 		discon->sequence = pptr->discon_ind.SEQ_number;
 	}
-
-	/*
-	 * clear more flag
-	 */
-	tiptr->ti_flags &= ~MORE;
 
 	return(0);
 }

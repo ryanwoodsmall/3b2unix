@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libns:stdns.h	1.4"
+#ident	"@(#)libns:stdns.h	1.4.1.1"
 /*
  *
  *	stdns.h contains formats, etc for domain name server queries,
@@ -95,6 +95,8 @@ typedef struct place {
 
 /* miscellaneous defines	*/
 
+/* WARNING: overbyte references the parameter p twice. Don't use expressions
+   with side effects (e.g. ++s) */
 #define overbyte(p,b)	(p->p_ptr+b > p->p_end)
 
 /* functions in ind_data.c */

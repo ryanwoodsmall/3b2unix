@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)fuser:fuser.c	1.27.2.1"
+#ident	"@(#)fuser:fuser.c	1.27.1.8"
 
 /*	Copyright (c) 1984 AT&T	*/
 /*	  All Rights Reserved  	*/
@@ -39,6 +39,7 @@
 #include <sys/pcb.h>
 #include <sys/region.h>
 #include <sys/sbd.h>
+#include <sys/sys3b.h>
 #endif
 
 #include <sys/proc.h>
@@ -70,7 +71,7 @@
 #define SWPLO_STR	"_swplo"
 #define SBRPTE_STR	"_sbrpte"
 #endif
-#if u3b || u3b5 || u3b2
+#if u3b || u3b15 || u3b2
 #define V_STR		"v"
 #define PROC_STR	"proc"
 #define FILE_STR	"file"
@@ -79,7 +80,7 @@
 #ifdef u3b
 #define SWPLO_STR	"swaplow"
 #endif
-#if u3b5 || u3b2
+#if u3b15 || u3b2
 #define	SWPLO_STR	"swplo"
 #endif
 #endif
@@ -87,9 +88,10 @@
 #define SNDD_STR  "sndd"
 #define NRCVD_STR "nrcvd"
 #define RCVD_STR  "rcvd"
-#define RFSFST_STR  "dufstyp"
+#define RFSFST_STR "dufstyp"
+#define PREGPP_STR "pregpp"
 
-#if vax || u3b5 || u3b2
+#if vax || u3b15 || u3b2
 #define MEMF "/dev/kmem"
 #else
 #define MEMF "/dev/mem"
@@ -122,6 +124,7 @@
 
 void exit(), perror();
 extern char *malloc();
+extern int errno;
 
 int gun = 0, usrid = 0;
 struct inode ina, inb;
@@ -129,6 +132,8 @@ int nsndd;
 struct sndd sndd_ina, sndd_inb, *snddp;
 int nrcvd;
 struct rcvd *rcvdp;
+int pregpp;
+struct pregion *preg;
 
 struct nlist nl[] = {
 	{V_STR},
@@ -142,6 +147,7 @@ struct nlist nl[] = {
 	{NRCVD_STR},
 	{RCVD_STR},
 	{RFSFST_STR},
+	{PREGPP_STR},
 	{""}
 };
 
@@ -229,36 +235,39 @@ struct file *file_adr;
 struct var v;
 struct mount *mnt, *mp;
 unsigned proc_adr;
+unsigned file_adr, inode_adr, mount_adr;
+unsigned nsndd_adr, sndd_adr, nrcvd_adr, rcvd_adr;
+unsigned rfstyp_adr, pregpp_adr;
 short rfstyp;
 unsigned *pofile;
 struct proc p;
 
-main(argc, argv)
+main(argc, argv)	/* exits with errcnt <= 254 */
 int argc;
 char **argv;
 {
-	int mem, newfile = 0, errcnt = 0;
+	int mem, newfile = 0, errcnt = 0, tmperr;
 	register i, j, k;
 	struct user *ublock;
-	unsigned file_adr, inode_adr, mount_adr;
-	unsigned nsndd_adr, sndd_adr, nrcvd_adr, rcvd_adr, rfstyp_adr;
 
 	/* once only code */
 	if(argc < 2) {
-		fprintf(stderr, "Usage:  %s { [-[ku]] file } ... \n", argv[0]);
+		fprintf(stderr, "Usage:  %s [-ku] files [-] [[-ku] files]\n", argv[0]);
 		exit(1);
 	}
 
 	/* open file to access memory */
 	if((mem = open(MEMF, O_RDONLY)) == -1) {
+		tmperr = errno;
 		fprintf(stderr, "%s: ", argv[0]);
+		errno = tmperr;
 		perror(MEMF);
 		exit(1);
 	}
 	/* get values of system variables */
 	if(nlist(SYSTEM, nl) == -1) {
 		perror("nlist:");
-		return(-1);
+		return(1);
 	}
 
 	/* get values of system variables and address of process table */
@@ -279,7 +288,6 @@ char **argv;
 		printf("Copyrval: did not find '%s'\n",INODE_STR);
 		exit(1);
 	}
-/* RFS */
 	/* space for mount table */
 
 	if((copylval(MOUNT_STR, &mount_adr))) 
@@ -289,6 +297,7 @@ char **argv;
 	if(mnt) 
 		rread(mem, mount_adr, mnt, v.v_mount * sizeof(struct mount));
 
+/* RFS */
 	/* space for send descriptors */
 
 	if((copylval(NSNDD_STR, &nsndd_adr )) 
@@ -310,6 +319,18 @@ char **argv;
 		rread(mem, nrcvd_adr, &nrcvd, sizeof(nrcvd));
 		rcvdp = (struct rcvd *)malloc(nrcvd * sizeof(struct rcvd));
 	}
+	if (rcvdp)
+		rread(mem, rcvd_adr, rcvdp, nrcvd * sizeof(struct rcvd));
+
+	/* space for pregion list */
+
+	if(copylval(PREGPP_STR, &pregpp_adr )) 
+		preg = 0;
+	else {
+		rread(mem, pregpp_adr, &pregpp, sizeof(pregpp));
+		preg = (struct pregion *)malloc(pregpp * sizeof(struct pregion));
+	}
+
 	if(copylval(RFSFST_STR, &rfstyp_adr ))
 		rfstyp = -1; 
 	else {
@@ -317,8 +338,6 @@ char **argv;
 		if (rfstyp == 0)
 			rfstyp = -1;
 	}
-	if(rcvdp) 
-		rread(mem, rcvd_adr, rcvdp, nrcvd * sizeof(struct rcvd));
 
 	/* for each argunent on the command line */
 	for(i = 1; i < argc; i++) {
@@ -345,6 +364,7 @@ char **argv;
 			continue;
 		} else
 			newfile = 1;
+
 		fflush(stdout);
 	
 		/* First print file name on stderr (so stdout (pids) can
@@ -371,92 +391,108 @@ char **argv;
 					(char *) &p, sizeof p);
 			if(p.p_stat == 0 
 			|| p.p_stat == SZOMB 
-			|| p.p_stat == SIDL) 
+			|| p.p_stat == SIDL) {
 				continue;
+			}
 			/* and the user area */
 			read_user(&p, ublock, mem, j);
 			pofile = (unsigned *)((unsigned)ublock 
 				+ ((unsigned)(ublock->u_pofile) & 0xffff));
-			if(valid_inode(ublock->u_cdir) &&
-				read_inode(ublock->u_cdir, &inb, mem) == 0)
-				if(ckuse(mem, "c")) {
+
+			if(valid_inode(ublock->u_cdir) 
+			&& read_inode(ublock->u_cdir, &inb, mem) == 0) {
+				if(ckuse(mem, "c") == -1) {
 					errcnt++;
 					continue;
 				}
+			}
 	
 	/* This code is only valid in transient cases and the inodes
 	 * (pointed to by u_pdir) are not cleared after their use.
 	*/
-	/*		if(valid_inode(ublock->u_pdir) &&
-	/*			read_inode(ublock->u_pdir, &inb, mem) == 0)
-	/*			if(ckuse(mem, "p")) {
+	/*		if(valid_inode(ublock->u_pdir) 
+	/*		&& read_inode(ublock->u_pdir, &inb, mem) == 0)
+	/*			if(ckuse(mem, "p") == -1) {
 	/*				errcnt++;
 	/*				continue;
 	/*			}
 	*/
 	
-			if(valid_inode(ublock->u_rdir) &&
-				read_inode(ublock->u_rdir, &inb, mem) == 0)
-				if(ckuse(mem, "r")) {
+			if(valid_inode(ublock->u_rdir) 
+			&& read_inode(ublock->u_rdir, &inb, mem) == 0)
+				if(ckuse(mem, "r") == -1) {
 					errcnt++;
 					continue;
 				}
 
 			/* then, for each file */
-			for(k = 0; k < v.v_nofiles; k++)
-			{	/* check if it is the fs being checked */
+			for(k = 0; k < v.v_nofiles; k++) {
+				/* is it is the fs being checked? */
 
-				if(!valid_file(ublock->u_ofile[k])) { 
+				if(!valid_file(ublock->u_ofile[k])) 
 					continue;
-				}
 				if(file_to_inode(ublock->u_ofile[k], &inb, mem))
 					continue;
 				if(ckuse(mem, strncmp(ublock->u_comm,"server",6)
-						== 0 ? "S" :  "")) {
+						== 0 ? "S" :  "") == -1) {
 					errcnt++;
 					break;
 				}
 			}
-		}
-	
+
 /* RFS */
-			/* for each receive descriptor entry */
-	/* scan receive descriptors for:
+			/* see if process is sleeping on a receive descriptor
+			   using this resource */
+
+			if(rcvdp) 
+				if(ckrcvd(mem) == -1) {
+					errcnt++;
+					continue;
+				}
+
+			/* check for remote text files */
+			if(preg)  
+				if(cktxt(mem) == -1) {
+					errcnt++;
+					continue;
+				}
+		}
+		/* scan receive descriptors for:
 			1. pointers to the file table (open files)
 			2. pointers to inodes (cd, mount, etc.)
 	
 		in either case, get the inode and 'chkuse()'
-	*/
+		The user of this descriptor is remote, can't be killed */
+
+		gun = 0;	/* don't want to kill the last process
+				  found above */
+			/* for each receive descriptor entry */
 		if(rcvdp) 
 		for(k = 0; k < nrcvd; k++) {
 			
-			if(rcvdp[k].rd_stat & RDUNUSED)
-				continue;
-				/* The next 'if' assumes the only valid addresses
-				   in the receive descriptor is a file pointer
-				   or an inode pointer.
-				   If the valid_file macro problem is ever fixed,
-				   the line below should read:
-					if(valid_file((rcvdp[i].rd_file))
-				*/
-			if(!valid_inode(rcvdp[k].rd_inode))
-				if(file_to_inode(rcvdp[k].rd_file, &inb, mem))
-					continue;
-			else if(valid_inode(rcvdp[k].rd_inode))
-				if(read_inode(rcvdp[k].rd_inode, &inb, mem))
-					continue;
-			else 
-				break;
-	
-		/*** who is the owner of this receive descriptor? ***/
-
-			if(ckuse(mem, "U")) {
-				errcnt++;
+			if(rcvdp[k].rd_stat & RDUNUSED) {
 				continue;
 			}
+			if(valid_inode(rcvdp[k].rd_inode)
+			&& (read_inode(rcvdp[k].rd_inode, &inb, mem))) {
+				if(ckuse(mem, "U") == -1) {
+					errcnt++;
+					continue;
+				}
 		}
-		printf("\n");
+		}
+		fprintf(stderr,"\n");
 	}
+
+	/* newfile is set when a file is found.  if it isn't set here,
+	 * then the user did not use correct syntax  */
+	if (! newfile) {
+		fprintf(stderr, "fuser: missing file name\n");
+		fprintf(stderr, "Usage: %s [-ku] files [-] [[-ku] files]\n", argv[0]);
+		errcnt=(errcnt ? errcnt : 1);
+	}
+	if(errcnt > 254)
+		errcnt = 254;	/* return is unsigned char */
 	exit(errcnt);
 }
 
@@ -487,11 +523,49 @@ char *n1;
 	return(0);
 }
 
+ckrcvd(mem)
+{
+	int k;
+
+		/* refresh receive descriptor list */
+	rread(mem, rcvd_adr, rcvdp, nrcvd * sizeof(struct rcvd));
+
+		/* determine if process is sleeping on a receive descriptor */
+	k = ((unsigned)p.p_wchan - rcvd_adr)/sizeof(struct rcvd);
+	if((k >= 0) && (k < nrcvd)){
+		if(!(rcvdp[k].rd_stat & RDUNUSED)
+		&&  (rcvdp[k].rd_qtype & SPECIFIC)) {
+			rread(mem, rcvdp[k].rd_inode, &sndd_inb, 
+							sizeof(struct sndd));
+			if((sndd_ina.sd_queue == sndd_inb.sd_queue)
+			&& (sndd_ina.sd_mntindx == sndd_inb.sd_mntindx))
+				return(report("s"));
+		} /* else ???. Should there be a WARNING here?  The process
+		     should not be sleeping on an unused receive descriptor */
+	}
+	return(0);
+}
+cktxt(mem)
+{
+	int k, ret;
+	struct region regn;
+
+	rread(mem, p.p_region, preg, pregpp * sizeof(struct pregion));
+	for(k = 0; k < pregpp; k++) {
+		if(preg[k].p_type & (PT_TEXT | PT_LIBTXT)) {
+			rread(mem, preg[k].p_reg, &regn, sizeof(struct region));
+			if(!read_inode(regn.r_iptr, &inb, mem))
+				if((ret = ckuse(mem, "t")) != 0)
+					return(ret);
+		}
+	}
+	return(0);
+}
+
 ckuse(mem, fc)
 char *fc;
 {
-			/* determine if the inodes in question are 
-			local or remote */
+	/* determine if the inodes in question are local or remote */
 
 			/* if both are remote */
 	if(ina.i_fstyp == rfstyp) {
@@ -500,36 +574,41 @@ char *fc;
 				&sndd_inb, sizeof(struct sndd));
 			if((sndd_ina.sd_queue == sndd_inb.sd_queue)
 			&& (sndd_ina.sd_mntindx == sndd_inb.sd_mntindx))
-				goto pun;
-			else
-				return(0);
-		} else
-			return(0);
+				return(report(fc));
+		} 
+		return(0);
 	}
 	else 
 		if(inb.i_fstyp == rfstyp)
 			return(0);
 
 	if(IEQ(ina, inb)) {
- 		if(fc[0] == 'U') 
-			fprintf(stdout,"REMOTE USER(S)");
-pun:		fprintf(stdout, " %7d", (int) p.p_pid);
-		fflush(stdout);
-		switch(fc[0]) {
-		case 'c':
-		case 'p':
-		case 'r':
-		case 'S':
-			fprintf(stderr,"%c", fc[0]);
-		}
-		if(usrid) 
-			puname();
-		if((fc[0] != 'S') && (gun)) {
-			kill((int) p.p_pid, 9);
-			return(1);
-		}
+		return(report(fc));
 	}
 	return(0);
+}
+
+report(fc)
+char *fc;
+{
+	fprintf(stdout, " %7d", (int) p.p_pid);
+	fflush(stdout);
+	switch(fc[0]) {
+	case 'c':	/* current dir */
+	case 'p':	/* parent dir */
+	case 'r':	/* root dir */
+	case 't':	/* text file busy */
+	case 's':	/* sleeping on receive descriptor */
+	case 'S':	/* Server */
+		fprintf(stderr,"%c", fc[0]);
+	}
+	if(usrid) 
+		puname();
+	if((fc[0] != 'S') && (gun)) {
+		if(kill((int) p.p_pid, 9))
+			return(-1);
+	}
+	return(1);
 }
 
 path_to_inode(path, in)
@@ -585,7 +664,7 @@ struct inode *i, *inode_adr;
 	/* read the inode */
 	rread(mem, (long) convert.addr, (char *) i, sizeof (struct inode));
 	if(memdev != mem) close(mem);
-#if vax || u3b || u3b5
+#if vax || u3b || u3b15
 	i->i_dev = brdev(i->i_dev);	/* removes bits to distinguish small and large FS */
 	i->i_rdev = brdev(i->i_rdev);	/* removes bits to distinguish small and large FS */
 #endif
@@ -649,43 +728,34 @@ struct user *ub;
 
 	/* Paging */
 #ifdef u3b2
-	if((mdev < 0) && ((mdev = open("/dev/mem", O_RDONLY)) == -1)) {
-		perror("/dev/mem");
+	if (sys3b(RDUBLK, pr->p_pid, (char *)ub, sizeof(*ub)+sizeof(int)*v.v_nofiles) < 0) {
+		perror("fuser: unable to read U-area");
 		exit(1);
-	}
-	i = ((char *)ubptbl((proc_t *)(proc_adr + pndx * sizeof(proc_t)))
-	    - (char *)(proc_adr + pndx * sizeof(proc_t))
-	    - ((char *)pr->p_ubptbl - (char *)pr)) >> 2;
-
-	for(x = 0; x < sizeof(*ub) + sizeof(int) * v.v_nofiles; x += NBPP, i++) {
-		rread(mdev, (long)(pr->p_ubptbl[i].pgm.pg_pfn << 11) - MAINSTORE,
-			((char *) ub) + x,
-			MIN(NBPP,(sizeof(*ub) + sizeof(int) * v.v_nofiles) - x));
 	}
 #endif
 
 	/* Paging */
-#ifdef u3b5
+#ifdef u3b15
 	if((mdev < 0) && ((mdev = open("/dev/mem", O_RDONLY)) == -1)) {
 		perror("/dev/mem");
 		exit(1);
 	}
-	rread(mdev, (long) pr->p_addr << PNUMSHFT, (char *)ub, 
+	rread(mdev, (long) (pr->p_addr << BPCSHIFT)-0x800000, (char *) ub,
 		    sizeof (struct user));
 #endif
 
 	/* Paging */
 #ifdef pdp11
 	if(pr->p_flag & SLOAD /* in core */) {
-		if((mdev < 0) &&
-			((mdev = open("/dev/mem", O_RDONLY)) == -1))
+		if((mdev < 0) 
+		&& ((mdev = open("/dev/mem", O_RDONLY)) == -1))
 		{	perror("/dev/mem");
 			exit(1);
 		}
 		rread(mdev, ctob((long) pr->p_addr), (char *) ub, sizeof *ub);
 	} else  {	/* swapped */
-		if((sdev < 0) &&
-			((sdev = open("/dev/swap", O_RDONLY)) == -1)) {
+		if((sdev < 0) 
+		&& ((sdev = open("/dev/swap", O_RDONLY)) == -1)) {
 			perror("/dev/swap");
 			exit(1);
 		}
@@ -701,17 +771,21 @@ long position;
 {	/* Seeks to "position" on device "device" and reads "count"
 	 * bytes into "buffer". Zeroes out the buffer on errors.
 	 */
-	int i;
+	int i, tmperr;
 	long lseek();
 
 	if(lseek(device, position, 0) == (long) -1) {
+		tmperr = errno;
 		fprintf(stderr, "Seek error for file number %d: ", device);
+		errno = tmperr;
 		perror("");
 		for(i = 0; i < count; buffer++, i++) *buffer = '\0';
 		return;
 	}
 	if(read(device, buffer, (unsigned) count) == -1) {
+		tmperr = errno;
 		fprintf(stderr, "Read error for file number %d: ", device);
+		errno = tmperr;
 		perror("");
 		for(i = 0; i < count; buffer++, i++) *buffer = '\0';
 	}

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)getty:getty.c	1.7.1.1"
+#ident	"@(#)getty:getty.c	1.7.1.2"
 
 /*	getty - sets up speed, various terminal flags, line discipline,	*/
 /*	and waits for new prospective user to enter name, before	*/
@@ -191,6 +191,7 @@ struct Symbols cmodes[] = {
 	"B4800",	B4800,
 	"B9600",	B9600,
 	"B19200",	B19200,
+	"B38400",	B38400,
 				/* the following aliases should be deleted  */
 				/* when cleaned out of the source */
 	"EXTA",	EXTA,		/* same as B19200 */

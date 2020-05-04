@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:shell/disklabel	2.13"
+#ident	"@(#)sadmin:shell/disklabel	2.14"
 #	Ask the user to insert a medium and verify it is present.
 #	Write the label to the standard output if it is present.
 
@@ -59,7 +59,7 @@ ddrive=$2
 case ${ddrive} in
 /dev/r* )
 	#  WARNING:  This depends on the common, but not universal, naming
-	#  convenetion that all character and block special devices are under
+	#  convention that all character and block special devices are under
 	#  /dev and if /dev/THING is a block device then /dev/rTHING is the
 	#  corresponding character (aka "raw") device.  Note that THING may
 	#  have directories as part of the name.

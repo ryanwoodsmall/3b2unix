@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/serve.c	10.45"
+#ident	"@(#)kern-port:nudnix/serve.c	10.45.10.13"
 /*
  *	JAMES - remote file server for unix
  *
@@ -19,7 +19,6 @@
 #include "sys/inode.h"
 #include "sys/sysmacros.h"
 #include "sys/param.h"
-#include "sys/fs/s5inode.h"
 #include "sys/systm.h"
 #include "sys/fs/s5dir.h"
 #include "sys/errno.h"
@@ -36,7 +35,6 @@
 #include "sys/mount.h"
 #include "sys/var.h"
 #include "sys/file.h"
-#include "sys/fs/s5filsys.h"
 #include "sys/fstyp.h"
 #include "sys/fcntl.h"
 #include "sys/nami.h"
@@ -51,6 +49,8 @@
 #include "sys/cmn_err.h"
 #include "sys/conf.h"
 #include "sys/recover.h"
+#include "sys/buf.h"
+#include "sys/rbuf.h"
 
 #define TERMSIG	(1L << (SIGTERM-1))
 #define USR1SIG	(1L << (SIGUSR1-1))
@@ -59,8 +59,10 @@ int currserv;		/* current number of servers running */
 
 extern	rcvd_t	cr_rcvd();
 extern	struct rd_user *cr_rduser();
+extern	struct rd_user *alloc_rduser();
 extern	int	msgflag;
 extern	rcvd_t	rd_recover;
+extern	time_t	lbolt;
 void		rm_msgs_list(), chkrsig();
 
 
@@ -77,12 +79,17 @@ serve ()
 	int	insize,outsize;	/* size of out/incoming msg		*/
 	int	ret_val;	/* general ret val		*/
 	int	ocount;		/* save incoming u.u_count	*/
+	off_t	oldoffset;	/* save incoming u.u_offset	*/
 	int	i;		/* temporary variable		*/
-	int	bcount;		/* Read, write block count */
+	int	bcount;		/* Read block count */
 	int	s;
 	mblk_t	*bp,*nbp,*sbp,*chkrdq();
 	queue_t	*qp;
 	struct message *msig;
+	struct	rd_user *rduptr;
+	int	mandatory;	/* return mandatory lock indicator */
+	int	mand_chg;   /* status has changed to mandatory lock
+					since open/creat */
 
 	extern	rcvd_t	nsqueue;
 	extern	struct proc *s_active;	/* server active list */
@@ -114,7 +121,11 @@ serve ()
 		sdp->sd_stat = (SDUSED | SDSERVE);
 		sdp->sd_srvproc =  NULL;
 		u.u_gift	= sdp;	/* for copyin (write, ioctl) */
+		u.u_gift->sd_temp = NULL;
 		u.u_procp->p_sig &= ~(USR1SIG | TERMSIG);
+		if (u.u_procp->p_cursig == SIGUSR1
+		  || u.u_procp->p_cursig == SIGTERM)
+			u.u_procp->p_cursig = 0;
 		idleserver++;
 		if((queue = de_queue ((rcvd_t) ANY, &bp, sdp, &insize))==NULL) {
 			ASSERT(noilocks() == 0);
@@ -124,18 +135,15 @@ serve ()
 		s_active = u.u_procp;
 		msig = (struct message *)bp->b_rptr;
 		u.u_procp->p_sig = 0;
+		u.u_procp->p_cursig = 0;
+		u.u_error = 0;
 		idleserver--;
-		if(++currserv > (maxserve-1))	/* last server can't sleep */
-			u.u_procp->p_sig |= USR1SIG;
-		else if (idleserver == 0) {
-			s = spl5();
-			msgflag |= MORE_SERVE;
-			splx(s);
-			wakeup(&rd_recover->rd_qslp);
-		}
+		++currserv;
 	psmsg:
+		mand_chg = 0;
+		mandatory = 0;
 		msg_in = (struct request *) PTOMSG(msig);
-		
+
 		bcopy ("SERVER", u.u_comm, 7);
 		sysinfo.serve++;
 		gift = NULL;  ret_val = 0;
@@ -153,10 +161,11 @@ serve ()
 		u.u_mntindx	= msg_in->rq_mntindx;  /* for nami stuff */
 		u.u_dirp	= msg_in->rq_data;  /* pathname in data part */
 		u.u_ap		= u.u_arg;
-		u.u_error	= 0;
 		u.u_rval1	= 0;
 		u.u_gift->sd_copycnt = 0;
-		u.u_copymsg	= 0;
+		u.u_gift->sd_temp = (int)bp;
+		u.u_copymsg	= NULL;
+		u.u_copybp	= NULL;
 		u.u_syscall	= msg_in->rq_opcode;
 		u.u_limit	= msg_in->rq_ulimit;
 		u.u_rflags	= 0;
@@ -165,6 +174,7 @@ serve ()
 		if (u.u_syscall != DUSRMOUNT) {
 			if  (srmount[u.u_mntindx].sr_flags & MINTER) {
 				freemsg (bp); 
+				u.u_gift->sd_temp = NULL;
 				rmactive (u.u_procp);
 				DUPRINT1(DB_RECOVER,"request for MINTER resource \n");
 				continue;
@@ -178,6 +188,14 @@ serve ()
 		sysinfo.syscall++;	/* total system calls */
 		DUPRINT3(DB_SYSCALL,"server: opcode %d (%s)\n",
 			u.u_syscall, sysname(u.u_syscall));
+		if (currserv > (maxserve-1))
+			u.u_procp->p_sig |= USR1SIG;
+		else if (idleserver == 0) {
+			s = spl5();
+			msgflag |= MORE_SERVE;
+			splx(s);
+			wakeup(&rd_recover->rd_qslp);
+		}
  		switch (u.u_syscall)  {
 		case DUACCESS:
 			u.u_arg[0] = (int) msg_in->rq_data;
@@ -223,6 +241,8 @@ serve ()
 		{
 			register struct inode *ip;
 			ip = queue->rd_inode;
+			freemsg (bp);
+			u.u_gift->sd_temp = NULL;
 			plock (ip);
 			ip->i_flag |= ISYN;
 			FS_IUPDAT (ip, &time, &time);
@@ -232,6 +252,9 @@ serve ()
 	 	case DUUPDATE:
 		{
 			register struct mount *mp = queue->rd_inode->i_mntdev;
+
+			freemsg (bp);
+			u.u_gift->sd_temp = NULL;
 			(*fstypsw[mp->m_fstyp].fs_update)(mp) ;
 			break;
 		}
@@ -258,7 +281,7 @@ serve ()
 			chroot ();
 			if (!u.u_error) {
 			    if(gift = make_gift(u.u_rdir, FILE_QSIZE, sdp))
-			 	srmount[msg_in->rq_mntindx].sr_refcnt++;
+			 	srmount[u.u_mntindx].sr_refcnt++;
 			    else {
 				plock (u.u_rdir);
 				iput(u.u_rdir);
@@ -278,44 +301,55 @@ serve ()
 
 			dinfo.isyscall--;	
 			sysinfo.syscall--;
-			if(queue->rd_qtype & RDLBIN) {
-				smp = &srmount[u.u_mntindx];
-				ip = smp->sr_rootinode;
-				plock (ip);
-				--srmount[smp->sr_dotdot].sr_refcnt;
-				slbumount (smp, ip);
-				del_rcvd (queue, sdp->sd_queue);
-				iput (ip);
-				break;
+			ip = queue->rd_inode;
+			freemsg (bp);
+			u.u_gift->sd_temp = NULL;
+			plock(ip);
+			if(--srmount[u.u_mntindx].sr_refcnt==0) {
+				 printf ("serve DUIPUT: free srmount entry\n");
+			         srmount[u.u_mntindx].sr_flags = MFREE;
 			}
-			else {
-				ip = queue->rd_inode;
-				plock(ip);
-			 	if(--srmount[msg_in->rq_mntindx].sr_refcnt==0) {
-				  printf ("serve DUIPUT: free srmount entry\n");
-			          srmount[msg_in->rq_mntindx].sr_flags = MFREE;
-				}
-				del_rcvd(queue,sdp->sd_queue);
-				iput(ip);
-				break;
-			} 
+			del_rcvd(queue,sdp->sd_queue);
+			iput(ip);
 			break;
 		}
 		case DUCLOSE:
 		{
 			register struct inode *ip;
+			long count;
+			long foffset;
+
+			count = msg_in->rq_count;
+			foffset = msg_in->rq_foffset;
 			queue = setrsig (msig, queue);
 			ip = queue->rd_inode;
 			u.u_fmode = msg_in->rq_mode;
+			freemsg (bp);
+			u.u_gift->sd_temp = NULL;
 			plock (ip);
-			if (setjmp (u.u_qsav))
-				u.u_error = EINTR;
-			else 
-				FS_CLOSEI (ip,(char)msg_in->rq_mode,
-				    (short)msg_in->rq_count,msg_in->rq_foffset);
+			if ( ip->i_count == 1 && 
+			     queue->rd_user_list != NULL &&
+			     queue->rd_user_list->ru_fcount > 1) {
+				ip->i_count++;
+				if (setjmp (u.u_qsav))
+					u.u_error = EINTR;
+				else
+					FS_CLOSEI (ip,(char)u.u_fmode,
+					    (short)count,foffset);
+				ip->i_count--;
+			}
+			else {
+				if (setjmp (u.u_qsav))
+					u.u_error = EINTR;
+				else
+					FS_CLOSEI (ip,(char)u.u_fmode,
+					    (short)count,foffset);
+			}
 			chkrsig ();
-			if (msg_in->rq_count == 1)
+			if (count == 1)
 				del_rduser (queue);
+			if (srmount[u.u_mntindx].sr_flags & MCACHE)
+				ret_val = ip->i_vcode;
 			prele (ip);
 			break;
 		}
@@ -339,7 +373,7 @@ serve ()
 			ip = namei(spath, &nmarg);
 			if (!u.u_error) 
 				if(gift = make_gift(ip, FILE_QSIZE, sdp)) {
-					srmount[msg_in->rq_mntindx].sr_refcnt++;
+					srmount[u.u_mntindx].sr_refcnt++;
 					prele (ip);
 				} else 
 					iput(ip);
@@ -361,13 +395,15 @@ serve ()
 			 	register struct inode *ip;
 				ip = (u.u_ofile[0])->f_inode;
 				if(gift = make_gift(ip, FILE_QSIZE, sdp)) {
-					srmount[msg_in->rq_mntindx].sr_refcnt++;
+					srmount[u.u_mntindx].sr_refcnt++;
 					unfalloc (u.u_ofile[0]);
 				} else {
 					DUPRINT3 (DB_SERVE,"serve: creat make_gift fails, ip %x, fp %x\n", ip, u.u_ofile[0]);
 					closef(u.u_ofile[0]);
 				}
 				u.u_ofile[0] = NULL;
+				if ( !(FS_ACCESS(ip, IMNDLCK) ))
+					mandatory = 1;
 			}
 			break;
 
@@ -377,6 +413,7 @@ serve ()
 			extern	struct inode *eval2_hdr ();
 			struct inode *ip;
 			struct response *msg;
+			int len;
 			dinfo.isysexec++;	/* incoming exec's */
 			sysinfo.sysexec++;	/* total exec's */
 			u.u_arg[0] = (int) msg_in->rq_data;
@@ -388,7 +425,6 @@ serve ()
 					while ((nbp = alocbuf (sizeof(struct response) - DATASIZE + PSCOMSIZ, BPRI_MED)) == NULL);
 					msg = (struct response *)PTOMSG(nbp->b_rptr);
 					msg->rp_type = RESP_MSG;
-					u.u_msgend = msg->rp_data + PSCOMSIZ;
 					msg->rp_mode = 0;
 					if (!FS_ACCESS(ip, ISUID))
 						msg->rp_mode |= ISUID;
@@ -397,10 +433,12 @@ serve ()
 					if (!FS_ACCESS(ip, ISVTX))
 						msg->rp_mode |= ISVTX;
 					u.u_copymsg = msg;
+					len = strlen(u.u_dent.d_name);
+					u.u_msgend = msg->rp_data + len + 1;
 					u.u_copymsg->rp_bp = (long)nbp;
 					bcopy((caddr_t) u.u_dent.d_name,
-						(caddr_t) msg->rp_data,PSCOMSIZ);
-					srmount[msg_in->rq_mntindx].sr_refcnt++;
+						(caddr_t) msg->rp_data,len+1);
+					srmount[u.u_mntindx].sr_refcnt++;
 					prele(ip);
 				} else 
 					iput (ip);
@@ -408,23 +446,69 @@ serve ()
 			break;
 		}
 		case DUFCNTL:
+		{
+			int cmd, arg, flag, offset;
+			register struct inode *ip;
+			struct request stkmsg;
+
 			queue = setrsig (msig, queue);
-			u.u_rflags |= U_RCOPY;
+			ip = queue->rd_inode;
+			cmd = msg_in->rq_cmd;
+			arg = msg_in->rq_fcntl;
+			flag = msg_in->rq_fflag;
+			offset = msg_in->rq_foffset;
+			if ( !FS_ACCESS(ip,IMNDLCK) && msig->m_stat & VER1 
+					&& !(msg_in->rq_flags & RQ_MNDLCK)
+					&& cmd == F_FREESP) {
+				mand_chg = 1;
+				break;
+			}
+			if (flag & FRCACH) {	/* is lock cached */
+				switch (cmd) {
+				case F_GETLK:
+				case F_SETLK:
+				case F_SETLKW:
+				case F_CHKFL:
+				case F_FREESP:
+					if (msg_in->rq_prewrite > 0){
+						stkmsg.rq_prewrite = msg_in->rq_prewrite;
+						stkmsg.rq_sofar = 0;
+						bcopy ( msg_in->rq_data, stkmsg.rq_data, msg_in->rq_prewrite);
+						freemsg(bp);
+						u.u_gift->sd_temp = NULL;
+						u.u_copybp = (mblk_t  *)&stkmsg;
+					}
+					break;
+				}
+				flag &= ~FRCACH;
+			}
+			else {
+				freemsg(bp);
+				u.u_gift->sd_temp = NULL;
+			}	
 			if(setjmp(u.u_qsav)) 
 				u.u_error = EINTR;
-			else
-			if (msg_in->rq_cmd == F_SETFL)
-			   FS_FCNTL (queue->rd_inode, F_CHKFL, msg_in->rq_fcntl,
-			  	 msg_in->rq_fflag, msg_in->rq_foffset);
-			else
-			   FS_FCNTL (queue->rd_inode,msg_in->rq_cmd, 
-				 msg_in->rq_fcntl, msg_in->rq_fflag, msg_in->rq_foffset); 
-			u.u_rflags &= ~U_RCOPY;
+			else if (cmd == F_SETFL)
+				FS_FCNTL(ip, F_CHKFL, arg, flag, offset);
+			else if (cmd == F_FREESP) {
+				plock(ip);
+				FREESP(ip, arg, flag, offset);
+				prele(ip);
+			} else
+				FS_FCNTL(ip, cmd, arg, flag, offset); 
 			chkrsig ();
+			ret_val = cmd;
 			break;
+		}
 		case DUFSTAT:
+		{
+			long lrq_bufptr;
+
+			lrq_bufptr = msg_in->rq_bufptr;
+			freemsg(bp);
+			u.u_gift->sd_temp = NULL;
 			plock(queue->rd_inode);
-			stat1 (queue->rd_inode, msg_in->rq_bufptr);
+			stat1 (queue->rd_inode, lrq_bufptr);
 			prele(queue->rd_inode);
 			if (!u.u_error)  {
 			   register struct mount *mp;
@@ -435,46 +519,77 @@ serve ()
 			    stat_rmap(gdpp, (struct stat *)u.u_copymsg->rp_data);
 			}
 			break;
+		}
 		case DUFSTATFS:
+		{
+			long lrq_bufptr;
+			long lrq_fstyp;
+			long lrq_len;
+
+			lrq_bufptr = msg_in->rq_bufptr;
+			lrq_fstyp = msg_in->rq_fstyp;
+			lrq_len = msg_in->rq_len;
+
+			freemsg(bp);
+			u.u_gift->sd_temp = NULL;
 			plock(queue->rd_inode);
-			statfs1(queue->rd_inode, msg_in->rq_bufptr, 
-				msg_in->rq_len,msg_in->rq_fstyp);
+			statfs1(queue->rd_inode, lrq_bufptr, lrq_len, lrq_fstyp);
 			prele(queue->rd_inode);
 			break;
+		}
 		case DUGETDENTS:
+		{
+			long lrq_base;
+			long lrq_count;
+
+			lrq_base = msg_in->rq_base;
+			lrq_count = msg_in->rq_count;
 			u.u_offset = msg_in->rq_offset;
+			freemsg(bp);
+			u.u_gift->sd_temp = NULL;
 			ret_val = FS_GETDENTS (queue->rd_inode,
-					    msg_in->rq_base,msg_in->rq_count);
+					    lrq_base,lrq_count);
 			if(ret_val > 0) {
 				if(u.u_copymsg)
 					u.u_copymsg->rp_offset = u.u_offset;
 			}
 			break;
+		}
 		case DUIOCTL:
+		{
+			long lrq_cmd;
+			long lrq_fflag;
+			long lrq_ioarg;
+
+			lrq_cmd = msg_in->rq_cmd;
+			lrq_fflag = msg_in->rq_fflag;
+			lrq_ioarg = msg_in->rq_ioarg;
 			queue = setrsig (msig, queue);
+			freemsg(bp);
+			u.u_gift->sd_temp = NULL;
 			u.u_rflags |= U_RCOPY;
 			if(setjmp(u.u_qsav))
 				u.u_error = EINTR;
 			else
-				FS_IOCTL (queue->rd_inode, msg_in->rq_cmd,
-					  msg_in->rq_ioarg, msg_in->rq_fflag);
+				FS_IOCTL (queue->rd_inode, lrq_cmd,
+					  lrq_ioarg, lrq_fflag);
 			u.u_rflags &= ~U_RCOPY;
 			chkrsig ();
 			break;
+		}
 		case DULBMOUNT:
+		{
+			register struct inode *ip;
 			u.u_arg[0] = (int) msg_in->rq_data;
 			u.u_arg[1] = msg_in->rq_newmntindx;
 			set_dir (msg_in, queue);
-			gift = (rcvd_t) slbmount ();
-			if (!gift)
-				break;
-			/* keep track of who we gave it to */
-			if ((cr_rduser (gift, sdp->sd_queue)) == NULL) {
-				del_rcvd (gift, NULL);
-				u.u_error = ENOSPC;
-				break;
+			if ((ip = namei (upath, 0)) != NULL) {
+				iput(ip);
+				u.u_error = EMULTIHOP;
 			}
 			break;
+		}
+			
 		case DULINK:
 			u.u_arg[0] = (int) msg_in->rq_data;
 			set_dir (msg_in, queue);
@@ -482,7 +597,7 @@ serve ()
 			if (!u.u_error) {
 			    if(gift = make_gift(u.u_pdir, FILE_QSIZE, sdp))  {
 				prele (u.u_pdir);
-				srmount[msg_in->rq_mntindx].sr_refcnt++;
+				srmount[u.u_mntindx].sr_refcnt++;
 		    	    } else
 				iput(u.u_pdir);
 			    u.u_pdir = NULL;
@@ -509,6 +624,7 @@ serve ()
 		case DUMKDIR:
 			u.u_arg[0] = (int) msg_in->rq_data;
 			u.u_arg[1] = msg_in->rq_fmode;
+			u.u_cmask = msg_in->rq_cmask;
 			set_dir (msg_in, queue);
 			mkdir ();
 			break;
@@ -531,19 +647,21 @@ serve ()
 				u.u_error = EINTR;
 			else
 				open ();
-			DUPRINT2(DB_SIGNAL, "serve: after open sig %x\n", 
-			   u.u_procp->p_sig);	
+			DUPRINT3(DB_SIGNAL, "serve: after open sig %x, cursig %d\n", 
+			   u.u_procp->p_sig, u.u_procp->p_cursig);	
 			chkrsig ();
 			if (!u.u_error) {
 				register struct inode *ip;
 				ip = (u.u_ofile[0])->f_inode;
 				if(gift = make_gift (ip, FILE_QSIZE, sdp)) {
-					srmount[msg_in->rq_mntindx].sr_refcnt++;
+					srmount[u.u_mntindx].sr_refcnt++;
 					unfalloc (u.u_ofile[0]);
 				} else {
 					DUPRINT3 (DB_SERVE,"serve: open make_gift fails, ip %x, fp %x\n", ip, u.u_ofile[0]);
 					closef(u.u_ofile[0]);
 				}
+				if ( !(FS_ACCESS(ip, IMNDLCK) ))
+					mandatory = 1;
 				u.u_ofile[0] = NULL;
 			}
 			break;
@@ -561,9 +679,16 @@ serve ()
 			u.u_segflg = 0;
 			ip = queue->rd_inode;
 			type = ip->i_ftype;
+			oldoffset = u.u_offset;
 			ocount = u.u_count;
 			bcount = u.u_ior;
+			if ( !FS_ACCESS(ip,IMNDLCK) && msig->m_stat & VER1 
+					&& !(msg_in->rq_flags & RQ_MNDLCK)) {
+				mand_chg = 1;
+				break;
+			}
 			freemsg(bp);
+			u.u_gift->sd_temp = NULL;
 			if (type == IFREG || type == IFDIR || type== IFIFO)
 				plock (ip);
 			if (setjmp(u.u_qsav)) 
@@ -588,7 +713,14 @@ serve ()
 			u.u_count = msg_in->rq_count;
 			u.u_fmode = msg_in->rq_fmode;
 			u.u_segflg = 0;
+			if ( !FS_ACCESS(queue->rd_inode, IMNDLCK) 
+					&& msig->m_stat & VER1 
+					&& !(msg_in->rq_flags & RQ_MNDLCK)) {
+				mand_chg = 1;
+				break;
+			}
 			freemsg(bp);
+			u.u_gift->sd_temp = NULL;
 			bcount = u.u_ior;
 			plock (queue->rd_inode);
 			FS_READI (queue->rd_inode);
@@ -619,21 +751,19 @@ serve ()
 				if ((sbp = chkrdq(queue,msg_in->rq_pid,
 				     msg_in->rq_sysid)) == NULL) {
 					splx(s);	
-					if (queue->rd_sdnack != NULL) 
-						nackflush(queue, -1);
 				} else {
 					splx(s);
 					freemsg(bp);
+					u.u_gift->sd_temp = NULL;
 					bp = sbp;
 					msig = (struct message *)bp->b_rptr;
 					msig->m_stat |= SIGNAL;
-					if (queue->rd_sdnack) 
-						nackflush(queue,queue->rd_qsize - queue->rd_qcnt);
 					set_sndd(sdp,(queue_t *)msig->m_queue,msig->m_gindex,msig->m_gconnid);
 					goto psmsg;
 				}
 			}	
 			freemsg(bp);
+			u.u_gift->sd_temp = NULL;
 			rmactive(u.u_procp);
 			continue;
 		}
@@ -670,6 +800,8 @@ serve ()
 			register struct inode *ip;
 
 			smp = &srmount[u.u_mntindx];
+			freemsg(bp);
+			u.u_gift->sd_temp = NULL;
 			ip = smp->sr_rootinode;
 			plock (ip);
 			if (srumount (smp, ip)) {
@@ -744,12 +876,12 @@ serve ()
 			register struct inode *ip;
 			register struct mount *mp;
 			extern struct mount mount[];
-			if( msg_in->rq_dev < 0 || msg_in->rq_dev >= (long)v.ve_mount){
+			if( msg_in->rq_dev < 0 || msg_in->rq_dev >= (long)v.v_mount){
 				 u.u_error = EINVAL;
 				break;
 			}
 			mp = &mount[msg_in->rq_dev];
-			if(! mp->m_flags & MINUSE) { 
+			if(!(mp->m_flags & MINUSE)) { 
 				u.u_error = EINVAL;
 				break;
 			}
@@ -767,93 +899,159 @@ serve ()
 
 		case DUWRITE:
 		{
-			int offset;
+			int offset, rqoffset;
 			register int type;
 			register struct inode *ip;
+			struct request stkmsg;
+			/*******WARNING***********	
+			  If you get the urge to remove stkmsg, think twice.
+			  It is placed here to allow early streams buf. release.
+			  The stkmsg is sizeof struct request + DATASIZE large 
+			  This variable is being placed on the stack
+			  within the scope of this case statement. 
+			  For future development Care
+			  should be taken that call is NOT made to any other
+			  functions with large stack vasriables.  Also
+			  If datasize should increase to a much larger value
+			  4k, then you might blow your stack.
+			 */
+
 			dinfo.isyswrite++;	/* incoming write's */
 			sysinfo.syswrite++;
 			queue = setrsig (msig, queue);
 			ip = queue->rd_inode;
 			type = ip->i_ftype;
 			u.u_base = (caddr_t) msg_in->rq_base;
+			u.u_count = msg_in->rq_count;
 			u.u_fmode = msg_in->rq_fmode;
-			if (type == IFREG || type == IFDIR || type== IFIFO)
+			rqoffset = msg_in->rq_offset;
+			if ( !FS_ACCESS(ip,IMNDLCK) && msig->m_stat & VER1 
+					&& !(msg_in->rq_flags & RQ_MNDLCK)) {
+				mand_chg = 1;
+				break;
+			}
+			if (type == IFCHR || ip->i_flag & ILOCK ||
+			    (queue->rd_user_list->ru_next !=NULL &&
+			     type == IFREG && rcacheinit)
+			     && msg_in->rq_prewrite > 0){
+				stkmsg.rq_prewrite = msg_in->rq_prewrite;
+				stkmsg.rq_sofar = 0;
+				bcopy ( msg_in->rq_data, stkmsg.rq_data, msg_in->rq_prewrite);
+				freemsg(bp);
+				u.u_gift->sd_temp = NULL;
+				u.u_copybp = (mblk_t *)&stkmsg;
+			}
+			else if (msg_in->rq_prewrite > 0) {
+				msg_in->rq_sofar = 0;
+				u.u_copybp = (mblk_t *)msg_in;
+			}
+			if (type == IFREG || type == IFDIR || type== IFIFO){
 				plock (ip);
+			} 
 			if(u.u_fmode & FAPPEND) {
 				u.u_offset = ip->i_size;
 				offset = u.u_offset;
 			} else
-				u.u_offset = msg_in->rq_offset;
-			u.u_count = msg_in->rq_count;
+				u.u_offset = rqoffset;
 			u.u_segflg = 0;
 			ocount = u.u_count;
-			bcount = u.u_iow;
-			u.u_copybp = bp;
-			msg_in->rq_sofar = 0;
 			if(setjmp(u.u_qsav)) 
 				u.u_error = EINTR;
 			else {
-				FS_WRITEI(ip);
+				WRITEI(ip);
 				if (type == IFREG || type == IFDIR || type== IFIFO)
 					prele (ip);
 			}
-			chkrsig ();
-			if(u.u_fmode & FAPPEND) { 
-			  if(u.u_copymsg)
-				u.u_copymsg->rp_isize = offset;
-			  else {
-				while ((nbp = alocbuf(sizeof (struct response), BPRI_MED)) == NULL);
+			/* free before allocating another */
+			if (u.u_gift->sd_temp) {  /* safety valve */
+				freemsg((mblk_t *)u.u_gift->sd_temp);
+				u.u_gift->sd_temp = NULL;
+				u.u_copybp = NULL;
+			}
+			if(!u.u_copymsg) {
+				while ((nbp = alocbuf(sizeof (struct response)-DATASIZE, BPRI_MED)) == NULL);
 				u.u_copymsg = (struct response *)PTOMSG(nbp->b_rptr);
 				u.u_copymsg->rp_type = RESP_MSG;
-				u.u_copymsg->rp_isize = offset;
 				u.u_msgend = u.u_copymsg->rp_data;
 				u.u_copymsg->rp_bp = (long)nbp;
-			  }
 			}
-			srmount[u.u_mntindx].sr_bcount += (u.u_iow - bcount);
+			if (u.u_fmode & FAPPEND)
+				u.u_copymsg->rp_isize = offset;
+			else
+				u.u_copymsg->rp_isize = ip->i_size;
+			srmount[u.u_mntindx].sr_bcount += (ocount - u.u_count)/1024;
 			ret_val = u.u_count;
 			dinfo.iwritech += ocount - u.u_count;	/* incoming ch's written */
 			sysinfo.writech += ocount - u.u_count;
-			if (u.u_copybp) {
-				freemsg(u.u_copybp);	/* 0-length write */
-				u.u_copybp = NULL;
-			}
+			chkrsig ();
 			break;
 		}
 		case DUWRITEI:
 		{	
+			register struct inode *ip;
+			struct request stkmsg;
 			dinfo.isyscall--;
 			sysinfo.syscall--;
 			u.u_base = (caddr_t) msg_in->rq_base;
+			u.u_count = msg_in->rq_count;
+			u.u_fmode = msg_in->rq_fmode;
+			ip = queue->rd_inode;
+			if ( !FS_ACCESS(ip,IMNDLCK) && msig->m_stat & VER1 
+					&& !(msg_in->rq_flags & RQ_MNDLCK)) {
+				mand_chg = 1;
+				break;
+			}
 			if ((u.u_offset = msg_in->rq_offset) < 0)
 				u.u_offset = queue->rd_inode->i_size;
-			u.u_count = msg_in->rq_count;
 			u.u_segflg = 0;
-			bcount = u.u_iow;
-			u.u_copybp = bp;
-			msg_in->rq_sofar = 0;
-			plock(queue->rd_inode);
-			FS_WRITEI(queue->rd_inode);
-			prele(queue->rd_inode);
-			srmount[u.u_mntindx].sr_bcount += (u.u_iow - bcount);
-			ret_val = u.u_count;
-			if (u.u_copybp) {
-				freemsg(u.u_copybp);	/* 0-length write */
-				u.u_copybp = NULL;
+			ocount = u.u_count;
+			if (ip->i_ftype == IFCHR || ip->i_flag & ILOCK ||
+			    (queue->rd_user_list->ru_next !=NULL &&
+			     ip->i_ftype == IFREG && rcacheinit)
+			     && msg_in->rq_prewrite > 0){
+				stkmsg.rq_prewrite = msg_in->rq_prewrite;
+				stkmsg.rq_sofar = 0;
+				bcopy ( msg_in->rq_data, stkmsg.rq_data, msg_in->rq_prewrite);
+				freemsg(bp);
+				u.u_gift->sd_temp = NULL;
+				u.u_copybp = (mblk_t *)&stkmsg;
 			}
+			else if (msg_in->rq_prewrite > 0) {
+				msg_in->rq_sofar = 0;
+				u.u_copybp = (mblk_t *)msg_in;
+			}
+			plock(ip);
+			WRITEI(ip);
+			prele(ip);
+			srmount[u.u_mntindx].sr_bcount += (ocount - u.u_count)/1024;
+			ret_val = u.u_count;
 			break;
 		}
 		default:
 		   	DUPRINT2(DB_SERVE, "Server: Illegal msg %x\n", 
 				u.u_syscall);
-			rmactive (u.u_procp);
-			continue;
+			u.u_error = EREMOTE;
+			break;
 		}
+sret:
 		rmactive(u.u_procp);
-		if (u.u_error != EDOTDOT && u.u_error != ELBIN)
-		if (u.u_syscall != DUWRITE && u.u_syscall != DUWRITEI
-		 && u.u_syscall != DUREAD && u.u_syscall != DUREADI)
+		if (u.u_ofile[0] != NULL) {
+			register struct inode *ip;
+
+			ip = (u.u_ofile[0])->f_inode;
+			if (gift = make_gift(ip, FILE_QSIZE, sdp)) {
+				srmount[msg_in->rq_mntindx].sr_refcnt++;
+				unfalloc(u.u_ofile[0]);
+			} else {
+				DUPRINT3 (DB_SERVE,"serve: ofile make_gift failed, ip %x, fp %x\n", ip, u.u_ofile[0]);
+				closef(u.u_ofile[0]);
+			}
+			u.u_ofile[0] = NULL;
+		}
+		if (u.u_gift->sd_temp != NULL) {
 			freemsg(bp);
+			u.u_gift->sd_temp = NULL;
+		}
 		/*
 		 * if msg needs to be sent, calculate size.
 		 * else allocate a msg to send.
@@ -871,23 +1069,112 @@ serve ()
 			msg_out->rp_subyte = 1;	     /* set to indicate no data */
 			outsize = sizeof (struct response) - DATASIZE;
 		}
+		if (mandatory == 1 || mand_chg == 1) 
+			msg_out->rp_cache |= RP_MNDLCK;
+		else
+			msg_out->rp_cache &= ~RP_MNDLCK;
+		/* Send NACK if file status has changed to mandatory lock
+		 * after open. */
+		if ( mand_chg == 1) {
+			msg_out->rp_type = NACK_MSG;
+			u.u_error = ENOMEM;
+		}
+
+		/* special handling for client caching */
+		if (u.u_error == 0) {
+			switch (u.u_syscall) {
+			case DUSRMOUNT:
+				if (srmount[u.u_mntindx].sr_flags & MCACHE)
+					ret_val |= MCACHE;
+				break;
+			case DUREAD: 
+				/* check if cache can be reenabled. */
+				msg_out->rp_cache = 0;
+				if (srmount[u.u_mntindx].sr_flags & MCACHE) {
+					int s;
+					rduptr = alloc_rduser(queue->rd_inode->i_rcvd);
+					s = spl6();
+					/* Count number of read messages
+					 * occurring while in disabled state.
+					 * DATASIZE is size of each server
+					 * rcopyout to client */
+					if (rduptr->ru_cflag & CACHE_DISABLE){
+						/* Compute number of rcopyout
+						 * messages to client */
+						rcinfo.dis_bread = (((ocount - 1
+						    + oldoffset)/DATASIZE) -
+					           (oldoffset/DATASIZE)) + 1;
+						/* Add one for initial request
+						 * message from client */
+						rcinfo.dis_bread++;
+					}
+					if (rduptr->ru_cflag & CACHE_DISABLE &&
+				    	   ((lbolt - queue->rd_mtime >= rcache_time)
+					   || (lbolt < queue->rd_mtime))) {
+						rduptr->ru_cflag &= ~CACHE_DISABLE;
+						rduptr->ru_cflag |= CACHE_REENABLE;	
+					}
+					splx(s);
+					if (rduptr->ru_cflag & CACHE_REENABLE &&
+					   !FS_ACCESS(queue->rd_inode, IMNDLCK))
+						/* turn off cache if file
+						   becomes mandatory locked */
+						rduptr->ru_cflag = CACHE_OFF;
+					if (rduptr->ru_cflag & CACHE_REENABLE) {
+						rduptr->ru_cflag &= ~CACHE_REENABLE;
+						rduptr->ru_cflag |= CACHE_ENABLE;	
+						msg_out->rp_cache = rduptr->ru_cflag;
+					}
+				}
+				msg_out->rp_isize = queue->rd_inode->i_size;
+				break;
+			case DUOPEN:
+			case DUCREAT:
+				/* check if cache is allowed */
+				msg_out->rp_cache = 0;
+				if (srmount[u.u_mntindx].sr_flags & MCACHE) {
+					int s;
+					ret_val = gift->rd_inode->i_vcode;
+					rduptr = alloc_rduser(gift);
+					s = spl6();
+					if (rduptr->ru_cflag & CACHE_DISABLE &&
+				    	   ((lbolt - queue->rd_mtime >= rcache_time)
+					   || (lbolt < queue->rd_mtime))) {
+						rduptr->ru_cflag &= ~CACHE_DISABLE;
+						rduptr->ru_cflag |= CACHE_REENABLE;	
+					}
+					splx(s);
+					if (rduptr->ru_cflag & CACHE_REENABLE &&
+					   !FS_ACCESS(queue->rd_inode, IMNDLCK))
+						/* turn off cache if file
+						   becomes mandatory locked */
+						rduptr->ru_cflag = CACHE_OFF;
+					if (rduptr->ru_cflag & CACHE_REENABLE) {
+						rduptr->ru_cflag &= ~ CACHE_REENABLE;
+						rduptr->ru_cflag |= CACHE_ENABLE;
+					}
+					if (rduptr->ru_cflag & CACHE_ENABLE)
+						msg_out->rp_cache = rduptr->ru_cflag;
+				}
+				break;
+			case DUWRITEI:
+			case DUREADI:
+				/* return i_size */
+				msg_out->rp_isize = queue->rd_inode->i_size;
+				break;
+			case DUFCNTL:
+				if (ret_val == F_FREESP) 
+					msg_out->rp_isize = queue->rd_inode->i_size;
+				break;
+			}
+		}
 
 		msg_out->rp_opcode = u.u_syscall;
-
- 		if (u.u_error == EDOTDOT || u.u_error == ELBIN) {
-
-			if (u.u_error == EDOTDOT)
-				msg_out->rp_opcode = DUDOTDOT;
-			else 
-				msg_out->rp_opcode = DULBIN;
-			DUPRINT2(DB_SYSCALL,"serve:u.u_arg[0] %s\n",u.u_arg[0]);
-			strcpy (msg_out->rp_data, u.u_arg[0]);
-			outsize = sizeof (struct response) - DATASIZE +
-		        	  strlen (u.u_arg[0]) + 1;
+ 		if (u.u_error == EDOTDOT ) {
+			msg_out->rp_opcode = DUDOTDOT;
 			u.u_error = 0;
-			DUPRINT2(DB_SYSCALL,"serve: DOTDOT path=%s\n",
-			msg_out->rp_data);
-			freemsg(bp); 
+			DUPRINT2(DB_SYSCALL,"serve:u.u_arg[0] %s\n",u.u_arg[0]);
+			DUPRINT2(DB_SYSCALL,"serve: DOTDOT path=%s\n", msg_out->rp_data);
 		}
 
 		if (gift) {
@@ -898,12 +1185,17 @@ serve ()
 			msg_out->rp_nlink = ip->i_nlink;
 			msg_out->rp_uid = ip->i_uid;
 			msg_out->rp_gid = ip->i_gid;
+			msg_out->rp_fhandle = (long)ip;
 		}
 		msg_out->rp_mntindx	= u.u_mntindx;
 		msg_out->rp_rval	= ret_val;
 		msg_out->rp_errno	= u.u_error;
-		msg_out->rp_sig = u.u_procp->p_sig; /*return any remote signal*/
+		/* return any remote signal */
+		msg_out->rp_sig		= u.u_procp->p_sig;
+		if (u.u_procp->p_cursig)
+			msg_out->rp_sig	|= (1L << (u.u_procp->p_cursig - 1));
 		msg_out->rp_sysid	= u.u_procp->p_sysid;
+
 		if (sndmsg (sdp, (mblk_t *)msg_out->rp_bp, 
 				   outsize, gift) == FAILURE) {
 			register int mntindx;
@@ -991,6 +1283,8 @@ struct proc *proc;
 
 	currserv--;
 	u.u_procp->p_sig &= ~USR1SIG;
+	if (u.u_procp->p_cursig == SIGUSR1)
+		u.u_procp->p_cursig = 0;
 	if ((current = s_active) == proc)
 		s_active = s_active->p_rlink;
 	else {
@@ -1096,7 +1390,7 @@ serve_exit()
 	--idleserver;
 	u.u_procp->p_rlink = s_zombie;
 	s_zombie = u.u_procp;
-	if(++nzombcnt > 1)	/* clean up zombie servers */
+	if(++nzombcnt >= 1)	/* clean up zombie servers */
 		wakeup(&rd_recover->rd_qslp);
 	exit();
 }
@@ -1108,11 +1402,14 @@ serve_exit()
 static void
 chkrsig ()
 {
-	if(u.u_procp->p_sig & USR1SIG)
-		if(!(u.u_procp->p_sig & TERMSIG))
-			if(u.u_error == EINTR)
+	if ((u.u_procp->p_sig & USR1SIG) || u.u_procp->p_cursig == SIGUSR1)
+		if (!(u.u_procp->p_sig & TERMSIG)
+		  && u.u_procp->p_cursig != SIGTERM)
+			if (u.u_error == EINTR)
 				u.u_error = ENOMEM;
 	u.u_procp->p_sig &= ~TERMSIG; /* server needs sig reset */
+	if (u.u_procp->p_cursig == SIGTERM)
+		u.u_procp->p_cursig = 0;
 }
 
 struct rcvd *

@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident	"@(#)vi:port/ex_temp.c	1.14"
+#ident	"@(#)vi:port/ex_temp.c	1.15"
 #include "ex.h"
 #include "ex_temp.h"
 #include "ex_vis.h"
@@ -83,12 +83,10 @@ cleanup(all)
 	bool all;
 {
 	if (all) {
-#ifdef CRYPT
 		if (kflag)
 			crypt_close(perm);
 		if (xtflag)
 			crypt_close(tperm);
-#endif
 		putpad(exit_ca_mode);
 		flush();
 		resetterm();
@@ -197,45 +195,36 @@ getblock(atl, iof)
 	if (iof == READ) {
 		if (hitin2 == 0) {
 			if (ichang2) {
-#ifdef CRYPT
 				if(xtflag)
 					if (run_crypt(0L, ibuff2, CRSIZE, tperm) == -1) 
 					  filioerr(tfname);
-#endif
 				blkio(iblock2, ibuff2, write);
 			}
 			ichang2 = 0;
 			iblock2 = bno;
 			blkio(bno, ibuff2, read);
-#ifdef CRYPT
 			if(xtflag)
 				if (run_crypt(0L, ibuff2, CRSIZE, tperm) == -1)
 				  filioerr(tfname);
-#endif
 			hitin2 = 1;
 			return (ibuff2 + off);
 		}
 		hitin2 = 0;
 		if (ichanged) {
-#ifdef CRYPT
 			if(xtflag)
 				if (run_crypt(0L, ibuff, CRSIZE, tperm) == -1)
 				  filioerr(tfname);
-#endif
 			blkio(iblock, ibuff, write);
 		}
 		ichanged = 0;
 		iblock = bno;
 		blkio(bno, ibuff, read);
-#ifdef CRYPT
 		if(xtflag)
 			if (run_crypt(0L, ibuff, CRSIZE, tperm) == -1)
 			  filioerr(tfname);
-#endif
 		return (ibuff + off);
 	}
 	if (oblock >= 0) {
-#ifdef CRYPT
 		if(xtflag) {
 			/*
 			 * Encrypt block before writing, so some devious
@@ -250,7 +239,6 @@ getblock(atl, iof)
 			  filioerr(tfname);
 			blkio(oblock, crbuf, write);
 		} else
-#endif
 			blkio(oblock, obuff, write);
 	}
 	oblock = bno;
@@ -340,7 +328,6 @@ synctmp()
 		blkio(iblock2, ibuff2, write);
 	ichang2 = 0;
 	if (oblock != -1)
-#ifdef CRYPT
 	if(xtflag) {
 		/*
 		 * Encrypt block before writing, so some devious
@@ -355,15 +342,12 @@ synctmp()
 			  filioerr(tfname);
 		blkio(oblock, crbuf, write);
 	} else
-#endif
 		blkio(oblock, obuff, write);
 	time(&H.Time);
 	uid = getuid();
-#ifdef CRYPT
 	if (xtflag)
 		H.encrypted = 1;
 	else
-#endif
 		H.encrypted = 0;
 	*zero = (line) H.Time;
 	for (a = zero, bp = blocks; a <= dol; a += BUFSIZ / sizeof *a, bp++) {

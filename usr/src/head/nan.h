@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)head:nan.h	1.10"
+#ident	"@(#)head:nan.h	1.12"
 /* Handling of Not_a_Number's (only in IEEE floating-point standard) */
 #if _IEEE
 typedef union 
@@ -65,8 +65,8 @@ typedef double dnan;
 #define IsNegNAN(X)  0
 #define IsPosNAN(X)  0
 #define IsNAN(X)   0
-#define GETNaNPC   0L
+#define GETNaNPC(X)   0L
 
-#define Nan(X)  0
+#define NaN(X)  0
 #define KILLNaN(X)
 #endif

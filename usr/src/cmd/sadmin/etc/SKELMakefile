@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:etc/SKELMakefile	2.2"
+#ident	"@(#)sadmin:etc/SKELMakefile	2.3"
 #	skeleton Makefile for etc
 
 ROOT = /
@@ -14,7 +14,7 @@ PARTS = $(CMDS) --FILES--
 ALL:		$(PARTS)
 
 install:	$(PARTS) $(DIR) remove
-	umask 022;  ls $(PARTS)  |  cpio -pdum $(DIR)
+	umask 022;  ls $(PARTS)  |  cpio -pdu $(DIR)
 	cd $(DIR);  chmod go-w,u+w $(PARTS)
 	cd $(DIR);  chmod +x $(CMDS)
 

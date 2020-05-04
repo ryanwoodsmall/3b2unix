@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/netboot.c	10.21"
+#ident	"@(#)kern-port:nudnix/netboot.c	10.21.5.3"
 /*  System call to start file sharing.
  */
 
@@ -34,9 +34,6 @@
 #include "sys/rdebug.h"
 
 #define p_minwdlock p_trlock
-
-mblk_t	*server_bp = NULL;		/* server stream buffers */
-int	nserverbuf = 1;			/* number of 2K server stream buffers */
 
 extern	int	bootstate;		/*  DU_UP, DU_DOWN, or DU_INTER */
 extern	struct	proc *rfsdp;
@@ -78,13 +75,15 @@ rfstart ()
 	bootstate = DU_INTER;	/* RFS in an intermediate state */
 
 	if (comminit() == FAILURE) {
-		u.u_error = EAGAIN;
+		if (!u.u_error)
+			u.u_error = EAGAIN;
 		bootstate = DU_DOWN;
 		wakeup(&bootstate);
 		return;
 	}
 	DUPRINT1(DB_RFSTART,"comm initialized\n");
 	auth_init();
+	rb_init();
 	gdp_init();
 	if (u.u_error) {
 		DUPRINT2 (DB_RFSTART, "rfstart u.u_error %d\n",u.u_error);
@@ -96,35 +95,11 @@ rfstart ()
 	DUPRINT1(DB_RFSTART,"gdp initialized\n");
 	recover_init();
 
-	/* allocate maxserve number of 2K stream buffers for server usage */
-	for (i = 0; i < nserverbuf; i++) {
-		if ((bp = allocb (sizeof(struct message) + sizeof(struct response), BPRI_MED)) == NULL) {
-			/* fail to get enough stream buffers for server usage,
-			   fail the RFS startup and free stream buffers */
-			while (bp = server_bp) {
-				server_bp = bp->b_next;
-				freemsg(bp);
-			}
-			printf("WARNING: not enough stream buffers for RFS, RFS failed\n");
-			u.u_error = ENOMEM;
-			commdinit();
-			bootstate = DU_DOWN;
-			wakeup(&bootstate);
-			return;
-		}
-
-		bp->b_wptr += sizeof(struct message);
-		((struct message *)bp->b_rptr)->m_stat = 0;
-		bp->b_next = server_bp;
-		server_bp = bp;
-	}
-
 	/* start recover process */
-	switch (newproc (1)) {
+	switch (newproc (NP_FAILOK|NP_NOLAST|NP_SYSPROC)) {
 		case 0:
 			break;
 		case 1:
-			u.u_procp->p_flag |= SSYS;
 			u.u_cstime = u.u_stime = u.u_cutime = u.u_utime = 0;
 			rec_proc = u.u_procp;
 			netmemfree();
@@ -134,11 +109,6 @@ rfstart ()
 			return;
 		default:
 			DUPRINT1 (DB_RFSTART,"rfstart: cannot fork recovery\n");
-			/* free stream buffers */
-			while (bp = server_bp) {
-				server_bp = bp->b_next;
-				freemsg(bp);
-			}
 			commdinit();
 			bootstate=DU_DOWN;
 			wakeup(&bootstate);
@@ -146,14 +116,13 @@ rfstart ()
 	}
 
 	/* start daemon process */
-	switch (newproc (1))  {
+	switch (newproc (NP_FAILOK|NP_NOLAST|NP_SYSPROC))  {
 		case 0:
 			/* newproc sets u.u_rval1 to the child's pid,	*/
 			/* but we don't want to return it, so clear it.	*/
 			u.u_rval1 = 0;
 			break;
 		case 1:
-			u.u_procp->p_flag |= SSYS;
 			u.u_cstime = u.u_stime = u.u_cutime = u.u_utime = 0;
 			rfsdp = u.u_procp;
 			netmemfree();
@@ -164,11 +133,6 @@ rfstart ()
 			return;
 		default:
 			DUPRINT1 (DB_RFSTART,"rfstart: cannot fork rfdaemon\n");
-			/* free stream buffers */
-			while (bp = server_bp) {
-				server_bp = bp->b_next;
-				freemsg(bp);
-			}
 			commdinit();
 			rec_flag |= RFSKILL;
 			wakeup (&rec_proc);
@@ -308,12 +272,6 @@ rfstop()
 	DUPRINT1(DB_RFSTART, "rfstop: taking down links \n");
 	kill_gdp();		/* cut all connections */
 	commdinit();
-
-	/* free server stream buffers */
-	while (bp = server_bp) {
-		server_bp = bp->b_next;
-		freemsg(bp);
-	}
 
 	/* kill daemons - bootstate goes to DOWN after both die */
 	DUPRINT1(DB_RFSTART, "rfstop: killing daemons \n");

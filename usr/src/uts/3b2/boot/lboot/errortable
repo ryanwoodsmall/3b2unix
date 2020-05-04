@@ -1,8 +1,8 @@
-#ident	"@(#)kern-port:boot/lboot/errortable	10.4"
+#ident	"@(#)kern-port:boot/lboot/errortable	10.5"
 
 /*
  * This file contains the table of all error messages for which the recovery
- * action may need to be altered between the 3B2 and 3B5.
+ * action may need to be altered between the 3B2 and 3B15.
  *
  * In general, the philosophy followed for error recovery is to let the routine
  * which discovered the error do the recovery for the error.  Thus, the majority
@@ -47,7 +47,7 @@ ER3	_PANIC_		"Undefined expression element"
 ER5	_PANIC_		"flexname too long"
 ER6	_PANIC_		"Unsupported relocation type"
 ER7	_PERROR_|_RETURN_
-#ifdef u3b5
+#ifdef u3b15
 ER8	_RETURN_	"IDFC reset failed"
 ER9	_RETURN_	"IDFC sysgen failed"
 ER10	_RETURN_	"I/O ERROR: id=0x%lX block=%D count=%d jstat=0x%x erstat=0x%lX xerstat=0x%lX"

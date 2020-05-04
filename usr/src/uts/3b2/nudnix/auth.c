@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/auth.c	10.8"
+#ident	"@(#)kern-port:nudnix/auth.c	10.8.1.2"
 #include "sys/types.h"
 #include "sys/sema.h"
 #include "sys/sysmacros.h"
@@ -695,8 +695,11 @@ register ushort	rid;
 		idt = (struct idtab *) gp->idmap[dev];
 	else if (Global[dev])
 		idt = (struct idtab *) Global[dev];
-	else
+	else {
+		if (rid != defval)
+			ret = NO_ACCESS;
 		goto rglid_out; 	/* ret already has default value	*/
+	}
 
 	/* at this point should have a good table	*/
 	DUPRINT2(DB_RFSYS,"rglid: found table=%x\n",idt);
@@ -708,8 +711,11 @@ register ushort	rid;
 	/* check sets ret if it finds a match, if it doesn't, use default */
 	ret = (defval)?defval:rid;
 
-	if (size == 0)
+	if (size == 0) {
+		if (defval && rid != defval)
+			ret = NO_ACCESS;
 		goto rglid_out;
+	}
 
 	hp->i_tries++;
 	
@@ -730,8 +736,22 @@ register ushort	rid;
 			(idt+(hp->i_next))->i_rem = ret;
 			hp->i_next = (hp->i_next < (hp->i_cend - 1))?
 				hp->i_next + 1 : HEADSIZE;
-			break;
+			goto rglid_out;
 		}
+	/*
+	 * No match found.  Need to insure that inaccessible ids are
+	 * appropriately flagged.  This is done by doing a forward
+	 * mapping.  If the forward mapping changes the input, it
+	 * means that this id is inaccessible from this machine, and
+	 * NO_ACCESS is returned.  
+	 */
+	if (glid(dev,gp,rid) != rid) {
+		ret = NO_ACCESS;
+		(idt+(hp->i_next))->i_loc = rid;
+		(idt+(hp->i_next))->i_rem = ret;
+		hp->i_next = (hp->i_next < (hp->i_cend - 1))?
+			hp->i_next + 1 : HEADSIZE;
+	}
 
 rglid_out:
 	rd_unlock();

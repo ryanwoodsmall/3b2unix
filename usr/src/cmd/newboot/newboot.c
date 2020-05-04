@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)newboot:newboot.c	1.2"
+#ident	"@(#)newboot:newboot.c	1.2.1.1"
 /*
  * Write the two boot programs (mboot and lboot) to the disk:
  *
@@ -39,7 +39,7 @@ extern char *strtok();
  * VTOC contains pointers which determine where lboot is to be loaded;
  * it is updated as one entire block (BSIZE long)
  *
- * Any changes here must be coordinated with /usr/src/uts/3b5/boot/mboot/mboot.c
+ * Any changes here must be coordinated with /usr/src/uts/3b15/boot/mboot/mboot.c
  */
 union	{
 	struct vtoc	vtoc_buffer;

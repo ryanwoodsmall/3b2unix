@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)whodo:whodo.c	1.16"
+#ident	"@(#)whodo:whodo.c	1.20"
 /* '/etc/whodo -- combines info from utmp file and process table' */
 #include   <stdio.h>
 #include   <fcntl.h>
@@ -26,6 +26,7 @@
 #include   <sys/pcb.h>
 #include   <sys/region.h>
 #include   <sys/sbd.h>
+#include   <sys/sys3b.h>	
 #endif /* u3b2 */
 
 #include   <utmp.h>
@@ -62,7 +63,7 @@
 #define SWAPLO_STR      "_swplo"
 #define SBRPTE_STR      "_sbrpte"
 #endif
-#if u3b || u370 || u3b5 || u3b2
+#if u3b || u370 || u3b15 || u3b2
 #define PROC_STR        "proc"
 #define V_STR           "v"
 #define SWAPLO_STR      "swplo"
@@ -112,6 +113,7 @@ struct uproc {
         char    p_comm[DIRSIZ];
 };
 
+extern	time_t	time();
 struct passwd   *getpwnam(), *getpwuid();
 struct var      v;
 unsigned        Proc, V, size;
@@ -427,33 +429,25 @@ register struct proc *p;
         fd = memfd;
 
 	/*
-	 *	Pages in the user page table are contiguous on a 3b5 
+	 *	Pages in the user page table are contiguous on a 3b15 
 	 *	but not on a 3b2.
 	 */	
 
 #ifdef u3b2
 
-	cp1 = (char *)&uarea + sizeof(uarea);
-	i = ((char *)ubptbl((proc_t *)Proc + (p - pp)) - 
-       	    (char *)((proc_t *)Proc + (p - pp)) -
-	    ((char *)p->p_ubptbl - (char *)p))>>2;
-	for(cp = (char *) &uarea; cp < cp1; i++, cp += NBPP) {
-		lseek(fd, (p->p_ubptbl[i].pgm.pg_pfn << 11) - MAINSTORE, 0);
-		if (read(fd, cp, cp1-cp > NBPP ? NBPP : cp1-cp) < 0) {
-                	perror("read error on ublock");
-			return(NULL);
-		}
-	}
 #endif /* u3b2 */
 
-#ifdef u3b5
-	addr = (p->p_addr << PNUMSHFT);
+	if(sys3b(RDUBLK, p->p_pid, &uarea, sizeof(uarea))==-1)
+		return(NULL);
+
+#ifdef u3b15
+	addr = (p->p_addr << BPCSHIFT) - 0x800000;
 	lseek(fd,addr,0);
 	if (read(fd, (char *)&uarea, sizeof(uarea)) != sizeof(uarea)) {
 		perror("read error on ublock");
 		return(NULL);
 	}
-#endif /* u3b5 */
+#endif /* u3b15 */
 
 #ifdef  u3b
         addr = p->p_uptbl[0] & PG_ADDR;

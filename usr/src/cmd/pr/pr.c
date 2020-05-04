@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)pr:pr.c	1.7"
+#ident	"@(#)pr:pr.c	1.12"
 
 /*
  *	PR command (print files in pages and columns, with headings)
@@ -33,9 +33,16 @@
 #define ETABS	(Inpos % Etabn)
 #define ITABS	(Itabn > 0 && Nspace >= (nc = Itabn - Outpos % Itabn))
 #define NSEPC	'\t'
-#define HEAD	"%12.12s %4.4s  %s Page %d\n\n\n", date+4, date+20, head, Page
+#define HEAD	"%s  %s Page %d\n\n\n", date, head, Page
 #define cerror(S)	fprintf(stderr, "pr: %s", S)
 #define done()	if (Ttyout) chmod(Ttyout, Mode)
+
+#define FORMAT	"%b %e %H:%M %Y"	/* ---date time format--- 
+					   b -- abbreviated month name 
+					   e -- day of month
+					   H -- Hour (24 hour version)
+					   M -- Minute
+					   Y -- Year in the form ccyy */
 
 typedef char CHAR;
 typedef int ANY;
@@ -52,6 +59,8 @@ int Multi = 0, Nfiles = 0, Error = 0, onintr();
 
 char nulls[] = "";
 char *ttyname(), *Ttyout, obuf[BUFSIZ];
+
+static char	time_buf[50];	/* array to hold the time and date */
 
 extern	void	exit();
 extern	void	_exit();
@@ -75,17 +84,21 @@ fixtty()
 
 char *GETDATE() /* return date file was last modified */
 {
-	char *ctime();
 	static char *now = NULL;
 	static struct stat sbuf, nbuf;
 
 	if (Nfiles > 1 || Files->f_name == nulls) {
 		if (now == NULL)
-			{ time(&nbuf.st_mtime); now = ctime(&nbuf.st_mtime); }
+			{
+			time(&nbuf.st_mtime);
+			cftime(time_buf, FORMAT, &nbuf.st_mtime);
+			now = time_buf;
+			}
 		return (now);
 	} else {
 		stat(Files->f_name, &sbuf);
-		return (ctime(&sbuf.st_mtime));
+		cftime(time_buf, FORMAT, &sbuf.st_mtime);
+		return (time_buf);
 	}
 }
 

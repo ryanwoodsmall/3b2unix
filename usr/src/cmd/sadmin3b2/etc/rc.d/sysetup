@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin3b2:etc/rc.d/sysetup	1.4"
+#ident	"@(#)sadmin3b2:etc/rc.d/sysetup	1.5"
 #   This file contains system setup requirements for the system.
 
 #   First, the ps_data file is always removed so that the ps command
@@ -20,7 +20,7 @@ then
 	/etc/prtconf
 fi
 
-#  If there are trademake files, print them.
+#  If there are trademark files, print them.
 
 if test -d /etc/tm
 then

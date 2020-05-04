@@ -1,7 +1,6 @@
 #!/bin/sh
-#ident	"@(#)uucp:uulog	2.3"
+#ident	"@(#)uucp:uulog	2.6"
 
-#From: ulysses!smb (Steven Bellovin)
 #
 # usage:
 # 	uulog
@@ -35,12 +34,12 @@ do
 		shift
 		if [ $# -eq 0 ]
 		then
-			echo "System name must follow -f flag" 1>&2
+			echo "uulog: system name must follow -f flag" 1>&2
 			exit 1
 		else
 			case "$1" in
 			-*)
-				echo "System name must follow -f flag" 1>&2
+				echo "uulog: system name must follow -f flag" 1>&2
 				exit 1
 				;;
 			esac
@@ -56,12 +55,12 @@ do
 	-s)	shift
 		if [ $# -eq 0 ]
 		then
-			echo "System name must follow -s flag" 1>&2
+			echo "uulog: system name must follow -s flag" 1>&2
 			exit 1
 		else
 			case "$1" in
 			-*)
-				echo "System name must follow -s flag" 1>&2
+				echo "uulog: system name must follow -s flag" 1>&2
 				exit 1
 				;;
 			esac
@@ -91,16 +90,26 @@ if [ x$fflag = x ]; then
 	fi
 	for i
 	do
-		if [ x$n = x ]; then
-			cat $type/$i
+		if [ -f $type/$i ]
+		then
+			if [ x$n = x ]; then
+				cat $type/$i
+			else
+				tail -$n $type/$i
+			fi
 		else
-			tail -$n $type/$i
+			echo "uulog: no log file available for system $i"
 		fi
 	done
 else
 	if [ $# != 1 ]; then
-		echo "Exactly one system with -f" 1>&2
+		echo "uulog: only one system allowed with -f" 1>&2
 		exit 2
 	fi
-	exec tail -${n}f $type/$1
+	if [ -f $type/$1 ]
+	then
+		exec tail -${n}f $type/$1
+	else
+		echo "uulog: no log file available for system $1"
+	fi
 fi

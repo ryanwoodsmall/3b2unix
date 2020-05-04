@@ -5,17 +5,18 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)head:dial.h	1.11"
+#ident	"@(#)head:dial.h	1.13"
 #ifndef IUCLC
 #include <sys/termio.h>
 #endif
 
-#define LDEVS	"/usr/lib/uucp/L-devices"
-#define SYSFILE "/usr/lib/uucp/L.sys"
-#define DIALFILE "/usr/lib/uucp/L-dialcodes"
+/* uucico routines need these */
+#define DIAL
+#define STANDALONE
+
 #define DEVDIR	"/dev/"			/* device path */
 #define LOCK	"/usr/spool/uucp/LCK.."	/* lock file semaphore */
-#define DVC_LEN	30	/* max NO of chars in TTY-device path name */
+#define DVC_LEN	80	/* max NO of chars in TTY-device path name */
 
 		/* error mnemonics */
 
@@ -33,6 +34,7 @@
 #define NO_BD_A	(-10)	/* no device available at requested baud */
 #define NO_BD_K	(-11)	/* no device known at requested baud */
 #define DV_NT_E (-12)	/* requested speed does not match */
+#define BAD_SYS (-13)	/* system not in Systems file */
 
 typedef struct {
 	struct termio *attr;	/* ptr to termio attribute struct */

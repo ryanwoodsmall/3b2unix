@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident	"@(#)vi:port/ex_vget.c	1.13"
+#ident	"@(#)vi:port/ex_vget.c	1.16"
 
 #include "ex.h"
 #include "ex_tty.h"
@@ -110,11 +110,10 @@ again:
 			goto getATTN;
 		error("Input read error");
 	}
-	c = ch & TRIM;
+	c = ch;
 	if (beehive_glitch && slevel==0 && c == ESCAPE) {
 		if (read(0, &Peek2key, 1) != 1)
 			goto getATTN;
-		Peek2key &= TRIM;
 		switch (Peek2key) {
 		case 'C':	/* SPOW mode sometimes sends \EC for space */
 			c = ' ';
@@ -246,8 +245,10 @@ readecho(c)
 	vgoto(WECHO, 1);
 	cursor = linebuf; linebuf[0] = 0; genbuf[0] = c;
 	if (peekbr()) {
-		if (!INS[0] || (INS[0] & (QUOTE|TRIM)) == OVERBUF)
+		if (!INS[0] || (unsigned char)INS[128] == 0200) {
+			INS[128] = 0;
 			goto blewit;
+		}
 		vglobp = INS;
 	}
 	OP = Pline; Pline = normline;
@@ -300,7 +301,7 @@ addtext(cp)
 	if (vglobp)
 		return;
 	addto(INS, cp);
-	if ((INS[0] & (QUOTE|TRIM)) == OVERBUF)
+	if ((unsigned char)INS[128] == 0200)
 		lastcmd[0] = 0;
 }
 
@@ -330,13 +331,14 @@ addto(buf, str)
 	register char *buf, *str;
 {
 
-	if ((buf[0] & (QUOTE|TRIM)) == OVERBUF)
+	if ((unsigned char)buf[128] == 0200)
 		return;
 	if (strlen(buf) + strlen(str) + 1 >= VBSIZE) {
-		buf[0] = OVERBUF;
+		buf[128] = 0200;
 		return;
 	}
 	ignore(strcat(buf, str));
+	buf[128] = 0;
 }
 
 /*

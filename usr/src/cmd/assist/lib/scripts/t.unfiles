@@ -135,7 +135,7 @@ directories.  Let's return to our office analogy.
 520 3cabinets
 520 clearbot
 705 3000 3001 76
-When you are looking for a envelope in an office, you have to make several 
+When you are looking for an envelope in an office, you have to make several 
 decisions.  First, you need to decide which file cabinet it is in.  Imagine 
 that you are looking for a memo you wrote in 1985.  Since your file cabinets 
 are arranged by year, your memo should be in the Cabinet 2 (1985).

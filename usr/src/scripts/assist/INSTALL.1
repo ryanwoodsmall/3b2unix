@@ -1,8 +1,7 @@
 #####################################################################
 #
 #	Floppy Installation Procedure for Package
-#	ASSIST System  1.0  March, 1986  
-#		(3B2 UNIX V 3.0)
+#	               ASSIST Software
 #
 #####################################################################
 #
@@ -15,7 +14,6 @@
 #	/install/install/packagename	contains the package info
 #	/install/install/preinstall	actions performed before
 #					files are copied.
-#					files are copied.
 #	/install/new			the "root" of the files to be installed
 #	/install/new/root		top of files going to / file system
 #
@@ -24,7 +22,11 @@
 #	Set global variables
 #
 
-PKGNAME="ASSIST"
+echo " "
+echo "Copyright (c) 1985 AT&T"
+echo "All Rights Reserved"
+echo " "
+
 LAST=3		        # number of floppies 
 REPLACE=0
 USRSPACE=0		# blocks required in /usr file system
@@ -85,37 +87,12 @@ SPACEFLAG=0		# space required flag
 
 if [ -n "${PKGINFO}" ]
 then
-	echo "\nThis diskette contains:\n     ${PKGINFO}"
-	/usr/lbin/chkyn -f "Do you want to install it?"  ||  exit 0
+	echo "\nThis diskette contains:  ${PKGINFO}"
 else
 	echo "** ERROR **  Packagename file missing from diskette.  Installation aborted."
 	exit 1
 fi
 
-#####################################################################
-#	Ask if user wants display of README file
-
-if [ -f ${mntdir}/install/README ]
-then
-	echo
-	/usr/lbin/chkyn -f "Do you want to read the PACKAGE DESCRIPTION FILE, which details
-installation requirements and procedures?" &&
-		( echo "\n********************************************************"
-		echo "***  HIT CARRIAGE RETURN TO VIEW THE FIRST PAGE AND  ***"
-		echo "*** SUBSEQUENT PAGES OF THE PACKAGE DESCRIPTION FILE ***"
-		echo "********************************************************"
-		pr -tpl23 ${mntdir}/install/README 2> /dev/null
-		echo "\nEnd of PACKAGE DESCRIPTION FILE display.\n"
-
-		#
-		#	Give user another escape
-		#
-
-		/usr/lbin/chkyn -f "Do you want to continue?" ||
-		( echo "Installation aborted.\n" ; exit 9 )
-	)
-	test `echo $?` = "9" && exit 0
-fi
 
 ###############################################################
 #
@@ -124,18 +101,12 @@ fi
 
 if [ -f /usr/options/assist.name ]
 then
-	echo "\n$PKGNAME already installed.\n"
-	/usr/lbin/chkyn -f "Do you want to replace it with
-     ${PKGINFO}?"  || exit 1
-
+	echo "\n$PKGINFO already installed.\n"
+	/usr/lbin/chkyn -f "Do you want to continue with this installation?" || exit 1
 	REPLACE=1
 fi
-
 echo " "
-echo "Copyright (c) 1985 AT&T"
-echo "All Rights Reserved"
-echo " "
-echo "${PKGNAME} contains 3 (three) floppy diskettes."
+echo "${PKGINFO} contains 3 (three) floppy diskettes."
 echo "The first two diskettes contain the files required for ASSIST."
 echo "The third diskette contains the ASTGEN software.  (ASTGEN allows"
 echo "you to modify existing menus and command forms or create new menus "
@@ -146,25 +117,7 @@ echo "use it.  Remember that you can easily install ASTGEN in the future"
 echo "by reinstalling the three floppy ASSIST/ASTGEN set."
 echo " "
 
-echo "Do you want to install the third diskette? (please answer y or n): \c"
-read ANS
-while true
-do
-	case $ANS in
-		yes | ye | y | Y)
-		LAST=3
-		break
-		;;
-		no | n | N)
-		LAST=2
-		break
-		;;
-		*) echo "Please type y or n"
-		   echo '>\c'
-		   read ANS
-		   ;;
-	esac
-done
+/usr/lbin/chkyn -f "Do you want to install the third diskette?" || LAST=2 
 
 if [ ! "$USRSPACE" = "0" ]	# space requirement hard coded
 then
@@ -175,7 +128,7 @@ then
 		then
 			echo "**ERROR**  This package needs $USRSPACE blocks in file system  '/usr'.
 There are only ${spaceleft} blocks left."
-			echo "${PKGNAME} cannot be installed."
+			echo "${PKGINFO} cannot be installed."
 			exit 0
 		fi
 	else
@@ -183,7 +136,7 @@ There are only ${spaceleft} blocks left."
 		then
 			echo "**ERROR**  This package needs $USRSPACE blocks in file system  '/usr'.
 There are only ${spaceleft} blocks left."
-			echo "${PKGNAME} cannot be installed."
+			echo "${PKGINFO} cannot be installed."
 			exit 0
 		fi
 	fi

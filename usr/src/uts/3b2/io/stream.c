@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/stream.c	10.14"
+#ident	"@(#)kern-port:io/stream.c	10.14.1.1"
 #include "sys/types.h"
 #include "sys/param.h"
 #include "sys/sysmacros.h"
@@ -1164,6 +1164,8 @@ alcfail:
 	printf("strinit: can not allocate stream data blocks\n");
 	for (i=0; i<NCLASS; i++) dbfreelist[i] = NULL;
 	mbfreelist = NULL;		
+	v.v_nblk4096 = v.v_nblk2048 = v.v_nblk1024 = v.v_nblk512 = v.v_nblk256
+		= v.v_nblk128 = v.v_nblk64 = v.v_nblk16 = v.v_nblk4 = 0;
 }
 
 

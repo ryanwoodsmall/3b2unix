@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident "@(#)vi:port/ex_cmds.c	1.13"
+#ident "@(#)vi:port/ex_cmds.c	1.17"
 #include "ex.h"
 #include "ex_argv.h"
 #include "ex_temp.h"
@@ -189,23 +189,25 @@ notinvis:
 			case 'o':
 				tail("copy");
 				vmacchng(0);
-				move();
+				vi_move();
 				continue;
 
-#ifdef CRYPT
 /* crypt */
 			case 'r':
 				tail("crypt");
+				crflag = -1;
 			ent_crypt:
 				setnoaddr();
 				xflag = 1;
-				if ((kflag = run_setkey(perm, vgetpass("Enter key:"))) == -1) {
+				if ((kflag = run_setkey(perm, (key = vgetpass("Enter key:")))) == -1) {
 					xflag = 0;
 					kflag = 0;
+					crflag = 0;
 					smerror("Encryption facility not available\n");
 				}
+				if(kflag == 0)
+					crflag = 0;
 				continue;
-#endif
 
 /* cd */
 			case 'd':
@@ -277,6 +279,8 @@ changdir:
 /* edit */
 /* ex */
 		case 'e':
+			if(crflag == 2 || crflag == -2)
+				crflag = -1;
 			tail(peekchar() == 'x' ? "ex" : "edit");
 editcmd:
 			if (!exclam() && chng)
@@ -388,7 +392,7 @@ casek:
 /* move */
 			tail("move");
 			vmacchng(0);
-			move();
+			vi_move();
 			continue;
 
 		case 'n':
@@ -537,6 +541,9 @@ quit:
 			} else
 				tail("read");
 /* read */
+			if(crflag == 2 || crflag == -2) 
+			/* restore crflag for new input text */
+				crflag = -1;
 			if (savedfile[0] == 0 && dol == zero)
 				c = 'e';
 			pastwh();
@@ -545,7 +552,7 @@ quit:
 				setdot();
 				ignchar();
 				unix0(0);
-				filter(0);
+				vi_filter(0);
 				continue;
 			}
 			filename(c);
@@ -642,7 +649,7 @@ suspend:
 			}
 			tail("t");
 			vmacchng(0);
-			move();
+			vi_move();
 			continue;
 
 		case 'u':
@@ -713,7 +720,7 @@ wq:
 				ignchar();
 				setall();
 				unix0(0);
-				filter(1);
+				vi_filter(1);
 			} else {
 				setall();
 				if (c == 'q')
@@ -726,11 +733,14 @@ wq:
 			if (c == 'q')
 				goto quit;
 			continue;
-#ifdef CRYPT
 /* X: crypt */
 		case 'X':
+			crflag = -1; /* determine if file is encrypted */
 			goto ent_crypt;
-#endif
+		
+		case 'C':
+			crflag = 1;  /* assume files read in are encrypted */
+			goto ent_crypt;
 
 /* xit */
 		case 'x':
@@ -841,7 +851,7 @@ numberit:
 				vmacchng(0);
 				unix0(0);
 				setdot();
-				filter(2);
+				vi_filter(2);
 			} else {
 				unix0(1);
 				pofix();

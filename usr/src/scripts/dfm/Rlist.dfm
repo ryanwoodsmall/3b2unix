@@ -10,7 +10,9 @@
 /usr/bin/dircmp
 /usr/bin/join
 /usr/bin/newform
+/usr/bin/nawk
 /usr/bin/nl
+/usr/bin/oawk
 /usr/bin/pack
 /usr/bin/paste
 /usr/bin/pcat

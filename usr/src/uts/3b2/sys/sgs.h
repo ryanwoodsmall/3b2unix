@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/sgs.h	10.1"
+#ident	"@(#)kern-port:sys/sgs.h	10.2"
 
 #if vax
 #define ISMAGIC(x)	((((unsigned short)x)==(unsigned short)VAXROMAGIC) || \
@@ -25,7 +25,7 @@
 #define	AOUT3MAGIC	0413	/* Paging aout header magic number. */
 
 #endif
-#if u3b || u3b5 || u3b2
+#if u3b || u3b15 || u3b2
 #if u3b
 #define ISMAGIC(x)	((((unsigned short)x)==(unsigned short)N3BMAGIC) || \
 			(((unsigned short)x)==(unsigned short)NTVMAGIC))

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:cico.c	2.15"
+#ident	"@(#)uucp:cico.c	2.22"
 
 /*
 
@@ -44,6 +44,10 @@ char **envp;
 	extern onintr(), timeout();
 	extern intrEXIT();
 	extern char *pskip();
+	extern void setservice();
+#ifdef NOSTRANGERS
+	void checkrmt();
+#endif /* NOSTRANGERS */
 	int ret, seq, exitcode, i;
 	char file[NAMESIZE];
 	char msg[BUFSIZ], *p, *q;
@@ -56,6 +60,7 @@ char **envp;
 	long 	minulimit, dummy;
 #endif /* V7 */
 
+	Ulimit = ulimit(1,0L);
 	Uid = getuid();
 	Euid = geteuid();	/* this should be UUCPUID */
 	if (Uid == 0)
@@ -69,8 +74,13 @@ char **envp;
 	time(&Nstat.t_qtime);
 	tconv = Nstat.t_start = Nstat.t_qtime;
 	strcpy(Progname, "uucico");
-	ret = setservice(Progname);
+	setservice(Progname);
+	ret = sysaccess(EACCESS_SYSTEMS);
 	ASSERT(ret == 0, Ct_OPEN, "Systems", ret);
+	ret = sysaccess(EACCESS_DEVICES);
+	ASSERT(ret == 0, Ct_OPEN, "Devices", ret);
+	ret = sysaccess(EACCESS_DIALERS);
+	ASSERT(ret == 0, Ct_OPEN, "Dialers", ret);
 	Pchar = 'C';
 	(void) signal(SIGILL, intrEXIT);
 	(void) signal(SIGTRAP, intrEXIT);
@@ -259,19 +269,7 @@ char **envp;
 		DEBUG(4, "sys-%s\n", Rmtname);
 
 #ifdef NOSTRANGERS
-/* here's the place to look the remote system up in the Systems file.
- * If the command NOSTRANGERS is executable and 
-/* If they're not in my file then hang up */
-		if ( (access(NOSTRANGERS, 1) == 0) && versys(Rmtname)) {
-			omsg('R', "You are unknown to me", Ofn);
-			if ( fork() == 0 ) {
-				execlp(NOSTRANGERS, "stranger",
-						Rmtname, (char *)NULL);
-				perror("cico.c: execlp NOSTRANGERS failed");
-				cleanup(errno);
-			}
-			cleanup(101);
-		}
+		checkrmt();	/* do we know the remote system? */
 #endif /* NOSTRANGERS */
 
 		if (mlock(Rmtname)) {
@@ -327,8 +325,13 @@ char **envp;
 		}
 		ttyn = ttyname(Ifn);
 		if (ttyn != NULL) {
+			struct stat ttysbuf;
+			if ( fstat(Ifn,&ttysbuf) == 0 )
+				Dev_mode = ttysbuf.st_mode;
+			else
+				Dev_mode = R_DEVICEMODE;
 			strcpy(Dc, BASENAME(ttyn, '/'));
-			chmod(ttyn, 0666);
+			chmod(ttyn, S_DEVICEMODE);
 		} else
 			strcpy(Dc, "notty");
 		/* set args for possible xuuxqt call */
@@ -387,8 +390,14 @@ char **envp;
 		} else {
 			logent(msg, "SUCCEEDED");
 			ttyn = ttyname(Ifn);
-			if (ttyn != NULL)
-				chmod(ttyn, DEVICEMODE);
+			if (ttyn != NULL) {
+				struct stat ttysbuf;
+				if ( fstat(Ifn,&ttysbuf) == 0 )
+					Dev_mode = ttysbuf.st_mode;
+				else
+					Dev_mode = R_DEVICEMODE;
+				chmod(ttyn, M_DEVICEMODE);
+			}
 		}
 	
 		if (setjmp(Sjbuf)) {
@@ -643,9 +652,58 @@ register char *p;
 void
 closedem()
 {
-	register i;
+	register i, maxfiles;
 
-	for(i=3;i<_NFILE;i++)
+#ifdef ATTSVR3
+	maxfiles = ulimit(4,0);
+#else /* !ATTSVR3 */
+	maxfiles = _NFILE;
+#endif /* ATTSVR3 */
+
+	for (  i = 3; i < maxfiles; i++ )
 		if ( i != Ifn && i != Ofn && i != fileno(stderr) )
 			(void) close(i);
 }
+
+
+#ifdef NOSTRANGERS
+
+/*
+ *	checkrmt()
+ *
+ *	if the command NOSTRANGERS is executable and if we don't
+ *	know the remote system (i.e., it doesn't appear in the
+ *	Systems file), run NOSTRANGERS to log the attempt and hang up.
+ */
+
+static void
+checkrmt()
+{
+	int	pid, waitrv;
+
+	if ( (access(NOSTRANGERS, 1) == 0) && versys(Rmtname)) {
+
+		DEBUG(5, "Invoking NOSTRANGERS for %s\n", Rmtname);
+		(void) signal(SIGHUP, SIG_IGN);
+		errno = 0;
+		if ( (pid = fork()) == 0 ) {
+			execlp(NOSTRANGERS, "stranger",
+					Rmtname, (char *)NULL);
+			perror("cico.c: execlp NOSTRANGERS failed");
+		} else if ( pid < 0 ) {
+			perror("cico.c: fork failed");
+		} else {
+			while ( (waitrv = wait((int *)0)) != pid ) {
+				if ( waitrv < 0  && errno != EINTR ) {
+					perror("cico.c: wait failed");
+					break;
+				}
+			}
+		}
+
+		omsg('R', "You are unknown to me", Ofn);
+		cleanup(101);
+	}
+	return;
+}
+#endif /* NOSTRANGERS */

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sh:xec.c	1.22"
+#ident	"@(#)sh:xec.c	1.28.1.1"
 /*
  *
  * UNIX shell
@@ -216,7 +216,7 @@ int	*pf1, *pf2;
 								{	
 									int	i;	
 		
-									if ((i = stoi(*com)) >= MAXTRAP || i < MINTRAP)	
+									if ((i = stoi(*com)) >= MAXTRAP || i < MINTRAP || i == SIGSEGV)	
 										failed(*com, badtrap);	
 									else if (clear)	
 										clrsig(i);	
@@ -300,8 +300,28 @@ int	*pf1, *pf2;
 								}	
 								while ((f = (chdir(curstak()) < 0)) && cdpath);
 		
-								if (f)	
-									failed(a1, baddir);	
+								if (f) {
+									switch(errno) {
+											case EMULTIHOP:
+												failed(a1, emultihop);
+												break;
+											case ENOTDIR:
+												failed(a1, enotdir);
+												break;
+											case ENOENT:
+												failed(a1, enoent);
+												break;
+											case EACCES:
+												failed(a1, eacces);
+												break;
+											case ENOLINK:
+												failed(a1, enolink);
+												break;
+											default: 	
+									    		failed(a1, baddir);	
+											break;
+											}
+								}
 								else 
 								{
 									cwd(curstak());
@@ -319,7 +339,7 @@ int	*pf1, *pf2;
 							else 
 							{
 								if (a1)
-									failed(a1, baddir);	
+									error(nulldir);	
 								else
 									error(nohome);
 							}
@@ -672,8 +692,9 @@ int	*pf1, *pf2;
 						}
 					}
 					sigchk();
+					sighold(SIGALRM);
 					alarm(forkcnt);
-					pause(); 
+					sigpause(SIGALRM); 
 					alarm(0); /* remove alarm so alarm signal
 						     doesn't kill shell later */
 				}
@@ -727,8 +748,8 @@ int	*pf1, *pf2;
 				oldsigs();
 				if (treeflgs & FINT)
 				{
-					signal(SIGINT, 1);
-					signal(SIGQUIT, 1);
+					sigset(SIGINT, SIG_IGN);
+					sigset(SIGQUIT, SIG_IGN);
 
 #ifdef NICE
 					nice(NICEVAL);

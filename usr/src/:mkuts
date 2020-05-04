@@ -1,4 +1,4 @@
-#ident	"@(#)mk::mkuts	1.10"
+#ident	"@(#)mk::mkuts	1.11"
 #
 #	Configure and make the UNIX Operating System with various devices
 #
@@ -70,10 +70,10 @@ then
 	then
 		echo ":mkuts: *** $MAKE of unix failed"
 	fi
-elif u3b5
+elif u3b15
 then
 #
-	cd $SRCDIR/3b5
+	cd $SRCDIR/3b15
 	echo "$MAKE -f unix.mk install SYS=unix VER=2"
 	$MAKE -f unix.mk install SYS=unix VER=2
         if [ $? -ne 0 ]

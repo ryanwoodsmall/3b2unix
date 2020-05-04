@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident "@(#)vi:port/ex_re.c	1.11"
+#ident "@(#)vi:port/ex_re.c	1.14"
 
 #include "ex.h"
 #include "ex_re.h"
@@ -324,8 +324,13 @@ comprhs(seof)
 				 * When "magic", \& turns into a plain &,
 				 * and all other chars work fine quoted.
 				 */
-				if (c != '&')
-					c |= QUOTE;
+				if (c != '&') {
+					if(rp >= &rhsbuf[RHSSIZE - 1]) {
+						*rp=0;
+						error("Replacement pattern too long@- limit 256 characters");
+					}
+					*rp++ = '\\';
+				}
 				break;
 			}
 magic:
@@ -335,7 +340,11 @@ magic:
 						goto toobig;
 				continue;
 			}
-			c |= QUOTE;
+			if(rp >= &rhsbuf[RHSSIZE - 1]) {
+				*rp=0;
+				error("Replacement pattern too long@- limit 256 characters");
+			}
+			*rp++ = '\\';
 			break;
 
 		case '\n':
@@ -429,15 +438,6 @@ again:
 	return (ch == 'y');
 }
 
-getch()
-{
-	char c;
-
-	if (read(2, &c, 1) != 1)
-		return (EOF);
-	return (c & TRIM);
-}
-
 ugo(cnt, with)
 	int with;
 	int cnt;
@@ -473,8 +473,8 @@ dosub()
 		if (c == '\r')
 			c = '\n';
 
-		if (c & QUOTE)
-			switch (c & TRIM) {
+		if (c == '\\') {
+			switch ((c = *rp++)) {
 
 			case '&':
 				sp = place(sp, loc1, loc2);
@@ -507,16 +507,17 @@ dosub()
 				casecnt = 0;
 				continue;
 			}
-		if ((c & QUOTE) && (c &= TRIM) >= '1' && c < nbra + '1') {
-			sp = place(sp, braslist[c - '1'], braelist[c - '1']);
-			if (sp == 0)
-				goto ovflo;
-			continue;
+			if(c >= '1' && c < nbra + '1') {
+				sp = place(sp, braslist[c - '1'], braelist[c - '1']);
+				if (sp == 0)
+					goto ovflo;
+				continue;
+			}
 		}
 		if (casecnt)
-			*sp++ = fixcase(c & TRIM);
+			*sp++ = fixcase(c);
 		else
-			*sp++ = c & TRIM;
+			*sp++ = c;
 		if (sp >= &genbuf[LBSIZE])
 ovflo:
 			error("Line overflow@in substitute");
@@ -680,8 +681,8 @@ magic:
 			case '~':
 				rhsp = rhsbuf;
 				while (*rhsp) {
-					if (*rhsp & QUOTE) {
-						c = *rhsp & TRIM;
+					if (*rhsp == '\\') {
+						c = *++rhsp;
 						if (c == '&')
 error("Replacement pattern contains &@- cannot use in re");
 						if (c >= '1' && c <= '9')
@@ -690,7 +691,7 @@ error("Replacement pattern contains \\d@- cannot use in re");
 					if (ep >= &expbuf[ESIZE-2])
 						goto complex;
 					*ep++ = CCHR;
-					*ep++ = *rhsp++ & TRIM;
+					*ep++ = *rhsp++;
 				}
 				continue;
 
@@ -699,7 +700,7 @@ error("Replacement pattern contains \\d@- cannot use in re");
 					break;
 				if (*lastep == CBRA || *lastep == CKET)
 cerror("Illegal *|Can't * a \\( ... \\) in regular expression");
-				if (*lastep == CCHR && (lastep[1] & QUOTE))
+				if (*lastep == CCHR && (lastep[1] == '\\'))
 cerror("Illegal *|Can't * a \\n in regular expression");
 				*lastep |= STAR;
 				continue;
@@ -716,9 +717,15 @@ cerror("Illegal *|Can't * a \\n in regular expression");
 				if (c == ']')
 cerror("Bad character class|Empty character class '[]' or '[^]' cannot match");
 				while (c != ']') {
-					if (c == '\\' && any(peekchar(), "]-^\\"))
-						c = getchar() | QUOTE;
-					if (c == '\n' || c == EOF)
+					if (c == '\\') {
+						if(any(peekchar(), "]-^\\")) 
+							c = getchar();
+						*ep++ = '\\';
+						cclcnt++;
+						if (ep >= &expbuf[ESIZE])
+							goto complex;
+					}
+					else if (c == '\n' || c == EOF)
 						cerror("Missing ]");
 					*ep++ = c;
 					cclcnt++;
@@ -737,19 +744,8 @@ cerror("Bad character class|Empty character class '[]' or '[^]' cannot match");
 			*ep++ = CCHR;
 			if (c == '\n')
 cerror("No newlines in re's|Can't escape newlines into regular expressions");
-/*
-			if (c < '1' || c > NBRA + '1') {
-*/
-				*ep++ = c;
-				continue;
-/*
-			}
-			c -= '1';
-			if (c >= nbra)
-cerror("Bad \\n|\\n in regular expression with n greater than the number of \\('s");
-			*ep++ = c | QUOTE;
+			*ep++ = c;
 			continue;
-*/
 
 		case '\n':
 			if (oknl) {
@@ -858,19 +854,6 @@ advance(lp, ep)
 	for (;;) switch (*ep++) {
 
 	case CCHR:
-/* useless
-		if (*ep & QUOTE) {
-			c = *ep++ & TRIM;
-			sp = braslist[c];
-			sp1 = braelist[c];
-			while (sp < sp1) {
-				if (!same(*sp, *lp))
-					return (0);
-				sp++, lp++;
-			}
-			continue;
-		}
-*/
 		if (!same(*ep, *lp))
 			return (0);
 		ep++, lp++;
@@ -944,7 +927,7 @@ star:
 		return (0);
 
 	case CBRC:
-		if (lp == expbuf)
+		if (lp == linebuf)
 			continue;
 		if ((isdigit(*lp) || uletter(*lp)) && !uletter(lp[-1]) && !isdigit(lp[-1]))
 			continue;
@@ -965,21 +948,34 @@ cclass(set, c, af)
 	register int c;
 	int af;
 {
+	register int inc;
 	register int n;
+	register char lower, upper;
 
 	if (c == 0)
 		return (0);
 	if (value(vi_IGNORECASE) && isupper(c))
 		c = tolower(c);
 	n = *set++;
-	while (--n)
-		if (n > 2 && set[1] == '-') {
-			if (c >= (set[0] & TRIM) && c <= (set[2] & TRIM))
-				return (af);
+	while (--n) {
+		if(*set == '\\') {
+			n--;
+			set++;
+		}
+		if(n > 2 && set[1] == '-') {
+			lower = set[0];
+			if(set[2] == '\\') {
+				set++;
+				n--;
+			}
+			upper = set[2];
+			if(c >= lower && c <= upper)
+				return(af);
 			set += 3;
 			n -= 2;
 		} else
-			if ((*set++ & TRIM) == c)
-				return (af);
-	return (!af);
+			if(*set++ == c)
+				return(af);
+	}
+	return(!af);
 }

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)listen:lsparam.h	1.3"
+#ident	"@(#)listen:lsparam.h	1.7"
 
 /*
  * lsparam.h:	listener paramters.  Includes default pathnames.
@@ -37,13 +37,11 @@
 #define MAXNAMESZ	15		/* must coexist with ms-net (5c) */
 #define SNNMBUFSZ	16		/* starlan network only		*/
 #define NAMEBUFSZ	64
-#define QLEN		1		/* t_bind requestes qlen	*/
-#define MINMSGSZ	(SMBIDSZ+1)	/* smallest acceptable msg size	*/
+#define MINMSGSZ	(SMBIDSZ+2)	/* smallest acceptable msg size	*/
 #define RCVBUFSZ	BSIZE		/* receive buffer size		*/
 #define DBFLINESZ	BSIZE		/* max line size in data base 	*/
 #define ALARMTIME	45		/* seconds to wait for t_rcv	*/
 #define PATHSIZE	64		/* max size of pathnames	*/
-#define NENVIRON	10		/* number of server env variables */
 
 /*
  * LOGMAX is default no of entries maintained
@@ -62,21 +60,14 @@
 #define	SMBSERVER	1		/* undef to remove SMBSERVICE support*/
 
 /*
- * if listener (or child) dies, dump core for daignostic purposes
+ * if listener (or child) dies, dump core for diagnostic purposes
  */
 
 /* #define COREDUMP */
 
-/*
- * listener (effectively) does a setuid to LSUIDNAME after getting the uid
- * from the passwd file via getpwnam.
- */
-
-#define LSUIDNAME	"listen"
-#define LSGRPNAME	"adm"
-
 /* the following filenames are used in homedir:	*/
 
+#define BASEDIR	"/usr/net/nls"		/* base directory for listen	*/
 #define	LOGNAME	"log"			/* listener's logfile		*/
 #define	OLOGNAME "o.log"		/* listener's saved logfile	*/
 #define DBGNAME	"debug"			/* debug output file		*/
@@ -100,4 +91,3 @@
 #ifndef	S4
 #define	locking	lockf
 #endif
-

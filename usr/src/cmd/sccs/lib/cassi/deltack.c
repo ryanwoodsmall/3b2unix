@@ -5,16 +5,16 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sccs:lib/cassi/deltack.c	6.5"
+#ident	"@(#)sccs:lib/cassi/deltack.c	6.6"
 #include <errno.h>
 #include "../../hdr/had.h"
 #include "../../hdr/defines.h"
 #include "../../hdr/filehand.h"
+
 #define FOREVER 1
 #define MAXLIST 15
 #define MAXLIST2 20
 #define MAXLENCMR 12
-char *Sccsids="@(#)sccs:lib/cassi/deltack.c	6.5";
 char *strtok(),*strcpy(),*strchr(),*malloc(),*logname();
 char errorlog[FILESIZE];		 /* log cmts errors here */
 FILE *efd;

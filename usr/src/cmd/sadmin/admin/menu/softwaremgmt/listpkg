@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:admin/menu/softwaremgmt/listpkg	2.4"
+#ident	"@(#)sadmin:admin/menu/softwaremgmt/listpkg	2.5"
 #menu# list packages already installed
 #help#
 #help#	This subcommand shows you a list of currently installed optional
@@ -11,11 +11,10 @@ then
 	c=`ls *.name 2>/dev/null  |  sed 's/\.name$//'`
 	if [ -n "${c}" ]
 	then
-		echo '\n\tThe following software packages have been installed:'
+		echo '\n\tThe following software packages have been installed:\n'
 		for i in ${c}
 		do
-			echo "${i}\\c"
-			sed 's/^/	/' ${i}.name
+			( echo "${i}\t\c"; cat ${i}.name ) | pr -w79 -t -e9 -
 		done
 	fi
 fi

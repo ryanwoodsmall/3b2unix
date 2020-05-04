@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)stincc:scommon/cost.c	1.7"
+#ident	"@(#)stincc:scommon/cost.c	1.8"
 
 # include "mfile2.h"
 
@@ -114,7 +114,7 @@ again:
 	o = p->tn.op;
 
 #ifndef NODBG
-	if( odebug>1 ) printf( "insout(%d,%d)\n", p-node,i );
+	if( odebug>1 ) printf( "insout(%d,%d)\n", node_no(p),i );
 #endif
 
 	/* handle COMOP specially */
@@ -302,7 +302,7 @@ dosubs:
 	{
 		if ( needregs > haveregs )
 			printf("Out of registers: ");
-		printf("%d needs %d regs, have %d regs\n",p-node,needregs,haveregs);
+		printf("%d needs %d regs, have %d regs\n",node_no(p),needregs,haveregs);
 	}
 #endif
 	if (needregs > haveregs) {	/* We're out of registers */
@@ -324,7 +324,7 @@ dosubs:
 			&& rewsto(subtree)
 			) {
 			if (odebug)
-			    printf("Subtree %d spills to TEMP\n", subtree - node);
+			    printf("Subtree %d spills to TEMP\n", node_no(subtree));
 			return( REWROTE );	/* successful spill */
 		    }
 		}
@@ -338,7 +338,7 @@ dosubs:
 	if( odebug>1 ) {  /* subtree matches are: */
 		printf( "\t\t%d matches\n", nn );
 		for( k=0; k<nn; ++k ) {
-			printf( "\t\tnode %d, goal %d\n",mysubs[k]-node,
+			printf( "\t\tnode %d, goal %d\n",node_no(mysubs[k]),
 				mygoal[k] );
 			}
 		}
@@ -351,7 +351,7 @@ dosubs:
 		NODE * sub = mysubs[k];
 # ifndef NODBG
 		if( odebug>2 )
-			printf( "\t\tcalling insout(%d,%d)\n", sub-node,
+			printf( "\t\tcalling insout(%d,%d)\n", node_no(sub),
 					curregs );
 # endif
 
@@ -377,7 +377,7 @@ dosubs:
 		{
 #ifndef NODBG
 			if (odebug)
-				printf("Subtree %d out of regs\n",sub - node);
+				printf("Subtree %d out of regs\n",node_no(sub));
 #endif
 
 			/*Try the other ordering, if possible*/
@@ -387,7 +387,7 @@ dosubs:
 #ifndef NODBG
 				if (odebug)
 					printf("%d First order fails;try RTOL\n",
-					p-node);
+					node_no(p));
 #endif
 				s = RTOL;
 				nins = savins;
@@ -401,7 +401,7 @@ dosubs:
 #ifndef NODBG
 			if (odebug)
 				printf("Subtree %d goes into TEMP\n",
-					sub - node);
+					node_no(sub));
 #endif
 			/* rewrite sub-tree to TEMP, if possible */
 			if (rewsto(mysubs[k]))
@@ -409,7 +409,7 @@ dosubs:
 			else {
 			    if (odebug)
 				printf("-->> Couldn't rewrite %d to TEMP\n",
-					sub-node);
+					node_no(sub));
 			    return( OUTOFREG ); /* fail */
 			}
 		}
@@ -420,9 +420,10 @@ dosubs:
 #ifndef NODBG
 	if (odebug)
 		printf("Generate #%d: node %d template %d\n",
-			nins, p-node, q->stinline);
+			nins, node_no(p), q->stinline);
 # endif
-	if( nins >= NINS ) cerror( "too many instructions generated" );
+	if( nins >= NINS )
+	    td_enlarge(&td_inst, 0);	/* expand instruction table */
 	inst[nins].p = p;
 	inst[nins].q = q;
 	inst[nins].goal = goal;
@@ -436,6 +437,9 @@ dosubs:
 		    inst[nins].goal = CTEMP;
 	}
 	++nins;
+#ifdef STATSOUT
+	if (td_inst.td_max < nins) td_inst.td_max = nins;
+#endif
 	return 0;
 }
 
@@ -450,7 +454,7 @@ SHAPE *s;
 
 # ifndef NODBG
 	if( e2debug>1 ) {
-		printf( "\t\tfindsub( %d, %d )\n", p-node, s-shapes );
+		printf( "\t\tfindsub( %d, %d )\n", node_no(p), s-shapes );
 		}
 # endif
 

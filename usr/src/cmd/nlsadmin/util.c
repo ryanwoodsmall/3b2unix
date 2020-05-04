@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)nlsadmin:util.c	1.6"
+#ident	"@(#)nlsadmin:util.c	1.6.1.1"
 
 #include "fcntl.h"
 #include "stdio.h"
@@ -20,12 +20,18 @@
 
 extern char	*arg0;
 extern int	Errno;
+extern int	Version;
+extern char	*Netspec;
 extern char	serv_str[];
+extern char	id_str[];
+extern char	res_str[];
 extern char	flag_str[];
 extern char	mod_str[];
 extern char	path_str[];
 extern char	cmnt_str[];
 extern char	*errmalloc;
+extern char	*errcorrupt;
+extern char	*erropen;
 
 /*
  * read_dbf:    Parses the next non-comment line into the
@@ -80,14 +86,14 @@ FILE *fp;
  *
  *      non-null lines have the following format:
  *
- *      service_code: flags: serv_name: modules_to_push: cmd_line # comments
+ *      service_code: flags: id: reserved: modules_to_push: cmd_line # comments
  */
 
 int
 parse_line(bp)
 register char *bp;
 {
-	char *servp, *flagp, *modp, *pathp;
+	char *servp, *idp, *resp, *flagp, *modp, *pathp;
 	int length;
 	char *from, *to;
 
@@ -98,6 +104,12 @@ register char *bp;
 	if (!(flagp = strtok((char *)0, DBFTOKENS)))  {
 		return(0);
 	}
+	if (!(idp = strtok((char *)0, DBFTOKENS))) {
+		return(0);
+	}
+	if (!(resp = strtok((char *)0, DBFTOKENS))) {
+		return(0);
+	}
 	if (!(modp = strtok((char *)0, DBFTOKENS))) {
 		return(0);
 	}
@@ -105,6 +117,8 @@ register char *bp;
 	if ((pathp - bp) >= length)
 		return(0);
 	strcpy(serv_str, servp);
+	strcpy(id_str, idp);
+	res_str[0] = (char)0;	/* reserved for future use, don't care for now */
 	strcpy(flag_str, flagp);
 	mod_str[0] = (char)0;
 	for (from = modp, to = mod_str; *from; ) {
@@ -123,6 +137,7 @@ register char *bp;
 	strcpy(path_str, pathp);
 	return(1);
 }
+
 
 char *
 clean_line(s)
@@ -164,3 +179,44 @@ char *s;
 	return(s);
 }
 
+
+#define VERSIONSTR	"# VERSION="
+
+check_version(fname)
+char *fname;
+{
+	FILE *fp;
+	char *line, *p, *tmp;
+	int version;
+
+	if ((fp = fopen(fname, "r")) == NULL) {
+		fprintf(stderr, erropen, arg0, Netspec);
+		exit(NLSOPEN);
+	}
+	if ((line = (char *) malloc(DBFLINESZ)) == NULL)
+		error(errmalloc, NLSMEM);
+	p = line;
+	while (fgets(p, DBFLINESZ, fp)) {
+		if (!strncmp(p, VERSIONSTR, strlen(VERSIONSTR))) {
+			/* pitch the newline */
+			tmp = strchr(p, '\n');
+			if (tmp)
+				*tmp = '\0';
+			else
+				error(errcorrupt, NLSDBFBAD);
+			p += strlen(VERSIONSTR);
+			if (*p)
+				version = atoi(p);
+			else
+				error(errcorrupt, NLSDBFBAD);
+			free(line);
+			fclose(fp);
+			if (version != Version)
+				return(1);	/* wrong version */
+			else
+				return(0);	/* version ok */
+		}
+		p = line;
+	}
+	error(errcorrupt, NLSDBFBAD);
+}

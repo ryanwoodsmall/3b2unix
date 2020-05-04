@@ -5,22 +5,22 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)kern-port:nudnix/nudnix.mk	10.15"
+#ident	"@(#)kern-port:nudnix/nudnix.mk	10.15.6.3"
 #
 #		Copyright 1984 AT&T
 #
 
 ROOT = 
 STRIP = strip
-INCRT = $(ROOT)/usr/include
+INC = $(ROOT)/usr/include
 MKBOOT = mkboot
 MASTERD = ../master.d
 DASHG = 
 VER = mip
 DASHO = -O
 DUDEBUG = YES
-CFLAGS= -I$(INCRT) -DINKERNEL $(MORECPP) $(DASHG) $(DASHO) -Du3b2 -DDUDEBUG=$(DUDEBUG)
-PFLAGS= -I$(INCRT) -DINKERNEL $(MORECPP) $(DASHG)
+CFLAGS= -I$(INC) -DINKERNEL $(MORECPP) $(DASHG) $(DASHO) -Du3b2 -DDUDEBUG=$(DUDEBUG)
+PFLAGS= -I$(INC) -DINKERNEL $(MORECPP) $(DASHG)
 FRC =
 
 DFILES =\
@@ -29,6 +29,7 @@ DFILES =\
 FILES =\
 	adv.o\
 	auth.o\
+	cache.o\
 	canon.o\
 	cirmgr.o\
 	comm.o\
@@ -37,6 +38,7 @@ FILES =\
 	netboot.o\
 	que.o\
 	queue.o\
+	rbio.o\
 	rdebug.o\
 	recover.o\
 	remcall.o\
@@ -78,499 +80,553 @@ FRC:
 #
 
 adv.o:\
-	$(INCRT)/sys/types.h\
-	$(INCRT)/sys/sema.h\
-	$(INCRT)/sys/param.h\
-	$(INCRT)/sys/fs/s5param.h\
-	$(INCRT)/sys/fs/s5dir.h\
-	$(INCRT)/sys/signal.h\
-	$(INCRT)/sys/psw.h\
-	$(INCRT)/sys/pcb.h\
-	$(INCRT)/sys/user.h\
-	$(INCRT)/sys/comm.h\
-	$(INCRT)/sys/inode.h\
-	$(INCRT)/sys/mount.h\
-	$(INCRT)/sys/errno.h\
-	$(INCRT)/sys/adv.h\
-	$(INCRT)/sys/nserve.h\
-	$(INCRT)/sys/debug.h\
-	$(INCRT)/sys/rdebug.h\
-	$(INCRT)/sys/inline.h\
+	$(INC)/sys/types.h\
+	$(INC)/sys/sema.h\
+	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/signal.h\
+	$(INC)/sys/psw.h\
+	$(INC)/sys/pcb.h\
+	$(INC)/sys/user.h\
+	$(INC)/sys/comm.h\
+	$(INC)/sys/inode.h\
+	$(INC)/sys/mount.h\
+	$(INC)/sys/errno.h\
+	$(INC)/sys/adv.h\
+	$(INC)/sys/nserve.h\
+	$(INC)/sys/debug.h\
+	$(INC)/sys/rdebug.h\
+	$(INC)/sys/inline.h\
 	$(FRC)
 
 auth.o:\
-	$(INCRT)/sys/types.h\
-	$(INCRT)/sys/sema.h\
-	$(INCRT)/sys/sysmacros.h\
-	$(INCRT)/sys/param.h\
-	$(INCRT)/sys/fs/s5param.h\
-	$(INCRT)/sys/fs/s5dir.h\
-	$(INCRT)/sys/inode.h\
-	$(INCRT)/sys/errno.h\
-	$(INCRT)/sys/signal.h\
-	$(INCRT)/sys/comm.h\
-	$(INCRT)/sys/psw.h\
-	$(INCRT)/sys/pcb.h\
-	$(INCRT)/sys/user.h\
-	$(INCRT)/sys/nserve.h\
-	$(INCRT)/sys/cirmgr.h\
-	$(INCRT)/sys/file.h\
-	$(INCRT)/sys/stat.h\
-	$(INCRT)/sys/idtab.h\
-	$(INCRT)/sys/debug.h\
-	$(INCRT)/sys/inline.h\
-	$(INCRT)/sys/rdebug.h\
+	$(INC)/sys/types.h\
+	$(INC)/sys/sema.h\
+	$(INC)/sys/sysmacros.h\
+	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/inode.h\
+	$(INC)/sys/errno.h\
+	$(INC)/sys/signal.h\
+	$(INC)/sys/comm.h\
+	$(INC)/sys/psw.h\
+	$(INC)/sys/pcb.h\
+	$(INC)/sys/user.h\
+	$(INC)/sys/nserve.h\
+	$(INC)/sys/cirmgr.h\
+	$(INC)/sys/file.h\
+	$(INC)/sys/stat.h\
+	$(INC)/sys/idtab.h\
+	$(INC)/sys/debug.h\
+	$(INC)/sys/inline.h\
+	$(INC)/sys/rdebug.h\
+	$(FRC)
+
+cache.o:\
+	$(INC)/sys/types.h\
+	$(INC)/sys/sema.h\
+	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/errno.h\
+	$(INC)/sys/signal.h\
+	$(INC)/sys/immu.h\
+	$(INC)/sys/stream.h\
+	$(INC)/sys/comm.h\
+	$(INC)/sys/psw.h\
+	$(INC)/sys/pcb.h\
+	$(INC)/sys/user.h\
+	$(INC)/sys/inode.h\
+	$(INC)/sys/message.h\
+	$(INC)/sys/region.h\
+	$(INC)/sys/proc.h\
+	$(INC)/sys/nserve.h\
+	$(INC)/sys/cirmgr.h\
+	$(INC)/sys/debug.h\
+	$(INC)/sys/rdebug.h\
+	$(INC)/sys/sysinfo.h\
+	$(INC)/sys/buf.h\
+	$(INC)/sys/rbuf.h\
+	$(INC)/sys/fcntl.h\
+	$(INC)/sys/flock.h\
 	$(FRC)
 
 canon.o:\
-	$(INCRT)/sys/types.h\
-	$(INCRT)/sys/param.h\
-	$(INCRT)/sys/fs/s5param.h\
+	$(INC)/sys/types.h\
+	$(INC)/sys/param.h\
 	$(FRC)
 
 cirmgr.o:\
-	$(INCRT)/sys/types.h\
-	$(INCRT)/sys/sema.h\
-	$(INCRT)/sys/signal.h\
-	$(INCRT)/sys/file.h\
-	$(INCRT)/sys/fs/s5dir.h\
-	$(INCRT)/sys/psw.h\
-	$(INCRT)/sys/pcb.h\
-	$(INCRT)/sys/user.h\
-	$(INCRT)/sys/errno.h\
-	$(INCRT)/sys/stropts.h\
-	$(INCRT)/sys/stream.h\
-	$(INCRT)/sys/var.h\
-	$(INCRT)/sys/comm.h\
-	$(INCRT)/sys/recover.h\
-	$(INCRT)/sys/inline.h\
-	$(INCRT)/sys/rdebug.h\
-	$(INCRT)/sys/nserve.h\
-	$(INCRT)/sys/inode.h\
-	$(INCRT)/sys/cirmgr.h\
-	$(INCRT)/sys/tihdr.h\
+	$(INC)/sys/types.h\
+	$(INC)/sys/sema.h\
+	$(INC)/sys/signal.h\
+	$(INC)/sys/file.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/psw.h\
+	$(INC)/sys/pcb.h\
+	$(INC)/sys/user.h\
+	$(INC)/sys/errno.h\
+	$(INC)/sys/stropts.h\
+	$(INC)/sys/stream.h\
+	$(INC)/sys/var.h\
+	$(INC)/sys/comm.h\
+	$(INC)/sys/recover.h\
+	$(INC)/sys/inline.h\
+	$(INC)/sys/rdebug.h\
+	$(INC)/sys/nserve.h\
+	$(INC)/sys/inode.h\
+	$(INC)/sys/cirmgr.h\
+	$(INC)/sys/tihdr.h\
 	$(FRC)
 
 comm.o:\
-	$(INCRT)/sys/types.h\
-	$(INCRT)/sys/sema.h\
-	$(INCRT)/sys/sysmacros.h\
-	$(INCRT)/sys/param.h\
-	$(INCRT)/sys/fs/s5param.h\
-	$(INCRT)/sys/fs/s5dir.h\
-	$(INCRT)/sys/errno.h\
-	$(INCRT)/sys/signal.h\
-	$(INCRT)/sys/immu.h\
-	$(INCRT)/sys/psw.h\
-	$(INCRT)/sys/pcb.h\
-	$(INCRT)/sys/region.h\
-	$(INCRT)/sys/user.h\
-	$(INCRT)/sys/proc.h\
-	$(INCRT)/sys/file.h\
-	$(INCRT)/sys/inode.h\
-	$(INCRT)/sys/stream.h\
-	$(INCRT)/sys/message.h\
-	$(INCRT)/sys/comm.h\
-	$(INCRT)/sys/nserve.h\
-	$(INCRT)/sys/cirmgr.h\
-	$(INCRT)/sys/debug.h\
-	$(INCRT)/sys/rdebug.h\
+	$(INC)/sys/types.h\
+	$(INC)/sys/sema.h\
+	$(INC)/sys/sysmacros.h\
+	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/errno.h\
+	$(INC)/sys/signal.h\
+	$(INC)/sys/immu.h\
+	$(INC)/sys/psw.h\
+	$(INC)/sys/pcb.h\
+	$(INC)/sys/region.h\
+	$(INC)/sys/user.h\
+	$(INC)/sys/proc.h\
+	$(INC)/sys/file.h\
+	$(INC)/sys/inode.h\
+	$(INC)/sys/stream.h\
+	$(INC)/sys/message.h\
+	$(INC)/sys/comm.h\
+	$(INC)/sys/nserve.h\
+	$(INC)/sys/cirmgr.h\
+	$(INC)/sys/debug.h\
+	$(INC)/sys/rdebug.h\
+	$(INC)/sys/sysinfo.h\
+	$(INC)/sys/recover.h\
 	$(FRC)
 
 fileop.o:\
-	$(INCRT)/sys/types.h\
-	$(INCRT)/sys/sema.h\
-	$(INCRT)/sys/sysmacros.h\
-	$(INCRT)/sys/param.h\
-	$(INCRT)/sys/fs/s5param.h\
-	$(INCRT)/sys/systm.h\
-	$(INCRT)/sys/fs/s5dir.h\
-	$(INCRT)/sys/errno.h\
-	$(INCRT)/sys/file.h\
-	$(INCRT)/sys/signal.h\
-	$(INCRT)/sys/sbd.h\
-	$(INCRT)/sys/immu.h\
-	$(INCRT)/sys/stream.h\
-	$(INCRT)/sys/comm.h\
-	$(INCRT)/sys/psw.h\
-	$(INCRT)/sys/pcb.h\
-	$(INCRT)/sys/user.h\
-	$(INCRT)/sys/inode.h\
-	$(INCRT)/sys/nserve.h\
-	$(INCRT)/sys/cirmgr.h\
-	$(INCRT)/sys/message.h\
-	$(INCRT)/sys/mount.h\
-	$(INCRT)/sys/var.h\
-	$(INCRT)/sys/stat.h\
-	$(INCRT)/sys/region.h\
-	$(INCRT)/sys/proc.h\
-	$(INCRT)/sys/sysinfo.h\
-	$(INCRT)/sys/debug.h\
-	$(INCRT)/sys/rdebug.h\
+	$(INC)/sys/types.h\
+	$(INC)/sys/sema.h\
+	$(INC)/sys/sysmacros.h\
+	$(INC)/sys/param.h\
+	$(INC)/sys/systm.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/errno.h\
+	$(INC)/sys/file.h\
+	$(INC)/sys/signal.h\
+	$(INC)/sys/sbd.h\
+	$(INC)/sys/immu.h\
+	$(INC)/sys/stream.h\
+	$(INC)/sys/comm.h\
+	$(INC)/sys/psw.h\
+	$(INC)/sys/pcb.h\
+	$(INC)/sys/user.h\
+	$(INC)/sys/inode.h\
+	$(INC)/sys/nserve.h\
+	$(INC)/sys/cirmgr.h\
+	$(INC)/sys/message.h\
+	$(INC)/sys/mount.h\
+	$(INC)/sys/var.h\
+	$(INC)/sys/stat.h\
+	$(INC)/sys/region.h\
+	$(INC)/sys/proc.h\
+	$(INC)/sys/sysinfo.h\
+	$(INC)/sys/debug.h\
+	$(INC)/sys/rdebug.h\
+	$(INC)/sys/buf.h\
+	$(INC)/sys/rbuf.h\
 	$(FRC)
 
 fumount.o:\
-	$(INCRT)/sys/types.h\
-	$(INCRT)/sys/sema.h\
-	$(INCRT)/sys/param.h\
-	$(INCRT)/sys/fs/s5param.h\
-	$(INCRT)/sys/fs/s5dir.h\
-	$(INCRT)/sys/errno.h\
-	$(INCRT)/sys/signal.h\
-	$(INCRT)/sys/stream.h\
-	$(INCRT)/sys/comm.h\
-	$(INCRT)/sys/nserve.h\
-	$(INCRT)/sys/cirmgr.h\
-	$(INCRT)/sys/psw.h\
-	$(INCRT)/sys/pcb.h\
-	$(INCRT)/sys/user.h\
-	$(INCRT)/sys/inode.h\
-	$(INCRT)/sys/message.h\
-	$(INCRT)/sys/mount.h\
-	$(INCRT)/sys/var.h\
-	$(INCRT)/sys/adv.h\
-	$(INCRT)/sys/debug.h\
-	$(INCRT)/sys/rdebug.h\
-	$(INCRT)/sys/recover.h\
+	$(INC)/sys/types.h\
+	$(INC)/sys/sema.h\
+	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/errno.h\
+	$(INC)/sys/signal.h\
+	$(INC)/sys/stream.h\
+	$(INC)/sys/comm.h\
+	$(INC)/sys/nserve.h\
+	$(INC)/sys/cirmgr.h\
+	$(INC)/sys/psw.h\
+	$(INC)/sys/pcb.h\
+	$(INC)/sys/user.h\
+	$(INC)/sys/inode.h\
+	$(INC)/sys/message.h\
+	$(INC)/sys/mount.h\
+	$(INC)/sys/var.h\
+	$(INC)/sys/adv.h\
+	$(INC)/sys/debug.h\
+	$(INC)/sys/rdebug.h\
+	$(INC)/sys/recover.h\
 	$(FRC)
 
 netboot.o:\
-	$(INCRT)/sys/types.h\
-	$(INCRT)/sys/sema.h\
-	$(INCRT)/sys/param.h\
-	$(INCRT)/sys/fs/s5param.h\
-	$(INCRT)/sys/fs/s5dir.h\
-	$(INCRT)/sys/errno.h\
-	$(INCRT)/sys/signal.h\
-	$(INCRT)/sys/immu.h\
-	$(INCRT)/sys/comm.h\
-	$(INCRT)/sys/psw.h\
-	$(INCRT)/sys/pcb.h\
-	$(INCRT)/sys/user.h\
-	$(INCRT)/sys/inode.h\
-	$(INCRT)/sys/mount.h\
-	$(INCRT)/sys/var.h\
-	$(INCRT)/sys/region.h\
-	$(INCRT)/sys/proc.h\
-	$(INCRT)/sys/adv.h\
-	$(INCRT)/sys/nserve.h\
-	$(INCRT)/sys/recover.h\
-	$(INCRT)/sys/debug.h\
-	$(INCRT)/sys/rdebug.h\
+	$(INC)/sys/types.h\
+	$(INC)/sys/sema.h\
+	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/errno.h\
+	$(INC)/sys/signal.h\
+	$(INC)/sys/immu.h\
+	$(INC)/sys/comm.h\
+	$(INC)/sys/psw.h\
+	$(INC)/sys/pcb.h\
+	$(INC)/sys/user.h\
+	$(INC)/sys/inode.h\
+	$(INC)/sys/mount.h\
+	$(INC)/sys/var.h\
+	$(INC)/sys/region.h\
+	$(INC)/sys/proc.h\
+	$(INC)/sys/adv.h\
+	$(INC)/sys/nserve.h\
+	$(INC)/sys/recover.h\
+	$(INC)/sys/debug.h\
+	$(INC)/sys/rdebug.h\
 	$(FRC)
 
 que.o:\
-	$(INCRT)/sys/que.h\
+	$(INC)/sys/que.h\
 	$(FRC)
 
 queue.o:\
-	$(INCRT)/sys/types.h\
-	$(INCRT)/sys/sema.h\
-	$(INCRT)/sys/sysmacros.h\
-	$(INCRT)/sys/param.h\
-	$(INCRT)/sys/fs/s5param.h\
-	$(INCRT)/sys/systm.h\
-	$(INCRT)/sys/fs/s5dir.h\
-	$(INCRT)/sys/errno.h\
-	$(INCRT)/sys/signal.h\
-	$(INCRT)/sys/immu.h\
-	$(INCRT)/sys/stream.h\
-	$(INCRT)/sys/comm.h\
-	$(INCRT)/sys/psw.h\
-	$(INCRT)/sys/pcb.h\
-	$(INCRT)/sys/user.h\
-	$(INCRT)/sys/inode.h\
-	$(INCRT)/sys/message.h\
-	$(INCRT)/sys/mount.h\
-	$(INCRT)/sys/region.h\
-	$(INCRT)/sys/recover.h\
-	$(INCRT)/sys/proc.h\
-	$(INCRT)/sys/debug.h\
-	$(INCRT)/sys/rdebug.h\
+	$(INC)/sys/types.h\
+	$(INC)/sys/sema.h\
+	$(INC)/sys/sysmacros.h\
+	$(INC)/sys/param.h\
+	$(INC)/sys/systm.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/errno.h\
+	$(INC)/sys/signal.h\
+	$(INC)/sys/immu.h\
+	$(INC)/sys/stream.h\
+	$(INC)/sys/comm.h\
+	$(INC)/sys/psw.h\
+	$(INC)/sys/pcb.h\
+	$(INC)/sys/user.h\
+	$(INC)/sys/inode.h\
+	$(INC)/sys/message.h\
+	$(INC)/sys/mount.h\
+	$(INC)/sys/region.h\
+	$(INC)/sys/recover.h\
+	$(INC)/sys/proc.h\
+	$(INC)/sys/debug.h\
+	$(INC)/sys/rdebug.h\
+	$(FRC)
+
+rbio.o:\
+	$(INC)/sys/types.h\
+	$(INC)/sys/sema.h\
+	$(INC)/sys/sysmacros.h\
+	$(INC)/sys/sbd.h\
+	$(INC)/sys/param.h\
+	$(INC)/sys/psw.h\
+	$(INC)/sys/pcb.h\
+	$(INC)/sys/immu.h\
+	$(INC)/sys/region.h\
+	$(INC)/sys/proc.h\
+	$(INC)/sys/systm.h\
+	$(INC)/sys/sysinfo.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/errno.h\
+	$(INC)/sys/signal.h\
+	$(INC)/sys/user.h\
+	$(INC)/sys/rbuf.h\
+	$(INC)/sys/buf.h\
+	$(INC)/sys/iobuf.h\
+	$(INC)/sys/conf.h\
+	$(INC)/sys/var.h\
+	$(INC)/sys/cmn_err.h\
+	$(INC)/sys/inline.h\
+	$(INC)/sys/comm.h\
+	$(INC)/sys/message.h\
 	$(FRC)
 
 rdebug.o:\
-	$(INCRT)/sys/inline.h\
-	$(INCRT)/sys/types.h\
-	$(INCRT)/sys/sema.h\
-	$(INCRT)/sys/fs/s5dir.h\
-	$(INCRT)/sys/signal.h\
-	$(INCRT)/sys/psw.h\
-	$(INCRT)/sys/pcb.h\
-	$(INCRT)/sys/user.h\
-	$(INCRT)/sys/comm.h\
-	$(INCRT)/sys/rdebug.h\
+	$(INC)/sys/inline.h\
+	$(INC)/sys/types.h\
+	$(INC)/sys/sema.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/signal.h\
+	$(INC)/sys/psw.h\
+	$(INC)/sys/pcb.h\
+	$(INC)/sys/user.h\
+	$(INC)/sys/comm.h\
+	$(INC)/sys/rdebug.h\
 	$(FRC)
 
 recover.o:\
-	$(INCRT)/sys/types.h\
-	$(INCRT)/sys/sema.h\
-	$(INCRT)/sys/signal.h\
-	$(INCRT)/sys/file.h\
-	$(INCRT)/sys/fs/s5dir.h\
-	$(INCRT)/sys/param.h\
-	$(INCRT)/sys/stream.h\
-	$(INCRT)/sys/comm.h\
-	$(INCRT)/sys/psw.h\
-	$(INCRT)/sys/pcb.h\
-	$(INCRT)/sys/user.h\
-	$(INCRT)/sys/inode.h\
-	$(INCRT)/sys/fstyp.h\
-	$(INCRT)/sys/message.h\
-	$(INCRT)/sys/mount.h\
-	$(INCRT)/sys/var.h\
-	$(INCRT)/sys/errno.h\
-	$(INCRT)/sys/nserve.h\
-	$(INCRT)/sys/cirmgr.h\
-	$(INCRT)/sys/recover.h\
-	$(INCRT)/sys/debug.h\
-	$(INCRT)/sys/rfsys.h\
-	$(INCRT)/sys/rdebug.h\
-	$(INCRT)/sys/conf.h\
-	$(INCRT)/sys/fcntl.h\
-	$(INCRT)/sys/flock.h\
-	$(INCRT)/sys/immu.h\
-	$(INCRT)/sys/region.h\
-	$(INCRT)/sys/proc.h\
+	$(INC)/sys/types.h\
+	$(INC)/sys/sema.h\
+	$(INC)/sys/signal.h\
+	$(INC)/sys/file.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/param.h\
+	$(INC)/sys/stream.h\
+	$(INC)/sys/comm.h\
+	$(INC)/sys/psw.h\
+	$(INC)/sys/pcb.h\
+	$(INC)/sys/user.h\
+	$(INC)/sys/inode.h\
+	$(INC)/sys/fstyp.h\
+	$(INC)/sys/message.h\
+	$(INC)/sys/mount.h\
+	$(INC)/sys/var.h\
+	$(INC)/sys/errno.h\
+	$(INC)/sys/nserve.h\
+	$(INC)/sys/cirmgr.h\
+	$(INC)/sys/recover.h\
+	$(INC)/sys/debug.h\
+	$(INC)/sys/rfsys.h\
+	$(INC)/sys/rdebug.h\
+	$(INC)/sys/conf.h\
+	$(INC)/sys/fcntl.h\
+	$(INC)/sys/flock.h\
+	$(INC)/sys/immu.h\
+	$(INC)/sys/region.h\
+	$(INC)/sys/proc.h\
 	$(FRC)
 
 remcall.o:\
-	$(INCRT)/sys/types.h\
-	$(INCRT)/sys/sema.h\
-	$(INCRT)/sys/sysmacros.h\
-	$(INCRT)/sys/param.h\
-	$(INCRT)/sys/fs/s5param.h\
-	$(INCRT)/sys/systm.h\
-	$(INCRT)/sys/fs/s5dir.h\
-	$(INCRT)/sys/errno.h\
-	$(INCRT)/sys/signal.h\
-	$(INCRT)/sys/immu.h\
-	$(INCRT)/sys/psw.h\
-	$(INCRT)/sys/pcb.h\
-	$(INCRT)/sys/user.h\
-	$(INCRT)/sys/comm.h\
-	$(INCRT)/sys/inode.h\
-	$(INCRT)/sys/file.h\
-	$(INCRT)/sys/message.h\
-	$(INCRT)/sys/mount.h\
-	$(INCRT)/sys/var.h\
-	$(INCRT)/sys/stat.h\
-	$(INCRT)/sys/region.h\
-	$(INCRT)/sys/proc.h\
-	$(INCRT)/sys/sysinfo.h\
-	$(INCRT)/sys/idtab.h\
-	$(INCRT)/sys/stream.h\
-	$(INCRT)/sys/nserve.h\
-	$(INCRT)/sys/cirmgr.h\
-	$(INCRT)/sys/debug.h\
-	$(INCRT)/sys/inline.h\
-	$(INCRT)/sys/rdebug.h\
-	$(INCRT)/sys/nami.h\
-	$(INCRT)/sys/fstyp.h\
+	$(INC)/sys/types.h\
+	$(INC)/sys/sema.h\
+	$(INC)/sys/sysmacros.h\
+	$(INC)/sys/param.h\
+	$(INC)/sys/systm.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/errno.h\
+	$(INC)/sys/signal.h\
+	$(INC)/sys/immu.h\
+	$(INC)/sys/psw.h\
+	$(INC)/sys/pcb.h\
+	$(INC)/sys/user.h\
+	$(INC)/sys/comm.h\
+	$(INC)/sys/inode.h\
+	$(INC)/sys/file.h\
+	$(INC)/sys/message.h\
+	$(INC)/sys/mount.h\
+	$(INC)/sys/var.h\
+	$(INC)/sys/stat.h\
+	$(INC)/sys/region.h\
+	$(INC)/sys/proc.h\
+	$(INC)/sys/sysinfo.h\
+	$(INC)/sys/idtab.h\
+	$(INC)/sys/stream.h\
+	$(INC)/sys/nserve.h\
+	$(INC)/sys/cirmgr.h\
+	$(INC)/sys/debug.h\
+	$(INC)/sys/inline.h\
+	$(INC)/sys/rdebug.h\
+	$(INC)/sys/nami.h\
+	$(INC)/sys/fstyp.h\
+	$(INC)/sys/rbuf.h\
+	$(INC)/sys/buf.h\
 	$(FRC)
 
 rfadmin.o:\
-	$(INCRT)/sys/types.h\
-	$(INCRT)/sys/sema.h\
-	$(INCRT)/sys/param.h\
-	$(INCRT)/sys/fs/s5param.h\
-	$(INCRT)/sys/immu.h\
-	$(INCRT)/sys/region.h\
-	$(INCRT)/sys/signal.h\
-	$(INCRT)/sys/file.h\
-	$(INCRT)/sys/fs/s5dir.h\
-	$(INCRT)/sys/stream.h\
-	$(INCRT)/sys/comm.h\
-	$(INCRT)/sys/psw.h\
-	$(INCRT)/sys/pcb.h\
-	$(INCRT)/sys/user.h\
-	$(INCRT)/sys/inode.h\
-	$(INCRT)/sys/message.h\
-	$(INCRT)/sys/mount.h\
-	$(INCRT)/sys/var.h\
-	$(INCRT)/sys/errno.h\
-	$(INCRT)/sys/proc.h\
-	$(INCRT)/sys/nserve.h\
-	$(INCRT)/sys/recover.h\
-	$(INCRT)/sys/cirmgr.h\
-	$(INCRT)/sys/adv.h\
-	$(INCRT)/sys/debug.h\
-	$(INCRT)/sys/rdebug.h\
-	$(INCRT)/sys/rfsys.h\
-	$(INCRT)/sys/tihdr.h\
+	$(INC)/sys/types.h\
+	$(INC)/sys/sema.h\
+	$(INC)/sys/param.h\
+	$(INC)/sys/immu.h\
+	$(INC)/sys/region.h\
+	$(INC)/sys/signal.h\
+	$(INC)/sys/file.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/stream.h\
+	$(INC)/sys/comm.h\
+	$(INC)/sys/psw.h\
+	$(INC)/sys/pcb.h\
+	$(INC)/sys/user.h\
+	$(INC)/sys/inode.h\
+	$(INC)/sys/message.h\
+	$(INC)/sys/mount.h\
+	$(INC)/sys/var.h\
+	$(INC)/sys/errno.h\
+	$(INC)/sys/proc.h\
+	$(INC)/sys/nserve.h\
+	$(INC)/sys/recover.h\
+	$(INC)/sys/cirmgr.h\
+	$(INC)/sys/adv.h\
+	$(INC)/sys/debug.h\
+	$(INC)/sys/rdebug.h\
+	$(INC)/sys/rfsys.h\
+	$(INC)/sys/tihdr.h\
 	$(FRC)
 
 rfcanon.o:\
-	$(INCRT)/sys/types.h\
-	$(INCRT)/sys/sema.h\
-	$(INCRT)/sys/stream.h\
-	$(INCRT)/sys/comm.h\
-	$(INCRT)/sys/message.h\
-	$(INCRT)/sys/dirent.h\
-	$(INCRT)/sys/hetero.h\
-	$(INCRT)/sys/rdebug.h\
+	$(INC)/sys/types.h\
+	$(INC)/sys/sema.h\
+	$(INC)/sys/stream.h\
+	$(INC)/sys/comm.h\
+	$(INC)/sys/message.h\
+	$(INC)/sys/dirent.h\
+	$(INC)/sys/hetero.h\
+	$(INC)/sys/fcntl.h\
+	$(INC)/sys/file.h\
+	$(INC)/sys/rdebug.h\
 	$(FRC)
 
 rfsys.o:\
-	$(INCRT)/sys/types.h\
-	$(INCRT)/sys/sema.h\
-	$(INCRT)/sys/param.h\
-	$(INCRT)/sys/fs/s5param.h\
-	$(INCRT)/sys/fs/s5dir.h\
-	$(INCRT)/sys/errno.h\
-	$(INCRT)/sys/signal.h\
-	$(INCRT)/sys/sbd.h\
-	$(INCRT)/sys/stream.h\
-	$(INCRT)/sys/comm.h\
-	$(INCRT)/sys/nserve.h\
-	$(INCRT)/sys/cirmgr.h\
-	$(INCRT)/sys/psw.h\
-	$(INCRT)/sys/pcb.h\
-	$(INCRT)/sys/user.h\
-	$(INCRT)/sys/inode.h\
-	$(INCRT)/sys/message.h\
-	$(INCRT)/sys/mount.h\
-	$(INCRT)/sys/errno.h\
-	$(INCRT)/sys/debug.h\
-	$(INCRT)/sys/rdebug.h\
-	$(INCRT)/sys/sysinfo.h\
-	$(INCRT)/sys/recover.h\
-	$(INCRT)/sys/rfsys.h\
+	$(INC)/sys/types.h\
+	$(INC)/sys/sema.h\
+	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/errno.h\
+	$(INC)/sys/signal.h\
+	$(INC)/sys/sbd.h\
+	$(INC)/sys/stream.h\
+	$(INC)/sys/comm.h\
+	$(INC)/sys/nserve.h\
+	$(INC)/sys/cirmgr.h\
+	$(INC)/sys/psw.h\
+	$(INC)/sys/pcb.h\
+	$(INC)/sys/user.h\
+	$(INC)/sys/inode.h\
+	$(INC)/sys/message.h\
+	$(INC)/sys/mount.h\
+	$(INC)/sys/errno.h\
+	$(INC)/sys/debug.h\
+	$(INC)/sys/rdebug.h\
+	$(INC)/sys/sysinfo.h\
+	$(INC)/sys/recover.h\
+	$(INC)/sys/rfsys.h\
 	$(FRC)
 
 rmount.o:\
-	$(INCRT)/sys/types.h\
-	$(INCRT)/sys/sema.h\
-	$(INCRT)/sys/sysmacros.h\
-	$(INCRT)/sys/param.h\
-	$(INCRT)/sys/fs/s5param.h\
-	$(INCRT)/sys/fs/s5dir.h\
-	$(INCRT)/sys/errno.h\
-	$(INCRT)/sys/signal.h\
-	$(INCRT)/sys/immu.h\
-	$(INCRT)/sys/stream.h\
-	$(INCRT)/sys/comm.h\
-	$(INCRT)/sys/nserve.h\
-	$(INCRT)/sys/cirmgr.h\
-	$(INCRT)/sys/psw.h\
-	$(INCRT)/sys/pcb.h\
-	$(INCRT)/sys/user.h\
-	$(INCRT)/sys/inode.h\
-	$(INCRT)/sys/message.h\
-	$(INCRT)/sys/mount.h\
-	$(INCRT)/sys/var.h\
-	$(INCRT)/sys/region.h\
-	$(INCRT)/sys/proc.h\
-	$(INCRT)/sys/adv.h\
-	$(INCRT)/sys/debug.h\
-	$(INCRT)/sys/rdebug.h\
-	$(INCRT)/sys/inline.h\
-	$(INCRT)/sys/sysinfo.h\
+	$(INC)/sys/types.h\
+	$(INC)/sys/sema.h\
+	$(INC)/sys/sysmacros.h\
+	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/errno.h\
+	$(INC)/sys/signal.h\
+	$(INC)/sys/immu.h\
+	$(INC)/sys/stream.h\
+	$(INC)/sys/comm.h\
+	$(INC)/sys/nserve.h\
+	$(INC)/sys/cirmgr.h\
+	$(INC)/sys/psw.h\
+	$(INC)/sys/pcb.h\
+	$(INC)/sys/user.h\
+	$(INC)/sys/inode.h\
+	$(INC)/sys/message.h\
+	$(INC)/sys/mount.h\
+	$(INC)/sys/var.h\
+	$(INC)/sys/region.h\
+	$(INC)/sys/proc.h\
+	$(INC)/sys/adv.h\
+	$(INC)/sys/debug.h\
+	$(INC)/sys/rdebug.h\
+	$(INC)/sys/inline.h\
+	$(INC)/sys/sysinfo.h\
+	$(INC)/sys/buf.h\
 	$(FRC)
 
 rmove.o:\
-	$(INCRT)/sys/types.h\
-	$(INCRT)/sys/sema.h\
-	$(INCRT)/sys/fs/s5dir.h\
-	$(INCRT)/sys/errno.h\
-	$(INCRT)/sys/signal.h\
-	$(INCRT)/sys/stream.h\
-	$(INCRT)/sys/comm.h\
-	$(INCRT)/sys/psw.h\
-	$(INCRT)/sys/pcb.h\
-	$(INCRT)/sys/user.h\
-	$(INCRT)/sys/inode.h\
-	$(INCRT)/sys/message.h\
-	$(INCRT)/sys/rdebug.h\
+	$(INC)/sys/types.h\
+	$(INC)/sys/sema.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/errno.h\
+	$(INC)/sys/signal.h\
+	$(INC)/sys/stream.h\
+	$(INC)/sys/comm.h\
+	$(INC)/sys/psw.h\
+	$(INC)/sys/pcb.h\
+	$(INC)/sys/user.h\
+	$(INC)/sys/inode.h\
+	$(INC)/sys/message.h\
+	$(INC)/sys/mount.h\
+	$(INC)/sys/rdebug.h\
 	$(FRC)
 
 rnami.o:\
-	$(INCRT)/sys/types.h\
-	$(INCRT)/sys/sema.h\
-	$(INCRT)/sys/sysmacros.h\
-	$(INCRT)/sys/param.h\
-	$(INCRT)/sys/fs/s5param.h\
-	$(INCRT)/sys/systm.h\
-	$(INCRT)/sys/fs/s5dir.h\
-	$(INCRT)/sys/errno.h\
-	$(INCRT)/sys/signal.h\
-	$(INCRT)/sys/immu.h\
-	$(INCRT)/sys/psw.h\
-	$(INCRT)/sys/pcb.h\
-	$(INCRT)/sys/user.h\
-	$(INCRT)/sys/comm.h\
-	$(INCRT)/sys/inode.h\
-	$(INCRT)/sys/file.h\
-	$(INCRT)/sys/mount.h\
-	$(INCRT)/sys/region.h\
-	$(INCRT)/sys/proc.h\
-	$(INCRT)/sys/debug.h\
-	$(INCRT)/sys/inline.h\
-	$(INCRT)/sys/rdebug.h\
+	$(INC)/sys/types.h\
+	$(INC)/sys/sema.h\
+	$(INC)/sys/sysmacros.h\
+	$(INC)/sys/param.h\
+	$(INC)/sys/systm.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/errno.h\
+	$(INC)/sys/signal.h\
+	$(INC)/sys/immu.h\
+	$(INC)/sys/psw.h\
+	$(INC)/sys/pcb.h\
+	$(INC)/sys/user.h\
+	$(INC)/sys/comm.h\
+	$(INC)/sys/inode.h\
+	$(INC)/sys/file.h\
+	$(INC)/sys/mount.h\
+	$(INC)/sys/region.h\
+	$(INC)/sys/proc.h\
+	$(INC)/sys/debug.h\
+	$(INC)/sys/inline.h\
+	$(INC)/sys/rdebug.h\
 	$(FRC)
 
 rsc.o:\
-	$(INCRT)/sys/types.h\
-	$(INCRT)/sys/sema.h\
-	$(INCRT)/sys/param.h\
-	$(INCRT)/sys/fs/s5param.h\
-	$(INCRT)/sys/fs/s5dir.h\
-	$(INCRT)/sys/errno.h\
-	$(INCRT)/sys/signal.h\
-	$(INCRT)/sys/immu.h\
-	$(INCRT)/sys/stream.h\
-	$(INCRT)/sys/comm.h\
-	$(INCRT)/sys/psw.h\
-	$(INCRT)/sys/pcb.h\
-	$(INCRT)/sys/user.h\
-	$(INCRT)/sys/inode.h\
-	$(INCRT)/sys/message.h\
-	$(INCRT)/sys/region.h\
-	$(INCRT)/sys/proc.h\
-	$(INCRT)/sys/nserve.h\
-	$(INCRT)/sys/cirmgr.h\
-	$(INCRT)/sys/debug.h\
-	$(INCRT)/sys/rdebug.h\
+	$(INC)/sys/types.h\
+	$(INC)/sys/sema.h\
+	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/errno.h\
+	$(INC)/sys/signal.h\
+	$(INC)/sys/immu.h\
+	$(INC)/sys/stream.h\
+	$(INC)/sys/comm.h\
+	$(INC)/sys/psw.h\
+	$(INC)/sys/pcb.h\
+	$(INC)/sys/user.h\
+	$(INC)/sys/inode.h\
+	$(INC)/sys/message.h\
+	$(INC)/sys/region.h\
+	$(INC)/sys/proc.h\
+	$(INC)/sys/nserve.h\
+	$(INC)/sys/cirmgr.h\
+	$(INC)/sys/debug.h\
+	$(INC)/sys/rdebug.h\
+	$(INC)/sys/sysinfo.h\
+	$(INC)/sys/rbuf.h\
+	$(INC)/sys/buf.h\
 	$(FRC)
 
 serve.o:\
-	$(INCRT)/sys/types.h\
-	$(INCRT)/sys/sema.h\
-	$(INCRT)/sys/inode.h\
-	$(INCRT)/sys/sysmacros.h\
-	$(INCRT)/sys/param.h\
-	$(INCRT)/sys/fs/s5param.h\
-	$(INCRT)/sys/fs/s5inode.h\
-	$(INCRT)/sys/systm.h\
-	$(INCRT)/sys/fs/s5dir.h\
-	$(INCRT)/sys/errno.h\
-	$(INCRT)/sys/signal.h\
-	$(INCRT)/sys/immu.h\
-	$(INCRT)/sys/stream.h\
-	$(INCRT)/sys/comm.h\
-	$(INCRT)/sys/psw.h\
-	$(INCRT)/sys/pcb.h\
-	$(INCRT)/sys/user.h\
-	$(INCRT)/sys/nserve.h\
-	$(INCRT)/sys/cirmgr.h\
-	$(INCRT)/sys/message.h\
-	$(INCRT)/sys/mount.h\
-	$(INCRT)/sys/var.h\
-	$(INCRT)/sys/file.h\
-	$(INCRT)/sys/fs/s5filsys.h\
-	$(INCRT)/sys/fstyp.h\
-	$(INCRT)/sys/fcntl.h\
-	$(INCRT)/sys/nami.h\
-	$(INCRT)/sys/region.h\
-	$(INCRT)/sys/proc.h\
-	$(INCRT)/sys/stat.h\
-	$(INCRT)/sys/sysinfo.h\
-	$(INCRT)/sys/idtab.h\
-	$(INCRT)/sys/debug.h\
-	$(INCRT)/sys/inline.h\
-	$(INCRT)/sys/rdebug.h\
-	$(INCRT)/sys/cmn_err.h\
-	$(INCRT)/sys/conf.h\
+	$(INC)/sys/types.h\
+	$(INC)/sys/sema.h\
+	$(INC)/sys/inode.h\
+	$(INC)/sys/sysmacros.h\
+	$(INC)/sys/param.h\
+	$(INC)/sys/systm.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/errno.h\
+	$(INC)/sys/signal.h\
+	$(INC)/sys/immu.h\
+	$(INC)/sys/stream.h\
+	$(INC)/sys/comm.h\
+	$(INC)/sys/psw.h\
+	$(INC)/sys/pcb.h\
+	$(INC)/sys/user.h\
+	$(INC)/sys/nserve.h\
+	$(INC)/sys/cirmgr.h\
+	$(INC)/sys/message.h\
+	$(INC)/sys/mount.h\
+	$(INC)/sys/var.h\
+	$(INC)/sys/file.h\
+	$(INC)/sys/fstyp.h\
+	$(INC)/sys/fcntl.h\
+	$(INC)/sys/nami.h\
+	$(INC)/sys/region.h\
+	$(INC)/sys/proc.h\
+	$(INC)/sys/stat.h\
+	$(INC)/sys/sysinfo.h\
+	$(INC)/sys/idtab.h\
+	$(INC)/sys/debug.h\
+	$(INC)/sys/inline.h\
+	$(INC)/sys/rdebug.h\
+	$(INC)/sys/cmn_err.h\
+	$(INC)/sys/conf.h\
+	$(INC)/sys/buf.h\
+	$(INC)/sys/rbuf.h\
 	$(FRC)
 
 string.o:\

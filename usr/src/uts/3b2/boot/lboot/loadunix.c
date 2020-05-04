@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:boot/lboot/loadunix.c	10.13"
+#ident	"@(#)kern-port:boot/lboot/loadunix.c	10.14"
 
 #include <sys/types.h>
 #include <a.out.h>
@@ -18,7 +18,7 @@
 #include <sys/boothdr.h>
 #include "error.h"
 
-#ifdef u3b5
+#ifdef u3b15
 #include <sys/cc.h>
 #endif
 
@@ -96,7 +96,7 @@ static struct driver *driver;			/* head of struct driver linked list */
 #define	INEDT	0x40		/* this driver matched in EDT */
 #define	INCLUDE	0x10		/* /etc/system: include this driver */
 #define	EXCLUDE	0x08		/* /etc/system: exclude this driver */
-#ifdef u3b5
+#ifdef u3b15
 #define	ISLBE	0x04		/* this is the entry for the LBE driver */
 #endif
 #ifdef u3b2
@@ -106,7 +106,7 @@ static struct driver *driver;			/* head of struct driver linked list */
 /*
  * Is this controller on an extended local bus?
  */
-#ifdef u3b5
+#ifdef u3b15
 #define	ONLBE(maj)	((maj)&0x30)
 #endif
 #ifdef u3b2
@@ -583,7 +583,7 @@ fake_sect(shdr, name, flags)
  *	non-LBE device		   0	3-15
  *	LBE device		3-15	1-15
  */
-#ifdef u3b5
+#ifdef u3b15
  static
  void
 mark(edtp, lba, elb)
@@ -1534,7 +1534,7 @@ eval(expression, dp)
  *		if (p->type == '"')
  *			*(char**)POINTER(p->value.string,p) -> the string
  *
-#ifdef u3b5
+#ifdef u3b15
  * If the parameter name is not found return NULL.
 #endif
 #ifdef u3b2
@@ -1884,7 +1884,7 @@ loadunix()
 		while (pipedev == NODEV)
 			system("PIPEDEV:?");
 
-#ifdef u3b5
+#ifdef u3b15
 		while (dumpdev == NODEV)
 			system("DUMPDEV:?");
 #endif
@@ -2148,7 +2148,7 @@ catch(edtp, lba, elb)
 	int elb;
 	{PROGRAM(catch)
 
-#ifdef u3b5
+#ifdef u3b15
 	/*
 	 * ignore IOA controlled devices
 	 */
@@ -2680,7 +2680,7 @@ confirm(edtp, lba, elb)
 	register struct s3bc *s3bc;
 	register i;
 
-#ifdef u3b5
+#ifdef u3b15
 	/*
 	 * ignore IOA controlled devices
 	 */
@@ -3281,7 +3281,7 @@ config(edtp, lba, elb)
 	register struct s3bc *s3bc;
 	register struct driver *dp;
 
-#ifdef u3b5
+#ifdef u3b15
 	/*
 	 * ignore IOA controlled devices
 	 */
@@ -3466,7 +3466,7 @@ build_io_subsys()
 	int (**LBE)();			/* if LBE's exist, we need to generate "LBE[2][256]" */
 	static char hex[] ={ "0123456789ABCDEF" };
 
-#ifdef u3b5
+#ifdef u3b15
 	struct mmuseg xx_addr[MAXCNTL+1];
 	static struct mmuseg mmuseg ={1, 0, KRWE|UNONE, NCPS-1, 0, 0};
 #endif
@@ -3483,7 +3483,7 @@ build_io_subsys()
 	 */
 	generate(G_IOSYS);
 
-#ifdef u3b5
+#ifdef u3b15
 	if ((dp=searchdriver("LBE")) != NULL && dp->flag & LOAD)
 		{
 		generate(G_UDATA, "LBE", 2*256*sizeof(*LBE));
@@ -3514,7 +3514,7 @@ build_io_subsys()
 
 			for (i=0; i<dp->nctl; ++i)
 				{
-#ifdef u3b5
+#ifdef u3b15
 				xx_addr[i] = mmuseg;
 				xx_addr[i].base = (dp->maj[i] & 0x0F) * NCPS;
 
@@ -3586,7 +3586,7 @@ build_io_subsys()
 				else
 					nC = 0;
 
-#ifdef u3b5
+#ifdef u3b15
 				if (0 == strcmp("CONSOLE",dp->name))
 					/* the CC console driver vectors are ordered RX */
 					order = RX;
@@ -3702,7 +3702,7 @@ build_io_subsys()
 	 * generate the system devices
 	 */
 	generate(G_DATA, "rootdev", sizeof(rootdev), &rootdev);
-#ifdef u3b5
+#ifdef u3b15
 	generate(G_DATA, "dumpdev", sizeof(dumpdev), &dumpdev);
 #endif
 	generate(G_DATA, "pipedev", sizeof(pipedev), &pipedev);

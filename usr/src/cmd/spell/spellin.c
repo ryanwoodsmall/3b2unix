@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)spell:spellin.c	1.3"
+#ident	"@(#)spell:spellin.c	1.4"
 #include <stdio.h>
 #include "hash.h"
 
@@ -42,7 +42,7 @@ char **argv;
 		fprintf(stderr,"spellin: arg count\n");
 		exit(1);
 	}
-	table = (unsigned*)malloc(ND);
+	table = (unsigned*)malloc(ND*sizeof(*table));
 	if(table==0) {
 		fprintf(stderr, "spellin: no space for table\n");
 		exit(1);

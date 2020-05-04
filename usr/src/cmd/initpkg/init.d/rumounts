@@ -1,6 +1,6 @@
-#ident	"@(#)initpkg:init.d/rumounts	1.3"
+#ident	"@(#)initpkg:init.d/rumounts	1.4"
 
-#	Unmounts all remote file resources with warning peririod.
+#	Unmounts all remote file resources with warning period.
 #	Note: written to depend on as few commands as possible.
 
 WALL=/tmp/wall$$
@@ -52,4 +52,6 @@ then
 	/etc/wall <${WALL}
 	/bin/sleep ${grace}
 fi
+/etc/rumountall 2>/dev/null
 /etc/rumountall -k
+

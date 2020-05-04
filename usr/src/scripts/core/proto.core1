@@ -125,12 +125,14 @@ d--775 0 3
 		true		---555 2 2	../bin/true
 		$
 	etc	d--775 0 3
+		TIMEZONE	---444 0 3	../etc/TIMEZONE
 		fmthard		---555 0 0	../etc/fmthard
 		fsck		---555 0 0	../etc/fsck
 		group		---644 0 3	../etc/group
 		init		---555 0 2	../etc/init
 		inittab		---444 2 2	inst/etc/inittabf
 		mkfs		---555 2 2	../etc/mkfs
+		mnttab		---644 0 2	/dev/null
 		passwd		---644 0 3	../etc/passwd
 		prtvtoc		---555 0 3	../etc/prtvtoc
 		uadmin		---555 0 3	../etc/uadmin
@@ -197,4 +199,4 @@ d--775 0 3
 		libc_s		---555 0 0	../shlib/libc_s
 	$
 $
-:#ident	"@(#)core:proto.core1	1.15"
+:#ident	"@(#)core:proto.core1	1.15.1.4"

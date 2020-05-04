@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)ld:m32/makefile	1.25"
+#ident	"@(#)ld:m32/makefile	1.25.1.2"
 #
 #	BELLMAC-32 LD MASTER MAKEFILE
 #
@@ -49,7 +49,9 @@ YACC=yacc
 YFLAGS=-d
 YACC_CMD=$(YACC) $(YFLAGS)
 #
-LEX_CMD=lex
+LEX=lex
+LEXFLAGS=-n
+LEX_CMD=$(LEX) $(LEXFLAGS)
 #
 STRIP=strip
 SPFLAGS=
@@ -82,7 +84,7 @@ LIBS=
 # Specify the *.c files making up ld:
 #
 CFILES=$(COMLD)/alloc.c $(COMLD)/expr0.c $(COMLD)/expr1.c \
-	$(COMLD)/globs.c $(COMLD)/instr.c \
+	$(COMLD)/globs.c $(COMLD)/gmatch.c $(COMLD)/instr.c \
 	$(COMLD)/ld00.c $(COMLD)/ld01.c $(COMLD)/ld1.c $(COMLD)/ld2.c \
 	$(COMLD)/lists.c $(COMLD)/output.c $(COMLD)/syms.c \
 	$(COMLD)/slotvec.c $(COMLD)/tv.c $(COMLD)/util.c \
@@ -106,7 +108,7 @@ HFILES3=$(M32INC)/sgs.h $(M32INC)/paths.h $(M32INC)/tv.h $(N3BINC)/magic.h
 # Specify the *.o files making up ld:
 #
 O	= o
-OBJECTS=expr0.$O globs.$O sglobs.$O ld00.$O lex.yy.$O lists.$O \
+OBJECTS=expr0.$O globs.$O gmatch.$O sglobs.$O ld00.$O lex.yy.$O lists.$O \
 	util.$O version.$O y.tab.$O special1.$O special2.$O \
 	alloc.$O specsyms.$O expr1.$O ld01.$O ld1.$O ld2.$O maps.$O \
 	output.$O slotvec.$O syms.$O tv.$O instr.$O
@@ -137,6 +139,8 @@ y.tab.$O:	$(COMLD)/attributes.h $(COMLD)/list.h $(COMLD)/structs.h $(FRC) \
 #
 lex.yy.c:	$(COMLD)/ld.lex $(FRC)
 	$(LEX_CMD) $(COMLD)/ld.lex
+	sed /YYLMAX/s/200/1024/ lex.yy.c > lex.tmp
+	mv lex.tmp lex.yy.c
 #
 lex.yy.$O:	$(COMLD)/structs.h $(COMLD)/extrns.h system.h $(FRC) \
 		$(COMLD)/ldtv.h \
@@ -271,6 +275,10 @@ globs.$O:	$(COMLD)/structs.h $(COMLD)/ldtv.h system.h $(FRC) \
 		params.h \
 		$(COMLD)/globs.c
 	$(CC_CMD) $(COMLD)/globs.c
+#
+gmatch.$O:	$(COMLD)/structs.h $(COMLD)/attributes.h $(COMLD)/list.h \
+	system.h
+	$(CC_CMD) $(COMLD)/gmatch.c
 #
 instr.$O:	$(COMLD)/instr.c $(FRC)
 	$(CC_CMD) $(COMLD)/instr.c

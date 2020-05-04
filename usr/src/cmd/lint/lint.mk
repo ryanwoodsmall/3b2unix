@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)lint:lint.mk	1.18"
+#ident	"@(#)lint:lint.mk	1.22"
 ROOT=
 FLG =
 UBIN = $(ROOT)/usr/bin

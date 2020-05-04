@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/pfdat.h	10.2"
+#ident	"@(#)kern-port:sys/pfdat.h	10.3"
 
 
 typedef struct pfdat {
@@ -24,6 +24,7 @@ typedef struct pfdat {
 	struct pfdat	*pf_next;	/* Next free pfdat.	*/
 	struct pfdat	*pf_prev;	/* Previous free pfdat.	*/
 	struct pfdat	*pf_hchain;	/* Hash chain link.	*/
+	int		pf_pad;		/* Round size to 2^n.	*/
 } pfd_t;
 
 #define	P_QUEUE		0x01	/* Page on free queue		*/

@@ -1,4 +1,4 @@
-#ident	"@(#)uucp:Dialers	2.8"
+#ident	"@(#)uucp:Dialers	2.9"
 #
 # Each caller type that appears in the Devices file (5th field)
 # should appear in this file except for the built in callers.
@@ -46,6 +46,29 @@ rixon	=&-%	"" \r\r\d $ s9\c )-W\r\ds9\c-) s\c : \T\r\c $ 9\c LINE
 #       S5 - UP		S6 - DOWN	S7 - ?		S8 - DOWN
 #
 hayes	=,-,	"" \dAT\r\c OK\r \EATDT\T\r\c CONNECT
+
+#   Hayes Smartmodem -- new BNU modem control capabilities
+#   If you do not want to strap CD on, use these switch settings:
+#
+#       S1 - UP		S2 - UP		S3 - DOWN	S4 - UP
+#       S5 - UP		S6 - UP		S7 - ?		S8 - DOWN
+#
+#  and this dialer entry (comment out the earlier one):
+#
+#hayes	=,-,	"" \M\dAT\r\c OK\r \EATDT\T\r\c CONNECT \m\c
+#
+#  Furthermore, you must add a ",M" subfield to the line field (field
+#  2) of the associated Devices file entries, as shown here:
+#
+#	ACU culd0,M - 1200 hayes \T
+#
+#  The ",M" subfield will cause the device to be opened with O_NDELAY set
+#  (so the open doesn't hang waiting for carrier).  After the open,
+#  O_NDELAY is cleared.  Then in the dialer script, "\M" sets CLOCAL and
+#  "\m" clears it.   Typically, CLOCAL is set for the duration of the
+#  dialer chat, then cleared (so uucico and cu will detect dropped lines)
+#  once you're connected to the remote system.
+
 
 ##########
 #   AT&T Programmable 300/1200 Modem Model 4000

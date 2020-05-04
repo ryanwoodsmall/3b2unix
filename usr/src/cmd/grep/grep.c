@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)grep:grep.c	1.9"
+#ident	"@(#)grep:grep.c	1.13"
 /*
  * grep -- print lines matching (or not matching) a pattern
  *
@@ -122,7 +122,7 @@ char **argv;
 
 	if (iflag) {
 		for(arg = *argv; *arg != NULL; ++arg)
-			*arg = (char)tolower((int)(*arg));
+			*arg = (char)tolower((int)((unsigned char)*arg));
 	}
 
 	compile(*argv, expbuf, &expbuf[ESIZE], '\0');
@@ -168,7 +168,7 @@ register char *file;
 
 		if (iflag) {
 			for(i=0, lbuf=linebuf; i < nchars; i++, lbuf++)
-				*lbuf = (char)tolower((int)prntbuf[i]);
+				*lbuf = (char)tolower((int)(unsigned char)prntbuf[i]);
 			*lbuf = '\0';
 			lbuf = linebuf;
 		} else

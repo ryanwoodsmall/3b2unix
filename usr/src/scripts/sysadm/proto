@@ -1,4 +1,4 @@
-bootblk
+/dev/null
 1422 200
 d--775 0 3
 install	d--775 0 3
@@ -19,6 +19,9 @@ new	d--775 0 3
 		grpck		---555 2 2	../etc/grpck
 		ldsysdump	---555 2 2	../etc/ldsysdump
 		link		---500 0 2	../etc/link
+		log	d--775 0 3
+			filesave.log	---644 2 2	/dev/null
+		$
 		mvdir		---544 0 2	../etc/mvdir
 		ncheck		---555 2 2	../etc/ncheck
 		pwck		---555 2 2	../etc/pwck
@@ -31,6 +34,10 @@ new	d--775 0 3
 		options	d--775 0 3
 			sysadm.name	---555 2 2	./install/sysadm/sysadm.name
 		$
+		bin	d--775 2 2
+			chrtbl		---555 2 2	../usr/bin/chrtbl
+		$
 	$
 $
 $
+:#ident	"@(#)pkg.sysadm:sysadm/proto	1.11.1.1"

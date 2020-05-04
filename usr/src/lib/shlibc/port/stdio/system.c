@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libc-port:stdio/system.c	1.8"
+#ident	"@(#)libc-port:stdio/system.c	1.9"
 /*	3.0 SID #	1.4	*/
 /*LINTLIBRARY*/
 #include <signal.h>
@@ -21,7 +21,7 @@ system(s)
 char	*s;
 {
 	int	status, pid, w;
-	register int (*istat)(), (*qstat)();
+	void (*istat)(), (*qstat)();
 
 	if((pid = fork()) == 0) {
 		(void) execl(bin_shell, shell, shflg, s, (char *)0);

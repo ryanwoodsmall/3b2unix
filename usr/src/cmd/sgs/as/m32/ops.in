@@ -1,6 +1,6 @@
 MONOP1 GEN
 {
-#ident	"@(#)as:m32/ops.in	1.20"
+#ident	"@(#)as:m32/ops.in	1.20.2.3"
 	/*
 	 * PUSHW pushw
 	 * TST|CLR|INC|DEC
@@ -423,7 +423,7 @@ TRIOP1 GEN, GEN, DEST
 			memtoreg = 1;
 		else
 			memtoreg = mtoregcheck(&(operstak[1]), &(operstak[2]));
-#if	ER16FIX
+#if	ER16FIX || ER76FIX
 	}
 #endif
 #if	0	/* trimul software workaround */
@@ -503,7 +503,7 @@ TRIOP2 GEN, GEN, DEST
 		pcintcheck(instrptr,&(operstak[2]));
 		if (operstak[2].type == REGMD)
 			memtoreg = 1;
-#if	ER16FIX
+#if	ER16FIX || ER76FIX
 	}
 #endif
 #if	0	/* trimul software workaround */
@@ -1475,7 +1475,7 @@ FPCMPOP1 FPGEN2, FPGEN2
 PSTEXT
 {
 	if (txtsec < 0)
-		txtsec = mksect(lookup(_TEXT,INSTALL,USRNAME)->stp, STYP_TEXT);
+		txtsec = mksect(lookup(_TEXT,INSTALL,USRNAME).stp, STYP_TEXT);
 	cgsect(txtsec);
 }
 ".text",	TXT,		0,	0x0L
@@ -1483,7 +1483,7 @@ PSTEXT
 PSDATA
 {
 	if (datsec < 0)
-		datsec = mksect(lookup(_DATA,INSTALL,USRNAME)->stp, STYP_DATA);
+		datsec = mksect(lookup(_DATA,INSTALL,USRNAME).stp, STYP_DATA);
 	cgsect(datsec);
 }
 ".data",	DAT,		0,	0x0L
@@ -1651,6 +1651,18 @@ PSWORD
 	/* handled in mixed parsing and semantics switch */
 }
 ".word",	PSEUDO,		0,	0x0L
+.
+PSUAHALF
+{
+	/* handled in mixed parsing and semantics switch */
+}
+".uahalf",	PSEUDO,		0,	0x0L
+.
+PSUAWORD
+{
+	/* handled in mixed parsing and semantics switch */
+}
+".uaword",	PSEUDO,		0,	0x0L
 .
 PSDECFP
 {

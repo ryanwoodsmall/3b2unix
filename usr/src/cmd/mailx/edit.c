@@ -5,14 +5,13 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:edit.c	1.6"
+#ident	"@(#)mailx:edit.c	1.8"
 #
 
 #include "rcv.h"
 #include <stdio.h>
 #include <sys/stat.h>
-typedef	int	(*sigtype)();
-extern sigtype m_sigset();
+typedef	SIG	(*sigtype)();
 
 /*
  * mailx -- a modified version of a University of California at Berkeley
@@ -63,7 +62,7 @@ edit1(msgvec, ed)
 	register int c;
 	int *ip, pid, mesg, lines;
 	long ms;
-	int (*sigint)(), (*sigquit)();
+	SIG (*sigint)(), (*sigquit)();
 	FILE *ibuf, *obuf;
 	struct message *mp;
 	extern char tempZedit[];
@@ -75,8 +74,8 @@ edit1(msgvec, ed)
 	 * Set signals; locate editor.
 	 */
 
-	sigint = m_sigset(SIGINT, SIG_IGN);
-	sigquit = m_sigset(SIGQUIT, SIG_IGN);
+	sigint = sigset(SIGINT, SIG_IGN);
+	sigquit = sigset(SIGQUIT, SIG_IGN); 
 
 	/*
 	 * Deal with each message to be edited . . .
@@ -138,6 +137,8 @@ edit1(msgvec, ed)
 		}
 		if (pid == 0) {
 			sigchild();
+			setuid(getuid());
+			setgid(getgid());
 			if (sigint != (sigtype) SIG_IGN)
 				sigsys(SIGINT, SIG_DFL);
 			if (sigquit != (sigtype) SIG_IGN)
@@ -204,6 +205,6 @@ edit1(msgvec, ed)
 	 */
 
 out:
-	m_sigset(SIGINT, sigint);
-	m_sigset(SIGQUIT, sigquit);
+	sigset(SIGINT, sigint);
+	sigset(SIGQUIT, sigquit);
 }

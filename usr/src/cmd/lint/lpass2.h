@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)lint:lpass2.h	1.4"
+#ident	"@(#)lint:lpass2.h	1.6"
 /*	3.0 SID #	1.2	*/
 typedef struct sty STYPE;
 struct sty { ATYPE t; STYPE *next; };

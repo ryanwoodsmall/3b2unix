@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)shl:newmain.c	1.9"
+#ident	"@(#)shl:newmain.c	1.9.1.1"
 #include	"defs.h"
 #include	<utmp.h>
 #include	<sys/stat.h>
@@ -37,7 +37,7 @@ main(argc, argv, envp)
 	uid = getuid();
 	gid = getgid();
 
-#ifdef u3b5
+#ifdef u3b15
 	ioctl(real_tty_fd, TTYTYPE, &ttytype);
 	
 	if (ttytype == VPMTTY)

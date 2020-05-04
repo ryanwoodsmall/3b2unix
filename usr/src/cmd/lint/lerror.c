@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)lint:lerror.c	1.5"
+#ident	"@(#)lint:lerror.c	1.7"
 /*	3.0 SID #	1.3	*/
 /* lerror.c
  *	This file was added to support lint message buffering.  Message

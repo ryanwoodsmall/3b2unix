@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/adv.c	10.17"
+#ident	"@(#)kern-port:nudnix/adv.c	10.17.3.1"
 /*
  *	advertise / unadvertise
  */
@@ -25,6 +25,7 @@
 #include "sys/adv.h"
 #include "sys/nserve.h"
 #include "sys/debug.h"
+#include "sys/cirmgr.h"
 #include "sys/rdebug.h"
 #include "sys/inline.h"
 
@@ -55,14 +56,16 @@ advfs()
 	char	*to, *from, adv_name [NMSZ];	/* temps */
 	struct	inode	*namei();
 	extern	rcvd_t	cr_rcvd();
-	extern  int 	nservers;
+	int	readv = 0;	/* flag when this is a re-advertise */
+	struct	rd_user *user;
+	struct	gdp	*gdpp;
 
 	if (bootstate != DU_UP)  {
 		u.u_error = ENONET;
 		return;
 	}
 
-	if(nservers == 0) {
+	if (maxserve == 0) {
 		u.u_error = ENOMEM;
 		return;
 	}
@@ -123,16 +126,22 @@ advfs()
 
 
 	/* search the advertise table for a free slot */
-	for (ap = advertise, a = 0; ap < &advertise[nadvertise]; ap++)
+	for (ap = advertise, a = 0; ap < &advertise[nadvertise]; ap++) {
 		if (ap->a_flags == A_FREE) {
 			if (!a)
 				a = ap;
 		} else  {
 			if (!strcmp(ap->a_name, adv_name)) {
-				u.u_error = (ap->a_flags & A_MINTER)?
-					ENXIO:EBUSY;
-				iput(ip);
-				return;
+			/* if inode is the same, this is a re-advertise */
+				if (ap->a_queue->rd_inode == ip) {
+					readv = TRUE;
+					a = ap;
+					continue;
+				} else {
+					u.u_error = EBUSY;
+					iput(ip);
+					return;
+				}
 			} 
 			if (ap->a_queue->rd_inode == ip) {
 				u.u_error = EEXIST;
@@ -140,6 +149,7 @@ advfs()
 				return;
 			}
 		}
+	}
 		
 	if (!(ap = a)) {
 		iput(ip);
@@ -147,20 +157,35 @@ advfs()
 		return;
 	}
 
-	ap->a_flags = A_INUSE;
+	if (readv) {
+		/*
+		 * read-write permissions on the readvertise must match 
+		 * those already in the table.
+		 */
+		if ((uap->rwflag & A_RDONLY) && !(ap->a_flags & A_RDONLY)) {
+			iput(ip);
+			u.u_error = EACCES;
+			return;
+		}
+		ap->a_flags &= ~A_MINTER;
+	} else {
+	
+		ap->a_flags = A_INUSE;
 
-	/*
-	 * if file system was mounted read only,
-	 * the advertisement must be read only.
-	 */
-	if (((ip->i_mntdev)->m_flags & MRDONLY) && !(uap->rwflag & A_RDONLY)) {
-		iput(ip);
-		u.u_error = EROFS;
-		ap->a_flags = A_FREE;
-		return;
+		/*
+		 * if file system was mounted read only,
+		 * the advertisement must be read only.
+		 */
+		if (((ip->i_mntdev)->m_flags & MRDONLY) && !(uap->rwflag & A_RDONLY)) {
+			iput(ip);
+			u.u_error = EROFS;
+			ap->a_flags = A_FREE;
+			return;
+		}
+		if (uap->rwflag & A_RDONLY)
+			ap->a_flags |= A_RDONLY;
 	}
-	if (uap->rwflag & A_RDONLY)
-		ap->a_flags |= A_RDONLY;
+
 	/*
 	 * now add authorization list, if necessary.
 	 */
@@ -174,8 +199,35 @@ advfs()
 	else
 		ap->a_clist = NULL;
 
+	/* 
+	 * check to see if any current clients are not on the new client list.
+	 * if so, fail the readvertise.  otherwise, bump counts and return
+	 */
+	if (readv) {
+		if (ap->a_clist != NULL) {
+			/* check each current user */
+			for (user=ap->a_queue->rd_user_list; user != NULL; user=user->ru_next) {
+				/* search gdp to find name for this sysid */
+				for (gdpp=gdp; gdpp->sysid != srmount[user->ru_srmntindx].sr_sysid; gdpp++)
+					;
+				if (checkalist(ap->a_clist, gdpp->token.t_uname) == FALSE) {
+					u.u_error = ESRMNT;
+					iput(ip);
+					remalist(ap->a_clist);
+					ap->a_flags |= A_MINTER;
+					return;
+				}
+			}
+		}
+		ap->a_queue->rd_refcnt++;
+		ip->i_flag |= IADV;
+		iput(ip);
+		return;
+	}
+
+
 	/*
-	 * allocate queue for advertised object.
+	 * allocate queue for advertised object
 	 */
 	if ((gift = cr_rcvd (MOUNT_QSIZE, GENERAL)) == NULL) { 
 			u.u_error = ENOMEM;
@@ -194,7 +246,6 @@ advfs()
 		*from != NULL  &&  from < &adv_name[NMSZ];)
 			*to++ = *from++;
 	*to = NULL;
-	gift->rd_max_serv = MOUNT_QSIZE;
 	gift->rd_inode = ip;	/* associate gift with inode */
 	DUPRINT2(DB_MNT_ADV,"exit adv: u_error is %d\n",u.u_error);
 }

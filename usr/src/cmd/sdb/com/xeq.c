@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:com/xeq.c	1.13"
+#ident	"@(#)sdb:com/xeq.c	1.15"
 
 /*
  *		MACHINE and OPERATING SYSTEM DEPENDENT
@@ -262,7 +262,7 @@ singsub(cm)
 char cm;
 {
 	ADDR retaddr;
-	struct proct *procp;
+	struct proct *procp, *tmprocp;
 				/* MACHINE DEPENDENT */
 #if DEBUG
 	if (debugflag ==1)
@@ -324,7 +324,11 @@ char cm;
 			dot = USERPC;
 		}
 		procp = adrtoprocp(dot);
-		if(cm == 's' && (procp != badproc && procp->lineno > 0))
+		tmprocp = procp;
+		while ( (tmprocp->notstab) && (tmprocp != badproc) )
+			tmprocp = adrtoprocp(tmprocp->paddress -1);
+		if(cm == 's' && ((procp != badproc && procp->lineno > 0) ||
+			((procp->notstab) && (tmprocp->sfptr->f_type == F77))))
 		{
 #if DEBUG
 			if (debugflag == 1)
@@ -798,7 +802,7 @@ getargs() {
 		*argsp = '\0';
 	}
 
-	printf("%s %s\n", symfil, args);
+	printf("%s %s\n", symfil[libn], args);
 	errflg = 0;
 #if DEBUG
 	if (debugflag == 1)

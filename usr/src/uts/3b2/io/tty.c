@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/tty.c	10.7"
+#ident	"@(#)kern-port:io/tty.c	10.7.1.1"
 /*
  * general TTY subroutines
  */
@@ -35,8 +35,8 @@
  * high < TTYHOG
  */
 int	tthiwat[16] = {
-	0, 60, 60, 60,
-	60, 60, 60, 120,
+	0, 70, 70, 70,
+	70, 70, 70, 120,
 	120, 180, 180, 240,
 	240, 240, 100, 100,
 };

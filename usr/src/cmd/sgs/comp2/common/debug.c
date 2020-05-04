@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)pcc2:common/debug.c	10.3"
+#ident	"@(#)pcc2:common/debug.c	10.7"
 /* debug.c -- symbol table output routines for common assembler */
 
 #include <sys/signal.h>
@@ -20,9 +20,21 @@ static int oldln;			/* last line number printed */
 int gdebug;				/* -g flag (not used) */
 static char startfn[100];		/* file name of the opening { */
 static char fncname[BUFSIZ+1];		/* name of current function */
-static int bb_flags[BCSZ];		/* remember whether or not bb
-					** is needed
+extern int nolineno;			/* forcibly disable line number output
+					** if non-0 (presumably around ecomp())
 					*/
+
+/* static */ int bb_fl_init[INI_BBFSZ];
+#ifndef STATSOUT
+static
+#endif
+	TD_INIT( td_bb_flags, INI_BBFSZ, sizeof(int),
+		    TD_ZERO, bb_fl_init, "block debug flags");
+
+/* bb_flags remembers whether a .bb has been produced at each level or not */
+#define bb_flags ((int *) td_bb_flags.td_start)
+#define BBFSZ (td_bb_flags.td_allo)
+
 
 fix1def(p,dsflag)
 struct symtab *p;
@@ -94,10 +106,19 @@ prdims( p ) struct symtab *p; {
 /* local table of fakes for un-names structures
  * sizoff for .ifake is stored in mystrtab[i]
  */
-#ifndef FAKENM
-#define FAKENM 99	/* maximum number of fakenames */
+/* static */ int mstrtab_init[INI_FAKENM];
+
+#ifndef STATSOUT
+static
 #endif
-int mystrtab[FAKENM], ifake = 0;
+	TD_INIT( td_mystrtab, INI_FAKENM, sizeof(int),
+			0, mstrtab_init, "fake name table");
+
+#define mystrtab ((int *)(td_mystrtab.td_start))
+#define ifake (td_mystrtab.td_used)
+#undef FAKENM
+#define FAKENM (td_mystrtab.td_allo)
+
 struct symtab mytable;
 	char tagname[BUFSIZ] = "";
 
@@ -143,6 +164,14 @@ int mydsflg;
 				cerror( "bad storage class %d", p->sclass );
 			break;
 		}
+
+	/* make sure bb_flags is large enough */
+	if (blevel >= BBFSZ)
+	    td_enlarge(&td_bb_flags, blevel+1);
+
+#ifdef STATSOUT
+	if (td_bb_flags.td_max < blevel) td_bb_flags.td_max = blevel;
+#endif
 
 	/* print a .bb symbol if this is the first symbol in the block */
 
@@ -296,8 +325,8 @@ int dsflag;				/* 0 to enable output */
 		/* create a fake if there is no tagname */
 		/* use the local symbol table */
 		tagnm = &mytable;
-		if( ifake == FAKENM )
-			cerror( "fakename table overflow" );
+		if( ifake == FAKENM )	/* make table larger */
+		    td_enlarge(&td_mystrtab, 0);
 
 		/* generate the fake name and enter into the fake table */
 		{
@@ -307,6 +336,9 @@ int dsflag;				/* 0 to enable output */
 			mytable.sname = savestr( buf );	/* lives forever! */
 		}
 		mystrtab[ifake++] = dimst;
+#ifdef STATSOUT
+		++td_mystrtab.td_max;
+#endif
 		memptr = &stab[dimtab[member]];
 
 		/* fix up the fake's class, type, and sizoff based on class of its members */
@@ -402,7 +434,7 @@ strname( key ) int key; {
 	if( tagnm != NULL )
 		return( tagnm->sname );
 
-	for( i = 0; i < FAKENM; ++i )
+	for( i = 0; i < ifake; ++i )
 		if( mystrtab[i] == key ) {
 			sprintf( tagname, ".%dfake", i );
 			return( tagname );
@@ -482,7 +514,7 @@ TWORD ntype;			/* new type */
 sdbln1(dlflag)
 int dlflag;				/* 0 to allow printing */
 {
-    if ( !dlflag && lineno != oldln )
+    if ( !dlflag && lineno != oldln && !nolineno )
     {
 	oldln = lineno;			/* remember last line no. output */
 	if (   curloc == PROG
@@ -518,6 +550,10 @@ int dsflag;				/* 0 to allow printing */
 	 * print .eb here if .bb printed for this block
 	 */
 # ifndef NOSYMB
+	/* make sure bb_flags is large enough */
+	if (blevel >= BBFSZ)
+	    td_enlarge(&td_bb_flags, blevel+1);
+
 	if( !dsflag && bb_flags[blevel] ) {
 		printf( "	.def	.eb;	.val	.;	.scl	%d;	.line	%d;	.endef\n", C_BLOCK, LINENO );
 		bb_flags[blevel] = 0;

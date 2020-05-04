@@ -5,11 +5,11 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)vmkfs:vmkfs.mk	1.2"
+#ident	"@(#)vmkfs:vmkfs.mk	1.2.1.1"
 
 ROOT =
 INCRT = $(ROOT)/usr/include
-CFLAGS = -O -I$(INCRT) -Uu3b -Uvax -Updp11 -Uu3b5 -Du3b2
+CFLAGS = -O -I$(INCRT) -Uu3b -Uvax -Updp11 -Uu3b15 -Du3b2
 LDFLAGS = -s
 INS = install
 FRC =

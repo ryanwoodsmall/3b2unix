@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/_utility.c	1.7"
+#ident	"@(#)libnsl:nsl/_utility.c	1.7.4.2"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/errno.h"
@@ -22,11 +22,12 @@
 extern struct _ti_user *_ti_user;
 extern int t_errno;
 extern int errno;
+extern long openfiles;
 extern char *calloc();
 extern char *memcpy();
 extern void free();
 extern ioctl(), getmsg();
-extern int ulimit();
+extern long ulimit();
 extern int fcntl();
 
 /*
@@ -38,7 +39,7 @@ _t_checkfd(fd)
 int fd;
 {
 
-	if ((fd < 0) || (fd > (OPENFILES -1)) ||
+	if ((fd < 0) || (fd > (openfiles -1)) ||
 	    (_ti_user == NULL) ||
 	    !(_ti_user[fd].ti_flags & USED)) {
 		t_errno = TBADF;
@@ -57,7 +58,7 @@ int fd;
 _t_aligned_copy(buf, len, init_offset, datap, rtn_offset)
 char *buf;
 char *datap;
-int *rtn_offset;
+long *rtn_offset;
 {
 		*rtn_offset = ROUNDUP(init_offset) + ((unsigned int)datap&0x03);
 		memcpy((char *)(buf + *rtn_offset), datap, (int)len);
@@ -268,13 +269,16 @@ struct T_info_ack info;
 
 	size1 = _t_max(csize,dsize);
 
-	if ((rcvbuf = calloc(1, size1)) == NULL) {
-		return(-1);
-	}
-
-	if ((lookdbuf = calloc(1, size1)) == NULL) {
-		(void)free(rcvbuf);
-		return(-1);
+	if (size1 > 0) {
+		if ((rcvbuf = calloc(1, size1)) == NULL)
+			return(-1);
+		if ((lookdbuf = calloc(1, size1)) == NULL) {
+			(void)free(rcvbuf);
+			return(-1);
+		}
+	} else {
+		rcvbuf = NULL;
+		lookdbuf = NULL;
 	}
 
 	asize = _t_setsize(info.ADDR_size);
@@ -283,14 +287,18 @@ struct T_info_ack info;
 	size2 = sizeof(union T_primitives) + asize + sizeof(long) + osize + sizeof(long);
 
 	if ((ctlbuf = calloc(1, size2)) == NULL) {
-		(void)free(rcvbuf);
-		(void)free(lookdbuf);
+		if (size1 > 0) {
+			(void)free(rcvbuf);
+			(void)free(lookdbuf);
+		}
 		return(-1);
 	}
 
 	if ((lookcbuf = calloc(1, size2)) == NULL) {
-		(void)free(rcvbuf);
-		(void)free(lookdbuf);
+		if (size1 > 0) {
+			(void)free(rcvbuf);
+			(void)free(lookdbuf);
+		}
 		(void)free(ctlbuf);
 		return(-1);
 	}
@@ -308,6 +316,8 @@ struct T_info_ack info;
 	tiptr->ti_flags = USED;
 	tiptr->ti_maxpsz = info.TIDU_size;
 	tiptr->ti_servtype = info.SERV_type;
+	tiptr->ti_state = T_UNINIT;
+	tiptr->ti_ocnt = 0;
 	return(0);
 }
 
@@ -324,4 +334,23 @@ long infosize;
 		case -2: return(0);
 		default: return(infosize);
 	}
+}
+
+_null_tiptr(tiptr)
+struct _ti_user *tiptr;
+{
+	tiptr->ti_flags = 0;
+	tiptr->ti_rcvsize = 0;
+	tiptr->ti_rcvbuf = NULL;
+	tiptr->ti_ctlsize = 0;
+	tiptr->ti_ctlbuf = NULL;
+	tiptr->ti_lookdbuf = NULL;
+	tiptr->ti_lookcbuf = NULL;
+	tiptr->ti_lookdsize = 0;
+	tiptr->ti_lookcsize = 0;
+	tiptr->ti_maxpsz = 0;
+	tiptr->ti_servtype = 0;
+	tiptr->ti_lookflg = 0;
+	tiptr->ti_state = 0;
+	tiptr->ti_ocnt = 0;
 }

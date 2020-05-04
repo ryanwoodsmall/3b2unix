@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/main.c	10.7"
+#ident	"@(#)kern-port:os/main.c	10.7.3.3"
 #include "sys/types.h"
 #include "sys/param.h"
 #include "sys/psw.h"
@@ -111,17 +111,16 @@ main()
 		**	of /etc/init.  The "icode" is in misc.s.
 		*/
 
-		rp = allocreg(NULL, RT_PRIVATE, 0);
+		rp = allocreg(NULL, RT_PRIVATE);
 		prp = attachreg(rp, &u, UVTEXT, PT_TEXT, SEG_RW);
 		npgs = btoc(szicode);
 		growreg(prp, npgs, DBD_DFILL);
-		loadmmu(u.u_procp, SCN2);
 		regrele(rp);
 
 		if (copyout((caddr_t)icode, (caddr_t)(UVTEXT), szicode))
 			cmn_err(CE_PANIC, "main - copyout of icode failed");
 
-		/*	The following software workaround is for 
+		/*	The following software workaround is for
 		**	the WE32000 which does not have the
 		**	capability of getting write and execute
 		**	access to a segment at the same time.
@@ -153,16 +152,14 @@ main()
 		**	SSIZE pages.
 		*/
 
-		rp = allocreg(NULL, RT_PRIVATE, 0);
+		rp = allocreg(NULL, RT_PRIVATE);
 		prp = attachreg(rp, &u, userstack, PT_STACK, SEG_RW);
 		growreg(prp, SSIZE, DBD_DFILL);
-		loadmmu(u.u_procp, SCN3);
 		u.u_pcb.sub = (int *)((uint)userstack + ctob(SSIZE));
 		regrele(rp);
 		return(UVTEXT);
 	}
-	if (newproc(0)) {
-		u.u_procp->p_flag |= SLOAD|SSYS;
+	if (newproc(NP_SYSPROC)) {
 		u.u_cstime = u.u_stime = u.u_cutime = u.u_utime = 0;
 		bcopy("vhand", u.u_psargs, 6);
 		bcopy("vhand", u.u_comm, 5);
@@ -171,8 +168,7 @@ main()
 		return((int)vhand);
 	}
 
-	if (newproc(0)) {
-		u.u_procp->p_flag |= SLOAD|SSYS;
+	if (newproc(NP_SYSPROC)) {
 		u.u_cstime = u.u_stime = u.u_cutime = u.u_utime = 0;
 		bcopy("bdflush", u.u_psargs, 8);
 		bcopy("bdflush", u.u_comm, 7);

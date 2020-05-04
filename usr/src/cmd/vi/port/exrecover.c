@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident	"@(#)vi:port/exrecover.c	1.20"
+#ident	"@(#)vi:port/exrecover.c	1.23"
 
 #include <stdio.h>	/* BUFSIZ: stdio = 512, VMUNIX = 1024 */
 #ifndef TRACE
@@ -65,23 +65,25 @@ struct	passwd *getpwuid();
  */
 #define	NENTRY	50
 
-char	*ctime();
+extern void setbuf();
 char	nb[BUFSIZ];
 int	vercnt;			/* Count number of versions of file found */
-extern char * mypass();
 main(argc, argv)
 	int argc;
 	char *argv[];
 {
+	char string[20];
 	register char *cp;
 	register int c, b, i;
 	register int rflg = 0, errflg = 0;
 	int label;
 	line *tmpadr;
 	extern int optind;
+	extern char *mypass();
 	struct passwd *pp = getpwuid(getuid());
 	char rmcmd[256];
 
+	cp = string;
 	strcpy(mydir, usrpath(preserve/));
 	if (pp == NULL) {
 		fprintf(stderr, "Unable to get user's id\n");
@@ -98,11 +100,16 @@ main(argc, argv)
 	endcore = fendcore - 2;
 	iblock = oblock = -1;
 
-	while ((c=getopt(argc, argv, "r")) != EOF)
+	while ((c=getopt(argc, argv, "rx")) != EOF)
 		switch (c) {
 			case 'r':
 				rflg++;
 				break;
+			
+			case 'x':
+				xflag++;
+				break;
+
 			case '?':
 				errflg++;
 				break;
@@ -138,19 +145,17 @@ main(argc, argv)
 	/*
 	 * Got (one of the versions of) it, write it back to the editor.
 	 */
-	cp = ctime(&H.Time);
-	cp[19] = 0;
+	(void)cftime(cp, "%a %h %d %T", &H.Time);
 	fprintf(stderr, " [Dated: %s", cp);
 	fprintf(stderr, vercnt > 1 ? ", newest of %d saved]" : "]", vercnt);
 	fprintf(stderr, "\r\n");
-#ifdef CRYPT
-	if (H.encrypted)
-		xflag = 1;
-	else
-		xflag = 0;
-	if(xflag) {
-		fprintf(stderr,"Encryption key for recovered file \"%s\"\r\n",file);
-		if ((kflag = run_setkey(perm, mypass("Enter key:"))) == -1) {
+	
+	if(H.encrypted) {
+		if(xflag) {
+			kflag = run_setkey(perm, getenv("CrYpTkEy"));
+		} else
+			kflag = run_setkey(perm, mypass("Enter key:"));
+		if(kflag == -1) {
 			kflag = 0;
 			xflag = 0;
 			fprintf(stderr,"Encryption facility not available\n");
@@ -163,10 +168,10 @@ main(argc, argv)
 			exit(-1);
         	}
 	}
-#endif
 	fprintf(stderr,"\r\n [Hit return to continue]");
 	fflush(stderr);
-	scanf("*c");
+	setbuf(stdin, (char *)NULL);
+	while((c = getchar()) != '\n' && c != '\r');
 	H.Flines++;
 
 	/*
@@ -287,7 +292,7 @@ listfiles(dirname)
 #endif
 	int ecount, qucmp();
 	register int f;
-	char *cp;
+	char cp[17];
 	char *filname;
 	struct svfile *fp, svbuf[NENTRY];
 
@@ -383,10 +388,9 @@ listfiles(dirname)
 	}
 	qsort(&svbuf[0], ecount, sizeof svbuf[0], qucmp);
 	for (fp = &svbuf[0]; fp < &svbuf[ecount]; fp++) {
-		cp = ctime(&fp->sf_time);
+		(void)cftime(cp, "%a %b %d %R", &fp->sf_time);
 		cp[10] = 0;
 		fprintf(stderr, "On %s at ", cp);
- 		cp[16] = 0;
 		fprintf(stderr, &cp[11]);
 		fprintf(stderr, " saved %d lines of file \"%s\" ",
 		    fp->sf_lines, fp->sf_name);
@@ -650,13 +654,11 @@ scrapbad()
 	while (bno > 0) {
 		ignorl(lseek(tfile, (long) BUFSIZ * bno, 0));
 		cnt = read(tfile, (char *) bk, BUFSIZ);
-#ifdef CRYPT
 	if(xtflag)
 		if (run_crypt(0L, bk, CRSIZE, tperm) == -1)
 		    syserror();
 #ifdef DEBUG
-	fprintf(stderr,"UNCRYPTED: BLK %d\n",bno);
-#endif
+	fprintf(stderr,"UNENCRYPTED: BLK %d\n",bno);
 #endif
 		while (cnt > 0)
 			if (bk[--cnt] == 0)
@@ -847,13 +849,11 @@ getblock(atl)
 		return (ibuff + off);
 	iblock = bno;
 	blkio(bno, ibuff, read);
-#ifdef CRYPT
 	if(xtflag)
 		if (run_crypt(0L, ibuff, CRSIZE, tperm) == -1)
 		    syserror();
 #ifdef DEBUG
-	fprintf(stderr,"UNCRYPTED: BLK %d\n",bno);
-#endif
+	fprintf(stderr,"UNENCRYPTED: BLK %d\n",bno);
 #endif
 	return (ibuff + off);
 }
@@ -887,16 +887,10 @@ syserror()
 	exit(1);
 }
 
-extern void setbuf();
 extern int fprintf(), findiop();
 extern int kill(), ioctl(), getpid();
 static int intrupt;
 
-/*
- * This is a version of getpass(3C), which is necessary since a
- * carriage return is a '\r' (inside curses) instead of a '\n'
- * which getpass(3C) checks for.
- */
 char *
 mypass(prompt)
 char	*prompt;

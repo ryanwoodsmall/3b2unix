@@ -5,14 +5,14 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)kern-port:unix.mk	10.11"
+#ident	"@(#)kern-port:unix.mk	10.11.1.1"
 
 ROOT = 
 DIS = dis
 NM = nm
 SIZE = size
 STRIP = strip
-INCRT=$(ROOT)/usr/include
+INC=$(ROOT)/usr/include
 
 LIBS= lib.os lib.io
 NODE = kernel
@@ -26,40 +26,40 @@ MKBOOT = mkboot
 MASTERD=./master.d
 DASHG =
 DASHO = -O
-CFLAGS= $(DASHO) $(DASHG) -I$(INCRT) -DINKERNEL -DREM $(MORECPP)
+CFLAGS= $(DASHO) $(DASHG) -I$(INC) -DINKERNEL -DREM $(MORECPP)
 FRC =
 
 all:FRC
-	cd ml; $(MAKE) -f ml.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INCRT=$(INCRT)" ; \
-	cd ../os; $(MAKE) -f os.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INCRT=$(INCRT)" ; \
-	cd ../fs; $(MAKE) -f fs.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INCRT=$(INCRT)" ; \
-	cd ../nudnix; $(MAKE) -f nudnix.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INCRT=$(INCRT)" ; \
-	cd ../io; $(MAKE) -f io.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INCRT=$(INCRT)" ; \
-	cd ../debug; $(MAKE) -f debug.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INCRT=$(INCRT)" ; \
-	cd ../boot; $(MAKE) -f boot.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INCRT=$(INCRT)" ; \
+	cd ml; $(MAKE) -f ml.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INC=$(INC)" ; \
+	cd ../os; $(MAKE) -f os.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INC=$(INC)" ; \
+	cd ../fs; $(MAKE) -f fs.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INC=$(INC)" ; \
+	cd ../nudnix; $(MAKE) -f nudnix.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INC=$(INC)" ; \
+	cd ../io; $(MAKE) -f io.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INC=$(INC)" ; \
+	cd ../debug; $(MAKE) -f debug.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INC=$(INC)" ; \
+	cd ../boot; $(MAKE) -f boot.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INC=$(INC)" ; \
 	wait
 	$(MAKE) -f unix.mk NAME=$(NAME) unix
 
 machine:FRC
-	cd ml; $(MAKE) -f ml.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INCRT=$(INCRT)"
+	cd ml; $(MAKE) -f ml.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INC=$(INC)"
 
 system:FRC
-	cd os; $(MAKE) -f os.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INCRT=$(INCRT)"
+	cd os; $(MAKE) -f os.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INC=$(INC)"
 
 drivers:FRC
-	cd io; $(MAKE) -f io.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INCRT=$(INCRT)"
+	cd io; $(MAKE) -f io.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INC=$(INC)"
 
 debug:FRC
-	cd debug; $(MAKE) -f debug.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INCRT=$(INCRT)"
+	cd debug; $(MAKE) -f debug.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INC=$(INC)"
 
 boot:FRC
-	cd boot; $(MAKE) -f boot.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INCRT=$(INCRT)"
+	cd boot; $(MAKE) -f boot.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INC=$(INC)"
 
 nudnix:FRC
-	cd nudnix; $(MAKE) -f nudnix.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INCRT=$(INCRT)" 
+	cd nudnix; $(MAKE) -f nudnix.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INC=$(INC)" 
 
 fs:FRC
-	cd fs; $(MAKE) -f fs.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INCRT=$(INCRT)"
+	cd fs; $(MAKE) -f fs.mk "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INC=$(INC)"
 
 unix:	$(LIBS) vuifile $(MASTERD)/kernel
 	-rm -f $(NAME)
@@ -91,7 +91,7 @@ clobber: clean
 
 install:all
 #	$(INS) -f $(INSDIR) "$(NAME)"
-	cd boot; $(MAKE) -f boot.mk install "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INCRT=$(INCRT)" ; \
+	cd boot; $(MAKE) -f boot.mk install "FRC=$(FRC)" "DASHG=$(DASHG)" "DASHO=$(DASHO)" "MORECPP=$(MORECPP)" "INC=$(INC)" ; \
 	wait
 
 

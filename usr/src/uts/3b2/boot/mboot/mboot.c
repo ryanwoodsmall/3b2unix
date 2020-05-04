@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:boot/mboot/mboot.c	10.4"
+#ident	"@(#)kern-port:boot/mboot/mboot.c	10.4.1.2"
 /* mboot.c MINI-BOOT from hard or floppy disk of UNIX OS ON 3B2 */
 
 #include <sys/firmware.h>
@@ -40,6 +40,13 @@ main()
 	register	lbcount;
 
 
+
+	/* Fix for disk defect mapping problem in prom code */
+
+	if (SERNO->serial0 < 0x23) {
+		*((char *)&MEMINIT + 5) = 0xff;
+		asm("	MOVW	&0x81e13f,%psw");
+	}
 
 	switch (dev = P_CMDQ->b_dev)
 		{
@@ -96,11 +103,6 @@ main()
 	 * no impact to crash dump procedures.
 	 */
 	MEMINIT = SAFE;
-
-	/* Fix for disk defect mapping problem in prom code */
-
-	if (SERNO->serial0 < 0x23)
-		*((char *)&MEMINIT + 5) = 0xff;
 
 	/* Transfer execution control to start of LBOOT */
         (*((int(*)())block1.vtoc.v_bootinfo[0])) ();

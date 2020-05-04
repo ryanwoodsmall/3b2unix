@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)libcrypt_x:libcrypt_x.mk	1.9"
+#ident	"@(#)libcrypt_x:libcrypt_x.mk	1.10"
 
 #	Makefile for libcrypt
 
@@ -91,14 +91,7 @@ $(LIBRARY)(des_crypt.o):
 all : ALL
 
 install: ALL
-	if [ -f libcrypt_x.mk ] ;\
-	then \
-		mv $(LIBRARY) libcrypt_x.a ;\
-		cpset libcrypt_x.a $(USRLIB) 0644 bin bin ;\
-		mv libcrypt_x.a $(LIBRARY) ;\
-	else \
-		cpset $(LIBRARY) $(USRLIB) 0644 bin bin ;\
-	fi 
+	cpset $(LIBRARY) $(USRLIB) 0644 bin bin 
 
 size: ALL
 	$(SIZE) $(LIBRARY)

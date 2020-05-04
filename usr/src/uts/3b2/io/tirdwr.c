@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/tirdwr.c	10.4"
+#ident	"@(#)kern-port:io/tirdwr.c	10.4.1.1"
 /*
  * Transport Interface Library read/write module - issue 1
  */
@@ -133,27 +133,7 @@ register queue_t *q;
 		mp->b_datap->db_type = M_PROTO;
 		putnext(WR(q), mp);
 		trwptr->trw_mp = NULL;
-	} else {
-		if (!(trwptr->trw_flags & DISCON)) {
-			mp = trwptr->trw_mp;
-			pptr = (union T_primitives *)mp->b_rptr;
-			mp->b_wptr = mp->b_rptr + sizeof(struct T_discon_req);
-			pptr->type = T_DISCON_REQ;
-			pptr->discon_req.SEQ_number = -1;
-			mp->b_datap->db_type = M_PROTO;
-			trwptr->trw_flags |= WAITACK;
-			putnext(WR(q), mp);
-			trwptr->trw_mp = NULL;
-			while (trwptr->trw_flags & WAITACK) {
-				if (sleep((caddr_t)trwptr, TIRDWRPRI|PCATCH)) {
-					trwptr->trw_flags = 0;
-					trwptr->trw_rdq = NULL;
-					trwptr->trw_mp = NULL;
-					return;
-				}
-			}
-		}
-	}
+	} 
 
 	freemsg(trwptr->trw_mp);
 	trwptr->trw_flags = 0;

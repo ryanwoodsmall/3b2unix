@@ -17,4 +17,5 @@
 /usr/lib/libnsl_s.a
 /usr/lib/libnls.a
 /usr/net/nls/listen
+/usr/net/nls/dbfconv
 /usr/options/nsu.name

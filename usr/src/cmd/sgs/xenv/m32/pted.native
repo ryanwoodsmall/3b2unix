@@ -1,4 +1,4 @@
-#ident	"@(#)xenv:m32/pted.native	1.21"
+#ident	"@(#)xenv:m32/pted.native	1.23"
 #
 #	3b15/3b5/3b2 native pathedit
 #
@@ -214,10 +214,10 @@ then
 	cp ../../../../lib/libmk.template ../../../../lib/lib.mk
 else
 ed ../../../../lib/libmk.template <<X
-1,\$s|^LIB=.*|LIB=$__LIBDIR|
-1,\$s|^USRLIB=.*|USRLIB=$__LIBDIR/../usr/lib|
-1,\$s|^LIBP=.*|LIBP=$__USRLIB/libp|
-1,\$s|^SHLIB=.*|SHLIB=$__LIBDIR/shlib|
+1,\$s|^LIB=.*|LIB=$(ROOT)$__LIBDIR|
+1,\$s|^USRLIB=.*|USRLIB=$(ROOT)$__LIBDIR/../usr/lib|
+1,\$s|^LIBP=.*|LIBP=$(ROOT)$__USRLIB/libp|
+1,\$s|^SHLIB=.*|SHLIB=$(ROOT)$__LIBDIR/shlib|
 1,\$s|^SGS.*|SGS=$__PREFIX|
 w ../../../../lib/lib.mk
 q
@@ -235,5 +235,4 @@ w
 q
 W
 echo "\n ******** Linking shared library source files ********"
-find ../../../../lib/shlibc -links 2 -type f -exec rm -f {} \;
 pted.shlink

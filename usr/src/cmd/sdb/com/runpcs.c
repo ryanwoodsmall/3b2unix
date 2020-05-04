@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:com/runpcs.c	1.23"
+#ident	"@(#)sdb:com/runpcs.c	1.25"
 
 /*
  *	UNIX debugger
@@ -37,7 +37,7 @@
 #define exect	execve
 
 static int opmask[4] = {0xff000000, 0x00ff0000, 0x0000ff00, 0x000000ff};
-#define OPCODE (0x2e2e2e2e)
+#define OPCODE (0x2f2f2f2f)
 #endif
 
 extern MSG		NOFORK;
@@ -74,20 +74,8 @@ runpcs(runmode,execsig)
 	REG BKPTR	bkpt;
 	int cmdval;
 #if u3b5 || u3b15 || u3b2
-	int idsp;
-	char fmt;
-	long nextpc;
+	union word word;
 
-/* variables needed for single stepping floating point instructions: */
-
-	register int val;	/* holds the word of instruction stream that */
-				/* is to receive breakpoint */
-	register ADDR adword;	/* address of word of instruction stream to */
-				/* receive breakpoint */
-	register int bytenum;	/* byte number within word of instruction stream */
-				/* where breakpoint is to be placed */
-	long savewd;		/* temporary to save original word of instruction */
-				/* stream before breakpoint is inserted */
 #endif
 
 #if DEBUG
@@ -233,7 +221,14 @@ runpcs(runmode,execsig)
 			fpstep(&execsig);
 		}
 	}
-	else sigprint();
+	else
+	{
+		word.w = get(regvals[15], ISP);
+		if (word.c[0] != 0x2f)	/* if not 'WAIT' */
+			 sigprint();
+		else
+			signo = 0;
+	}
 	}
 	    delbp();
 	    if( (signo==0) && (runmode!=SINGLE) ) {
@@ -241,7 +236,7 @@ runpcs(runmode,execsig)
 		/*SDB expects it to be backed up to point at the BPT.*/
 		/*the above bpwait is the only one which could stop*/
 		/*due to BPT. (I hope)*/
-		putreg(15,'l',regvals[15]-1); /*in access.c*/
+		/*putreg(15,'l',regvals[15]-1); in access.c*/
 		userpc = dot = regvals[15];
 	    }
 #endif
@@ -303,6 +298,7 @@ int * execsig;
 	int idsp;
 	char fmt;
 	long nextpc;
+	union word word;
 
 /* variables needed for single stepping floating point instructions: */
 
@@ -367,10 +363,17 @@ int * execsig;
 	readregs();
 
 	/* check that it was a breakpoint we hit */
+/*
 	if (signo ==0)
 	{
-		/* m32 leaves user pc pointing after bpt, so back it up one byte */
+	m32 leaves user pc pointing after bpt, so back it up one byte 
 		putreg(15,'l',regvals[15]-1);
+*/
+	word.w = get(regvals[15], ISP);
+
+	if ((signo == SIGILL) && (word.c[0] == 0x2f)) /* WAIT instruction */
+	{
+		signo = 0;
 		userpc=dot=regvals[15];
 
 		if (userpc==nextpc)
@@ -491,7 +494,8 @@ setup()
 			closeparen();
 		}
 #endif
-	close(fsym); fsym = -1;
+	libn = 0;
+	close(fsym[libn]); fsym[libn] = -1;
 	if ((pid = fork()) == 0)
 	{
 		ptrace(SETTRC,0,0,0);
@@ -530,9 +534,9 @@ setup()
 #endif
 
 		readregs();
-		fsym=open(symfil,0);
+		fsym[libn]=open(symfil[libn],0);
 		if (errflg) {
-			fprintf(FPRT1, "%s: cannot execute\n",symfil);
+			fprintf(FPRT1, "%s: cannot execute\n",symfil[libn]);
 			endpcs();
 		}
 	}
@@ -941,7 +945,8 @@ doexec()
 #endif
 	arglp = argl;
 	argsp = args;
-	*arglp++ = symfil;
+	*arglp++ = symfil[libn];	/* symfile[0] is the executable, */
+				/* the rest are shared libs */
 	c = ' ';
 
 	do {
@@ -994,7 +999,7 @@ doexec()
 		}
 	} while (c != '\n');
 	*arglp = (char *) 0;
-	exect(symfil, argl, environ);
+	exect(symfil[libn], argl, environ);
 	perror("Returned from exect");
 }
 

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/hetero.h	10.3"
+#ident	"@(#)kern-port:sys/hetero.h	10.3.1.1"
 
 /*
  *	Define machine attributes for heterogeneity.
@@ -57,4 +57,4 @@
 
 
 
-#define MACHTYPE	BYTE_ORDER | ALIGNMENT | UNIT_SIZE
+#define MACHTYPE	(BYTE_ORDER | ALIGNMENT | UNIT_SIZE)

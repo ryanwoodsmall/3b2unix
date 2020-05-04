@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sccs:cmd/what.c	6.10"
+#ident	"@(#)sccs:cmd/what.c	6.11"
 # include	"stdio.h"
 # include	"sys/types.h"
 # include	"macros.h"
@@ -20,7 +20,6 @@ int found = FALSE;
 int silent = FALSE;
 
 char pattern[]  =  "@(#)";
-char opattern[]  =  "~|^`";
 
 
 main(argc,argv)
@@ -57,8 +56,6 @@ register FILE *iop;
 	while ((c = getc(iop)) != EOF) {
 		if (c == pattern[0])
 			if(trypat(iop, &pattern[1]) && silent) break;
-		else if (c == opattern[0])
-			if(trypat(iop, &opattern[1]) && silent) break;
 	}
 	fclose(iop);
 }

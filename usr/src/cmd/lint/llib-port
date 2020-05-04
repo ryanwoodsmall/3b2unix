@@ -1,5 +1,5 @@
 /*LINTLIBRARY*/
-#ident "@(#)lint:llib-port	2.12"
+#ident	"@(#)lint:llib-port	2.17"
 #include <stdio.h>
 
 /* EXIT(2) */
@@ -10,6 +10,10 @@ void  (*	signal(s, a))() void (*a)(); { return (a); }
 /* SIGSET(2) */
 #include <signal.h>
 void  (*	sigset(s, a))() void (*a)(); { return (a); }
+int	sighold(s) { return(s); }
+int	sigrelse(s) { return(s); }
+int	sigignore(s) { return(s); }
+int	sigpause(s) { return(s); }
 /* TIME(2) */
 long	time(t) long *t; { return (0L); }
 /* UNLINK(2) */
@@ -49,6 +53,10 @@ void	tzset() {}
 long	timezone;
 int	daylight;
 char *	tzname[2];
+/* CFTIME(3C) */
+int	cftime(b,f,t) char *b, *f; long *t; { return (0); }
+int	ascftime(b,f,t) char *b, *f; struct tm *t; { return (0); }
+void	setcftime(s) char *s; { };
 /* CTYPE(3C) */
 #undef isalpha
 #undef isupper
@@ -65,6 +73,8 @@ char *	tzname[2];
 int	isalpha(c) { return (c); }
 int	isupper(c) { return (c); }
 int	islower(c) { return (c); }
+int	old_isupper(c) { return(c); }
+int	old_islower(c) { return(c); }
 int	isdigit(c) { return (c); }
 int	isxdigit(c) { return (c); }
 int	isalnum(c) { return (c); }

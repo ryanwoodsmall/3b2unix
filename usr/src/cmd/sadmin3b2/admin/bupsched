@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin3b2:admin/bupsched	1.4"
+#ident	"@(#)sadmin3b2:admin/bupsched	1.7"
 flags="-qq -k$$"
 firstbreak="y"
 chged="No"
@@ -41,7 +41,7 @@ Answering \"q\" will quit the command or terminate the list
 if a range has been successfully entered.
 Notice that blank spaces are NOT allowed." "
 Enter time intervals in which backup reminder messages are to be printed
-[ q, ?] :" "^[0-2][0-9]:[0-5][0-9]-[0-2][0-9]:[0-5][0-9]$" "Invalid format."`
+[ ?, q] :" "^[0-2][0-9]:[0-5][0-9]-[0-2][0-9]:[0-5][0-9]$" "Invalid format."`
 
 		if [ "${timefld}" = "" ]
 		then
@@ -84,14 +84,15 @@ Enter time intervals in which backup reminder messages are to be printed
 	while true
 	do
 		timefld=`checkre -fe -qq -H "
-The time field defines the time of day during which you wish to 
-check for backup reminders messages to be printed.
-Times are based on 24 hour clock (0:00 - 23:59)
+The time field specifies the time of day when the computer
+will check all file systems to determine which file systems
+need to be backed up.
+Times are based on 24 hour clock (00:00 - 23:59)
 Examples of allowed formats:
-	08:30		8:30 am
-	15:00		3:00 pm" "	
+	08:30   which means 8:30 am
+	15:00   which means 3:00 pm" "	
 Enter the times at which you want to check to see if any backups
-are scheduled [ q, ? ]:" "^[0-2][0-9]:[0-5][0-9]$" "Invalid format"`
+are scheduled [ ?, q ]:" "^[0-2][0-9]:[0-5][0-9]$" "Invalid format"`
 
 		hourfld=`expr "${timefld}" : '\([0-9]*\):'`
 		minfld=`expr "${timefld}" : '.*:\([0-9]*\)'`
@@ -115,16 +116,16 @@ The day field defines the days of the week during which you
 wish to receive the reminders.
 Days are expressed  by number with 0 for Sunday, 6 for Saturday.
 Examples of allowed formats:
-	1		Selected day of the week.
+	1		Selected day of the week (Monday)
 	*		Any day at all (don't care)
 A list of days can be specified by answering more than once.
 Answering \"q\" will quit the command or terminate the list
 if a day has been successfully entered.
-The \"*\" option if used must be the only selected.
-If specific days of the month are given they will be used
+The \"*\" option, if used, must be the only one selected.
+If specific days of the month are given, they will be used
 when \"*\" is specified here.
 Notice that blank spaces are NOT allowed." "
-Enter the day of the week [ 0-6, *, q, ? ]:" "^[0-6*]$" "Invalid format"`
+Enter the day of the week [ 0, 1, ... 5, 6, *, ?, q ]:" "^[0-6*]$" "Invalid format"`
 
 		if [ "${dayweek}" = "" ]
 		then
@@ -168,16 +169,16 @@ wish to receive the reminders.  These reminders will only be
 displayed if you shut the system down or power it down during 
 these days, or have a reminder scheduled.
 Examples of allowed formats:
-	20		Selected days of month
+	20		Selected day of month 
 	*		Any day at all
 A list of days can be specified by answering more than once.
 Answering \"q\" will quit the command or terminate the list
 if a day has been successfully entered.
-The \"*\" option if used must be the only selected.
-If specific days of the week are given they will be used
+The \"*\" option, if used, must be the only one selected.
+If specific days of the week are given, they will be used
 when \"*\" is specified here.
 Notice that blank spaces are NOT allowed." "
-Enter the day of the month [ 1-31, *, q, ? ]:" '^[*0-9]*$' "Invalid format"`
+Enter the day of the month [ 1, 2, ..., 30, 31, *, ?, q ]:" '^[*0-9]*$' "Invalid format"`
 
 		if [ "${daymo}" = "" ]
 		then
@@ -232,13 +233,13 @@ getmon() {
 The month field defines the months of the year during which you wish 
 to receive the reminders.
 Examples of allowed formats:
-	1		Selected months of the year
+	1		Selected month of the year (Jan.)
 	*		Any month at all
 A list of months can be specified by answering more than once.
 Answering \"q\" will quit the command or terminate the list
 if a month has been successfully entered.
 Notice that blank spaces are NOT allowed." "
-Enter the month [ 1-12, *, q, ? ]:" '^[0-9*]*$' "Invalid format"`
+Enter the month [ 1, 2, ..., 11, 12, *, ?, q ]:" '^[0-9*]*$' "Invalid format"`
 
 		if [ -z "${monfld}" ]
 		then
@@ -286,7 +287,7 @@ Example:
 	/usr		/usr file system
 	/ 		Root file system
 Note that the names always start with a / character." "
-Enter the file system you wish to backup [ q, ? ]": "^/.*$" "Invalid format"`
+Enter the file system you wish to backup [ ?, q ]": "^/.*$" "Invalid format"`
 
 		if [ -z "${lstfld}" ]
 		then
@@ -316,7 +317,7 @@ getmaxline() {
 	do
 		lnum=`checkre -fe -qq -H "
 Line numbers can be produced with the 'p' command" "
-$1 [ 1-${maxline}, q, ? ]" '^[0-9][0-9]*$' "Invalid format"`
+$1 [ 1-${maxline}, ?, q ]" '^[0-9][0-9]*$' "Invalid format"`
 		if [ "${lnum}" = "" ]
 		then
 			break
@@ -390,12 +391,12 @@ do
 cmd=`checklist ${flags} -fep -H "
 Commands available for editing:
 	p - Print lines of the file
-	r - Remove a line or group of lines
+	r - Remove a line
 	a - Add a line
 	m - Modify a line
 	w - Write the changes into the file
 	q - Quit - Leave bupsched" "
-Enter the command you wish to execute [p, r, a, m, w, q, ?]: " \
+Enter the command you wish to execute [p, r, a, m, w, ?, q]: " \
 	p r a m w q`
 
 	case ${cmd} in

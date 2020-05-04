@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/putp.c	1.3"
+#ident	"@(#)curses:screen/putp.c	1.9"
 /*
  * Handy functions to put out a string with padding.
  * These make two assumptions:
@@ -14,32 +14,36 @@
  *	    routine is only valid for certain capabilities,
  *	    i.e. those that don't have *'s in the documentation.
  */
-#include <stdio.h>
+#include	"curses_inc.h"
 
 /*
  * Routine to act like putchar for passing to tputs.
+ * _outchar should really be a void since it's used by tputs
+ * and tputs doesn't look at return code.  However, tputs also has the function
+ * pointer declared as returning an int so we didn't change it.
  */
-int
 _outchar(ch)
-char ch;
+char	ch;
 {
-	putchar(ch);
+    (void) putchar(ch);
 }
 
-/*
- * Handy way to output a string.
- */
+/* Handy way to output a string. */
+
 putp(str)
-char *str;
+char	*str;
 {
-	tputs(str, 1, _outchar);
+    extern	int	_outchar();
+
+    return (tputs(str, 1, _outchar));
 }
 
-/*
- * Handy way to output video attributes.
- */
+/* Handy way to output video attributes. */
+
 vidattr(newmode)
-int newmode;
+chtype	newmode;
 {
-	vidputs(newmode, _outchar);
+    extern	int	_outchar();
+
+    return (vidputs(newmode, _outchar));
 }

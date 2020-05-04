@@ -5,8 +5,8 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sa:sar.c	1.25"
-/*	sar.c 1.25 of 11/27/85	*/
+#ident	"@(#)sa:sar.c	1.28"
+/*	sar.c 1.28 of 6/26/86	*/
 /*
 	sar.c - It generates a report either
 		from an input data file or
@@ -39,8 +39,9 @@ int	passno;
 int	t=0;
 int	n=0;
 int	rcnt=0;
-#if	u3b2 || u3b5
+#if	u3b2 || u3b15
 double 	magic = 4.294967296e9;
+int	hz;
 #endif
 #ifndef u370
 int	recsz, tblmap[SINFO];
@@ -71,11 +72,12 @@ int	argc;
 	long    temp;
 	int	jj=0;
 	float	convtm();
-	long	time(), lseek();
+	long	lseek();
+	extern time_t time();
 
 /*      process options with arguments and pack options 
 	without arguments  */
-	while ((i= getopt(argc,argv,"uybdvcwaqmprADSo:s:e:i:f:")) != EOF)
+	while ((i= getopt(argc,argv,"uybdvcwaqmprACDSo:s:e:i:f:")) != EOF)
 		switch(ccc = i){
 		case 'D':
 			dflg++;
@@ -119,8 +121,8 @@ int	argc;
 			sprintf(flnm,"%s",optarg);
 			break;
 		case '?':
-			fprintf(stderr,"usage: sar [-ubdycwaqvmprADS][-o file] t [n]\n");
-			fprintf(stderr,"       sar [-ubdycwaqvmprADS][-s hh:mm][-e hh:mm][-i ss][-f file]\n");
+			fprintf(stderr,"usage: sar [-ubdycwaqvmprACDS][-o file] t [n]\n");
+			fprintf(stderr,"       sar [-ubdycwaqvmprACDS][-s hh:mm][-e hh:mm][-i ss][-f file]\n");
 			exit(2);
 			break;
 		default:
@@ -164,11 +166,12 @@ int	argc;
 		strcpy(options, "u");
 	/*    'A' means all data options   */
 	if(strchr(options, 'A') != NULL) {
-		strcpy(options, "udqbwcayvmprS");
+		strcpy(options, "udqbwcayvmprCS");
 		dflg++;
 	}
 	else if ( (dflg)
 	     && (strchr(options,'u') == NULL)
+	     && (strchr(options,'b') == NULL)
 	     && (strchr(options,'c') == NULL) ) strcat(options,"u");
 
 	if(realtime) {
@@ -428,12 +431,11 @@ prthdg()
 		break;
 	case 'v':
 		tsttab();
-		printf(" %s %s %s %s %s\n",
+		printf(" %s %s %s %s\n",
 			"proc-sz ov",
 			"inod-sz ov",
 			"file-sz ov",
-			"lock-sz   ",
-			"fhdr-sz   ");
+			"lock-sz   ");
 		break;
 	case 'c':
 		tsttab();
@@ -494,7 +496,7 @@ prthdg()
 			"msg/s",
 			"sema/s");
 		break;
-#if	vax || u3b | u3b5 || u3b2
+#if	vax || u3b | u3b15 || u3b2
 	case 'r':
 		tsttab();
 		printf(" %7s %7s\n",
@@ -502,7 +504,7 @@ prthdg()
 			"freeswp");
 		break;
 #endif
-#if	u3b || u3b5 || u3b2
+#if	u3b || u3b15 || u3b2
 	case 'S':
 		tsttab();
 		printf("%11s %9s %9s %9s %9s\n",
@@ -522,8 +524,18 @@ prthdg()
 			"%avail",
 			"avg avail");
 		break;
+	case 'C':
+		tsttab();
+		printf(" %11s %11s %11s %11s %11s %11s\n",
+			"snd-inv/s",
+			"snd-msg/s",
+			"rcv-inv/s",
+			"rcv-msg/s",
+			"dis-bread/s",
+			"blk-inv/s");
+		break;
 #endif
-#if	vax || u3b || u3b5 || u3b2
+#if	vax || u3b || u3b15 || u3b2
 	case 'p':
 		tsttab();
 		printf(" %7s %7s %7s %7s\n",
@@ -654,6 +666,47 @@ prtopt()
 		break;
 	case 'b':
 		tsttab();
+		if (dflg) {
+			printf("\n   local  %4.0f %7.0f %7.0f %7.0f %7.0f %7.0f %7.0f %7.0f\n",
+				(float)(nx.si.bread - ox.si.bread)/tdiff * HZ,
+				(float)(nx.si.lread - ox.si.lread)/tdiff * HZ,
+				(((float)(nx.si.lread - ox.si.lread) -
+				  (float)(nx.si.bread - ox.si.bread))/
+				  (float)(nx.si.lread - ox.si.lread) * 100.0),
+				(float)(nx.si.bwrite - ox.si.bwrite)/tdiff * HZ,
+				(float)(nx.si.lwrite - ox.si.lwrite)/tdiff * HZ,
+				(((float)(nx.si.lwrite - ox.si.lwrite) -
+				  (float)(nx.si.bwrite - ox.si.bwrite))/
+				  (float)(nx.si.lwrite - ox.si.lwrite) * 100.0),
+				(float)(nx.si.phread - ox.si.phread)/tdiff * HZ,
+				(float)(nx.si.phwrite - ox.si.phwrite)/tdiff * HZ);
+
+			ax.si.bread += nx.si.bread - ox.si.bread;
+			ax.si.bwrite += nx.si.bwrite - ox.si.bwrite;
+			ax.si.lread += nx.si.lread - ox.si.lread;
+			ax.si.lwrite += nx.si.lwrite - ox.si.lwrite;
+			ax.si.phread += nx.si.phread - ox.si.phread;
+			ax.si.phwrite += nx.si.phwrite - ox.si.phwrite;
+			printf("   remote %4.0f %7.0f %7.0f %7.0f %7.0f %7.0f \n",
+				(float)(nx.rc.cbread - ox.rc.cbread)/tdiff * HZ,
+				(float)(nx.rc.clread - ox.rc.clread)/tdiff * HZ,
+				(((float)(nx.rc.clread - ox.rc.clread) -
+	         		(float)(nx.rc.cbread - ox.rc.cbread))/
+				(float)((nx.rc.clread - ox.rc.clread)?
+				(nx.rc.clread - ox.rc.clread):1) * 100.0),
+				(float)(nx.rc.cbwrite - ox.rc.cbwrite)/tdiff * HZ,
+				(float)(nx.rc.clwrite - ox.rc.clwrite)/tdiff * HZ,
+				(((float)(nx.rc.clwrite - ox.rc.clwrite) -
+				(float)(nx.rc.cbwrite - ox.rc.cbwrite))/
+				(float)((nx.rc.clwrite - ox.rc.clwrite)?
+				(nx.rc.clwrite - ox.rc.clwrite):1) * 100.0));
+
+			ax.rc.cbread += nx.rc.cbread - ox.rc.cbread;
+			ax.rc.cbwrite += nx.rc.cbwrite - ox.rc.cbwrite;
+			ax.rc.clread += nx.rc.clread - ox.rc.clread;
+			ax.rc.clwrite += nx.rc.clwrite - ox.rc.clwrite;
+			break;
+		}
 		printf(" %7.0f %7.0f %7.0f %7.0f %7.0f %7.0f %7.0f %7.0f\n",
 			(float)(nx.si.bread - ox.si.bread)/tdiff * HZ,
 			(float)(nx.si.lread - ox.si.lread)/tdiff * HZ,
@@ -678,6 +731,7 @@ prtopt()
 	case 'd':
 #ifndef u370
 		ii = 0;
+		hz = HZ;
 		for (j=0;j<SINFO;j++){
 			for (kk=0;kk<tblmap[j];kk++){
 				if (((nx.devio[ii][0] - ox.devio[ii][0]) > 0) 
@@ -686,7 +740,7 @@ prtopt()
 #ifdef u3b
 		if (j == DSKINFO)  
 #else
-#ifdef u3b5
+#ifdef u3b15
 		if (j == DFDFC) 
 #else
 #ifdef u3b2
@@ -694,23 +748,35 @@ prtopt()
 #else
 		if (j == GDS) 
 #endif /* u3b2 */
-#endif /* u3b5 */
+#endif /* u3b15 */
 #endif /* u3b */
 			printf(" %4s%-3d", devnm[j], kk);
+#ifdef	u3b15
+		else if ( j == SD01){
+			printf(" %4s%-3d", devnm[j], nx.devio[ii][4]);
+			hz = 1000;
+		}
+#endif /* u3b15 */
+#ifdef	u3b2
+		else if ( j == SD00 ){
+			printf(" %4s%-3d", devnm[j], nx.devio[ii][4]);
+			hz = 1000;
+		}
+#endif /* u3b2 */
 		 else
 			printf(" %5s%-2d", devnm[j], kk);
 		printf(" %7.0f %7.1f %7.0f %7.0f %7.1f %7.1f\n",
-			(float)(nx.devio[ii][2] - ox.devio[ii][2])/tdiff *100.0,
+			(float)(nx.devio[ii][2] - ox.devio[ii][2])/(tdiff*hz/HZ) *100.0,
 			(float)(nx.devio[ii][3] - ox.devio[ii][3])/
 				(float)(nx.devio[ii][2] - ox.devio[ii][2]),
-			(float)(nx.devio[ii][0] - ox.devio[ii][0])/tdiff* HZ,
-			(float)(nx.devio[ii][1] - ox.devio[ii][1])/tdiff *HZ,
+			(float)(nx.devio[ii][0] - ox.devio[ii][0])/tdiff * HZ,
+			(float)(nx.devio[ii][1] - ox.devio[ii][1])/tdiff * HZ,
 			((float)(nx.devio[ii][3] - ox.devio[ii][3]) -
 				(float)(nx.devio[ii][2] - ox.devio[ii][2]))/
 				(float)(nx.devio[ii][0] - ox.devio[ii][0])/
-				HZ * 1000.,
+				hz * 1000.,
 			(float)(nx.devio[ii][2] - ox.devio[ii][2]) /
-				(float)(nx.devio[ii][0] - ox.devio[ii][0] )/HZ * 1000.);
+				(float)(nx.devio[ii][0] - ox.devio[ii][0] )/hz * 1000.);
 				for(mm=0;mm<4;mm++)
 				ax.devio[ii][mm] +=
 				nx.devio[ii][mm] - ox.devio[ii][mm];
@@ -744,12 +810,11 @@ prtopt()
 		break;
 	case 'v':
 		tsttab();
-		printf(" %3d/%3d%3ld %3d/%3d%3ld %3d/%3d%3ld %3d/%3d    %3d/%3d\n",
+		printf(" %3d/%3d%3ld %3d/%3d%3ld %3d/%3d%3ld %3d/%3d\n",
 			nx.szproc, nx.mszproc, (nx.procovf - ox.procovf),
 			nx.szinode, nx.mszinode, (nx.inodeovf - ox.inodeovf),
 			nx.szfile, nx.mszfile, (nx.fileovf - ox.fileovf),
-			nx.szlckr, nx.mszlckr,
-			nx.szlckf, nx.mszlckf);
+			nx.szlckr, nx.mszlckr);
 		break;
 	case 'c':
 		tsttab();
@@ -901,6 +966,23 @@ prtopt()
 		ax.di.srv_occ += nx.di.srv_occ - ox.di.srv_occ;
 		ax.di.srv_que += nx.di.srv_que - ox.di.srv_que;
 		break;
+	case 'C':
+		tsttab();
+		printf("%11.1f %11.1f %11.1f %11.1f %11.1f %11.1f\n",
+			(float)(nx.rc.snd_dis - ox.rc.snd_dis)/tdiff * HZ,
+			(float)(nx.rc.snd_msg - ox.rc.snd_msg)/tdiff * HZ,
+			(float)(nx.rc.rcv_dis - ox.rc.rcv_dis)/tdiff * HZ,
+			(float)(nx.rc.rcv_msg - ox.rc.rcv_msg)/tdiff * HZ,
+			(float)(nx.rc.dis_bread - ox.rc.dis_bread)/tdiff * HZ,
+			(float)(nx.rc.blk_inval - ox.rc.blk_inval)/tdiff * HZ);
+
+		ax.rc.snd_dis += nx.rc.snd_dis - ox.rc.snd_dis;
+		ax.rc.snd_msg += nx.rc.snd_msg - ox.rc.snd_msg;
+		ax.rc.rcv_dis += nx.rc.rcv_dis - ox.rc.rcv_dis;
+		ax.rc.rcv_msg += nx.rc.rcv_msg - ox.rc.rcv_msg;
+		ax.rc.dis_bread += nx.rc.dis_bread - ox.rc.dis_bread;
+		ax.rc.blk_inval += nx.rc.blk_inval - ox.rc.blk_inval;
+		break;
 	
 	case 'q':
 #ifndef u370
@@ -965,7 +1047,7 @@ prtopt()
 
 /* new freemem for 3b2 */
 
-#if	u3b2 || u3b5
+#if	u3b2 || u3b15
 
  	{
 	unsigned long k0, k1, x;
@@ -995,7 +1077,7 @@ prtopt()
 
 
 	 
-#if	vax || u3b || u3b5 || u3b2
+#if	vax || u3b || u3b15 || u3b2
 	case 'p':
 		tsttab();
 		printf(" %7.2f %7.2f %7.2f %7.2f\n",
@@ -1094,6 +1176,30 @@ prtavg()
 #endif
 		break;
 	case 'b':
+		if (dflg) {
+			printf("Average\n   local  %4.0f %7.0f %7.0f %7.0f %7.0f %7.0f %7.0f %7.0f\n",
+				(float)ax.si.bread/tdiff *HZ,
+				(float)ax.si.lread/tdiff *HZ,
+				(float)(ax.si.lread - ax.si.bread)/
+					(float)(ax.si.lread) * 100.0,
+				(float)ax.si.bwrite/tdiff *HZ,
+				(float)ax.si.lwrite/tdiff *HZ,
+				(float)(ax.si.lwrite - ax.si.bwrite)/
+					(float)(ax.si.lwrite) * 100.0,
+				(float)ax.si.phread/tdiff *HZ,
+				(float)ax.si.phwrite/tdiff *HZ);
+			printf("   remote %4.0f %7.0f %7.0f %7.0f %7.0f %7.0f\n",
+				(float)ax.rc.cbread/tdiff *HZ,
+				(float)ax.rc.clread/tdiff *HZ,
+				(float)(ax.rc.clread - ax.rc.cbread)/
+				(float)(ax.rc.clread?(ax.rc.clread):1) * 100.0,
+				(float)ax.rc.cbwrite/tdiff *HZ,
+				(float)ax.rc.clwrite/tdiff *HZ,
+				(float)(ax.rc.clwrite - ax.rc.cbwrite)/
+					(float)(ax.rc.clwrite?(ax.rc.clwrite):
+					1) * 100.0);
+				break;
+		}
 		printf("Average  %7.0f %7.0f %7.0f %7.0f %7.0f %7.0f %7.0f %7.0f\n",
 			(float)ax.si.bread/tdiff *HZ,
 			(float)ax.si.lread/tdiff *HZ,
@@ -1108,6 +1214,7 @@ prtavg()
 		break;
 	case 'd':
 		ii = 0;
+		hz = HZ;
 		printf("Average ");
 		tabflg = 1;
 #ifndef u370
@@ -1119,7 +1226,7 @@ prtavg()
 #if u3b
 				if (j == DSKINFO)
 #else
-#if u3b5
+#if u3b15
 				if (j == DFDFC)
 #else
 #if u3b2
@@ -1127,19 +1234,31 @@ prtavg()
 #else
 				if (j == GDS)
 #endif /* u3b2 */
-#endif /* u3b5 */
+#endif /* u3b15 */
 #endif /* u3b */
 					printf(" %4s%-3d",devnm[j],kk);
+#ifdef	u3b15
+				 else if ( j == SD01){
+					printf(" %4s%-3d", devnm[j], nx.devio[ii][4]);
+					hz = 1000;
+				}
+#endif /* u3b15 */
+#ifdef	u3b2
+				else if ( j == SD00 ){
+					printf(" %4s%-3d", devnm[j], nx.devio[ii][4]);
+					hz = 1000;
+				}
+#endif /* u3b2 */
 				else
 					printf(" %5s%-2d",devnm[j],kk);
 				printf(" %7.0f %7.1f %7.0f %7.0f %7.1f %7.1f\n",
-					(float)ax.devio[ii][2]/tdiff * 100.0,
+					(float)ax.devio[ii][2]/(tdiff*hz/HZ) * 100.0,
 					(float)ax.devio[ii][3]/(float)ax.devio[ii][2],
 					(float)ax.devio[ii][0]/tdiff *HZ,
 					(float)ax.devio[ii][1]/tdiff *HZ,
 					(float)(ax.devio[ii][3] - ax.devio[ii][2]) /
-						(float)ax.devio[ii][0] /HZ * 1000.,
-					(float)ax.devio[ii][2] /(float)ax.devio[ii][0] /HZ *1000.);
+						(float)ax.devio[ii][0] /hz * 1000.,
+					(float)ax.devio[ii][2] /(float)ax.devio[ii][0] /hz *1000.);
 			}
 			ii++;
 		    }
@@ -1255,6 +1374,15 @@ prtavg()
 			(ax.di.srv_occ == 0 ) ? 0.0 :
 				(float)ax.di.srv_que / (float)ax.di.srv_occ );
 		break;
+	case 'C':
+		printf("Average %11.1f %11.1f %11.1f %11.1f %11.1f %11.1f\n",
+			(float)(ax.rc.snd_dis)/tdiff * HZ,
+			(float)(ax.rc.snd_msg)/tdiff * HZ,
+			(float)(ax.rc.rcv_dis)/tdiff * HZ,
+			(float)(ax.rc.rcv_msg)/tdiff * HZ,
+			(float)(ax.rc.dis_bread)/tdiff * HZ,
+			(float)(ax.rc.blk_inval)/tdiff * HZ);
+		break;
 	case 'q':
 #ifndef u370
 		if (ax.si.runocc == 0)
@@ -1298,7 +1426,7 @@ prtavg()
 		break;
 #endif
 
-#if  u3b2 || u3b5
+#if  u3b2 || u3b15
 
 	case 'r':
 		printf("Average  %7.0f",
@@ -1309,7 +1437,7 @@ prtavg()
 		break;
 #endif
 
-#if	vax || u3b || u3b5 || u3b2
+#if	vax || u3b || u3b15 || u3b2
 	case 'p':
 		printf("Average  %7.2f %7.2f %7.2f %7.2f\n",
 			(float)(ax.mi.vfault / tdiff * HZ),

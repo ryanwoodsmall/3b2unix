@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:common/expand.h	1.3"
+#ident	"@(#)as:common/expand.h	1.4"
 /*
  */
 
@@ -22,6 +22,7 @@ typedef struct {
 	short maxaddr;	/* difference between max. addr. and min. addr. */
 	symbol *labptr;	/* ptr to label appearing in the operand */
 	long constant;	/* value of constant appearing in operand */
+	short sectnum;	/* number of section where sdi appears */
 } ssentry;
 
 /* structure that contains the span range for each sdi */

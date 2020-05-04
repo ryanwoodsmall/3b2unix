@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)fstyp:s5fstyp.c	1.4"
+#ident	"@(#)fstyp:s5fstyp.c	1.4.1.1"
 #include <stdio.h>
 #include <fcntl.h>
 #include <sys/types.h>
@@ -81,7 +81,7 @@ char	*argv[];
 				bsize = BSIZE;
 				break;
 			case Fs2b:
-#ifdef u3b5
+#ifdef u3b15
 				bsize = 4 * BSIZE;
 #else
 				bsize = 2 * BSIZE;

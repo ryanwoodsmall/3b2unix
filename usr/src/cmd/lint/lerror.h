@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)lint:lerror.h	1.6"
+#ident	"@(#)lint:lerror.h	1.8"
 /*	3.0 SID #	1.2	*/
 /* defines for lint message buffering scheme 
  * be sure to include lerror.h before lmanifest

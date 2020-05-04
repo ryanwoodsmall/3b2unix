@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)edittbl:edittbl.mk	1.6"
+#ident	"@(#)edittbl:edittbl.mk	1.6.1.1"
 TITLE = edittbl
 
 MACHINE = m32
@@ -18,9 +18,8 @@ DEFS = -Du3b2 -Dm32 -Uu3b20 -Uu3b
 
 all: edittbl
 
-init:
-	if [ ! -d $(ROOT)/init ];then mkdir $(ROOT)/init; fi;
-	if [ ! -d $(ROOT)/init/dgn ];then mkdir $(ROOT)/init/dgn; fi;
+dgn:
+	if [ ! -d $(ROOT)/dgn ];then mkdir $(ROOT)/dgn; fi;
 
 edittbl: edittbl.c
 	cc -o edittbl -I$(INCRT) edittbl.c
@@ -29,15 +28,15 @@ edittbl: edittbl.c
 	rm -f edittbl
 	$(CC) -o edittbl $(DEFS) $(CFLAGS) edittbl.c $(LDLIBS)
 
-install: init all
-	mv edt_data $(ROOT)/init/dgn/edt_data
-	$(CH)chmod 400 $(ROOT)/init/dgn/edt_data
-	$(CH)chgrp 0 $(ROOT)/init/dgn/edt_data
-	$(CH)chown 0 $(ROOT)/init/dgn/edt_data
-	mv .edt_swapp $(ROOT)/init/dgn/.edt_swapp
-	$(CH)chmod 400 $(ROOT)/init/dgn/.edt_swapp
-	$(CH)chgrp 0 $(ROOT)/init/dgn/.edt_swapp
-	$(CH)chown 0 $(ROOT)/init/dgn/.edt_swapp
+install: dgn all
+	mv edt_data $(ROOT)/dgn/edt_data
+	$(CH)chmod 400 $(ROOT)/dgn/edt_data
+	$(CH)chgrp 0 $(ROOT)/dgn/edt_data
+	$(CH)chown 0 $(ROOT)/dgn/edt_data
+	mv .edt_swapp $(ROOT)/dgn/.edt_swapp
+	$(CH)chmod 400 $(ROOT)/dgn/.edt_swapp
+	$(CH)chgrp 0 $(ROOT)/dgn/.edt_swapp
+	$(CH)chown 0 $(ROOT)/dgn/.edt_swapp
 	cp editsa $(ROOT)/etc/editsa
 	$(CH)chmod 550 $(ROOT)/etc/editsa
 	$(CH)chgrp 0 $(ROOT)/etc/editsa

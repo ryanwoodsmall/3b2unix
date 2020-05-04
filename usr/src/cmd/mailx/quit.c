@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:quit.c	1.6"
+#ident	"@(#)mailx:quit.c	1.8"
 #
 
 #include "rcv.h"

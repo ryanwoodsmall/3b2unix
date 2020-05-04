@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/sdt.c	10.7"
+#ident	"@(#)kern-port:os/sdt.c	10.11"
 #include "sys/types.h"
 #include "sys/param.h"
 #include "sys/immu.h"
@@ -25,6 +25,8 @@
 #include "sys/region.h"
 #include "sys/proc.h"
 #include "sys/cmn_err.h"
+
+#define max(a, b)	((a) > (b) ? (a) : (b))
 
 chkstbl(procp, prp, rgsize)
 struct proc	*procp;
@@ -65,7 +67,7 @@ register int	rgsize; /* region size in pages */
 	 *	ntseg == segment id of first segment beyond region
 	 */
 
-	ntseg = 1 +  snum(prp->p_regva + ctob(rgsize));
+	ntseg = 1 +  snum(prp->p_regva + max(ctob(rgsize) - 1, 0));
 	if (ntseg > len) {
 		if (growsdt(procp, sid, ntseg, NOSLEEP)<0)
 				return(-1);
@@ -140,7 +142,7 @@ register int	change;
 		cmn_err(CE_PANIC, "loadstbl - segment table too short.");
 
 	if (change < 0) {
-		otseg = 1 + snum(prp->p_regva + ctob(pgsize));
+		otseg = 1 + snum(prp->p_regva + ctob(pgsize) - 1);
 		for (i = ntseg; i < otseg ;++i)
 			sde_clrvalid(tabtop+i);
 		if ((change + pgsize) == 0) {

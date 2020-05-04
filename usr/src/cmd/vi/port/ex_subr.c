@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident "@(#)vi:port/ex_subr.c	1.15"
+#ident "@(#)vi:port/ex_subr.c	1.17"
 #include "ex.h"
 #include "ex_re.h"
 #include "ex_tty.h"
@@ -114,7 +114,7 @@ ctlof(c)
 	int c;
 {
 
-	return (c == TRIM ? '?' : c | ('A' - 1));
+	return (c == DELETE ? '?' : c | ('A' - 1));
 }
 
 dingdong()
@@ -219,7 +219,7 @@ junk(c)
 
 	if (c && !value(vi_BEAUTIFY))
 		return (0);
-	if (c >= ' ' && c != TRIM)
+	if (c >= ' ' && c != DELETE)
 		return (0);
 	switch (c) {
 
@@ -361,11 +361,11 @@ merror(seekpt, i)
 		putnl(), cp++;
 	if (inopen > 0 && clr_eol)
 		vclreol();
-	if (enter_standout_mode && exit_standout_mode)
+	if (enter_standout_mode && exit_bold)
 		putpad(enter_standout_mode);
 	printf(mesg(cp), i);
-	if (enter_standout_mode && exit_standout_mode)
-		putpad(exit_standout_mode);
+	if (enter_standout_mode && exit_bold)
+		putpad(exit_bold);
 }
 
 merror1(seekpt)
@@ -632,11 +632,11 @@ smerror(seekpt, cp)
 	merror1(seekpt);
 	if (inopen && clr_eol)
 		vclreol();
-	if (enter_standout_mode && exit_standout_mode)
+	if (enter_standout_mode && exit_bold)
 		putpad(enter_standout_mode);
 	lprintf(mesg(linebuf), cp);
-	if (enter_standout_mode && exit_standout_mode)
-		putpad(exit_standout_mode);
+	if (enter_standout_mode && exit_bold)
+		putpad(exit_bold);
 }
 
 #define	std_nerrs (sizeof std_errlist / sizeof std_errlist[0])
@@ -882,12 +882,10 @@ onhup()
 			exit(++errcnt);
 		}
 	}
-#ifdef CRYPT
 	if (kflag)
 		crypt_close(perm);
 	if (xtflag)
 		crypt_close(tperm);
-#endif
 	exit(++errcnt);
 }
 
@@ -918,12 +916,10 @@ int sig;
 		kill(getpid(), sig);	/* Resend ourselves the same signal */
 		/* We won't get past here */
 	}
-#ifdef CRYPT
 	if (kflag)
 		crypt_close(perm);
 	if (xtflag)
 		crypt_close(tperm);
-#endif
 	exit(++errcnt);
 }
 

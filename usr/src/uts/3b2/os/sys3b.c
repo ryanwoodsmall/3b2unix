@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/sys3b.c	10.19"
+#ident	"@(#)kern-port:os/sys3b.c	10.19.3.1"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/psw.h"
@@ -39,6 +39,8 @@
 #include "sys/cmn_err.h"
 #include "sys/inline.h"
 #include "sys/buf.h"
+#include "sys/conf.h"
+#include "sys/fstyp.h"
 
 #define	FWREL(ptr)	((caddr_t) (ptr) + VROM)
 
@@ -660,10 +662,75 @@ sys3b()
 			u.u_error = EFAULT;
 		break;
 
+	case RDUBLK:	/* read U Block for user process */
+	{
+		register dbd_t	*dbd;
+		register dev_t	dev;
+		register pde_t	*pt;
+		register struct proc *p;
+		int n;
+		int bytecnt;
+		extern struct proc *prfind();
+		
+		p = prfind(uap->arg1);
+		if(!p)
+		{
+			u.u_error = ESRCH;
+			break;
+		}
+		u.u_base = (caddr_t)uap->arg2;
+		bytecnt = u.u_count = min(uap->arg3, NBPP*USIZE);
+		if(p->p_stat == NULL || p->p_stat == SIDL ||
+			p->p_stat == SZOMB)
+		{
+			u.u_error = EINVAL;
+			break;
+		}
+		if(!(p->p_flag & SULOAD))
+		{
+			dbd = (dbd_t *)p->p_ubdbd;
+			dev = swaptab[dbd->dbd_swpi].st_dev;
+			u.u_offset = dtob(dbd->dbd_blkno);
+			(*cdevsw[major(dev)].d_read)(dev);
+		}
+		else
+		{
+			pt = ubptbl(p);
+			while(u.u_count)
+			{
+				n = min(u.u_count, NBPP);
+				copyout((caddr_t)ctob(pt->pgm.pg_pfn), 
+					u.u_base,n);
+				u.u_count -= n;
+				u.u_base += n;
+				pt++;
+			}
+		}
+		u.u_rval1 = bytecnt;
+		break;
+	}
+
+	case S3BFPOVR:	/* Turn fl. pt. overflow catching on/off */
+	{
+		switch (uap->arg1) {
+		case FP_ENABLE:
+		case FP_DISABLE:
+			u.u_rval1 = u.u_fpovr;
+			u.u_pcb.psw.OE = u.u_fpovr = uap->arg1;
+			break;
+		default:
+			u.u_error = EINVAL;
+		}
+		break;
+	}
+
 	default:
 		u.u_error = EINVAL;
 	}
 }
+
+
+
 /*
  * greenled()
  *

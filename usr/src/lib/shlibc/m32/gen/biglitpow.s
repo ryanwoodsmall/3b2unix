@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-	.ident	"@(#)libc-m32:gen/biglitpow.s	1.1"
+	.ident	"@(#)libc-m32:gen/biglitpow.s	1.2"
 #
 #	arrays used by both _dtop.c and _ptod.c
 #     seperated out for space conservation.
@@ -30,7 +30,7 @@
 # The lowest power in the table is 1e-352.
 
 #struct simex _bigpow[] = {
-	.text
+	.data
 	.globl	_bigpow
 	.align	4
 _bigpow:
@@ -64,7 +64,7 @@ _bigpow:
 
 #struct simex _litpow[] = {
 	.globl	_litpow
-	.text
+	.data
 	.align	4
 _litpow:
 	.half	0x470d, 0x3937, 0x3820,   0000,   0000,    53

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)ps:ps.c	1.62"
+#ident	"@(#)ps:ps.c	1.62.5.1"
 
 /*	ps - process status					*/
 /*	examine and print certain things about processes	*/
@@ -21,7 +21,7 @@
 #include "pwd.h"
 #include "sys/param.h"
 
-#if u3b2 || u3b5
+#if u3b2 || u3b15
 #include "sys/immu.h"		    /* sys/immu.h must precede sys/region.h for 3b2 */
 #endif
 
@@ -37,6 +37,7 @@
 #include "sys/pcb.h"					/* pcb, program control blk */
 #include "sys/region.h"
 #include "sys/sbd.h"					/* need for MAINSTORE	    */
+#include "sys/sys3b.h"
 #endif
 
 #include "sys/sysmacros.h"
@@ -90,11 +91,11 @@ struct udata uid_tbl[SIZ];	/* table to store selected uid's */
 int	nut = 0;		/* counter for uid_tbl */
 
 					/* see nlist(3c)			 */
-					/*    semaphores on 3b20, 3b5 and vax	 */
+					/*    semaphores on 3b20, 3b15 and vax	 */
 					/* no semaphores on 3b2 or pdp11	 */
 					/* swaplo(w): from /unix, 1st block # on */
 struct nlist nl[] = {			/* 	      device to be used for swap */
-#if u3b || u3b2 || u3b5
+#if u3b || u3b2 || u3b15
 	"proc", (long)0, (short)0, (unsigned short)0, (char)0, (char)0,
 #if u3b
 	"swaplow", (long)0, (short)0, (unsigned short)0, (char)0, (char)0,
@@ -126,11 +127,11 @@ union {
 #define zproc prc.zprc
 #endif
 
-#if u3b || u3b2 || u3b5
+#if u3b || u3b2 || u3b15
 struct proc prc;
 #define	mproc	prc
 #define	zproc	prc
-#endif /*u3b,u3b2,u3b5*/
+#endif /*u3b,u3b2,u3b15*/
 
 struct	var  v;
 
@@ -140,7 +141,7 @@ int	upte[128];
 int	spte;
 #endif
 
-#if pdp11 || u3b || u3b2 || u3b5
+#if pdp11 || u3b || u3b2 || u3b15
 struct	user u;
 #endif
 
@@ -199,7 +200,7 @@ int	npid = 0;
 int	grpid[SIZ];	/* for g option */
 int	ngrpid = 0;
 
-#if u3b || u3b2 || u3b5				/* State flag symbols, see sys/proc.h */
+#if u3b || u3b2 || u3b15				/* State flag symbols, see sys/proc.h */
 	static char states[] =	"-SRZTIOX";
 #else
 	static char states[] =	"-SWRIZTX";
@@ -231,11 +232,11 @@ char **argv;
 #if pdp11
 	char *usage="ps [ -edalf ] [ -c corefile ] [ -s swapdev ] [ -n namelist ] [ -t tlist ]";
 #else
-#if u3b2 || u3b5
+#if u3b2 || u3b15
 	char *usage="ps [ -edalf ] [ -n namelist ] [ -t tlist ]";
 #else
 	char *usage="ps [ -edalf ] [ -c corefile ] [ -n namelist ] [ -t tlist ]";
-#endif /*u3b2||u3b5*/
+#endif /*u3b2||u3b15*/
 #endif /*pdp11*/
 
 	char *usage2="	[ -p plist ] [ -u ulist ] [ -g glist ]";
@@ -254,7 +255,7 @@ char **argv;
 	coref = "/dev/kmem";
 	memf = "/dev/mem";
 #endif
-#if u3b2 || u3b5
+#if u3b2 || u3b15
 	getstr = "lfeadn:t:p:g:u:";				/* no s or c options */
 	coref = "/dev/kmem";
 	memf = "/dev/mem";
@@ -289,13 +290,13 @@ char **argv;
 			sysname = optarg;
 			break;
 
-#if !(u3b2 || u3b5)
+#if !(u3b2 || u3b15)
 		case 'c':		/* core file given */
 			coref = optarg;	/* c option unavailable on 3b2/5    */
 			memf = coref;	/* until virtual to physical memory */
 			break;		/* address translation library	    */
 					/* routine is available		    */
-#endif /*!(u3b2||u3b5)*/
+#endif /*!(u3b2||u3b15)*/
 
 #if pdp11
 		case 's':		/* swap device given */
@@ -497,7 +498,7 @@ char **argv;
 		if ( !found && !tflg && !aflg )
 			continue;
 #if u3b2
-		if (prcom(puid,found, nl[0].n_value + i * sizeof(mproc))) {
+		if (prcom(puid,found, nl[0].n_value + i*sizeof(mproc))) {
 #else
 		if (prcom(puid,found)) {
 #endif
@@ -513,40 +514,68 @@ char **argv;
 
 static char psfile[] = "/etc/ps_data";
 
-int readata()
+int
+readata()
 {
 	struct stat sbuf1, sbuf2;
 	int fd;
+	struct flock wflock;
 
-	if (stat(psfile, &sbuf1) < 0
-	    || (stat("/dev", &sbuf2) < 0 || sbuf1.st_mtime <= sbuf2.st_mtime || sbuf1.st_mtime <= sbuf2.st_ctime)
-	    || (stat("/unix", &sbuf2) < 0 || sbuf1.st_mtime <= sbuf2.st_mtime || sbuf1.st_mtime <= sbuf2.st_ctime)
-	    || (stat("/etc/passwd", &sbuf2) < 0 || sbuf1.st_mtime <= sbuf2.st_mtime || sbuf1.st_mtime <= sbuf2.st_ctime)) {
-		return(0);
-	}
 	if(( fd = open(psfile, O_RDONLY)) < 0)
 		return(0);
 
+	wflock.l_type = F_RDLCK;
+	wflock.l_whence = wflock.l_start = wflock.l_len = 0;
+	if ( fcntl(fd, F_SETLKW, &wflock) < 0 )  {
+		close(fd);
+		return(0);
+	}
+
+	if (fstat(fd, &sbuf1) < 0
+	    || (sbuf1.st_size == 0)
+	    || (stat("/dev", &sbuf2) < 0 || sbuf1.st_mtime <= sbuf2.st_mtime || sbuf1.st_mtime <= sbuf2.st_ctime)
+	    || (stat("/unix", &sbuf2) < 0 || sbuf1.st_mtime <= sbuf2.st_mtime || sbuf1.st_mtime <= sbuf2.st_ctime)
+	    || (stat("/etc/passwd", &sbuf2) < 0 || sbuf1.st_mtime <= sbuf2.st_mtime || sbuf1.st_mtime <= sbuf2.st_ctime)) {
+		close(fd);
+		return(0);
+	}
+
 	/* read /dev data from psfile */
-    	psread(fd, &ndev, sizeof(ndev));
+    	if ( psread(fd, &ndev, sizeof(ndev)) == 0 )  {
+		close(fd);
+		return(0);
+	}
+	
 	if((devl = (struct devl *)malloc(ndev * sizeof(*devl))) == NULL) {
 		fprintf(stderr, "ps: malloc() for device table failed, %s\n",
 			sys_errlist[errno]);
 		exit(1);
 	}
-	psread(fd, devl, ndev * sizeof(*devl));
+	if ( psread(fd, devl, ndev * sizeof(*devl)) == 0 )  {
+		close(fd);
+		return(0);
+	}
 
 	/* read /etc/passwd data from psfile */
-	psread(fd, &nud, sizeof(nud));
+	if ( psread(fd, &nud, sizeof(nud)) == 0 )  {
+		close(fd);
+		return(0);
+	}
 	if((ud = (struct udata *)malloc(nud * sizeof(*ud))) == NULL) {
 		fprintf(stderr, "ps: not enough memory for udata table\n");
 		exit(1);
 	}
-	psread(fd, ud, nud * sizeof(*ud));
+	if ( psread(fd, ud, nud * sizeof(*ud)) == 0 )  {
+		close(fd);
+		return(0);
+	}
 
 	/* read /unix data from psfile */
 	if(!nflg)
-		psread(fd, nl, sizeof(nl));
+		if ( psread(fd, nl, sizeof(nl)) == 0 )  {
+			close(fd);
+			return(0);
+		}
 
 	close(fd);
 	return(1);
@@ -558,6 +587,7 @@ getdev()				/* getdev() uses ftw() to pass	  */
 	int gdev();			/* along with a status buffer	  */
 	int rcode;
 
+	ndev = 0;
 	rcode = ftw ("/dev", gdev, 17);
 
 	switch(rcode) {
@@ -689,31 +719,44 @@ getnl()
 wrdata()		/* put data in /etc/ps_data file */
 {
 	int fd;
+	struct flock wflock;
 
 	umask(02);
-	unlink(psfile);
-	if((fd = open(psfile, O_WRONLY | O_CREAT | O_EXCL, 0664)) == -1) {
+	if ( (unlink(psfile) == -1)  && (errno != ENOENT)  )  {
+		fprintf(stderr, "ps: unlink() failed\n");
+		fprintf(stderr, "ps: /etc/ps_data, %s\n", sys_errlist[errno]);
+		fprintf(stderr, "ps: Please notify your System Administrator\n");
+		return;
+	}
+	if((fd = open(psfile, O_WRONLY | O_CREAT , 0664)) == -1) {
 		fprintf(stderr, "ps: open() for write failed\n");
 		fprintf(stderr, "ps: /etc/ps_data, %s\n", sys_errlist[errno]);
 		fprintf(stderr, "ps: Please notify your System Administrator\n");
+		return;
 	}
-	else {
-		/* make owner root, group sys */
-		chown(psfile, (int)0, (int)getegid());
-
-		/* write /dev data */
-		pswrite(fd, &ndev, sizeof(ndev));
-		pswrite(fd, devl, ndev * sizeof(*devl));
-
-		/* write /etc/passwd data */
-		pswrite(fd, &nud, sizeof(nud));
-		pswrite(fd, ud, nud * sizeof(*ud));
-
-		/* write /unix data */
-		pswrite(fd, nl, sizeof(nl));
-
+	
+	wflock.l_type = F_WRLCK;
+	wflock.l_whence = wflock.l_start = wflock.l_len = 0;
+	if ( fcntl(fd, F_SETLKW, &wflock) < 0 )  {
 		close(fd);
+		return;
 	}
+
+	/* make owner root, group sys */
+	chown(psfile, (int)0, (int)getegid());
+
+	/* write /dev data */
+	pswrite(fd, &ndev, sizeof(ndev));
+	pswrite(fd, devl, ndev * sizeof(*devl));
+
+	/* write /etc/passwd data */
+	pswrite(fd, &nud, sizeof(nud));
+	pswrite(fd, ud, nud * sizeof(*ud));
+
+	/* write /unix data */
+	pswrite(fd, nl, sizeof(nl));
+
+	close(fd);
 }
 
 
@@ -772,15 +815,15 @@ int	file;
 
 
 #if u3b2
-prcom(puid,found, pp)			/* print info about the process */
+prcom(puid,found, pp)		/* print info about the process */
 int puid,found;
-struct proc	*pp;
+struct proc *pp;
 #else
 prcom(puid,found)			/* print info about the process */
 int puid,found;
 #endif
 {
-#if u3b5
+#if u3b15
 	pde_t pde;
 	sde_t sde;
 	int abuf[NBPSCTR*2/sizeof(int)];	/* BSIZE changed to NBPSCTR for FSS */
@@ -790,14 +833,14 @@ int puid,found;
 	int abuf[BSIZE*2/sizeof(int)];		/* BSIZE unchanged, no FSS on pdp11 */
 #endif /*pdp11*/
 
-#if pdp11 || u3b5 
+#if pdp11 || u3b15 
 	register int *ip;
 	int nbad, badflg;
 	int	nbytes;
 	int	cnt;
 #endif
 
-#if pdp11 || u3b2 || u3b5
+#if pdp11 || u3b2 || u3b15
 	long addr;
 #endif
 
@@ -852,18 +895,18 @@ int puid,found;
 	/* If non-paged system, determine if process is in memory or swap space, */
 	/*						then read in user block  */
 
-	/* Pages in the user page table are contiguous on 3b5 but not 3b2/3b20.  */
+	/* Pages in the user page table are contiguous on 3b15 but not 3b2/3b20.  */
 	/* Pages in the segment page table are not contiguous for each segment   */
-	/*								on 3b5   */
-#if u3b5
-	addr = (mproc.p_addr << PNUMSHFT);
+	/*								on 3b15   */
+#if u3b15
+	addr = (mproc.p_addr << BPCSHFT) - 0x800000;
 	l_lseek(swmem, addr, 0);
 	if((nbytes = read(swmem, (char *)&u, sizeof (u))) != sizeof (u)){
 		if ( strcmp(coref,memf) != 0 )
 			printf("ps can not read %s\n", memf);
 		return(0);
 		}
-#endif /*u3b5*/
+#endif /*u3b15*/
 						/* uptbl, user page table	  */
 						/* NBPP, number of bytes per page */
 						/*       see sys/page.h           */
@@ -877,15 +920,9 @@ int puid,found;
 #endif /*u3b*/
 
 #if u3b2
-	cp1 = (char *)&u + sizeof(u);
-	i = ((char *)ubptbl(pp) - (char *)pp -
-	    ((char *)mproc.p_ubptbl - (char *)&mproc))>>2;
-	for(cp = (char *) &u; cp < cp1; i++, cp += NBPP) {
-		l_lseek(swmem,
-			(mproc.p_ubptbl[i].pgm.pg_pfn << 11) - MAINSTORE, 0);
-		if (read(swmem, cp, cp1-cp > NBPP ? NBPP : cp1-cp) < 0)
-			fprintf(stderr, "ps: cannot read %d\n", swmem);
-		}
+	if(sys3b(RDUBLK, mproc.p_pid, &u, sizeof(u))== -1)
+		return(0);
+
 #endif /*u3b2*/
 
 #if vax
@@ -976,20 +1013,20 @@ int puid,found;
 #endif /*u3b*/
 
 #if u3b2
-		printf("%9x%7d", ubptbl(pp), mproc.p_size);		/* ADDR SZ */
+		printf("%9x%7d",ubptbl(pp), mproc.p_size);		/* ADDR SZ */
 		if (mproc.p_wchan)
 			printf("%9x",mproc.p_wchan);			/* WCHAN */
 		else 
 			printf("         ");
 #endif /*u3b2*/
 
-#if vax || u3b5
+#if vax || u3b15
 		printf("%9x%7d", mproc.p_addr, mproc.p_size);		/* ADDR SZ */
 		if (mproc.p_wchan)
 			printf("%9x",mproc.p_wchan);			/* WCHAN */
 		else 
 			printf("         ");
-#endif /*vax,u3b5*/
+#endif /*vax,u3b15*/
 
 #if pdp11
 		printf("%9x%7d", mproc.p_addr, (mproc.p_size+7)>>3);	/* ADDR SZ */
@@ -1140,7 +1177,7 @@ int puid,found;
 		printf(" %.*s", PSARGSZ, u.u_psargs);
 #endif /*u3b,vax,u3b2*/
 
-					/* no u_psargs on 3b5, look in user stack */
+					/* no u_psargs on 3b15, look in user stack */
 
 					/* Active Process: (SLOAD) Process has a  */
 					/*      page present in memory.  Get      */
@@ -1152,37 +1189,44 @@ int puid,found;
 					/*      user block.			  */
 
 					/* SEXEC, execing process:  can't get args*/
-#if u3b5
+#if u3b15
 	if( mproc.p_flag & SEXEC ){
 		printf(" [ %.8s ]", u.u_comm);
 		return(1);
 		}
 	addr = u.u_sectaddr[2] + 8;
-	for( i = 0; i < 2; i++ ){
-		l_lseek(swmem, addr, 0);
+	do 
+	{
+		l_lseek(swmem, addr - 0x800000, 0);
 		if((nbytes = read(swmem, (char *)&sde, sizeof (sde)))
 		    != sizeof (sde)){
 			printf("Can not access SDE table\n");
 			return(0);
 			}
-		addr = (long) sde.wd2.address & 0xfffffff8;
+		if( mproc.p_flag & SLOAD && isvalid( (sde_t *)&sde) )
+			addr = (long) sde.wd2.address & 0xfffffff8;
+		else {
+			printf(" [ %.8s ] ", u.u_comm);
+			return(1);
 		}
+	}
+	while (indirect((sde_t *)&sde));
 
-	l_lseek(swmem, addr, 0);
+	l_lseek(swmem, addr - 0x800000, 0);
 	if((nbytes = read(swmem, (char *)&pde, sizeof (pde)))
 	    != sizeof (pde)){
 		printf("Can not access PDE table\n");
 		return(0);
 		}
 	if( mproc.p_flag & SLOAD && pde.pgm.pg_pres == 1){	/* Active Process   */
-		addr = pde.pgm.pg_pfn << PNUMSHFT;
+		addr = pde.pgm.pg_pfn << BPCSHFT;
 		}
 	else{
 		printf(" [ %.8s ] ", u.u_comm);			/* Inactive Process */
 		return(1);
 		}
 
-	l_lseek(swmem, addr, 0);
+	l_lseek(swmem, addr - 0x800000, 0);
 	if ( read( swmem, (char*)abuf, sizeof(abuf) ) != sizeof(abuf) ) {
 		printf(" [ %.8s ] ", u.u_comm);
 		return( 1 );
@@ -1235,7 +1279,7 @@ int puid,found;
 			}
 		}
 	printf(" [ %.8s ]",u.u_comm);
-#endif /*u3b5*/
+#endif /*u3b15*/
 
 	return(1);
 }
@@ -1419,7 +1463,9 @@ unsigned bs;
 	if(rbs != bs) {
 		fprintf(stderr, "ps: psread() error on read, rbs=%d, bs=%d\n", rbs, bs);
 		unlink(psfile);
+		return(0);
 	}
+	return(1);
 }
 
 /* special write unlinks psfile on read error */
@@ -1471,7 +1517,7 @@ char *curtim, *sttim;
 	printf("%9.9s",ptr1);
 }
 
-#if u3b || u3b2 || u3b5
+#if u3b || u3b2 || u3b15
 #define xp_flag p_flag
 #define xp_stat	p_stat
 #define xp_pid	p_pid
@@ -1481,7 +1527,7 @@ char *curtim, *sttim;
 #define xp_nice	p_nice
 #define xp_utime p_utime
 #define xp_stime p_stime
-#endif /*u3b,u3b2,u3b5*/
+#endif /*u3b,u3b2,u3b15*/
 
 przom(puid)
 /* print zombie process - zproc overlays mproc */

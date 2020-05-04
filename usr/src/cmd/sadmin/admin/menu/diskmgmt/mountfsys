@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:admin/menu/diskmgmt/mountfsys	2.3"
+#ident	"@(#)sadmin:admin/menu/diskmgmt/mountfsys	2.4"
 #menu# mount a removable medium file system
 #help# 
 #help#	Mountfsys mounts a file system, found on a removable medium, making it
@@ -6,4 +6,10 @@
 #help#	"umountfsys" command.  THE MEDIUM MUST NOT BE REMOVED WHILE THE
 #help#	FILE SYSTEM IS STILL MOUNTED.
 
+if checkyn -f 'Do you want to mount the file system read-only?'
+then
+	READ=1
+else
+	READ=0
+fi
 . ${MENUTOP:?}/mountfsys

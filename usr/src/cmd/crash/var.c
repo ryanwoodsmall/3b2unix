@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)crash-3b2:var.c	1.5"
+#ident	"@(#)crash-3b2:var.c	1.5.1.2"
 /*
  * This file contains code for the crash function var.
  */
@@ -89,7 +89,7 @@ prvar()
 		mndex,
 		vbuf.v_proc,
 		pndex);
-	fprintf(fp,"v_region: %3d\nv_sptmap: %3d\nv_nstreams: %3d\nv_nqueues: %3d\n",
+	fprintf(fp,"v_region: %3d\nv_sptmap: %3d\nv_nstream: %3d\nv_nqueue: %3d\n",
 		vbuf.v_region,
 		vbuf.v_sptmap,
 		vbuf.v_nstream,
@@ -110,4 +110,6 @@ prvar()
 		vbuf.v_nblk16);
 	fprintf(fp,"v_nblk4: %d\n",
 		vbuf.v_nblk4);
+	fprintf(fp,"v_ulimit: %d\n",
+		vbuf.v_ulimit);
 }

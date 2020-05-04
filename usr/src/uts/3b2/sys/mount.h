@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/mount.h	10.10"
+#ident	"@(#)kern-port:sys/mount.h	10.10.6.1"
 /*
  *	Mount structure.
  *	One allocated on every mount.
@@ -22,23 +22,12 @@ struct	mount	{
 	long    m_bsize;		/* Block size of this fs */
 	dev_t	m_dev;			/* device mounted */
 	caddr_t	m_bufp;			/* buffer for super block */
-	union {
-		struct inode *inodp;	/* pointer to mounted on inode */
-		struct sndd  *upchan;	/* LBIN case, mounted remotely */
-	} u1;
-	union {
-		struct inode *mountp;	/* pointer to mount root inode */
-		struct sndd  *dnchan;	/* remote mount case, root elsewhere */
-	} u2;
-	char	m_rflags;		/* set to MLBIN for mount remotely  */
+	struct inode *m_inodp;		/* pointer to mounted on inode */
+	struct inode *m_mount;		/* pointer to mount root inode */
+	ushort	m_rflags;		/* set for mount remotely  */
 	char	*m_name;		/* name advertised resource */
 	long	m_bcount;
 } ;
-
-#define m_inodp u1.inodp
-#define m_mount u2.mountp
-#define m_up	u1.upchan
-#define m_down  u2.dnchan
 
 /* alloction flags (m_flags) */
 
@@ -53,14 +42,16 @@ struct	mount	{
 /* remoteness flags (m_rflags) */
 /* (or'ed with m_flags in srmount, so must use different bits) */
 
-#define MLBIN      0x10
 #define MDOTDOT    0x20
 #define MFUMOUNT   0x40
 #define MLINKDOWN  0x80
+#define MCACHE     0x100	/* mount files are cacheable */
 
 /* Flag bits passed to the mount system call */
 #define	MS_RDONLY	0x1	/* read only bit */
-#define MS_FSS		0x2	/* FSS (4-argument) mount */
+#define	MS_FSS		0x2	/* Old (4-argument) mount (compatibility) */
+#define	MS_DATA		0x4	/* 6-argument mount */
+#define	MS_CACHE	0x8	/* RFS client caching */
 
 #ifdef INKERNEL
 extern struct mount mount[];
@@ -68,7 +59,6 @@ extern struct mount mount[];
 
 /* Server mount structure. Holds:
  *	1. DOT-DOT
- *	2. LBIN
  * connections.
  *
  * Search the table looking for (sysid, rootinode) pair.
@@ -76,7 +66,7 @@ extern struct mount mount[];
 
  struct srmnt {
 	sysid_t sr_sysid;
-	char    sr_flags;
+	ushort  sr_flags;
 	struct inode *sr_rootinode;	/* inode on server's machine */
 	int     sr_mntindx;		/* mount index of requestor  */
 	int 	sr_refcnt;		/* number of open files      */
@@ -89,5 +79,4 @@ extern struct srmnt srmount[];
 /* Return values if crossing mount point */
  
 #define DOT_DOT	0x1
-#define LBIN	0x2
 #define MRDONLY	0x4

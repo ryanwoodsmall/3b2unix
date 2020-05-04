@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mount:mount.c	1.42"
+#ident	"@(#)mount:mount.c	1.48"
 #include <nserve.h>
 #include <sys/tiuser.h>
 #include <sys/stropts.h>
@@ -49,6 +49,15 @@
 #define	LOCAL(x)	(!((x) & 2))
 #define	REMOTE(x)	((x) & 2)
 
+#define FORMAT		"%a %b %e %H:%M:%S %Y\n"   /* date time format */
+				/* a  -  abbreviated month name */
+				/* b  -  abbreviated weekday name */
+				/* e  -  day of month */
+				/* H  -  hour */
+				/* M  -  minute */
+				/* S  -  second */
+				/* Y  -  Year */
+				/* n  -  newline */
 extern int   errno;
 extern int   optind;
 extern char *optarg;
@@ -56,6 +65,7 @@ extern char *getcwd();
 extern char *strtok();
 extern struct address *ns_getaddr();
 
+static int cacheflag = MS_CACHE;
 static int roflag = 0;
 static int more_info = 0;
 static char *fieldv[MAXFIELD];
@@ -75,6 +85,7 @@ static char *findaddr();
 static char fsbuf[BUFSIZ]; /* array to hold entries from fstab    */
 static char buf[32];	   /* array to hold the special file name *
 			    * to be placed into MNTTAB	          */
+static char time_buf[50];  /* array to hold data and time */
 
 static	char  *getnetspec();
 
@@ -82,10 +93,9 @@ main(argc,argv)
 int  argc;
 char **argv;
 {
-	char	*usage = "usage: mount [[-r] [-d] [-f fstyp] special directory]\n";
+	char	*usage = "usage: mount [[-r] [-d] [-c] [-f fstyp] special directory]\n";
 	char	*special;
 	char	*directory;
-	char	*ctime();
 	char	*fsname = NULL;
 
 	int	 errflag = 0, fflag = 0;
@@ -101,10 +111,13 @@ char **argv;
 	if (argc == 1) {
 		if ((rtn = read_mnttab(ERROR)) == 0) {
 			for(mp = mtab; mp < last_entry; mp++)
+				{
+				cftime(time_buf, FORMAT, &mp->mt_time);
 				printf("%.32s on %s %s on %s",
 				       mp->mt_filsys, mp->mt_dev,
 				       flg[mp->mt_ro_flg],
-				       ctime(&mp->mt_time));
+				       time_buf);
+				}
 		}
 		exit(rtn);
 	}
@@ -117,7 +130,7 @@ char **argv;
 	 *	check for proper arguments
 	 */
 
-	while ((c = getopt(argc, argv, "rdf:n:")) != EOF) {
+	while ((c = getopt(argc, argv, "rdcf:n:")) != EOF) {
 		switch (c) {
 			case 'r':
 				if (roflag & RO_BIT)
@@ -130,6 +143,9 @@ char **argv;
 					errflag = 1;
 				else
 					roflag |= REMOTE_BIT;
+				break;
+			case 'c':
+				cacheflag = 0;
 				break;
 			case 'f':
 				if (fflag)
@@ -236,7 +252,7 @@ char **argv;
 	 */
 
 	if (REMOTE(roflag))
-		dist_mount(special, directory, roflag & RO_BIT);
+		dist_mount(special, directory, roflag & RO_BIT | cacheflag);
 	else
 		loc_mount(special, directory, fsname, roflag & RO_BIT);
 
@@ -407,7 +423,8 @@ int	rflag;
 		exit(2);
 	}
 
-	if (mount(special, directory, rflag | MS_FSS, fstyp)) {
+	if (mount(special, directory, rflag | MS_DATA, fstyp,
+	  (char *)NULL, 0)) {
 		rpterr(special, directory);
 		exit(2);
 	}
@@ -461,11 +478,11 @@ int	rflag;
 		 *	Determine if RFS is running or installed
 		 *	with the following rfsys() calls.
 		 *	If the first call fails, then RFS has not
-		 *	been installed.  If the seconf call
+		 *	been installed.  If the second call
 		 *	succeeds, then RFS is not running.
 		 */
 		if (rfsys(RF_GETDNAME, dname, MAXDNAME) < 0) {
-			perror("mount");
+			fprintf(stderr, "mount: RFS domain name not set\n");
 			exit(2);
 		}
 		if (rfsys(RF_SETDNAME, dname, strlen(dname)+1) >= 0) {

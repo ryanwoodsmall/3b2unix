@@ -1,4 +1,4 @@
-#ident	"@(#)forms.files:cpioi.fs	1.4"
+#ident	"@(#)forms.files:cpioi.fs	1.5"
 00000cpio -i
 00701060001REDIRECT INPUT FROM:
 01703060030FILE NAME SELECTION PATTERN(S):
@@ -11,11 +11,12 @@
 08717060001INTERACTIVELY RENAME FILES [-r] (y/n):
 09719060001COPY FILES UNCONDITIONALLY [-u] (y/n):
 10721060001COPY ALL FILES EXCEPT THOSE IN "PATTERN" [-f] (y/n):
-11723060001SWAP BYTES IN EACH HALF WORD [-s] (y/n):
-12725060001SWAP HALFWORDS IN EACH WORD [-S] (y/n):
-13727060001REVERSE BYTES IN EACH WORD [-b] (y/n):
-14729060001FILES ARE UNIX SYSTEM SIXTH EDITION [-6] (y/n):
-15731060030ADDITIONS TO THE COMMAND LINE:
+11723060001CONTINUE PAST ERRORS IN ARCHIVE [-k] (y/n):
+12725060001SWAP BYTES IN EACH HALF WORD [-s] (y/n):
+13727060001SWAP HALFWORDS IN EACH WORD [-S] (y/n):
+14729060001REVERSE BYTES IN EACH WORD [-b] (y/n):
+15731060001FILES ARE UNIX SYSTEM SIXTH EDITION [-6] (y/n):
+16733060030ADDITIONS TO THE COMMAND LINE:
 
 00150
 01140
@@ -28,11 +29,12 @@
 08012r
 09012u
 10012f
-11012s
-12012S
-13012b
-140126
-15162
+11000
+12012s
+13012S
+14012b
+150126
+16162
 
 You have not redirected input from standard input, so the
 "cpio" command will expect input from your keyboard.  Use
@@ -111,21 +113,26 @@ of modification times. [-u]
 you specify are copied.  You can reverse this by selecting
 this option.  In this case, only those file names that do
 not match the pattern will be created. [-f]
-11Select this option if you wish to swap bytes within
+11This option will allow "cpio" to continue reading past corrupted headers
+and/or after encountering reading errors.  This option is useful if you
+have an archive with a bad file, but you want to retrieve the files that
+appear after the error.  However, note that this could cause files with
+errors in them to overwrite existing good files.  [-k]
+12Select this option if you wish to swap bytes within
 each half word.  You may have to use this option when
 reading in a "cpio" module from a machine that has
 a different internal representation of words. [-s]
-12Select this option to swap half words within each word.
+13Select this option to swap half words within each word.
 You may have to use this option when reading in a "cpio"
 module from a machine with a different internal representation
 of words. [-S]
-13Select this option to reverse the order of bytes in
+14Select this option to reverse the order of bytes in
 each word.  You may have to use this option if your
 "cpio" module was created on a machine that has a
 different internal representation of a word. [-b]
-14Select this option if the "cpio" module was created on
+15Select this option if the "cpio" module was created on
 a machine running the Sixth Edition of the UNIX system. [-6]
-15ASSIST appends anything you type here to the command line.
+16ASSIST appends anything you type here to the command line.
 You can use this field for "piping," "redirection," or to
 execute a command in the "background."  However, since
 ASSIST does not perform any error checking on this field,
@@ -133,14 +140,14 @@ you should use it with caution.
 
 0305
 0405
-05040708091012130311
+05040708091013140312
 0705
 0805
 0905
 1005
-11051213
-120511
-130511
+12051314
+130512
+140512
 
 
 020550n
@@ -152,10 +159,11 @@ you should use it with caution.
 081745n
 091945n
 102159n
-112347n
-122546n
-132745n
-142954n
+112350n
+122547n
+132746n
+142945n
+153154n
 
 003420001010
 0126
@@ -176,12 +184,14 @@ you should use it with caution.
 1004yYnN
 1005
 1104yYnN
-1105
+1135
 1204yYnN
 1205
 1304yYnN
 1305
 1404yYnN
+1405
+1504yYnN
 
 
 001010< 
@@ -195,11 +205,12 @@ you should use it with caution.
 080001yrYrnN
 090001yuYunN
 100001yfYfnN
-110001ysYsnN
-120001ySYSnN
-130001ybYbnN
-140001y6Y6nN
-151110
+111011y-kY-knN
+120001ysYsnN
+130001ySYSnN
+140001ybYbnN
+150001y6Y6nN
+161110
 
 
 

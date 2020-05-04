@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/t_unbind.c	1.3"
+#ident	"@(#)libnsl:nsl/t_unbind.c	1.3.3.2"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/errno.h"
@@ -22,7 +22,7 @@
 extern int t_errno;
 extern int errno;
 extern struct _ti_user *_t_checkfd();
-extern int (*sigset())();
+extern void (*sigset())();
 extern int ioctl();
 
 
@@ -31,7 +31,7 @@ int fd;
 {
 	register struct _ti_user *tiptr;
 	struct T_unbind_req *unbind_req;
-	int (*sigsave)();
+	void (*sigsave)();
 
 	if ((tiptr = _t_checkfd(fd)) == NULL)
 		return(-1);
@@ -46,7 +46,7 @@ int fd;
 	unbind_req = (struct T_unbind_req *)tiptr->ti_ctlbuf;
 	unbind_req->PRIM_type = T_UNBIND_REQ;
 
-	if (!_t_do_ioctl(fd, (caddr_t)unbind_req, sizeof(struct T_unbind_req), TI_UNBIND, 0)) {
+	if (!_t_do_ioctl(fd, (caddr_t)unbind_req, sizeof(struct T_unbind_req), TI_UNBIND, NULL)) {
 		sigset(SIGPOLL, sigsave);
 		return(-1);
 	}
@@ -62,5 +62,6 @@ int fd;
 	 */
 	tiptr->ti_flags &= ~MORE;
 
+	tiptr->ti_state = TLI_NEXTSTATE(T_UNBIND, tiptr->ti_state);
 	return(0);
 }

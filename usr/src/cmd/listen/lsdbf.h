@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)listen:lsdbf.h	1.3"
+#ident	"@(#)listen:lsdbf.h	1.3.1.1"
 
 /*
  * lsdbf.h:	listener data base file defines and structs
@@ -35,10 +35,17 @@
 
 #define	SVC_CODE_SZ	16
 
+/*
+ * current database version
+ */
+
+#define VERSION	2
+
 typedef struct {
 	int	dbf_flags;		/* flags			*/
 	char	*dbf_svc_code;		/* null terminated service code	*/
+	char	*dbf_id;		/* user id for server to run as */
+	char	*dbf_reserved;		/* place holder for future use	*/
 	char	*dbf_modules;		/* optional modules to push	*/
 	char	*dbf_cmd_line;		/* null terminated cmd line	*/
 } dbf_t;
-

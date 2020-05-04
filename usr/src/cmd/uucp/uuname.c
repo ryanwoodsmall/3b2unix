@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:uuname.c	2.4"
+#ident	"@(#)uucp:uuname.c	2.6"
 
 #include "uucp.h"
  
@@ -21,6 +21,7 @@ char **argv, **envp;
 {
 	int c, lflg = 0, cflg = 0;
 	char s[BUFSIZ], prev[BUFSIZ], name[BUFSIZ];
+	extern void setservice();
 
 	while ( (c = getopt(argc, argv, "lc")) != EOF )
 		switch(c) {
@@ -50,6 +51,12 @@ char **argv, **envp;
 	else
 		setservice("uucico");
 
+	if ( sysaccess(EACCESS_SYSTEMS) != 0 ) {
+		(void)fprintf(stderr,
+			"uuname: cannot access Systems files\n", argv[0]);
+		exit(1);
+	}
+
 	while ( getsysline(s, sizeof(s)) ) {
 		if((s[0] == '#') || (s[0] == ' ') || (s[0] == '\t') || 
 		    (s[0] == '\n'))
@@ -62,3 +69,16 @@ char **argv, **envp;
 	}
 	exit(0);
 }
+
+/* small, private copies of assert(), logent(), */
+/* cleanup() so we can use routines in sysfiles.c */
+
+void assert(s1, s2, i1, file, line)
+char *s1, *s2, *file; int i1, line;
+{	
+	(void)fprintf(stderr, "uuname: %s %s\n", s2, s1);
+}
+
+void logent() {}
+
+void cleanup(code) 	{ exit(code);	}

@@ -5,14 +5,12 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)sccs:lib/lib.mk	6.3"
+#ident	"@(#)sccs:lib/lib.mk	6.4"
 #
 #
-
-LIBS=	cassi.a		\
-		comobj.a	\
-		mpwlib.a	\
-		libPW.a
+LIBS=	cassi.a \
+	comobj.a \
+	mpwlib.a
 
 PRODUCTS = $(LIBS)
 
@@ -30,25 +28,19 @@ comobj.a::
 mpwlib.a::
 	cd mpwlib; $(MAKE) -e -f mpwlib.mk all
 
-libPW.a::
-	cd libPW; $(MAKE) -e -f libPW.mk all
-
 install:	$(LIBS)
 	cd cassi; $(MAKE) -e -f cassi.mk install
 	cd comobj; $(MAKE) -e -f comobj.mk install
 	cd mpwlib; $(MAKE) -e -f mpwlib.mk install
-	cd libPW; $(MAKE) -e -f libPW.mk install
 
 clean:
 	cd cassi; $(MAKE) -e -f cassi.mk clean
 	cd comobj; $(MAKE) -e -f comobj.mk clean
 	cd mpwlib; $(MAKE) -e -f mpwlib.mk clean
-	cd libPW; $(MAKE) -e -f libPW.mk clean
 
 clobber:
 	cd cassi; $(MAKE) -e -f cassi.mk clobber
 	cd comobj; $(MAKE) -e -f comobj.mk clobber
 	cd mpwlib; $(MAKE) -e -f mpwlib.mk clobber
-	cd libPW; $(MAKE) -e -f libPW.mk clobber
 
 .PRECIOUS:	$(PRODUCTS)

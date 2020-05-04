@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident "@(#)ckbupscd:ckbupscd.c	1.1"
+#ident	"@(#)ckbupscd:ckbupscd.c	1.2"
 /*
  * ckbupscd -	Check Backup Schedule and display list
  *		of filesystems needing to be backed up.

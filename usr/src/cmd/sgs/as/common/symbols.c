@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:common/symbols.c	1.8"
+#ident	"@(#)as:common/symbols.c	1.9.1.1"
 /*
  */
 
@@ -15,15 +15,15 @@
 #include "systems.h"
 #include "symbols.h"
 #include "symbols2.h"
-
+#include <sys/types.h>
+#include <sys/stat.h>
 /*
  *	"symbols.c" is a file containing functions for accessing the
- *	symbol table.  The following functions are povided:
+ *	symbol table.  The following functions are provided:
  *
  *	newent(string)
  *		Creates a new symbol table entry for the symbol with name
- *		"string".  The type of the symbol is set to undefined.
- *		All other fields of the entry are set to zero.
+ *		"string".
  *
  *	lookup(string,install_flag,user_name_flag)
  *		Looks up the symbol whose name is "string" in the symbol
@@ -33,22 +33,14 @@
  *		is USRNAME if the symbol is user-defined, MNEMON if it is
  *		an instruction mnemonic.
  *
- *
  *	traverse(func)
  *		Goes through the symbol table and calls the function "func"
  *		for each entry.
  *
- *	dmpstb()
- *		Dumps the symbol table out to the intermediate file
- *		"fdstab" after pass one. The file descriptor "fdstab"
- *		should be open for writing on the intermediate file that
- *		is to contain the symbol table before calling this
- *		function.  This procedure is only used in the multiple-
- *		process version of the assembler.
- *
  *	creasyms()
  *		Enters the instruction mnemonics found in instab[] into
- *		the symbol table.
+ *		the instruction hash table.  Then it malloc()'s the
+ *		symbol table and hash symbol table.
  *
  *	addstr(string)
  *		Enters the "string" into the string table.  Called by
@@ -62,27 +54,39 @@
  *		Sets up the string table, with space malloc()-ed.  This
  *		procedure is only used in the flexnames version of the
  *		assembler.
+ *
  */
 
-#if ONEPROC
-extern short passnbr;
-#endif
 
-symbol
-	symtab[NSYMS];
-upsymins
-	hashtab[NHASH];
+/* The symbol table is actually an array of pointers to tables. 
+ * "tablesize" is the number of symbols each table can hold.
+ */
+unsigned long tablesize;
+#define NTABLES 20
+symbol *symtab[NTABLES];
 
+short tabletop = 0; /* index in symtab of next table to allocate */
+
+unsigned long numsyms = NSYMS;	/* current max. number of symbols */
+unsigned long numhash = NSYMS;	/* size of hash table */
+
+unsigned long symcnt;	/* index of next free symbol entry */
+
+symbol **symhashtab;	/* hash table for symbols */
+/* instr **insthashtab;	hash table for instructions */
+
+/* static allocations for tables - may turn out too small */
+symbol statsymtab[NSYMS];
+symbol *statsymhashtab[NSYMS];
+
+char *malloc(),
+	*calloc();
 #if FLEXNAMES
 char	*strtab;
 long	currindex;
 
-char	*realloc(),
-	*malloc();
+char	*realloc();
 #endif
-
-short	symcnt = 0;
-
 
 symbol *
 newent(strptr)
@@ -90,12 +94,10 @@ newent(strptr)
 {
 	register symbol *symptr;
 	register char *ptr1;
-
-	if (symcnt >= NSYMS) {
-		aerror("Symbol table overflow");
-		return(NULL);
-	}
-	symptr = &symtab[symcnt++];
+	if (symcnt >= numsyms)
+		incr_symtab();
+	GETSYMPTR(symcnt,symptr);
+	symcnt++;
 #if FLEXNAMES
 	if (strlen(strptr) > SYMNMLEN)
 	{
@@ -107,157 +109,147 @@ newent(strptr)
 #endif
 		for (ptr1 = symptr->_name.name; *ptr1++ = *strptr++; )
 			;
-	symptr->styp = UNDEF;
-	symptr->value = 0L;
-	symptr->tag = 0;
-	symptr->maxval = 0;
 	return(symptr);
 }
 
-#if PASS1 || ONEPROC
-#if DEBUG
-
-unsigned numcalls,
-	numids,
-	numcoll;
+#if STATS
+unsigned long numids,	/* number of identifiers entered */
+	numretr,	/* number of retrieval lookups */
+	numlnksretr,	/* number of links traversed (collisions)
+			in retrievals */
+	numins,		/* number of insertion lookups */
+	numlnksins,	/* number of links traversed (collisions)
+			in insertions */
+	numreallocs,	/* number of reallocs of symbol table */
+	inputsz;	/* number of bytes of input */
 #endif
-#endif
 
-upsymins *
+upsymins
 lookup(sptr,install,usrname)
 	char *sptr;
 	BYTE install;
 	BYTE usrname;
 {
-	register upsymins
-		*hp;
+	register symbol *p, *q = NULL;
 	register char
 		*ptr1,
 		*ptr2;
-	unsigned short register
+	unsigned long register
 		ihash = 0,
 		hash;
-	unsigned short probe;
-	upsymins
-		*ohp;
+	upsymins retval;
 
+/* 
+if (!usrname) {
+search thru insthashtab[].  The m32 and 3b20 assemblers have been
+reworked so that instruction lookups aren't done here, so we don't
+need to worry about this.  We can wait for cplu 5.0 to add this code
+for other assemblers.
+}
+*/
+
+/* search for user name in symhashtab[] */
+#if STATS
+if (install)
+	numins++;
+else
+	numretr++;
+#endif
+
+	/* hash sptr */
 	ptr1 = sptr;
-#if PASS1 || ONEPROC
-#if DEBUG
-	numcalls++;
-#endif
-#endif
 	while (*ptr1) {
 		ihash = ihash*4 + *ptr1++;
 	}
-	probe = 1;
 	ihash += *--ptr1 * 32;
-	hash = ihash % NHASH;
-	hp = ohp = &hashtab[hash];
-	do {
-		if ((*hp).stp == NULL) {	/* free */
-			if (install) {
-#if PASS1 || ONEPROC
-#if DEBUG
-				numids++;
-#endif
-#endif
-				(*hp).stp = newent(sptr);
-			}
-			return(hp);
-		}
-		else
-		{
+	hash = ihash % numhash;
+
+	/* Search thru chain.  If symbol with correct name is found,
+	 * return pointer to it.  Otherwise fall thru. */
+	for (p = symhashtab[hash]; p!=NULL; p=p->next) {
 #if FLEXNAMES
 		/* Compare the string given with the symbol string.	*/
-		/* The symbol string can be in either the symbol entry	*/
-		/* or the string table.					*/
- 			if (strcmp(sptr,(hp->stp->_name.tabentry.zeroes != 0) ? (hp->stp->_name.name) : (&strtab[hp->stp->_name.tabentry.offset])) == 0)
+		if (strcmp(sptr,(p->_name.tabentry.zeroes != 0) ? (p->_name.name) : (&strtab[p->_name.tabentry.offset])) == 0)
 #else
-			for (ptr1=sptr,ptr2=((*hp).stp)->_name.name; *ptr2==*ptr1++; )
-				if (*ptr2++ == '\0')
+		for (ptr1=sptr,ptr2=p->_name.name; *ptr2==*ptr1++; )
+			if (*ptr2++ == '\0')
 #endif
 			{
-#if PASS1 || ONEPROC
-#if ONEPROC
-			    if (passnbr == 1) {
+				retval.stp = p;
+				return(retval);
+			}
+		q = p;
+#if STATS
+		if (install)
+			numlnksins++;
+		else
+			numlnksretr++;
 #endif
-					if (install && (*hp).itp->tag &&
-						(*hp).itp->snext == NULL)
-					{
-						(*hp).itp->snext = newent(sptr);
-					} /* if (install ...) */
-					if (!usrname && (*hp).itp->tag) {
-						return((upsymins *) &((*hp).itp->snext));
-					} /* if (!usrname ...) */
-#if ONEPROC
-			        }
-					if (!install && !usrname &&
-					    (*hp).itp->tag && (passnbr==2))
-				            return((upsymins *) &((*hp).itp->snext));
-					else
-#endif
-#endif
-				            return(hp); /* found it */
-				} /* if (*ptr2++ == '\0') */
+	} /* for (p */
 
-			hash = (hash + probe) % NHASH;
-			probe += 2;
-#if PASS1 || ONEPROC
-#if DEBUG
-			numcoll++;
+	/* Not found, so install new symbol entry if flag set. */
+	if (install) {
+#if STATS
+		numids++;
 #endif
-#endif
-		} /* else */
-	} while ((hp = &hashtab[hash]) != ohp);
-	aerror("Hash table overflow");
-	return(NULL); /* can't reach here since `aerror' exits */
+		if (q) 
+			q->next = p = newent(sptr);
+		else
+			symhashtab[hash] = p = newent(sptr);
+	} else
+		p = NULL;
+	retval.stp = p;
+	return(retval);
 }
 
-#if !PASS1
 traverse(func)
 	int (*func)();
 {
-	register short index;
+	register short table, index;
 
-	for (index=0; index < symcnt; ++index) {
-		(*func)(&symtab[index]);
-	}
-}
-#endif
-#if PASS1 && !ONEPROC
-
-FILE *fdstab;
-
-dmpstb(){
-	fwrite((char *)symtab,symcnt,SYMBOLL,fdstab);
+	for (table=0; table<tabletop-1; table++)
+		for (index=0; index < tablesize; ++index)
+			(*func)(&symtab[table][index]);
+	for (index=0; index <= (symcnt-1) % tablesize; ++index)
+		(*func)(&symtab[table][index]);
 }
 
-#endif
-#if PASS1 || ONEPROC
-
+/* creasyms() sets the initial size of the symbol table and symbol
+hash table to either (1) a statically determined initial value, or
+(2) an estimated size, based on the input file size, if (1) appears
+too small.  We bias the calculation to use the statically allocated
+tables by a factor of 3 so that we malloc() new initial tables only
+if we are sure that the static sizes are way off.
+*/
 extern instr instab[];
+extern FILE *fdin;
 
+/* SYMFACTOR is an empirically determined average ratio of number of
+ * bytes of input to number of symbols. */
+#define SYMFACTOR 75
 creasyms()
 {
-	register instr *ip;
-        register upsymins *hp;
-
-	for (ip = instab; ip->name[0] != '\0'; ++ip) {
-		hp = lookup(ip->name,N_INSTALL,MNEMON);
-#if DEBUG
-		/* Sanity check is "cpp-ed out" with the flexnames change. */
-		if ((*hp).itp == NULL)
+	struct stat buf;
+	fstat(fileno(fdin),&buf);
+#if STATS
+	inputsz = buf.st_size;
 #endif
-		(*hp).itp = ip;
-#if DEBUG
-		else
-			aerror("Duplicate instruction table name");
-#endif
-	} /* for */
+	tablesize = buf.st_size/SYMFACTOR;
+	if (tablesize > NSYMS*3) {
+		/* reinitialize tables to larger values */
+		/* make tablesize odd for hashing */
+		numsyms = numhash = (tablesize += tablesize % 2 + 1);
+		if ((symtab[tabletop++] = (symbol *)calloc(numsyms,sizeof(symbol))) == NULL)
+			aerror("Cannot malloc symbol table");
+		if ((symhashtab = (symbol **)calloc(numhash,sizeof(symbol *))) == NULL)
+			aerror("Cannot malloc symbol hash table");
+	} else {
+		/* just use statically allocated tables */
+		tablesize = NSYMS;
+		symtab[tabletop++] = statsymtab;
+		symhashtab = statsymhashtab;
+	}
 }
-#endif
-
 
 #if FLEXNAMES
 long	size,
@@ -270,17 +262,30 @@ addstr(strptr)
 
 	length = strlen(strptr);
 	if (length + currindex >= size)
-		if ((strtab = realloc(strtab,size += basicsize)) == NULL)
+		if ((strtab = realloc(strtab,(unsigned)(size += basicsize))) == NULL)
 			aerror("cannot realloc string table");
 	strcpy(&strtab[currindex],strptr);
 	currindex += length + 1;
 }	/* addstr(strptr) */
 
-
 strtabinit()
 {
-	if ((strtab = malloc(size = basicsize)) == NULL)
+	if ((strtab = malloc((unsigned)(size = basicsize))) == NULL)
 		aerror("cannot malloc string table");
 	currindex = 4;
 }	/* strtabinit() */
 #endif
+
+/* Increase size of symbol table by tablesize. */
+static incr_symtab()
+{
+#if STATS
+	numreallocs++;
+#endif
+	if (tabletop >= NTABLES) {
+		aerror("Out of symbol table");
+	}
+	if ((symtab[tabletop++] = (symbol *)calloc(tablesize,sizeof(symbol))) == NULL)
+		aerror("Cannot malloc more symbol table");
+	numsyms += tablesize;
+}

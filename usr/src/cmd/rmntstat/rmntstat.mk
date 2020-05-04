@@ -5,11 +5,11 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)rmntstat:rmntstat.mk	1.1"
+#ident	"@(#)rmntstat:rmntstat.mk	1.3"
 ROOT =
 TESTDIR = .
 INSDIR = $(ROOT)/usr/bin
-INCRT = $(ROOT)/usr/include
+INC = $(ROOT)/usr/include
 INS = :
 CFLAGS = -O -s
 FRC =
@@ -17,13 +17,13 @@ FRC =
 all: rmntstat
 
 rmntstat: rmntstat.o getnodes.o
-	$(CC) -o $(TESTDIR)/rmntstat rmntstat.o getnodes.o
+	$(CC) $(CFLAGS) -o $(TESTDIR)/rmntstat rmntstat.o getnodes.o
 
 rmntstat.o : rmntstat.c fumount.h
-	$(CC) -I$(INCRT) -c $(CFLAGS) rmntstat.c
+	$(CC) -I$(INC) -c $(CFLAGS) rmntstat.c
 
 getnodes.o : getnodes.c fumount.h
-	$(CC) -I$(INCRT) -c $(CFLAGS) getnodes.c
+	$(CC) -I$(INC) -c $(CFLAGS) getnodes.c
 
 install: all
 	install -n $(INSDIR) $(TESTDIR)/rmntstat

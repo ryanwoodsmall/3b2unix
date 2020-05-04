@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/t_sndrel.c	1.3"
+#ident	"@(#)libnsl:nsl/t_sndrel.c	1.3.1.1"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/errno.h"
@@ -46,12 +46,13 @@ int fd;
 	ctlbuf.buf = (caddr_t)&orreq;
 
 	if (putmsg(fd, &ctlbuf, NULL, 0) < 0) {
-		if (errno = EAGAIN)
+		if (errno == EAGAIN)
 			t_errno = TFLOW;
 		else
 			t_errno = TSYSERR;
 		return(-1);
 	}
 
+	tiptr->ti_state = TLI_NEXTSTATE(T_SNDREL, tiptr->ti_state);
 	return(0);
 }

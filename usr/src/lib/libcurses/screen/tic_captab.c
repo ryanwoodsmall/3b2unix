@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/tic_captab.c	1.2"
+#ident	"@(#)curses:screen/tic_captab.c	1.3"
 /*
  *	comp_captab.c -- The names of the capabilities in a form ready for
  *		         the making of a hash table for the compiler.
@@ -13,7 +13,7 @@
  */
 
 
-#include "curses.ext"
+#include "curses_inc.h"
 #include "compiler.h"
 
 

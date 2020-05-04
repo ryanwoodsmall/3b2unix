@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)uucp:uucp.mk	2.17"
+#ident	"@(#)uucp:uucp.mk	2.20"
 #
 # ***************************************************************
 # *	Copyright (c) 1984 AT&T Technologies, Inc.		*
@@ -22,7 +22,7 @@
 #	/* for 11/23, 11/34 (without separate I/D), IFLAG= */
 #
 #	CFLAGS:
-#	-DSMALL is use on small machine (3B2).
+#	-DSMALL can be used on small machines.
 #	It reduces debugging statements in the object code.
 #
 #	${S5CFLAGS} is an environment variable set for the
@@ -30,8 +30,8 @@
 #	which specifies that the "large model" should be used
 #	for compiling and linking.
 
+#CFLAGS = -O -DSMALL ${S5CFLAGS} 	#for smaller a.out's
 CFLAGS = -O ${S5CFLAGS}
-CFLAGS = -O -DSMALL ${S5CFLAGS} 
 CC=cc
 IFLAG =
 LDFLAGS= -s ${IFLAG} ${S5LDFLAGS}
@@ -54,7 +54,7 @@ TLILIB = -lnsl_s
 # PROTOCOLS =  		# if no datakit and no unet
 PROTOCOLS = eio.o	# TCP, TLI, or unet, no datakit
 
-LIBS= ${BTLLIB} ${DKLIB} ${UNETLIB} ${TLILIB}
+LIBS= -lc_s ${BTLLIB} ${DKLIB} ${UNETLIB} ${TLILIB}
 
 # some versions of unix don't have strpbrk in libc
 # STRPBRK = strpbrk.o
@@ -142,13 +142,13 @@ OUUCICO=uucpdefs.o cico.o conn.o callers.o cntrl.o pk0.o pk1.o \
 	gio.o xio.o anlwrk.o permission.o getargs.o gnamef.o \
 	gnxseq.o pkdefs.o imsg.o gtcfile.o \
 	mailst.o uucpname.o line.o chremdir.o \
-	interface.o statlog.o strecpy.o \
+	interface.o statlog.o strecpy.o stoa.o \
 	$(STRPBRK) $(PROTOCOLS)
 LUUCICO=uucpdefs.c cico.c conn.c callers.c cntrl.c pk0.c pk1.c \
 	gio.c xio.c anlwrk.c permission.c getargs.c gnamef.c \
 	gnxseq.c pkdefs.c imsg.c gtcfile.c \
 	mailst.c uucpname.c line.c chremdir.c \
-	interface.c statlog.c strecpy.c \
+	interface.c statlog.c strecpy.c stoa.c \
 	$(STRPBRKSRC) eio.c dio.c
 OUUNAME=uuname.o uucpname.o uucpdefs.o getpwinfo.o sysfiles.o strsave.o
 LUUNAME=uuname.c uucpname.c uucpdefs.c getpwinfo.c sysfiles.c strsave.c

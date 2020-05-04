@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/sys2.c	10.20"
+#ident	"@(#)kern-port:os/sys2.c	10.20.4.1"
 #include "sys/types.h"
 #include "sys/sysmacros.h"
 #include "sys/param.h"
@@ -113,12 +113,7 @@ register mode;
 		FS_READI(ip);
 	} else {
 		bcount = u.u_iow;
-		FS_WRITEI(ip);
-	}
-	if (u.u_error) {
-		if (type == IFREG || type == IFDIR || type == IFIFO)
-			prele(ip);
-		return;
+		WRITEI(ip);
 	}
 	if (type == IFREG) {
 		/* If synchronous write, update inode now. */
@@ -430,11 +425,10 @@ pollout:
 			fdp += size;
 		}
 
-		if (pollfd[j].fd < 0)
-			continue;
-		if ((fp = getf(pollfd[j].fd)) == NULL)
-			continue;
-		if (fp->f_inode->i_sptr == NULL)
+		if ( (pollfd[j].fd < 0) ||
+		     (pollfd[j].fd >= v.v_nofiles) ||
+		     !(fp = u.u_ofile[pollfd[j].fd]) || 
+		     (fp->f_inode->i_ftype != IFCHR) || !fp->f_inode->i_sptr) 
 			continue;
 		pollreset(fp->f_inode->i_sptr);
 	}
@@ -575,7 +569,7 @@ register mode;
 		return;
 	}
 	if (mode&FTRUNC)
-		FS_ITRUNC(ip);
+		ITRUNC(ip);
 	prele(ip);
 	i = u.u_rval1;
 	if (setjmp(u.u_qsav)) {	/* catch half-opens */
@@ -584,7 +578,7 @@ register mode;
 		u.u_ofile[i] = NULL;
 		closef(fp);
 	} else {
-		FS_OPENI(ip, mode);
+		OPENI(ip, mode);
 		if (u.u_error == 0)
 			return;
 		u.u_ofile[i] = NULL;

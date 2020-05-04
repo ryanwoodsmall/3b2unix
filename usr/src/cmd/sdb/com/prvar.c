@@ -5,13 +5,11 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:com/prvar.c	1.23"
+#ident	"@(#)sdb:com/prvar.c	1.26"
 
 #include "head.h"
 #include "coff.h"
-#define ISDSP(X)	((datmap.b1 <= X && X < datmap.e1) || \
-			 (datmap.b2 <= X && X < datmap.e2) || \
-			 (txtmap.b2 <= X && X < txtmap.e2))
+#define NEEDVAL (-3)
 
 /* 
  * outvar():
@@ -48,11 +46,16 @@ char *prnamep;
 long stroff;
 int prvar;
 {
+	int j ,prlen,oldprlen;
 	char *p, *r, *oldpr;
-	static long soffset, goffset;	/* made static, so when recurse */
+	static long soffset, goffset[MAXNLIB];	/* made static, so when recurse */
 	static long toffset;		/*  for static variables */
+	struct proct *tmprocp;
 	register ADDR newaddr = -1, arrowaddr;
 	enum {INIT, ARROW, DOT} typeflag;
+	ADDR saddr;
+	long stagoff;
+	short stype;
 	extern long tagoff;	/* offset for structure tag, set by all
 				 * functions which might locate a structure
 				 * in the symbol table (slooknext, strlookup,
@@ -104,6 +107,7 @@ int prvar;
 		closeparen();
 	}
 #endif
+	prlen = (int) (prnamep - prname); /* length of output buffer so far */
 	switch (var[0]) {
 	case '\0':
 		/* if only want value of address, return it immediately,
@@ -138,7 +142,8 @@ int prvar;
 		 * out member name (i.e. use all)
 		 */
 		if (type == T_STRUCT || type == T_UNION) {
-			*prnamep++ = '.';
+			if (++prlen < MAXPRLEN)
+				*prnamep++ = '.';
 			var = "*";
 			metaflag |= STREXP;
 			goto nextmember;
@@ -152,7 +157,8 @@ int prvar;
 			/* type == sl_type iff no subscripts parsed */
 			if (type==sl_type || !procp ||
 			    procp->sfptr->f_type == OTHERTYPE)
-				*prnamep++ = '[';
+				if (++prlen < MAXPRLEN)
+					*prnamep++ = '[';
 			metaflag |= ARRAYEXP;
 			var = "*";
 			goto nextindx;
@@ -216,7 +222,8 @@ printout:	if (metaflag && prvar != 3) {
 		return(addr);
 
 	case '[':
-		*prnamep++ = '[';
+		if (++prlen < MAXPRLEN)
+			*prnamep++ = '[';
 		/* fall through to case ',' */
 	case ',':
 		var++;
@@ -303,8 +310,10 @@ printout:	if (metaflag && prvar != 3) {
 				else ubnd = lbnd;
 			}
 			for (i = lbnd; i <= ubnd; i++) {
-				thisnamep = prnamep +
-					sprintf(prnamep, "%d", i);
+				j = sprintf(prnamep, "%d", i);
+				if ((prlen + j + 2)  >= MAXPRLEN) 
+					continue;	/* prname buffer overflow */
+				thisnamep = prnamep + j;
 				if (*var == ']' || *var == ',') {
 				    *thisnamep++ = *var;
 				}
@@ -328,7 +337,7 @@ printout:	if (metaflag && prvar != 3) {
 				/* in case of error, do not keep looping,
 				 * and repeating the same error.
 				 */
-				if (aryaddr < 0) break;
+				if (aryaddr == -1) break;
 			}
 #if DEBUG
 		if (debugflag == 1)
@@ -348,8 +357,11 @@ printout:	if (metaflag && prvar != 3) {
 	case '-':
 	case '>':
 		typeflag = ARROW;
-		while (eqany(*var, "->"))
-			*prnamep++ = *var++;
+		while (eqany(*var, "->")) {
+			if (++prlen < MAXPRLEN)
+				*prnamep++ = *var++;
+			else var++;
+		}
 		arrowaddr = getindir(class, addr, type);
 		if (errflg) {
 			fprintf(FPRT1, "%s\n", errflg);
@@ -393,7 +405,8 @@ printout:	if (metaflag && prvar != 3) {
 		break;
 
 	case '.':
-		*prnamep++ = *var++;
+		if (++prlen < MAXPRLEN)
+			*prnamep++ = *var++;
 	nextmember:
 		typeflag = DOT;
 		if (ISREGV(class))
@@ -429,18 +442,29 @@ printout:	if (metaflag && prvar != 3) {
 			 * are for the desired fcn.
 			 */
 			soffset = adtostoffset(callpc-(signo?NOBACKUP:0),procp);
-			goffset = -1;
+			/*
+			 * one goffset for each shared library.
+			 * goffset[0] is used as a flag.
+			 */
+			goffset[0] = -1;
 			toffset = -1;	/*  view statics as global */
+			libn = procp->lib;
 		}
 		else {		/*  global variable */
+			tmprocp = adrtoprocp(dot-(signo?NOBACKUP:0));
+			libn = tmprocp->lib;
 			soffset = -1;
-			goffset = extstart;
+			for (j = 0; j <= nshlib; j++)  
+				goffset[j] = extstart[j];
 			/* dot, not callpc is used, because callpc may be
 			 * way back on the stack, while dot should be the
 			 * pc of the breakpoint
 			 */
-			toffset = (adrtoprocp(dot-(signo?NOBACKUP:0)))->
-						sfptr->f_statics;
+			if ( (tmprocp->sfptr == badfile) ||
+				(tmprocp->sfptr->f_statics == NEEDVAL) )
+				toffset = -1;
+			else
+				toffset = tmprocp->sfptr->f_statics;
 		}
 	}
 	/* else structure elements.  addr may be a user supplied address,
@@ -451,8 +475,12 @@ printout:	if (metaflag && prvar != 3) {
 	/* copy variable name to prnamep (if matched, actual string used) */
 	p = var;
 	oldpr = prnamep;
-	while (!eqany(*p, "->.[") && *p != '\0')
-		*prnamep++ = *p++;
+	oldprlen = prlen;
+	while (!eqany(*p, "->.[") && *p != '\0') {
+		if (++prlen < MAXPRLEN)
+			*prnamep++ = *p++;
+		else p++;
+	}
 	*prnamep = '\0';
 
      /*	if (typeflag == INIT) slookinit();	*/
@@ -461,7 +489,6 @@ printout:	if (metaflag && prvar != 3) {
 	for (;;) {
 		if (typeflag != INIT) {
 			if ((stroff = strlookup(var, stroff)) != -1) goto found;
-			else
 			{
 #if DEBUG
 				if (debugflag == 1)
@@ -486,9 +513,12 @@ printout:	if (metaflag && prvar != 3) {
 			if ((toffset = sglookup(var, toffset)) != -1)
 				goto found;
 		}
-		if (goffset != -1)
-			if ((goffset = sglookup(var, goffset)) != -1)
-				goto found;
+		if (goffset[0] != -1)
+			for (j = 0; j <= nshlib; j++)  {
+				libn = j;
+				if ((goffset[j] = sglookup(var, goffset[j])) != -1)
+					goto found;
+			}
 #if DEBUG
 		if (debugflag == 1)
 		{
@@ -513,21 +543,44 @@ printout:	if (metaflag && prvar != 3) {
 #endif
 #endif
 		prnamep = oldpr;
-		while (*r) *prnamep++ = *r++;
+		prlen = oldprlen;
+		while (*r) {
+			if (++prlen < MAXPRLEN)
+				*prnamep++ = *r++;
+			else r++;
+		}
+		if (prlen >= MAXPRLEN)
+			return(newaddr);
 		*prnamep = '\0';
 
 		switch(typeflag) {
 		case INIT:
+			/*
+			 * treat separately if a member of common block
+ 			 */
 			class = sl_class;
+			if ( procp && (procp->sfptr != badfile) &&
+			((procp->sfptr)->f_type == F77) && (class == C_MOS)) {
+				saddr = sl_addr;
+				stype = sl_type;
+				stagoff = tagoff;
+				soffset = cmblkmem(soffset);
+				newaddr = saddr + sl_addr;
+				if (ISARY(stype)) 
+					prvar = 2; /* array in common block - diplay  */
+				tagoff = stagoff;  /* address - no dimensions info    */
+				sl_type = stype;	
+				break;
+			}
 			if (!varclass(class,sl_type) || ISTELT(class))
-				continue;	/*goto l*/
+				continue;	
 			newaddr = formaddr(class, sl_addr);
 			break;
 
 		case ARROW:
 			class = sl_class;
 			if (!varclass(class,sl_type) || !ISTELT(class))
-				continue;	/*goto l;*/
+				continue;
 			newaddr = arrowaddr;
 			if (class != C_FIELD)	
 				newaddr += sl_addr;
@@ -535,8 +588,13 @@ printout:	if (metaflag && prvar != 3) {
 
 		case DOT:
 			class = sl_class;
+			if (procp && (procp->sfptr != badfile) &&
+			((procp->sfptr)->f_type == F77) && (class == C_MOS)) {
+				if (ISARY(sl_type)) 
+					prvar = 2; 	/*array in common block*/
+			}
 			if (!varclass(class,sl_type) || !ISTELT(class))
-				continue;	/*goto l;*/
+				continue;	
 			newaddr = addr;
 			if (class != C_FIELD)
 				newaddr += sl_addr;
@@ -568,9 +626,8 @@ printout:	if (metaflag && prvar != 3) {
 #endif
 			return(newaddr);
 		}
-l:;	}
+	}
 }
-
 /* Output external variables.  Arguments as in outvar() */
 /*  extoutvar used to be called by findvar (prvar.c).
  * 	It is no longer used, and has been commented out.
@@ -585,7 +642,7 @@ l:;	}
  * 			"extoutvar(var=%s, fmt=%s, metaflag=%d, prvar=%d);\n",
  * 					var, fmt, metaflag, prvar);
  * #endif
- * 	offset = extstart;
+ * 	offset = extstart[libn];
  * 	sl_addr = -1;
  * 
  * 	for (;;) {
@@ -619,7 +676,7 @@ prdebug() {
 	printf("wtflag=%d; badproc=%#x; badfile=%#x; filework=%s; magic=%#o\n",
 		wtflag, badproc, badfile, filework, magic);
 	printf("dot=%ld;\t", dot);
-	printf("extstart = %ld;\t", extstart);
+	printf("extstart[libn] = %ld;\t", extstart[libn]);
 	printf("firstdata = %ld;\n", firstdata);
 	for(filep=files;filep->sfilename[0];filep++)
 		printf("%.14s offs %#lo @ %#x flag %d addr %#lx\n",
@@ -667,7 +724,7 @@ char *desc; short type; ADDR addr; {
 		closeparen();
 	}
 #endif
-	i = dispx(addr, desc, class, type, size, DSP);
+	i = dispx(addr, desc, class, type,  DSP);
 	printf("\n");
 #if DEBUG
 		if (debugflag == 1)
@@ -714,7 +771,7 @@ char *desc; short type; ADDR addr; {
 		closeparen();
 	}
 #endif
-	i = dispx(addr, desc, class, type, size, ISP);
+	i = dispx(addr, desc, class, type, ISP);
 	printf("\n");
 #if DEBUG
 		if (debugflag == 1)
@@ -762,7 +819,7 @@ static char pd[] = "%lx";
  *	is how these variables are used by docomm() (docomm.c).
  */
 
-dispx(addr, desc, class, type, size, space)
+dispx(addr, desc, class, type, space)
 ADDR addr;
 char *desc;
 int class;
@@ -819,9 +876,6 @@ int space;
 		endofline(); indent();
 		arg("type");
 		printf("0x%x",type);
-		comma();
-		arg("size");
-		printf("0x%x",size);
 		comma();
 		arg("space");
 		printf("0x%x",space);
@@ -1201,14 +1255,18 @@ int space;
 		 * make sure addr is in data space. if not
 		 * don't try to derefrence.
 		 */
-		if (ISDSP(addr))
-		{
+#if u3b2
+		
+		if (addr > 0x80000000) {
+#endif
+#if u3b5 || u3b15 || u3b || vax 
+		if (addr > txtmap[libn].b1) {
+#endif
 			getfmt = "c";
 			value = getval(addr, getfmt, space);
 			delta = 1;
 		}
-		else
-		{
+		else {
 			value = addr;
 			pd[2] = dfmt = 'x';
 			delta = 0;
@@ -1671,9 +1729,9 @@ char *desc; short type; ADDR addr; {
 			printf("= ");
 	}
 	if (prvar == 1)
-		dispx(addr, desc, class, (short) type, size, space);
+		dispx(addr, desc, class, (short) type,  space);
 	else
-		dispx(addr, desc, class, (short) -1, 0, DSP);
+		dispx(addr, desc, class, (short) -1,  DSP);
 	printf("\n");
 #if DEBUG
 	if (debugflag == 1)
@@ -1719,7 +1777,7 @@ STRING	s; MAP *amap;
 	}
 #endif
 	file=amap->ufd;
-	printf("%s\t`%s'\n",s,(file<0 ? "-" : (file==fcor ? corfil : symfil)));
+	printf("%s\t`%s'\n",s,(file<0 ? "-" : (file==fcor ? corfil : symfil[libn])));
 	printf("b1 = %#-16lx",amap->b1);
 	printf("e1 = %#-16lx",amap->e1);
 	printf("f1 = %#-lx",amap->f1);

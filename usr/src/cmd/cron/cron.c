@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)cron:cron.c	1.15"
+#ident	"@(#)cron:cron.c	1.17"
 #include <sys/types.h>
 #include <sys/fs/s5param.h>
 #include <sys/stat.h>
@@ -145,7 +145,7 @@ extern char *xmalloc();
 /* user's default environment for the shell */
 char homedir[100]="HOME=";
 char logname[50]="LOGNAME=";
-char tzone[20]="TZ=";
+char tzone[100]="TZ=";
 char *envinit[]={
 	homedir,
 	logname,
@@ -822,6 +822,9 @@ struct event *e;
 	    || (tm->tm_mon!=tm_mon)) today = FALSE;
 
 	m = tm->tm_min+1;
+	if ((tm->tm_hour + 1) <= next_ge(tm->tm_hour%24, e->of.ct.hour)) {
+		m = 0;
+	}
 	min = next_ge(m%60,e->of.ct.minute);
 	carry = (min < m) ? 1:0;
 	h = tm->tm_hour+carry;

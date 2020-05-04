@@ -1,4 +1,4 @@
-#ident	"@(#)pkg.cc:INSTALL.cc	1.21"
+#ident	"@(#)pkg.cc:INSTALL.cc	1.23"
 #
 # Multiple Floppy INSTALL Script
 #
@@ -40,7 +40,7 @@ else
 fi
 mntname=${2:-/install}
 echo "Installing the ${PKGNAME}."
-echo "Copyright (c) 1985 AT&T Technologies, Inc."
+echo "Copyright (c) 1985 AT&T"
 echo "All Rights Reserved"
 
 # Check that an old Issue and Version of the package will not accidentally
@@ -145,11 +145,11 @@ if [ ${NEEDSYS} = "yes" ]
 then
 	echo "\n\n             NOTE NOTE NOTE \n"
 	echo "After you have installed the ${last} floppies that"
-	echo "make up the ${PKGNAME} you will"
-	echo "be asked to install the System Header Files floppy that"
+	echo "make up the ${PKGNAME} you must"
+	echo "install the System Header Files floppy that"
 	echo "was included in the set of Essential Utilities Floppies"
 	echo "that came with your Operating System package.\n"
-	echo "If that floppy is not available at this time type 'n'"
+	echo "If you don't have that floppy at this time type 'n'"
 	echo "when you are asked if you want to continue.  If you"
 	echo "install the ${PKGNAME}"
 	echo "and do not install the System Header"

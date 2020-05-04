@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:admin/menu/usermgmt/delgroup	2.3"
+#ident	"@(#)sadmin:admin/menu/usermgmt/delgroup	2.4"
 #menu# delete a group from the system
 #help# 
 #help#	Delgroup allows you to remove groups from the computer.  The
@@ -12,7 +12,9 @@ trap 'exit 0' 1 2  15
 
 while true
 do
-	groupname=`checkre ${flags} -fe 'Which group name do you wish to delete? [q]' \
+	GROUPS=`cut -d: -f1 /etc/group | sort | pr -t -w80 -6`
+	groupname=`checkre ${flags} -H "Current groups are: 
+$GROUPS" -fe 'Which group name do you wish to delete? [?,q]' \
 		'.' 'You must enter at least one character.'`
 	idline=`grep "^${groupname}:" /etc/group`
 	if [ -n "${idline}" ]

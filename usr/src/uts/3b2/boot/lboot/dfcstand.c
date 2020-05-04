@@ -5,16 +5,16 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:boot/lboot/dfcstand.c	10.3"
+#ident	"@(#)kern-port:boot/lboot/dfcstand.c	10.4"
 
 /*
  * This module, dfcstand, is the most machine dependant of all
- * lboot modules. The first part of this program contains the 3b5 code,
+ * lboot modules. The first part of this program contains the 3b15 code,
  * while the second half contains the 3b2 code. There is no shared
  * code in this module.
  */
 
-#ifdef u3b5
+#ifdef u3b15
 /*
  *	          #####  #       #######
  *	         #     # #       #

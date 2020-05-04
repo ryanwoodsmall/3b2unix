@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/file.h	10.4"
+#ident	"@(#)kern-port:sys/file.h	10.4.1.1"
 /*
  * One file structure is allocated for each open/creat/pipe call.
  * Main use is to hold the read/write pointer associated with
@@ -37,6 +37,7 @@ extern struct file *ffreelist;	/* Head of freelist pool */
 #define	FNDELAY	0x04
 #define	FAPPEND	0x08
 #define FSYNC	0x10
+#define FRCACH  0x20		/* Used for file and record locking cache*/
 #define	FMASK	0x7f		/* FMASK should be disjoint from FNET */
 #define FNET	0x80		/* needed by 3bnet */
 

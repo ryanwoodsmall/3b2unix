@@ -1,4 +1,4 @@
-#ident	"@(#)pkg.dfm:dfm/INSTALL	1.12"
+#ident	"@(#)pkg.dfm:dfm/INSTALL	1.12.1.2"
 #
 # Single Floppy INSTALL Script
 #
@@ -55,6 +55,25 @@ fi
 cd ${INSPATH}
 echo "The following files are being installed:"
 find . -print | cpio -pduvm /
+
+#
+# The proto file installs the new awk as "awk" and the old awk as "oawk".
+# For 3.1, we want the old awk as "awk" (and "oawk") and the new awk as "nawk".
+# We rename stuff here instead of the proto file because 1) we had to change
+# this file anyway to let the user know what we're doing, and 2) for 4.0,
+# we will revert to the scheme presently in the proto file, so we save having
+# to change the proto file twice.
+#
+
+     mv /usr/bin/awk /usr/bin/nawk
+     ln /usr/bin/oawk /usr/bin/awk
+
+echo
+echo 'The command "oawk" invokes the old version of awk, and "nawk" invokes'
+echo 'the new version. By default, "awk" is linked to "oawk". International'
+echo 'customers will want to link "awk" to "nawk" since the new version'
+echo 'contains the eighth bit cleanup. Refer to the Release Notes for details.'
+echo
 
 
 #

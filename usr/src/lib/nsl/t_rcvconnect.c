@@ -5,21 +5,29 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/t_rcvconnect.c	1.2"
+#ident	"@(#)libnsl:nsl/t_rcvconnect.c	1.2.1.1"
+#include "sys/types.h"
+#include "sys/timod.h"
 #include "sys/tiuser.h"
 #include "sys/param.h"
 #include "_import.h"
 
+extern int t_errno;
 extern rcv_conn_con();
+extern struct _ti_user *_t_checkfd();
 
 
 t_rcvconnect(fd, call)
 int fd;
 struct t_call *call;
 {
+	register struct _ti_user *tiptr;
+	int retval;
 
-	if (_t_checkfd(fd) == NULL)
+	if ((tiptr = _t_checkfd(fd)) == NULL)
 		return(-1);
 
-	return(_rcv_conn_con(fd, call));
+	if (((retval = _rcv_conn_con(fd, call)) == 0) || (t_errno == TBUFOVFLW))
+		tiptr->ti_state = TLI_NEXTSTATE(T_RCVCONNECT, tiptr->ti_state);
+	return(retval);
 }

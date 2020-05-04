@@ -1,5 +1,5 @@
 #
-#	@(#)pkg.sysadm:sysadm/INSTALL	1.6
+#	@(#)pkg.sysadm:sysadm/INSTALL	1.6.1.1
 #
 
 INSPATH=/install/new
@@ -15,7 +15,7 @@ echo "All Rights Reserved"
 
 USRneeds=`expr "\`du -s ${INSPATH}/usr\`" : "\([0-9]*\).*"`
 ROOTneeds=`expr "\`du -s ${INSPATH}/\`" : "\([0-9]*\).*"`
-ROOTneeds=`expr ${ROOTneeds} - ${USRneeds}`
+ROOTneeds=`expr ${ROOTneeds} - ${USRneeds} + 30`
 
 #
 #	Determine how much space is available.

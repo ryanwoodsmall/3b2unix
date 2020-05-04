@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libc-port:stdio/getpass.c	1.10"
+#ident	"@(#)libc-port:stdio/getpass.c	1.11"
 /*	3.0 SID #	1.4	*/
 /*LINTLIBRARY*/
 #include <stdio.h>
@@ -33,7 +33,8 @@ char	*prompt;
 	register int c;
 	FILE	*fi;
 	static char pbuf[ MAXPASSWD + 1 ];
-	int	(*sig)(), catch();
+	int	 catch();
+	void     (*sig)();
 
 	if((fi = fopen(dev_tty,"r")) == NULL)
 		return((char*)NULL);

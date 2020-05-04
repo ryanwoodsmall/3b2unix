@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:com/sub.c	1.13"
+#ident	"@(#)sdb:com/sub.c	1.15"
 
 #include "head.h"
 #include "coff.h"
@@ -427,7 +427,6 @@ argvalue(p)
 char *p;
 {
 	register char ch;
-	register long value;
 	register ADDR j;
 	char proc[30];
 	char var[60];
@@ -589,7 +588,7 @@ struct proct *procp; L_INT v; {
 	}
 	else
 	{
-		printf("%s", name);
+		prpname(procp,"");
 		stmt = adtostmt((ADDR) v, procp);
 	}
 #else
@@ -616,4 +615,65 @@ struct proct *procp; L_INT v; {
 		printf("+");
 		prhex((long) diff);
 	}
+}
+/*
+ * print proc name.
+ * if name is .bt?? look for the original name in the branch tabel
+ * assuming it is sorted by names, and the the 'JMP' instruction 
+ * operand is within the same segment.
+ */
+
+#define JMPLEN 6	/* length of 'JMP' instruction */
+
+prpname(procp,str)
+struct proct *procp;
+char *str;
+{
+	char *ptr;
+	ADDR adr;
+
+	ptr = procp->pname;
+	if (ptr[0] == '.' && ptr[1] == 'b' && ptr[2] == 't' ) {
+		adr = (ADDR) atoi(ptr + 3);
+		adr =(procp->paddress & 0xffff0000) + (adr -1) * JMPLEN;
+		printf("%s%s", (adrtoprocp(adr))->pname,str);
+	}
+	else
+		printf("%s%s", ptr,str);
+}
+
+
+ADDR
+brtoproc(adr)
+ADDR adr;
+{
+	union word word1, word2;
+	int i;
+
+
+	word1.w = get(adr, ISP);
+	if ( word1.c[0] != 0x24 )	 /* JMP instruction */
+		return(adr);
+	word1.w = get(adr+2, ISP);	/* get operand */
+	for (i = 0; i < WORDSIZE; i++) 
+		word2.c[i] = word1.c[WORDSIZE-i-1];
+	return(word2.w);
+}
+/*--------------------------------------*/
+
+/*
+ * if procp is a FORTRAN entry point, look for the subroutine containing
+ * it and set procp.
+ */
+struct proct *isentpt(procp)
+register struct proct *procp;
+{
+	register struct proct *tmprocp;
+
+	tmprocp = procp;
+	while ((tmprocp->notstab) && (tmprocp != badproc))
+		tmprocp = adrtoprocp(tmprocp->paddress - 1);
+	if ((tmprocp->sfptr != badfile) && (tmprocp->sfptr->f_type == F77))
+		procp = tmprocp;
+	return(procp);
 }

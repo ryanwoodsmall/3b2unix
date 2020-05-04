@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident "@(#)vi:port/ex.h	1.18"
+#ident "@(#)vi:port/ex.h	1.24"
 /*
  * This file contains most of the declarations common to a large number
  * of routines.  The file ex_vis.h contains declarations
@@ -56,14 +56,18 @@ typedef struct sgttyb SGTTY;
 #ifdef PAVEL
 #define SGTTY struct sgttyb	/* trick Pavel curses to not include <curses.h> */
 #endif
-#include "term.h"
+typedef char bool;
+typedef unsigned long chtype;
+#include <term.h>
+#define bool vi_bool
 #ifdef PAVEL
 #undef SGTTY
 #endif
-
 #ifndef var
 #define var	extern
 #endif
+var char *exit_bold;		/* string to exit standout mode */
+
 /*
  *	The following little dance copes with the new USG tty handling.
  *	This stuff has the advantage of considerable flexibility, and
@@ -161,8 +165,8 @@ extern	 struct	option options[vi_NOPTS + 1];
  * Only arrays of and pointers to characters are used and parameters and
  * registers are never declared character.
  */
-#define	QUOTE	0200
-#define	TRIM	0177
+#define	QUOTE	0400
+#define	TRIM	0377
 #define	NL	CTRL(j)
 #define	CR	CTRL(m)
 #define	DELETE	0177		/* See also ATTN, QUIT in ex_tune.h */
@@ -244,14 +248,10 @@ var	int	xchng;		/* Suppresses multiple "No writes" in !cmd */
 			 * Usually yes unless in a macro or global.
 			 */
 #define FIXUNDO		(inopen >= 0 && (inopen || !inglobal))
-#define ckaw()		{if (chng && value(vi_AUTOWRITE) && !value(vi_READONLY)) {\
+#define ckaw()		{if (chng && value(vi_AUTOWRITE) && !value(vi_READONLY)) \
 				wop(0);\
-				putch('\r');\
-				putch('\n');\
-				vcontin(1);\
- }\
 			}
-#define	copy(a,b,c)	Copy((char *) a, (char *) b, c)
+#define	copy(a,b,c)	Copy((char *) (a), (char *) (b), (c))
 #define	eq(a, b)	((a) && (b) && strcmp(a, b) == 0)
 #define	getexit(a)	copy(a, resetlab, sizeof (jmp_buf))
 #define	lastchar()	lastc
@@ -325,7 +325,6 @@ var	line	*undadot;	/* If we saved all lines, dot reverts here */
 #define	UNDNONE		3
 #define	UNDPUT		4
 
-#ifdef CRYPT
 /*
  * Various miscellaneous flags and buffers needed by the encryption routines.
  */
@@ -333,12 +332,14 @@ var	line	*undadot;	/* If we saved all lines, dot reverts here */
 var	int	xflag;		/* True if we are in encryption mode */
 var	int	xtflag;		/* True if the temp file is being encrypted */
 var	int	kflag;		/* True if the key has been accepted */
-var	int	perm[2];
-var	int	tperm[2];
+var	int	crflag;		/* True if the key has been accepted  and the file 
+				   being read is ciphertext 
+				 */
+var	int	perm[2];	/* pipe connection to crypt for file being edited */
+var	int	tperm[2];	/* pipe connection to crypt for temporary file */
 var	char	*key;
 var	char	crbuf[CRSIZE];
 char	*getpass();
-#endif
 
 var	bool	write_quit;	/* True if executing a 'wq' command */
 var	int	errcnt;		/* number of error/warning messages in */
@@ -357,6 +358,7 @@ int	(*setlist())();
 int	(*setnorm())();
 int	(*setnorm())();
 int	(*setnumb())();
+char	*sbrk();
 line	*address();
 char	*cgoto();
 char	*genindent();
@@ -386,7 +388,7 @@ int	putreg();
 int	YANKreg();
 int	delete();
 int	execlp();
-int	filter();
+int	vi_filter();
 int	getfile();
 int	getsub();
 int	gettty();

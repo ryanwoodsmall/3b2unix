@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)32ld:32ld.c	2.19"
+#ident	"@(#)32ld:32ld.c	2.22"
 
 /*	Copyright (c) 1984 AT&T	*/
 /*	  All Rights Reserved  	*/
@@ -50,7 +50,7 @@
 #define	swapb	0
 #define	swapw	0
 #endif
-#ifdef	u3b5
+#ifdef	u3b15
 #define	swapb	0
 #define	swapw	0
 #endif
@@ -149,7 +149,9 @@ void	Psend();
 void	Precv();
 void doswab();	/* swap bytes no matter what */
 
-extern int	errno;
+extern int   optind;
+extern char *optarg;
+extern int   errno;
 extern char *getenv();
 
 timeout_id()
@@ -162,7 +164,8 @@ main(argc, argv)
 int argc;
 register char *argv[];
 {
-	char 	*dwnldflag;
+	register int retval;
+	char    *dwnldflag;
 
 	/* Start out by checking that download is going */
 	/* to a DMD with at least 1.1 firmware (not 1.0) */
@@ -172,8 +175,8 @@ register char *argv[];
 	(void)ioctl(1, TCGETA, &ttysave); /* get the current state */
 
 	name = *argv;
-	while(argc>1 && argv[1][0]=='-'){
-		switch(argv[1][1]){
+	while ((retval = getopt (argc, argv, "deplv:")) != EOF) {
+		switch ( retval ) {
 		case 'd':
 			debug++;
 			break;
@@ -193,30 +196,28 @@ register char *argv[];
 			break;
 /*
 		case 's':
-			if( (stkflag=strtol(argv[2], (char *)0, 0)) == 0 )
-			 {
-				fprintf(stderr,"%s: Illegal stack size: %s",name,argv[2]);
+			if ((stkflag = strtol(optarg, (char *)0 ,0)) == 0) {
+				fprintf(stderr,"%s: Illegal stack size: %s",
+				        name, optarg);
 				error(0, Usage, name);
 				return 1;
-			   }
-			argv++; argc--;
+			}
 			break;
 */
 		case 'v':
 			vflag++;
-			romversion=argv[1][2];
-			Loadtype = argv[1][3] - '0';
-			break;
-		case '\0':
+			romversion = optarg[0];
+			Loadtype = optarg[1] - '0';
 			break;
 		default:
 			error(0, Usage, name);
-			return 1;
+			exit(1);
 		}
-		argv++; argc--;
 	}
-	if(argc<2){
-		error(0, Usage, name);
+
+	if (optind != argc-1) {
+		fprintf(stderr,Usage, name);
+		exit(1);
 	}
 
 	Load_str[4] = Loadtype + '0';
@@ -224,7 +225,7 @@ register char *argv[];
 /* This uses the obsolete sgtty ioctls...how do we replace them? */
 #ifdef SAFE
 	(void)ioctl(1, TIOCEXCL, 0);
-#endif SAFE
+#endif
 
 	ttyraw.c_iflag = IGNBRK;
 	ttyraw.c_cflag = (ttysave.c_cflag & CBAUD) | (ttysave.c_cflag & CLOCAL) | CS8 | CREAD;
@@ -280,19 +281,19 @@ register char *argv[];
 		ttyraw.c_iflag |= IXON;
 		(void)ioctl(1, TCSETAW, &ttyraw);
 	}
-	if(jpath(argv[1], access, 4)!=0)
-		error(1, "no such file '%s'", argv[1]);
+	if(jpath(argv[optind], access, 4)!=0)
+		error(1, "no such file '%s'", argv[optind]);
 
 	/* check for an empty file before download */
 	Statptr= &Statbuf;
-	stat(argv[1], Statptr);
+	stat(argv[optind], Statptr);
 	if(Layerflag && (Statbuf.st_size == 0)) {
 		Load_str[2] = '2';
 		write(1,Load_str, 6);
 		goto cleanup;
 	}
 
-	obj=jpath(argv[1], open, 0);
+	obj=jpath(argv[optind], open, 0);
 	if(obj<0)
 		error(1, "cannot open '%s'", file);
 /********************************************************/
@@ -338,14 +339,14 @@ register char *argv[];
 	maxpktdsize = min(sizes[ttysave.c_cflag&CBAUD], (long)MAXPKTDSIZE);
 	pinit(speeds[ttysave.c_cflag&CBAUD], maxpktdsize, ACKON);
 
-	load(/*argv[1],*/ argc-1, argv+1);
+	load(/*argv[1],*/ optarg, argv);
 	buzz();
 	(void)ioctl(0, TCFLSH, (struct termio *)0);
 
 /* This uses the obsolete sgtty ioctls...how do we replace them? */
 #ifdef SAFE
 	(void)ioctl(1, TIOCNXCL, 0);
-#endif SAFE
+#endif
 cleanup:
 /*	(void)ioctl(1, TCSETA, &ttysave);*/
 #ifdef u3b

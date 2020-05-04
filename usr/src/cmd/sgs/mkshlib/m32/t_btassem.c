@@ -5,12 +5,13 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mkshlib:m32/t_btassem.c	1.2"
+#ident	"@(#)mkshlib:m32/t_btassem.c	1.3"
 
 #include <stdio.h>
 #include "filehdr.h"
 #include "ldfcn.h"
 #include "shlib.h"
+#include "syms.h"
 #include "trg.h"
 
 

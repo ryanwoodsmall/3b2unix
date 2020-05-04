@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)tools:writefile.c	1.13"
+#ident	"@(#)tools:writefile.c	1.14"
 
 
 #include "../forms/muse.h"
@@ -16,6 +16,9 @@
 #define RMCR(X)     {if (X!=NULL && *(c_pt=(X+strlen(X)-1))=='\n') *c_pt=null;}
 
 
+/*
+ * Routine that writes data structure into fs file -- for command forms.
+ */
 write_out(fp0)
 register FILE *fp0;
 {  register int i, j, dumflag;
@@ -54,7 +57,8 @@ register FILE *fp0;
    fprintf(fp0,"%c\n",CTRL(R));
    
 /*
- * Option specifications.
+ * Option specifications -- op_name and def_arg are not used
+ * in current command forms.
  */
    for (f_pt=fields;f_pt<=last_field_pt;f_pt++)
    {
@@ -293,6 +297,9 @@ register FILE *fp0;
 
 
 
+/*
+ * Routine that writes data structure into fs file -- for menus.
+ */
 mwrite_out(fp0)
 register FILE *fp0;
 {  register int i, j;
@@ -389,6 +396,10 @@ register FILE *fp0;
 
 
 
+/*
+ * Routine that checks any possible overflow problems in
+ * mforms structure arrays.
+ */
 int chkwrite()
 {  register struct field *f_pt;
    register struct segment *s_pt;

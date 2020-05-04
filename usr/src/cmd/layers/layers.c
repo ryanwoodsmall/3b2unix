@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)xt:layers.c	2.21"
+#ident	"@(#)xt:layers.c	2.24"
 
 /*	Copyright (c) 1984 AT&T	*/
 /*	  All Rights Reserved  	*/
@@ -112,8 +112,8 @@ void		resetlogin();
 void		sigcatch();
 void		undoshell();
 
-extern void	xtraces();
-extern void	xtstats();
+extern int	xtraces();
+extern int	xtstats();
 
 extern unsigned	alarm();
 extern void	exit();
@@ -245,11 +245,15 @@ register char *envp[];
 	(void)alarm(3);
 	(void)pause();
 
+	ttyraw.c_cflag |= CS8;	/* set 8 bits no parity before starting xt */
+	ttyraw.c_cflag &= ~PARENB;
+	(void) ioctl(1, TCSETAW, &ttyraw);
+
 	if ( multiplex(cntlfd, 1) ) {
 		ttyraw.c_cc[VMIN] = JMSGSIZE;
 		(void) ioctl(cntlfd, TCSETAW, &ttyraw);
 		if ( traceon )
-			xtraces(cntlfd, stderr);
+			xtraces("layers", cntlfd, stderr);
 		if (!ignbrk) {
 			struct termio ttybrk;
 
@@ -276,7 +280,7 @@ register char *envp[];
 		(void)alarm(2);
 		(void)pause();
 		cntlf[strlen(cntlf)-1] = '\0';	/* Name of channel group */
-#ifndef u3b5
+#ifndef u3b15
 		resetlogin(cntlfd, cntlf);
 #endif
 		retval = 0;
@@ -284,19 +288,19 @@ register char *envp[];
 getout:		
 		retval = 4;
 
-#ifdef u3b5
+#ifdef u3b15
 	(void)close(cntlfd);
 #endif
 	(void)ioctl(1, TCSETAW, &ttysave);
 	(void)fflush(stderr);
 
 	if ( traceon )
-		xtraces(cntlfd, stderr);
+		xtraces("layers", cntlfd, stderr);
 
 	if ( statson )
-		xtstats(cntlfd, stderr);
+		xtstats("layers", cntlfd, stderr);
 
-#ifdef	u3b5
+#ifdef	u3b15
 	if(retval == 0)
 		resetlogin(cntlfd, cntlf);
 #else
@@ -693,8 +697,8 @@ struct termio *ttyp;
 {
 	(void)ioctl(fd, TCGETA, ttyp);
 	ttyraw.c_iflag = BRKINT;
-	ttyraw.c_cflag = (ttyp->c_cflag & (CBAUD | CLOCAL)) | CS8 | CREAD;
-	ttyraw.c_cc[VMIN] = 4;
+	ttyraw.c_cflag = ttyp->c_cflag;
+	ttyraw.c_cc[VMIN] = 1;
 	(void)ioctl(fd, TCSETAW, &ttyraw);
 }
 

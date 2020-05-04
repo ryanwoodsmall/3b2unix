@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:com/main.c	1.11"
+#ident	"@(#)sdb:com/main.c	1.13"
 
 /*
  *	UNIX debugger
@@ -14,6 +14,10 @@
 #include	"head.h"
 #include	<fcntl.h>
 #include	<sys/utsname.h>
+#if u3b2 
+#define P754_NOFALUT
+#include <ieeefp.h>
+#endif
 
 extern INT		wtflag;
 extern INT		mauflag;
@@ -30,10 +34,10 @@ REG INT		argc;
 	FILE	*fp;
 	FILE	*fopen();
 	register char *p;
-	register int xflag;
 	register char *name;
 	struct stat stbuf;
 	struct utsname sysinfo;
+	int i;
 
 #if u3b2
 	uname(&sysinfo);
@@ -66,9 +70,6 @@ REG INT		argc;
 			case 's':
 				sflag++;
 				break;
-			case 'x':
-				xflag++;
-				break;
 			case 'w':
 				wtflag = 2;  /* allow write to files,ISP */
 				break;
@@ -87,7 +88,9 @@ REG INT		argc;
 		argc--, argv++;
 	}
 
-	if ( argc > 0 ) symfil = argv[ 0 ];
+	if ( argc > 0 ) symfil[0] = argv[ 0 ];
+	else
+		symfil[0] = "a.out";
 	if ( argc > 1 ) corfil = argv[ 1 ];
 
 	/* Put fwp at beginning of filework */
@@ -123,15 +126,15 @@ REG INT		argc;
 	}
 	argcount = argc;
 
-	if ( symfil[ 0 ] == '-' )	/* name "-" ==> ignore a.out */
+	if ( symfil[libn][ 0 ] == '-' )	/* name "-" ==> ignore a.out */
 	{
-		fprintf( FPRT1, "Warning: `%s' does not exist\n", symfil );
+		fprintf( FPRT1, "Warning: `%s' does not exist\n", symfil[libn] );
 	}
 	else
 	{
-		if ( stat( symfil, &stbuf ) == -1 )
+		if ( stat( symfil[libn], &stbuf ) == -1 )
 		{
-			fprintf(FPRT1, "`%s' does not exist\n", symfil);
+			fprintf(FPRT1, "`%s' does not exist\n", symfil[libn]);
 			exit(4);
 		}
 	}
@@ -143,13 +146,21 @@ REG INT		argc;
 		if ( symtime > stbuf.st_mtime )
 		{
 			fprintf(FPRT1, "Warning: `%s' newer than `%s'\n",
-				symfil, corfil);
+				symfil[libn], corfil);
 		}
 	}
 
 	/* initialize sdb data structures */
 	setsym();
-	readstrtbl( fsym );
+	readstrtbl( fsym[libn] );
+	for (i = 1; i <= nshlib; i++)
+	{
+		libn = i;
+		symfil[i] = &slnames[i-1][0];
+		setsym();
+		readstrtbl( fsym[i] );
+	}
+	libn = 0;
 	setcor();
 	initfp();
 
@@ -165,15 +176,21 @@ REG INT		argc;
 	}
 	sigqit = ( ADDR ) signal( SIGQUIT, SIG_IGN ); /* ignore "quit" signal */
 	signal( SIGILL, fpe );	/* fpe() handles illegal instructions */
+#if u3b || u3b5 || u3b15 || vax
+	signal( SIGFPE, fpe );	/* fpe() handles floating point exceptions */
+#endif
 
-	sdbenter(xflag);
+	sdbenter();
 
 	setjmp(env);
 
-#if u3b2 || u3b5 || u3b15
-	if (!mauflag)		/* mauflag == -1 system has no MAU */
-		setmauflg();	/* mauflag ==  1 system has a MAU  */
-#endif				/* mauflag ==  0 mauflag not set   */
+#if u3b2 
+
+	if (!mauflag) {			/* mauflag == -1 system has no MAU */
+		setmauflg();		/* mauflag ==  1 system has a MAU  */
+		fpsetmask(FP_DISABLE);	/* mauflag ==  0 mauflag not set   */
+	}
+#endif
 
 	sdbtty();	/* save user tty modes and restore sdb tty modes */
 
@@ -212,6 +229,9 @@ int a;
 
 fpe() {
 	signal(SIGILL, fpe);	/* cancel pending signal SIGILL */
+#if u3b || u3b5 || u3b15 || vax
+	signal( SIGFPE, fpe );	/* cancel pending signal SIGFPE */
+#endif
 	error("Illegal floating constant");
 	longjmp(env, 0);
 }

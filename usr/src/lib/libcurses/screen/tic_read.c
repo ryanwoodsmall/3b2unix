@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/tic_read.c	1.6"
+#ident	"@(#)curses:screen/tic_read.c	1.7"
 /*********************************************************************
 *                         COPYRIGHT NOTICE                           *
 **********************************************************************
@@ -55,7 +55,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
-#include "curses.ext"
+#include "curses_inc.h"
 #include "object.h"
 
 #define OFFSET_BUFSIZE	100

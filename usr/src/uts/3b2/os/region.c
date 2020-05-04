@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/region.c	10.16"
+#ident	"@(#)kern-port:os/region.c	10.16.3.4"
 #include "sys/types.h"
 #include "sys/param.h"
 #include "sys/immu.h"
@@ -111,7 +111,7 @@ register reg_t	*rp;
 {
 	while (!(rp->r_flags & RG_DONE))
 	{	rp->r_flags |= RG_WAITING;
-		sleep((caddr_t)rp->r_flags, PZERO);
+		sleep((caddr_t)&rp->r_flags, PZERO);
 	}
 }
 
@@ -123,10 +123,9 @@ register reg_t	*rp;
  */
 
 reg_t *
-allocreg(ip, type, flag)
+allocreg(ip, type)
 register struct inode	*ip;
 short type;
-short flag;
 {
 	register reg_t *rp;
 
@@ -150,7 +149,6 @@ short flag;
 
 	rp->r_type = type;
 	rp->r_iptr = ip;
-	rp->r_flags |= flag;
 	reglock(rp);
 
 	if (ip != NULL) {
@@ -234,7 +232,9 @@ register reg_t *rp;	/* pointer to a locked region */
 	}
 	availsmem += tsize;
 
-	ASSERT(rp->r_noswapcnt >= 0  &&  rp->r_noswapcnt <= 1);
+	ASSERT((rp->r_noswapcnt >= 0) &&
+	       (rp->r_noswapcnt <= 1 || rp->r_type == RT_SHMEM));
+
 	if (rp->r_noswapcnt)
 		availrmem += tsize;
 
@@ -452,8 +452,8 @@ int slpflg, force;
 	 * Allocate a region descriptor
 	 */
 
-	if ((rp2 = allocreg(rp->r_iptr, force ? RT_PRIVATE : rp->r_type,
-		0)) == NULL) {
+	if ((rp2 = allocreg(rp->r_iptr, force ? RT_PRIVATE : rp->r_type
+		)) == NULL) {
 		if (rp->r_iptr)
 			prele(rp->r_iptr);
 		availsmem += rp->r_pgsz;
@@ -705,6 +705,7 @@ register preg_t *prp;
 	}
 
 	loadstbl(&u, prp, change);
+	loadmmu(u.u_procp, secnum(prp->p_regva));
 
 	rp->r_pgsz += change;
 	u.u_procp->p_size += change;
@@ -743,7 +744,7 @@ register int	nsize;	/* New size in pages. */
 
 	prp1 = (up->u_procp)->p_region;
 	start = prp->p_regva;
-	size = ctob((prp->p_reg)->r_pgsz);
+	size = ctob(nsize);
 	end = (size>0)? start+size-1:start;
 
 	for (;prp1->p_reg; ++prp1) {
@@ -1122,14 +1123,8 @@ register caddr_t vaddr;
 	register reg_t *rp;
 
 	for (prp = p->p_region; rp = prp->p_reg; prp++) {
-#ifdef vax
-		caddr_t lo = prp->p_regva + ctob(rp->r_pgoff);
-#else
-		caddr_t lo = prp->p_regva;
-#endif
-		caddr_t hi = lo + ctob(rp->r_pgsz);
-		if ((unsigned long)vaddr >= (unsigned long)lo
-		  && (unsigned long)vaddr < (unsigned long)hi)
+		if (vaddr >= prp->p_regva
+		  && vaddr < prp->p_regva + ctob(rp->r_pgsz))
 			return(prp);
 	}
 	return(NULL);

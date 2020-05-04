@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:common/codeout.c	1.9"
+#ident	"@(#)as:common/codeout.c	1.9.1.3"
 #include <stdio.h>
 #include "systems.h"
 #include "symbols.h"
@@ -16,8 +16,7 @@
 
 extern FILE	*fdsect;	/* file written to by codgen */
 
-extern symbol *dot,
-	symtab[];	/* internal symbol table */
+extern symbol *dot;
 
 extern struct scninfo secdat[];		/* section info table */
 
@@ -90,7 +89,7 @@ codgen(nbits, val)
 
 extern int (*(modes[]))();	/* array of action routine functions */
 
-extern upsymins *lookup();
+extern upsymins lookup();
 
 extern short sttop;
 
@@ -103,41 +102,55 @@ int sect;
 	register symbol *sym;
 	register long	pckword;
 	long 		pckbuf;
-
-	dot = (*lookup(".",INSTALL,USRNAME)).stp;
+	dot = lookup(".",INSTALL,USRNAME).stp;
 	dot->value = newdot = start;
 	dot->styp = secdat[sect].s_typ;
+	dot->sectnum = sect;
 	if ((fdcode = fopen(file, "r")) == NULL)
 		aerror("Unable to open temporary file");
 
 #ifndef DCODGEN
 	poscnt = 0;
 #endif
+#define getnextword(x) {if (fread(&(x), sizeof(long), 1, fdcode) != 1)\
+			aerror("Bad temporary file format");}
 	while (1) {
 		/* get a codebuf structure from the packed temp file */
 		if (fread(&pckbuf, sizeof(long), 1, fdcode) != 1) break;
 		pckword = pckbuf;
 		code.caction = ACTNUM(pckword);
 		code.cnbits = NUMBITS(pckword);
-		if (pckword & SYMINDEX)
+		if (SYMISABSENT(pckword)) {
+			code.cindex = 0L;
+			if (!VALIS32BITS(pckword))/* val is 16 bits or 0 */
+				code.cvalue = SYMORVAL(pckword);
+			else /* val is 32 bits */
+				getnextword(code.cvalue)
+		} else if (SYMIS16BITS(pckword)) {
 			code.cindex = SYMORVAL(pckword);
-		else
-			code.cindex = 0;
-		if (pckword & VAL0)
-			code.cvalue = 0;
-		else if (pckword & VAL16)
-			code.cvalue = SYMORVAL(pckword);
-		else if (fread(&(code.cvalue), sizeof(long), 1, fdcode) != 1)
-			aerror("Bad temporary file format");
-
+			if (!VALISABSENT(pckword))
+				getnextword(code.cvalue)
+			else
+				code.cvalue = 0L;
+		} else { /* symbol index is 32 bits */
+			if (!VALIS32BITS(pckword)) {
+				code.cvalue = SYMORVAL(pckword);
+				getnextword(code.cindex)
+			} else { /* value is 32 bits */
+				getnextword(code.cindex)
+				getnextword(code.cvalue)
+			}
+		}
 		if (code.caction != 0) {
 			if (code.caction <= NACTION) {
 #if VAX
 			sym = (code.cindex < 0) ? (symbol*)(-code.cindex)
 				: (symbol*)(code.cindex);
 #else
-			sym = code.cindex ? (symtab + (code.cindex-1))
-				: (symbol *) NULL;
+			if (code.cindex)
+				GETSYMPTR(code.cindex-1,sym)
+			else
+				sym = (symbol *)NULL;
 #endif
 			/* call to appropriate action routine */
 			(*(modes[code.caction]))(sym,&code);
@@ -159,19 +172,32 @@ getcode(codptr)
 codebuf	*codptr;
 {
 	long	pckbuf;
+	register long pckword;
 
 	if (fread(&pckbuf, sizeof(long), 1, fdcode) != 1) return(0);
-	codptr->caction = ACTNUM(pckbuf);
-	codptr->cnbits = NUMBITS(pckbuf);
-	if (pckbuf & SYMINDEX)
-		codptr->cindex = SYMORVAL(pckbuf);
-	else
-		codptr->cindex = 0;
-	if (pckbuf & VAL0)
-		codptr->cvalue = 0;
-	else if (pckbuf & VAL16)
-		codptr->cvalue = SYMORVAL(pckbuf);
-	else if (fread(&(codptr->cvalue), sizeof(long), 1, fdcode) != 1)
-		aerror("Bad temporary file format");
+	pckword = pckbuf;
+	codptr->caction = ACTNUM(pckword);
+	codptr->cnbits = NUMBITS(pckword);
+	if (SYMISABSENT(pckword)) {
+		codptr->cindex = 0L;
+		if (VALIS32BITS(pckword))
+			getnextword(codptr->cvalue)
+		else /* value is 16 bits or 0 */
+			codptr->cvalue = SYMORVAL(pckword);
+	} else if (SYMIS16BITS(pckword)) {
+		codptr->cindex = SYMORVAL(pckword);
+		if (!VALISABSENT(pckword))
+			getnextword(codptr->cvalue)
+		else
+			codptr->cvalue = 0L;
+	} else { /* symbol index is 32 bits */
+		if (!VALIS32BITS(pckword)) {
+			codptr->cvalue = SYMORVAL(pckword);
+			getnextword(codptr->cindex)
+		} else { /* value is 32 bits */
+			getnextword(codptr->cindex)
+			getnextword(codptr->cvalue)
+		}
+	}
 	return(1);
 }

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:boot/lboot/tables.c	10.5"
+#ident	"@(#)kern-port:boot/lboot/tables.c	10.5.1.1"
 
 /*
  * Symbol table processing routines
@@ -1030,7 +1030,7 @@ define(name, value)
 
 	return((SYMBOL *) sp);
 	}
-
+
 /*	ucxdefine(name, value)
 **
 **	Unconditionally define a symbol.  This rouine is basically
@@ -1049,13 +1049,12 @@ register address	value;
 	register struct Xsymbol	*sp;
 
 	sp = (struct Xsymbol *)Xsym_name(name);
-	if (sp->flag & DEFINED)
-		return(sp);
-	sp->flag |= DEFINED;
-	sp->x.value = value;
-	return(sp);
+	if (sp->flag &~ DEFINED){
+		sp->flag |= DEFINED;
+		sp->x.value = value;
+	}
 }
-
+
 /*
  * Krelocate(reloc, porigin, vorigin)
  *

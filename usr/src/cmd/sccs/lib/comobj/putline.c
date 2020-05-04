@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sccs:lib/comobj/putline.c	6.4"
+#ident	"@(#)sccs:lib/comobj/putline.c	6.5"
 # include	"../../hdr/defines.h"
 
 /*
@@ -84,7 +84,8 @@ register struct stats *stats;
 	}
 
 	sprintf(hash,"%5u",pkt->p_nhash&0xFFFF);
-	zeropad(hash);
+	for (p=hash; *p == ' '; p++)	/* replace initial blanks with '0's */
+		*p = '0';
 	fprintf(Xiop,"%c%c%s\n",CTLCHAR,HEAD,hash);
 	if (stats)
 		fprintf(Xiop,"%c%c %s/%s/%s\n",CTLCHAR,STATS,ins,del,unc);

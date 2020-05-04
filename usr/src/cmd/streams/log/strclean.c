@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)cmd-streams:log/strclean.c	1.2"
+#ident	"@(#)cmd-streams:log/strclean.c	1.2.1.1"
 #include <stdio.h>
 #include <fcntl.h>
 #include <ftw.h>
@@ -19,6 +19,8 @@
 #define LOGDELAY 2
 #define LOGDEFAULT "/usr/adm/streams"
 #define AGEDEFAULT 3
+#define DIRECTORY 040000
+#define ACCESS 07
 
 static char prefix[128];
 static time_t cutoff;
@@ -30,6 +32,7 @@ char **av;
 	int age;
 	int c, errflg;
 	int fd;
+	struct stat stbuf;
 	struct strbuf ctl, dat;
 	struct log_ctl lctl;
 	char msg[MSGSIZE];
@@ -69,8 +72,18 @@ char **av;
 	}
 
 	if (age < 1) {
-		fprintf(stderr, "Strclean: <age> must be at least 1\n");
+		fprintf(stderr, "strclean: <age> must be at least 1\n");
 		exit(2);
+	}
+
+	if ((stat(logname, &stbuf) < 0) || !(stbuf.st_mode & DIRECTORY)) {
+		fprintf(stderr, "strclean: %s not a directory\n", logname);
+		exit(3);
+	}
+
+	if (access(logname, ACCESS) < 0) {
+		fprintf(stderr, "strclean: cannot access directory %s\n", logname);
+		exit(4);
 	}
 
 	cutoff = time((long*)0) - age * NSECDAY;
@@ -83,7 +96,7 @@ char **av;
 	dat.buf = msg;
 	dat.maxlen = MSGSIZE;
 	sprintf(dat.buf, 
-		"Strclean - removing log files more than %d days old", age);
+		"strclean - removing log files more than %d days old", age);
 	dat.len = strlen(dat.buf) + 1;
 
 	if ((fd = open("/dev/log", O_RDWR)) >= 0) {
@@ -112,7 +125,7 @@ int info;
 	if (strncmp(name, prefix, strlen(prefix)) == 0) {
 	    if (stp->st_mtime < cutoff) {
 		if (unlink(name) < 0) 
-			fprintf(stderr, "Strclean: unable to unlink file %s", name);
+			fprintf(stderr, "strclean: unable to unlink file %s\n", name);
 	    }
 	}
 	return(0);

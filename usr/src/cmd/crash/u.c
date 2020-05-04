@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)crash-3b2:u.c	1.20"
+#ident	"@(#)crash-3b2:u.c	1.20.6.1"
 /*
  * This file contains code for the crash functions:  user, pcb, stack,
  * trace, and kfp.
@@ -32,7 +32,7 @@
 #include "sys/inode.h"
 #include "sys/lock.h"
 #include "crash.h"
-
+#include "sys/sys3b.h"
 
 #define FP	1
 #define AP	0
@@ -41,7 +41,7 @@
 #define UBADDR 0xc0000000
 #define UPCBADDR 0xc000000c
 #define UKPCBADDR 0xc000007c
-#define min(a,b) ((a) > (b) ? (b) : (a))
+#define min(a,b) (a>b ? b:a)
 
 extern struct user *ubp;		/* ublock pointer */
 extern int active;			/* active system flag */
@@ -51,14 +51,14 @@ extern	char	*strtbl ;		/* pointer to string table */
 int	*stk_bptr;			/* stack pointer */
 extern struct xtra_nvr xtranvram;	/* xtra nvram buffer */
 extern	struct	syment	*Proc, *File,
-	*Inode, *Curproc, *Panic;	/* namelist symbol pointers */
+	*Inode, *Curproc, *Panic, *V;	/* namelist symbol pointers */
 extern char *ctime();
 extern struct	syment	*findsym();
 extern long vtop();
 extern long lseek();
 extern char *malloc();
 void free();
-
+int *temp;
 
 /* read ublock into buffer */
 int
@@ -70,30 +70,55 @@ int slot;
 
 	if(slot == -1) 
 		slot = getcurproc();
-	if(slot >=  vbuf.v_proc || slot < 0)
-		error("%d out of range\n",slot);
+	if(slot >=  vbuf.v_proc || slot < 0) {
+		prerrmes("%d out of range\n",slot);
+		return(-1);
+	}
 
 	pslot_va = (long)(Proc->n_value+slot*sizeof(struct proc));
 	readmem(pslot_va,1,slot,(char *)&procbuf,sizeof procbuf,
 		"process table");
-	if (!procbuf.p_stat)
-		error("%d is not a valid process\n",slot);
-	if (procbuf.p_stat == SZOMB)
-		error("%d is a zombie process\n",slot);
+	if (!procbuf.p_stat) {
+		prerrmes("%d is not a valid process\n",slot);
+		return(-1);
+	}
+	if (procbuf.p_stat == SZOMB) {
+		prerrmes("%d is a zombie process\n",slot);
+		return(-1);
+	}
+	if(active)
+	{
+		if(sys3b(RDUBLK, procbuf.p_pid, (char *)ubp,
+			sizeof(*ubp) + sizeof(int)*vbuf.v_nofiles)==-1)
+			return(-1);
+		else
+			return(0);
+	}
+	/* examine sysdump and U-Block was swapped-out */
+	else if(!(procbuf.p_flag & SULOAD)) {
+		prerrmes("%d was swapped-out\n", slot);
+		return(-1);
+	} else {			
 	i=((char*)ubptbl((proc_t*)pslot_va) - (char*)pslot_va -
 		((char*)procbuf.p_ubptbl - (char*)&procbuf)) >> 2;
 	for(cnt=0; cnt < sizeof(*ubp) + sizeof(int) * vbuf.v_nofiles;
 		cnt += NBPP, i++) {
 		/* seek from beginning of memory to ith page of uarea */
 		if(lseek(mem,(long)(procbuf.p_ubptbl[i].pgm.pg_pfn<<11)-
-			MAINSTORE,0) == -1)
-			error("seek error on ublock address\n");
+			MAINSTORE,0) == -1) {
+			prerrmes("seek error on ublock address\n");
+			return(-1);
+		}
 		if(read(mem,(char *)ubp+cnt,min(NBPP,(sizeof(*ubp)+
 			sizeof(int)*vbuf.v_nofiles)-cnt)) !=
 			min(NBPP, (sizeof(*ubp)+sizeof(int)*
-				vbuf.v_nofiles)-cnt))
-			error("read error on ublock\n");
+				vbuf.v_nofiles)-cnt)) {
+				prerrmes("read error on ublock\n");
+				return(-1);
+		}
 	}
+	}
+	return(0);
 }
 
 /* allocate buffer for stack */
@@ -155,12 +180,18 @@ getuser()
 {
 	int slot = Procslot;
 	int full = 0;
+	int all = 0;
+	long arg1 = -1;
+	long arg2 = -1;
+	unsigned lastproc;
 	int c;
 
 	optind = 1;
-	while((c = getopt(argcnt,args,"fw:")) !=EOF) {
+	while((c = getopt(argcnt,args,"efw:")) !=EOF) {
 		switch(c) {
 			case 'f' :	full = 1;
+					break;
+			case 'e' :	all = 1;
 					break;
 			case 'w' :	redirect();
 					break;
@@ -168,11 +199,24 @@ getuser()
 		}
 	}
 	if(args[optind]) {
-		if((slot = strcon(args[optind],'d')) == -1)
-			error("\n");
-		if((slot < 0) || (slot >= vbuf.v_proc)) 
-			error("%d is out of range\n",slot);
-		pruser(full,slot);
+		do {
+			getargs(vbuf.v_proc,&arg1,&arg2);
+			if(arg1 == -1) 
+				continue;
+			if(arg2 != -1)
+				for(slot = arg1; slot <= arg2; slot++)
+					pruser(full,slot);
+			else pruser(full,arg1);
+			slot = arg1 = arg2 = -1;
+		}while(args[++optind]);
+	}
+	else if(all) {
+		readmem((long)V->n_value,1,-1,(char *)&vbuf,
+			sizeof vbuf,"var structure");
+		lastproc = (unsigned)(vbuf.ve_proc - Proc->n_value) /
+			sizeof (struct proc);
+		for(slot =0; slot < lastproc; slot++) 
+			pruser(full,slot);
 	}
 	else pruser(full,slot);
 }
@@ -185,7 +229,8 @@ int full,slot;
 	register  int  i,j;
 	unsigned offset;
 
-	getublock(slot);
+	if(getublock(slot) == -1)
+		return;
 	if(slot == -1)
 		slot = getcurproc();
 	fprintf(fp,"PER PROCESS USER AREA FOR PROCESS %d\n",slot);
@@ -217,13 +262,12 @@ int full,slot;
 		ubp->u_acflag & AFORK ? "fork" : "exec",
 		ubp->u_acflag & ASU ? " su-user" : "");
 	fprintf(fp,"\t%s", ubp->u_dmm ? "double mapped, " : "");
-	fprintf(fp,"shared segments: %d, ", ubp->u_shmcnt);
 	fprintf(fp,"proc/text lock:%s%s%s%s\n",
 		ubp->u_lock & TXTLOCK ? " txtlock" : "",
 		ubp->u_lock & DATLOCK ? " datlock" : "",
 		ubp->u_lock & PROCLOCK ? " proclock" : "",
 		ubp->u_lock & (PROCLOCK|TXTLOCK|DATLOCK) ? "" : " none");
-	fprintf(fp,"\tstack: %8x", ubp->u_stack);
+	fprintf(fp,"\tstack: %8x,", ubp->u_stack);
 	fprintf(fp,"\tinode of current directory: ");
 	slot = ((unsigned)ubp->u_cdir - Inode->n_value) /
 			sizeof (struct inode);
@@ -377,6 +421,17 @@ int full,slot;
 			ubp->u_iow,
 			ubp->u_iosw,
 			ubp->u_ioch);
+		fprintf(fp, "\tsysabort: %d, systrap: %d\n",
+			ubp->u_sysabort,
+			ubp->u_systrap);
+		fprintf(fp, "\tentrymask:");
+		for (i = 0; i < SYSMASKLEN; i++)
+			fprintf(fp, " %08x", ubp->u_entrymask[i]);
+		fprintf(fp, "\n");
+		fprintf(fp, "\texitmask:");
+		for (i = 0; i < SYSMASKLEN; i++)
+			fprintf(fp, " %08x", ubp->u_exitmask[i]);
+		fprintf(fp, "\n");
 		fprintf(fp,"\tEXDATA:\n");
 		fprintf(fp,"\tip: ");
 		slot = ((unsigned)ubp->u_exdata.ip - Inode->n_value) /
@@ -402,23 +457,14 @@ int full,slot;
 		fprintf(fp,"\texecsz: %x\n",ubp->u_execsz);
 		fprintf(fp,"\ttracepc: %x\n",ubp->u_tracepc);
 		fprintf(fp,"\tRFS:\n");
-		fprintf(fp,"\trflags:%s%s%s%s%s%s\n",
-			ubp->u_rflags & U_RCDIR ? " rcdir" : "",
-			ubp->u_rflags & U_RRDIR ? " rrdir" : "",
+		fprintf(fp,"\trflags:%s%s%s\n",
 			ubp->u_rflags & U_RSYS ? " rsys" : "",
-			ubp->u_rflags & U_LBIN ? " lbin" : "",
 			ubp->u_rflags & U_DOTDOT ? " dotdot" : "",
 			ubp->u_rflags & U_RCOPY ? " rcopy" : "");
-		fprintf(fp,"\trrcookie.sysid: %x, rrcookie.rcvd: %x\n",
-			ubp->u_rrcookie.c_sysid,
-			ubp->u_rrcookie.c_rcvd);
 		fprintf(fp,"\tsyscall: %d, mntindx: %d, gift: %x\n",
 			ubp->u_syscall,
 			ubp->u_mntindx,
 			ubp->u_gift);
-		fprintf(fp,"\tnewgift.sysid: %x, newgift.rcvd: %x\n",
-			ubp->u_newgift.c_sysid,
-			ubp->u_newgift.c_rcvd);
 		fprintf(fp,"\tcopymsg: %x, copybp: %x, msgend: %x\n",
 			ubp->u_copymsg,
 			ubp->u_copybp,
@@ -492,10 +538,14 @@ char type;
 	struct kpcb *kpcbp;
 	struct pcb *pcbp;
 
-	getublock(proc);
+	if(getublock(proc) == -1)
+		return;
 	switch(type) {
 		case 'n' : kpcbp = (struct kpcb *)(((long)ubp->u_pcbp - 
 				sizeof (struct ipcb) - UBADDR) + (long)ubp);
+			   if((kpcbp != (struct kpcb*)(long)&ubp->u_kpcb) &&
+				(kpcbp != (struct kpcb*)&ubp->u_pcb))
+				error("pcb pointer not valid\n");
 			   break;
 		case 'u' : kpcbp = (struct kpcb*)&ubp->u_pcb;
 			   break;
@@ -641,7 +691,8 @@ int proc;
 	long stkfp ;
 	long stklo ;
 
-	getublock(proc);
+	if(getublock(proc) == -1)
+		return;
 	if((proc == -1) || (proc == getcurproc())){
 		seekmem((long)Panic->n_value,1,-1);
 		if((read(mem,(char *)&panicstr,sizeof panicstr)
@@ -658,12 +709,12 @@ int proc;
 	else {
 		if(ubp->u_kpcb.psw.CM == PS_USER)
 			error("user mode\n");
-		if(procbuf.p_flag == SSYS) 
+		if(procbuf.p_flag & SSYS) 
 			stklo = (long)ubp->u_stack;
 		else stklo = (long) ubp->u_kpcb.slb;
 		stkfp = ubp->u_kpcb.regsave[FP] ;
 	}
-	prstack(stkfp,stklo,proc);
+	prkstack(stkfp,stklo,proc);
 }
 
 
@@ -676,7 +727,8 @@ int proc;
 	long			stkfp ;
 	long			stklo ;
 
-	getublock(proc);
+	if(getublock(proc) == -1)
+		return;
 	if((proc == -1) || (proc == getcurproc())){
 		seekmem((long)Panic->n_value,1,-1);
 		if((read(mem,(char *)&panicstr,sizeof panicstr)
@@ -707,7 +759,7 @@ long addr;
 	readbuf(addr,addr,phys,-1,(char *)&kpcbuf,sizeof kpcbuf,
 		"interrupt process pcb");
 	stkfp = kpcbuf.regsave[FP];
-	if(procbuf.p_flag == SSYS) 
+	if(procbuf.p_flag & SSYS) 
 		stklo = (long)ubp->u_stack;
 	else stklo = (long)kpcbuf.slb;
 	prstack(stkfp,stklo,-1);
@@ -728,7 +780,6 @@ int slot;
 	
 	if ( stkfp < stklo)
 		error("upper bound < lower bound, unable to process stack\n") ;
-	
 	dmpcnt = setbf(stkfp, stklo, slot);
 	stklo = stkfp - dmpcnt ;
 	stkptr = (int *)(stk_bptr);
@@ -738,11 +789,65 @@ int slot;
 	{
 		if((prcnt++ % 4) == 0){
 			fprintf(fp,"\n%8.8x: ",
-				(int)(((long)stkptr - (long)stk_bptr) + stklo));
+				(int)(((long)stkptr - (long)stk_bptr)+stklo));
 		}
 		fprintf(fp,"  %8.8x", *stkptr);
 	}
-	free((char *)stk_bptr);
+	free((char *)stk_bptr); 
+	stk_bptr = NULL;
+
+	fprintf(fp,"\n\nSTACK FRAME:\n");
+	fprintf(fp,"	ARG1 ... ARGN  RA'  AP'  FP'  (REGS  6 WORDS)  LOCAL1 ...\n");
+	fprintf(fp,"  AP-----^					FP------^\n");
+}
+/* dump stack */
+int
+prkstack(stkfp,stklo,slot)
+long stkfp,stklo;
+int slot;
+{
+	unsigned dmpcnt;
+	int *stkptr;
+	int prcnt;
+	int range;
+	long pslot_va;
+
+	fprintf(fp,"FP: %x\n",stkfp);
+	fprintf(fp,"LOWER BOUND: %x\n",stklo) ;
+	
+	if ( stkfp < stklo)
+		error("upper bound < lower bound, unable to process stack\n") ;
+	
+
+	if(active) {
+		stk_bptr = (int *)malloc(NBPP*USIZE);
+		pslot_va = (long)(Proc->n_value+slot*sizeof(struct proc));
+		readmem(pslot_va, 1, slot, (char *)&procbuf, sizeof procbuf,
+			"process table");
+		sys3b(RDUBLK, procbuf.p_pid, (char *)stk_bptr, NBPP*USIZE);
+		stkptr = (int *)((long)stk_bptr +(stklo - 0xc0000000));
+		dmpcnt = stkfp - stklo;
+		temp = stkptr;
+	} else {
+		dmpcnt = setbf(stkfp, stklo, slot);
+		stklo = stkfp - dmpcnt;
+		stkptr = (int *)(stk_bptr);
+	}
+	prcnt = 0;
+	for(; dmpcnt != 0; stkptr++, dmpcnt -= DECR)
+	{
+		if((prcnt++ % 4) == 0){
+		if(active)
+			fprintf(fp,"\n%8.8x: ",
+				(int)(((long)stkptr - (long)temp)+stklo));
+		else
+			fprintf(fp,"\n%8.8x: ",
+				(int)(((long)stkptr - (long)stk_bptr)+stklo));
+		}
+		fprintf(fp,"  %8.8x", *stkptr);
+	}
+
+	free((char *)stk_bptr); 
 	stk_bptr = NULL;
 
 	fprintf(fp,"\n\nSTACK FRAME:\n");
@@ -756,18 +861,24 @@ gettrace()
 {
 	int proc = Procslot;
 	int phys = 0;
+	int all = 0;
 	int kfpset = 0;
 	char type = 'k';
 	long addr = -1;
+	long arg1 = -1;
+	long arg2 = -1;
 	int c;
+	unsigned lastproc;
 	struct syment *sp;
 
 	optind = 1;
-	while((c = getopt(argcnt,args,"irpw:")) !=EOF) {
+	while((c = getopt(argcnt,args,"ierpw:")) !=EOF) {
 		switch(c) {
 			case 'w' :	redirect();
 					break;
 			case 'p' :	phys = 1;
+					break;
+			case 'e' :	all = 1;
 					break;
 			case 'r' :	kfpset = 1;
 					break;
@@ -793,11 +904,24 @@ gettrace()
 	}
 	else {
 		if(args[optind]) {
-			if((proc = strcon(args[optind],'d')) == -1)
-				error("\n");
-			if((proc > vbuf.v_proc) || (proc < 0))
-				error("%d out of range\n",proc);
-			prktrace(proc,kfpset);
+			do {
+				getargs(vbuf.v_proc,&arg1,&arg2);
+				if(arg1 == -1) 
+					continue;
+				if(arg2 != -1)
+					for(proc = arg1; proc <= arg2; proc++)
+						prktrace(proc,kfpset);
+				else prktrace(arg1,kfpset);
+				proc = arg1 = arg2 = -1;
+			}while(args[++optind]);
+		}
+		else if(all) {
+			readmem((long)V->n_value,1,-1,(char *)&vbuf,
+				sizeof vbuf,"var structure");
+			lastproc = (unsigned)(vbuf.ve_proc - Proc->n_value) /
+				sizeof (struct proc);
+			for(proc =0; proc < lastproc; proc++) 
+				prktrace(proc,kfpset);
 		}
 		else prktrace(proc,kfpset);
 	}
@@ -815,36 +939,63 @@ int proc,kfpset;
 	long	savefp,savesp,saveap,savepc;
 	struct syment *symsrch();
 	unsigned range;
-
+	struct pcb *ptr;
+	long pslot_va;
 	
-	getublock(proc);
+	if(getublock(proc) == -1)
+		return;
 	if((proc == -1) || (proc == getcurproc())){
 		seekmem((long)Panic->n_value,1,-1);
 		if((read(mem,(char *)&panicstr,sizeof panicstr)
-			!= sizeof panicstr))
-				error("read error on panic string\n");
-		if(panicstr == 0)
-			error("information to process stack trace for current process not available\n");
+			!= sizeof panicstr)) {
+				prerrmes("read error on panic string\n");
+				return;
+		}
+		if(panicstr == 0) {
+			prerrmes("information to process stack trace for current process not available\n");
+			return;
+		}
 		if(((long)ubp->u_stack <= UBADDR)  ||
-			((long)ubp->u_stack >= USTKADDR))
-			error("kernel stack not valid for current process\n");
+			((long)ubp->u_stack >= USTKADDR)) {
+			prerrmes("kernel stack not valid for current process\n");
+			return;
+		}
 		stklo = (long)ubp->u_stack;
 		savesp = (long)xtranvram.systate.ofp;
 		saveap = (long)xtranvram.systate.oap;
 		savefp = (long)xtranvram.systate.ofp;
 		savepc = (long)xtranvram.systate.opc;
 		stkhi = savefp;
-		if ( stkhi < stklo)
-			error("upper bound < lower bound, unable to process stack\n") ;
+		if ( stkhi < stklo) {
+			prerrmes("upper bound < lower bound, unable to process stack\n") ;
+			return;
+		}
 		range = setbf(stkhi,stklo,proc);
 		stklo = stkhi - range;	
 	}
 	else {
+		/*Can't call readmem, because readmem calls vtop */
+		if(active){
+		pcbaddr = (long)ubp->u_pcbp -0xc0000000 + (long)ubp;
+
+		ptr = (struct pcb *)pcbaddr;
+		pcbuf.regsave[K_FP] = ptr->regsave[K_FP];
+		pcbuf.regsave[K_AP] = ptr->regsave[K_AP];
+		pcbuf.regsave[K_PS] = ptr->regsave[K_PS];
+		pcbuf.regsave[K_SP] = ptr->regsave[K_SP];
+		pcbuf.regsave[K_PC] = ptr->regsave[K_PC];
+		pcbuf.slb = ptr->slb;
+		pcbuf.sub = ptr->sub;
+		} else {
 		pcbaddr = (long)ubp->u_pcbp;
-		readmem((long)pcbaddr,1,proc,(char *)&pcbuf,sizeof pcbuf,"pcb");
-		if(pcbuf.psw.CM == PS_USER) 
-			error("user mode\n");
-		if(procbuf.p_flag == SSYS) {
+		readmem((long)pcbaddr, 1, proc, (char *)&pcbuf,
+			sizeof pcbuf, "pcb");
+		}		
+		if(pcbuf.psw.CM == PS_USER) {
+			prerrmes("user mode\n");
+			return;
+		}
+		if(procbuf.p_flag & SSYS) {
 			stklo = (long)ubp->u_stack;
 			stkhi = (long)pcbuf.regsave[K_SP];
 		}
@@ -852,10 +1003,27 @@ int proc,kfpset;
 			stklo = (long)pcbuf.slb;
 			stkhi = (long)pcbuf.sub;	
 		}
-		if ( stkhi < stklo)
-			error("upper bound < lower bound, unable to process stack\n") ;
-		range = setbf(stkhi,stklo,proc);
-		stklo = stkhi - range;	
+		if ( stkhi < stklo) {
+			prerrmes("upper bound < lower bound, unable to process stack\n") ;
+			return;
+		}
+		/* Can't call setbf because setbf calls vtop */
+		if(active) {
+		stk_bptr = (int *)malloc(NBPP*USIZE);
+		pslot_va = (long)(Proc->n_value+proc*sizeof(struct proc));
+		readmem(pslot_va,1,proc,(char *)&procbuf,sizeof procbuf,
+			"process table");
+		if(sys3b(RDUBLK, procbuf.p_pid, (char *)stk_bptr, NBPP*USIZE)==-1)
+		{
+			prerrmes("Invalid process\n");
+			return;
+		}
+		temp = stk_bptr;
+		stk_bptr = (int *)((long)stk_bptr + ((long)ubp->u_stack - 0xc0000000));
+		} else {	/* read sysdump */
+			range = setbf(stkhi, stklo, proc);
+			stklo = stkhi - range;
+		}
 		if((procbuf.p_wchan == 0) && (procbuf.p_stat != SXBRK)) {
 			/* proc did not go through sleep() */
 			savesp = (long)pcbuf.regsave[K_SP];
@@ -875,9 +1043,19 @@ int proc,kfpset;
 	if(kfpset) {
 		if(Kfp)
 			savefp = Kfp;
-		else error("stack frame pointer not saved\n");
+		else {
+			prerrmes("stack frame pointer not saved\n");
+			return;
+		}
 	}
+	fprintf(fp,"STACK TRACE FOR PROCESS %d:\n",proc);
 	puttrace(stklo,savefp,savesp,saveap,savepc,kfpset);
+	if(active)
+		free((char *)temp);
+	else
+		free((char *)stk_bptr);
+	stk_bptr = NULL;
+
 }
 
 /* print interrupt trace */
@@ -900,7 +1078,7 @@ long addr;
 		else error("stack frame pointer not saved\n");
 	}
 	else savefp = kpcbuf.regsave[FP];
-	if(procbuf.p_flag == SSYS) {
+	if(procbuf.p_flag & SSYS) {
 		stklo = (long)ubp->u_stack;
 		stkhi = (long)kpcbuf.regsave[K_SP];
 	}
@@ -916,6 +1094,8 @@ long addr;
 	savesp = (long)kpcbuf.sp;
 	saveap = (long)kpcbuf.regsave[AP];
 	puttrace(stklo,savefp,savesp,saveap,savepc,kfpset);
+	free((char *)stk_bptr);
+	stk_bptr = NULL;
 }
 
 /* dump trace */
@@ -934,7 +1114,8 @@ int kfpset;
 	int noaptr = 0;
 	static char tname[SYMNMLEN+1];
 	char *name;
-	
+
+
 	if(kfpset) {
 		sfp = savefp;
 		fprintf(fp,"SET FRAMEPTR = %x\n\n",sfp);
@@ -971,11 +1152,15 @@ int kfpset;
 	while((sfp > (stklo+36)) && (sfp <= savefp)){
 		if(!RET)
 			break;
-		if(noaptr)
-			error("next argument pointer, %x, not valid\n",sap);
-		if((OFP < stklo) || (OFP > savefp))
-			error("next stack frame pointer, %x, is out of range\n",
+		if(noaptr) {
+			prerrmes("next argument pointer, %x, not valid\n",sap);
+			return;
+		}
+		if((OFP < stklo) || (OFP > savefp)) {
+			prerrmes("next stack frame pointer, %x, is out of range\n",
 				OFP);
+			return;
+		}
 		fprintf(fp,"%8.8x  %8.8x  %8.8x",sap,OFP,OAP);
 		
 		if((func_nm = findsym((unsigned long)RET)) == 0)
@@ -1006,8 +1191,6 @@ int kfpset;
 		}
 		fprintf(fp,")\n");
 	}
-	free((char *)stk_bptr);
-	stk_bptr = NULL;
 }
 
 /* get arguments for kfp function */
@@ -1062,7 +1245,8 @@ int proc,reset;
 	if(value != -1)
 		Kfp = value;
 	else if(reset) {
-		getublock(proc);
+		if(getublock(proc) == -1)
+			return;
 		if((proc == -1) || (proc == getcurproc())){
 			seekmem((long)Panic->n_value,1,proc);
 			if((read(mem,(char *)&panicstr,sizeof panicstr) ==

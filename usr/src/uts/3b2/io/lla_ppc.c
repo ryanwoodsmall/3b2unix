@@ -5,7 +5,10 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/lla_ppc.c	10.7"
+#ident	"@(#)kern-port:io/lla_ppc.c	10.7.2.1"
+/*
+ *	Copyright 1984, 1986 AT&T
+ */
 
 #include "sys/types.h"
 #include "sys/param.h"
@@ -88,7 +91,7 @@ register SG_DBLK *sblk;
 	extern unsigned char getvec();
 
 #ifdef DEBUG
-if(ll_debug & ENTRY)
+if( ll_debug & ENTRY )
 	printf("ENTRY: lla_sysgen(%x,%x)\n", bid, sblk);
 #endif
 
@@ -111,7 +114,7 @@ if(ll_debug & ENTRY)
 	pminusv = ((char *) vtop(cfree, NULL)) - ((char *) cfree);
 
 #ifdef DEBUG
-if(ll_debug & VTOP)
+if( ll_debug & VTOP )
 	printf("	Pminusv: %x = %x - %x\n", pminusv,
 		vtop(cfree,NULL), cfree);
 #endif
@@ -124,46 +127,46 @@ if(ll_debug & VTOP)
  *	3. The associated REQUEST and COMPLETION queues are empty
  */
 
-	if ((bid < 0)  ||  (bid >= pp_bnbr)) {
+	if( (bid < 0)  ||  (bid >= pp_bnbr) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_sysgen: FAIL on bid value\n");
 #endif
 		u.u_error = ENXIO;
-		return(FAIL);
+		return( FAIL );
 		}
 
-	if ((sblk->request   != (long) &R_QUEUE(bid))		||
+	if( (sblk->request   != (long) &R_QUEUE(bid))		||
 	    (sblk->complt    != (long) &C_QUEUE(bid))		||
 	    (sblk->req_size  != RQSIZE)				||
 	    (sblk->comp_size != CQSIZE)				||
-	    (sblk->no_rque   != NUM_QUEUES)) {
+	    (sblk->no_rque   != NUM_QUEUES) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_sysgen: FAIL on sysgen block contents: %x %x %x %x %x\n",
 		sblk->request, sblk->complt, sblk->req_size,
 		sblk->comp_size, sblk->no_rque);
 #endif
 		u.u_error = EFAULT;
-		return(FAIL);
+		return( FAIL );
 		}
 
-	for (i = 0; i < NUM_QUEUES; i++)
-		if (RQLOAD(bid,i) != RQULOAD(bid,i)) {
+	for( i = 0; i < NUM_QUEUES; i++ )
+		if( RQLOAD(bid,i) != RQULOAD(bid,i) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_sysgen: FAIL on RQUEUE pointers\n");
 #endif
 			u.u_error = EFAULT;
-			return(FAIL);
+			return( FAIL );
 			}
-	if ((CQLOAD(bid) != CQULOAD(bid))  ||  IS_CEXPRESS(bid)) {
+	if( (CQLOAD(bid) != CQULOAD(bid))  ||  IS_CEXPRESS(bid) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_sysgen: FAIL on CQUEUE pointers\n");
 #endif
 		u.u_error = EFAULT;
-		return(FAIL);
+		return( FAIL );
 		}
 
 /*
@@ -176,7 +179,7 @@ if(ll_debug & EXIT)
 
 #ifndef STANDALONE
 #ifdef DEBUG
-if(ll_debug & VTOP)
+if( ll_debug & VTOP )
 	printf("	Translation of queue addr: %x->%x  %x->%x\n",
 		sblk->request, vtop(sblk->request, NULL),
 		sblk->complt, vtop(sblk->complt, NULL));
@@ -192,7 +195,7 @@ if(ll_debug & VTOP)
  *	Reset all CIO load/unload pointers to zero
  */
 
-	for (i = 0; i < NUM_QUEUES; i++)
+	for( i = 0; i < NUM_QUEUES; i++ )
 		RQPTRS(bid,i) = 0;
 	CQPTRS(bid) = 0;
 	E_SEQBIT(CQEXPRESS(bid)) = 0;
@@ -208,13 +211,13 @@ if(ll_debug & VTOP)
  */
 
 #ifdef DEBUG
-if(ll_debug & INTER)
+if( ll_debug & INTER )
 	printf("BOARD %x INT0: %x\n", bid, (pp_addr[bid] + 1));
 #endif
 
 	i = *((char *) (pp_addr[bid]  + 1));
 #ifndef SYSTEST
-	for (i = 0; i < 10000; i++)
+	for( i = 0; i < 10000; i++ )
 		;
 #endif
 
@@ -225,7 +228,7 @@ if(ll_debug & INTER)
 
 #ifndef STANDALONE
 #ifdef DEBUG
-if(ll_debug & VTOP)
+if( ll_debug & VTOP )
 	printf("	Translation of sysgen block: %x->%x\n",
 		sblk, vtop(sblk, NULL));
 #endif
@@ -238,11 +241,11 @@ if(ll_debug & VTOP)
 	lla_attn(bid);
 
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_sysgen: PASS\n");
 #endif
 
-	return(PASS);
+	return( PASS );
 }
 
 int
@@ -254,7 +257,7 @@ register unsigned short mds;
 	char seqbit;
 
 #ifdef DEBUG
-if(ll_debug & ENTRY)
+if( ll_debug & ENTRY )
 	printf("ENTRY: lla_dlm(%x,%x,%x,%x)\n", bid, mda, pda, mds);
 #endif
 
@@ -266,25 +269,25 @@ if(ll_debug & ENTRY)
  *	4. 'mds" does not go outside of defined PPC RAM
  */
 
-	if ((bid < 0)  ||  (bid >= pp_bnbr)  ||
-	    ((BSTATE(bid) & ISSYSGEN) == 0)) {
+	if( (bid < 0)  ||  (bid >= pp_bnbr)  ||
+	    ((BSTATE(bid) & ISSYSGEN) == 0) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_dlm: FAIL on bid value/sysgen\n");
 #endif
 		u.u_error = ENXIO;
-		return(FAIL);
+		return( FAIL );
 		}
 
-	if ((((int) mda) == 0)					     || 
+	if( (((int) mda) == 0)					     || 
 	    ((((int) pda) & 255) != 0)  || (((int) pda) < RAM_START) ||
-	    ((((int) pda)+mds) > RAM_END)) {
+	    ((((int) pda)+mds) > RAM_END) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_dlm: FAIL on argument values\n");
 #endif
 		u.u_error = EFAULT;
-		return(FAIL);
+		return( FAIL );
 		}
 	seqbit = ((int) pda) >= SIXTEENK;
 
@@ -296,7 +299,7 @@ if(ll_debug & EXIT)
 
 #ifndef STANDALONE
 #ifdef DEBUG
-if(ll_debug & VTOP)
+if( ll_debug & VTOP )
 	printf("	Translation of mda: %x->%x\n",
 		mda, vtop(mda,NULL));
 #endif
@@ -307,11 +310,11 @@ if(ll_debug & VTOP)
 #endif
 
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_dlm: PASS\n");
 #endif
 
-	return(PASS);
+	return( PASS );
 }
 
 int
@@ -320,7 +323,7 @@ register short bid;
 register char *pda;
 {
 #ifdef DEBUG
-if(ll_debug & ENTRY)
+if( ll_debug & ENTRY )
 	printf("ENTRY: lla_fcf(%x,%x)\n", bid, pda);
 #endif
 
@@ -330,23 +333,23 @@ if(ll_debug & ENTRY)
  *	3. 'pda' is in range
  */
 
-	if ((bid < 0)  ||  (bid >= pp_bnbr)  ||
-	    ((BSTATE(bid) & ISSYSGEN) == 0)) {
+	if( (bid < 0)  ||  (bid >= pp_bnbr)  ||
+	    ((BSTATE(bid) & ISSYSGEN) == 0) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_fcf: FAIL on bid value/sysgen\n");
 #endif
 		u.u_error = ENXIO;
-		return(FAIL);
+		return( FAIL );
 		}
 
-	if ((((int) pda) < RAM_START)  ||  (((int) pda) > RAM_END)) {
+	if( (((int) pda) < RAM_START)  ||  (((int) pda) > RAM_END) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_fcf: FAIL on arugment value\n");
 #endif
 		u.u_error = EFAULT;
-		return(FAIL);
+		return( FAIL );
 		}
 
 /*
@@ -358,11 +361,11 @@ if(ll_debug & EXIT)
 	lla_express(bid, 0, 0, 0, FCF, (long) pda, 0);
 
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_fcf: PASS\n");
 #endif
 
-	return(PASS);
+	return( PASS );
 }
 
 int
@@ -370,7 +373,7 @@ lla_dos(bid)
 register short bid;
 {
 #ifdef DEBUG
-if(ll_debug & ENTRY)
+if( ll_debug & ENTRY )
 	printf("ENTRY: lla_dos(%x)\n", bid);
 #endif
 
@@ -379,14 +382,14 @@ if(ll_debug & ENTRY)
  *	1. 'bid' is in the proper range
  */
 
-	if ((bid < 0)  ||  (bid >= pp_bnbr)  ||
-	    ((BSTATE(bid) & ISSYSGEN) == 0)) {
+	if( (bid < 0)  ||  (bid >= pp_bnbr)  ||
+	    ((BSTATE(bid) & ISSYSGEN) == 0) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_dos: FAIL on bid value/sysgen\n");
 #endif
 		u.u_error = ENXIO;
-		return(FAIL);
+		return( FAIL );
 		}
 
 /*
@@ -398,11 +401,11 @@ if(ll_debug & EXIT)
 	lla_express(bid, 0, 0, 0, DOS, 0L, 0);
 
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_dos: PASS\n");
 #endif
 
-	return(PASS);
+	return( PASS );
 }
 
 int
@@ -411,7 +414,7 @@ register short bid;
 register char *mda;
 {
 #ifdef DEBUG
-if(ll_debug & ENTRY)
+if( ll_debug & ENTRY )
 	printf("ENTRY: lla_dsd(%x,%x)\n", bid, mda);
 #endif
 
@@ -421,23 +424,23 @@ if(ll_debug & ENTRY)
  *	2. 'mda' is non-zero
  */
 
-	if ((bid < 0)  ||  (bid >= pp_bnbr)  ||
-	    ((BSTATE(bid) & ISSYSGEN) == 0)) {
+	if( (bid < 0)  ||  (bid >= pp_bnbr)  ||
+	    ((BSTATE(bid) & ISSYSGEN) == 0) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_dsd: FAIL on bid value/sysgen\n");
 #endif
 		u.u_error = ENXIO;
-		return(FAIL);
+		return( FAIL );
 		}
 
-	if ((int) mda == 0) {
+	if( (int) mda == 0 ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_dsd: FAIL on zero mda value\n");
 #endif
 		u.u_error = EFAULT;
-		return(FAIL);
+		return( FAIL );
 		}
 
 /*
@@ -448,7 +451,7 @@ if(ll_debug & EXIT)
 
 #ifndef STANDALONE
 #ifdef DEBUG
-if(ll_debug & VTOP)
+if( ll_debug & VTOP )
 	printf("	Translation of mda: %x->%x\n",
 		mda, vtop(mda,NULL));
 #endif
@@ -459,11 +462,11 @@ if(ll_debug & VTOP)
 #endif
 
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_dsd: PASS\n");
 #endif
 
-	return(PASS);
+	return( PASS );
 }
 
 int
@@ -473,7 +476,7 @@ short bid;
 	register int i;
 
 #ifdef DEBUG
-if(ll_debug & ENTRY)
+if( ll_debug & ENTRY )
 	printf("ENTRY: lla_attn(%x)\n", bid);
 #endif
 
@@ -482,7 +485,7 @@ if(ll_debug & ENTRY)
  */
 
 #ifdef DEBUG
-if(ll_debug & INTER)
+if( ll_debug & INTER )
 	printf("BOARD %x ATTENTION (INT1) INTERRUPT: %x\n", bid,
 		(pp_addr[bid] + 3));
 #endif
@@ -495,11 +498,11 @@ if(ll_debug & INTER)
 	i = *((char *) (pp_addr[bid] + 3));
 
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_attn: PASS\n");
 #endif
 
-	return(PASS);
+	return( PASS );
 }
 
 int
@@ -509,7 +512,7 @@ short bid;
 	register int i;
 
 #ifdef DEBUG
-if(ll_debug & ENTRY)
+if( ll_debug & ENTRY )
 	printf("ENTRY: lla_reset(%x)\n", bid);
 #endif
 
@@ -519,7 +522,7 @@ if(ll_debug & ENTRY)
 
 #ifndef SYSTEST
 #ifdef DEBUG
-if(ll_debug & INTER)
+if( ll_debug & INTER )
 	printf("BOARD %x RESET: %x\n", bid, (pp_addr[bid] + 5));
 #endif
 
@@ -530,16 +533,16 @@ if(ll_debug & INTER)
 
 	i = *((char *) (pp_addr[bid]  + 5));
 
-	for (i = 0; i < 10000; i++)
+	for( i = 0; i < 10000; i++ )
 		;
 #endif
 
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_reset: PASS\n");
 #endif
 
-	return(PASS);
+	return( PASS );
 }
 
 int
@@ -550,7 +553,7 @@ register CENTRY *eptr;
 	register int i;
 
 #ifdef DEBUG
-if(ll_debug & ENTRY)
+if( ll_debug & ENTRY )
 	printf("ENTRY: lla_cqueue(%x,%x)\n", bid, eptr);
 #endif
 
@@ -567,7 +570,7 @@ if(ll_debug & ENTRY)
  ***** NOTE ***** NOTE ***** NOTE ***** NOTE ***** NOTE *****
  */
 
-	if (IS_CEXPRESS(bid)) {
+	if( IS_CEXPRESS(bid) ) {
 		/*
 		 * An EXPRESS entry is returned before any of the
 		 * regular entries
@@ -576,7 +579,7 @@ if(ll_debug & ENTRY)
 		BSTATE(bid) &= ~EXPRESS;
 
 #ifdef DEBUG
-if(ll_debug & CDUMP)
+if( ll_debug & CDUMP )
 	dmp_entry("EXPRESS COMPLETION", eptr);
 #endif
 
@@ -590,9 +593,9 @@ if(ll_debug & CDUMP)
 		 * If an EXPRESS entry has been queued for output,
 		 * send it now
 		 */
-		if (eload != eunload) {
+		if( eload != eunload ) {
 #ifdef DEBUG
-if(ll_debug & RDUMP) {
+if( ll_debug & RDUMP ) {
 	printf("	Sending queued EXPRESS entry %d\n", eunload);
 	dmp_entry("EXPRESS REQUEST", &savee[eunload]);
 	}
@@ -600,10 +603,10 @@ if(ll_debug & RDUMP) {
 			BSTATE(bid) |= EXPRESS;
 
 			RQEXPRESS(bid) = savee[eunload++];
-			if (eunload == maxsavexp)
+			if( eunload == maxsavexp )
 				eunload = 0;
 #ifdef DEBUG
-if(ll_debug & INTER)
+if( ll_debug & INTER )
 	printf("BOARD %x EXPRESS (INT0) INTERRUPT: %x\n", bid,
 		(pp_addr[bid] + 1));
 #endif
@@ -611,23 +614,23 @@ if(ll_debug & INTER)
 			}
 
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_cqueue PASS\n");
 #endif
 
-		return(PASS);
+		return( PASS );
 		}
 
 /*
  * This function fails if there are not entries to give the user
  */
 
-	if (CQLOAD(bid) == CQULOAD(bid)) {
+	if( CQLOAD(bid) == CQULOAD(bid) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_cqueue: FAIL\n");
 #endif
-		return(FAIL);
+		return( FAIL );
 		}
 
 	i = CQULOAD(bid) / sizeof(CENTRY);
@@ -635,11 +638,11 @@ if(ll_debug & EXIT)
 	*eptr = CQENTRY(bid,i);
 
 #ifdef DEBUG
-if(ll_debug & CDUMP)
+if( ll_debug & CDUMP )
 	dmp_entry("REQULAR COMPLETION", eptr);
 #endif
 
-	if (++i == CQSIZE)
+	if( ++i == CQSIZE )
 		i = 0;
 	CQULOAD(bid) = i * sizeof(CENTRY);
 
@@ -648,7 +651,7 @@ if(ll_debug & CDUMP)
  * corresponding REQUEST QUEUE has an available slot
  */
 
-	switch ((int) EP_OPCODE(eptr)) {
+	switch( (int) EP_OPCODE(eptr) ) {
 	case CFW_CONFIG:
 	case CFW_IREAD:
 	case CFW_IWRITE:
@@ -677,7 +680,7 @@ if(ll_debug & CDUMP)
 		 */
 #ifndef STANDALONE
 #ifdef DEBUG
-if(ll_debug & VTOP)
+if( ll_debug & VTOP )
 	printf("	Translation of cblock: %x->%x\n",
 		EP_ADDR(eptr), cbptov(EP_ADDR(eptr)));
 #endif
@@ -699,7 +702,7 @@ if(ll_debug & VTOP)
 		 */
 #ifndef STANDALONE
 #ifdef DEBUG
-if(ll_debug & VTOP)
+if( ll_debug & VTOP )
 	printf("	Translation of cblock: %x->%x\n",
 		EP_ADDR(eptr), cbptov(EP_ADDR(eptr)));
 #endif
@@ -713,20 +716,20 @@ if(ll_debug & VTOP)
 		 * entry
 		 */
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_cqueue: PASS\n");
 #endif
-		return(PASS);
+		return( PASS );
 	}
 
 	PNBR(bid,i)--;
 
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: lla_cqueue: PASS\n");
 #endif
 
-	return(PASS);
+	return( PASS );
 }
 
 int
@@ -754,7 +757,7 @@ short bid, pid;
  * entry in it
  */
 
-	return(PNBR(bid,pid) < NUM_ELEMENTS);
+	return( PNBR(bid,pid) < NUM_ELEMENTS );
 }
 
 int
@@ -766,7 +769,7 @@ short bid;
  * entry in it
  */
 
-	return(PNBR(bid,SUPPLYBUF) < (RQSIZE-1));
+	return( PNBR(bid,SUPPLYBUF) < (RQSIZE-1) );
 }
 
 int
@@ -775,7 +778,7 @@ register short bid;
 short opt;
 {
 #ifdef DEBUG
-if(ll_debug & ENTRY)
+if( ll_debug & ENTRY )
 	printf("ENTRY: cfw_config(%x,%x)\n", bid, opt);
 #endif
 
@@ -784,13 +787,13 @@ if(ll_debug & ENTRY)
  *	1. 'bid' is in the proper range
  */
 
-	if ((bid < 0)  ||  (bid >= pp_bnbr)) {
+	if( (bid < 0)  ||  (bid >= pp_bnbr) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: cfw_config: FAIL on bid value\n");
 #endif
 		u.u_error = ENXIO;
-		return(FAIL);
+		return( FAIL );
 		}
 
 /*
@@ -802,11 +805,11 @@ if(ll_debug & EXIT)
 	lla_regular(bid, TRUE, 0, 0, CFW_CONFIG, (long) opt, 0, 0);
 
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: cfw_config: PASS\n");
 #endif
 
-	return(PASS);
+	return( PASS );
 }
 
 int
@@ -814,7 +817,7 @@ cfw_iread(bid)
 register short bid;
 {
 #ifdef DEBUG
-if(ll_debug & ENTRY)
+if( ll_debug & ENTRY )
 	printf("ENTRY: cfw_iread(%x)\n", bid);
 #endif
 
@@ -823,13 +826,13 @@ if(ll_debug & ENTRY)
  *	1. 'bid' is in the proper range
  */
 
-	if ((bid < 0)  ||  (bid >= pp_bnbr)) {
+	if( (bid < 0)  ||  (bid >= pp_bnbr) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: cfw_iread: FAIL on bid value\n");
 #endif
 		u.u_error = ENXIO;
-		return(FAIL);
+		return( FAIL );
 		}
 
 /*
@@ -841,11 +844,11 @@ if(ll_debug & EXIT)
 	lla_regular(bid, TRUE, 0, 0, CFW_IREAD, 0L, 0, 0);
 
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: cfw_iread: PASS\n");
 #endif
 
-	return(PASS);
+	return( PASS );
 }
 
 int
@@ -855,7 +858,7 @@ long value;
 short count;
 {
 #ifdef DEBUG
-if(ll_debug & ENTRY)
+if( ll_debug & ENTRY )
 	printf("ENTRY: cfw_iwrite(%x,%x,%x)\n", bid, value, count);
 #endif
 
@@ -865,14 +868,14 @@ if(ll_debug & ENTRY)
  *	2. 'count' is in the interval [1,4]
  */
 
-	if ((bid < 0)  ||  (bid >= pp_bnbr)  ||
-	    (count < 1)  ||  (count > 4)) {
+	if( (bid < 0)  ||  (bid >= pp_bnbr)  ||
+	    (count < 1)  ||  (count > 4) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: cfw_iwrite: FAIL on argument values\n");
 #endif
 		u.u_error = ENXIO;
-		return(FAIL);
+		return( FAIL );
 		}
 
 /*
@@ -884,11 +887,11 @@ if(ll_debug & EXIT)
 	lla_regular(bid, TRUE, (unsigned short) (count-1), 0, CFW_IWRITE, value, 0, 0);
 
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: cfw_iwrite: PASS\n");
 #endif
 
-	return(PASS);
+	return( PASS );
 }
 
 int
@@ -898,7 +901,7 @@ register char *mda;
 register unsigned short mds;
 {
 #ifdef DEBUG
-if(ll_debug & ENTRY)
+if( ll_debug & ENTRY )
 	printf("ENTRY: cfw_write(%x,%x,%x)\n", bid, mda, mds);
 #endif
 
@@ -908,22 +911,22 @@ if(ll_debug & ENTRY)
  *	2. 'mda' is non-zero
  */
 
-	if ((bid < 0)  ||  (bid >= pp_bnbr)) {
+	if( (bid < 0)  ||  (bid >= pp_bnbr) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: cfw_write: FAIL on bid value\n");
 #endif
 		u.u_error = ENXIO;
-		return(FAIL);
+		return( FAIL );
 		}
 
-	if ((int) mda == 0) {
+	if( (int) mda == 0 ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: cfw_write: FAIL on zero mda value\n");
 #endif
 		u.u_error = EFAULT;
-		return(FAIL);
+		return( FAIL );
 		}
 
 /*
@@ -934,7 +937,7 @@ if(ll_debug & EXIT)
 
 #ifndef STANDALONE
 #ifdef DEBUG
-if(ll_debug & VTOP)
+if( ll_debug & VTOP )
 	printf("	Translation of mda: %x->%x\n",
 		mda, vtop(mda,NULL));
 #endif
@@ -945,11 +948,11 @@ if(ll_debug & VTOP)
 #endif
 
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: cfw_write: PASS\n");
 #endif
 
-	return(PASS);
+	return( PASS );
 }
 
 int
@@ -957,7 +960,7 @@ ppc_clr(bid)
 register short bid;
 {
 #ifdef DEBUG
-if(ll_debug & ENTRY)
+if( ll_debug & ENTRY )
 	printf("ENTRY: ppc_clr(%x)\n", bid);
 #endif
 
@@ -983,11 +986,11 @@ if(ll_debug & ENTRY)
 	lla_express(bid, 0, 0, 0, PPC_CLR, 0L, 0);
 
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: ppc_clr: PASS\n");
 #endif
 
-	return(PASS);
+	return( PASS );
 }
 
 int
@@ -997,7 +1000,7 @@ register char *mda;
 short mds;
 {
 #ifdef DEBUG
-if(ll_debug & ENTRY)
+if( ll_debug & ENTRY )
 	printf("ENTRY: ppc_options(%x,%x,%x,%x)\n", bid, pid, mda, mds);
 #endif
 
@@ -1007,25 +1010,25 @@ if(ll_debug & ENTRY)
  *	2. 'mda' is non-zero
  */
 
-	if ((bid < 0)  ||  (bid >= pp_bnbr)  ||
+	if( (bid < 0)  ||  (bid >= pp_bnbr)  ||
 	    (pid < 0)  ||  (pid > 5)	     ||
-	    ((BSTATE(bid) & ISSYSGEN) == 0)) {
+	    ((BSTATE(bid) & ISSYSGEN) == 0) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: ppc_options: FAIL on bid value/sysgen\n");
 #endif
 		u.u_error = ENXIO;
-		return(FAIL);
+		return( FAIL );
 		}
 
-	if ((((int) mda) == 0) ||
-	    (mds < 0)  ||  (mds > sizeof(Options))) {
+	if( (((int) mda) == 0) ||
+	    (mds < 0)  ||  (mds > sizeof(Options)) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: ppc_options: FAIL on argument values\n");
 #endif
 		u.u_error = EFAULT;
-		return(FAIL);
+		return( FAIL );
 		}
 
 /*
@@ -1039,30 +1042,87 @@ if(ll_debug & EXIT)
 	{
 	register int i;
 
-	if (ll_debug & VTOP)
+	if( ll_debug & VTOP )
 		printf("	Translation of cblock: %x->%x\n",
 			mda, cbvtop(mda));
 
 	i = lla_regular(bid, TRUE, (unsigned short) mds, pid, PPC_OPTIONS, (long) cbvtop(mda) ,0, 0);
 
-	if (ll_debug & EXIT)
+	if( ll_debug & EXIT )
 		printf(" EXIT: ppc_options: %s\n", (i == PASS) ? "PASS" : "FAIL");
 
-	return(i);
+	return( i );
 	}
 #else
-	return(lla_regular(bid, TRUE, (unsigned short) mds, pid, PPC_OPTIONS, (long) cbvtop(mda), 0, 0));
+	return( lla_regular(bid, TRUE, (unsigned short) mds, pid, PPC_OPTIONS, (long) cbvtop(mda), 0, 0));
 #endif
 #else
 	lla_regular(bid, TRUE, (unsigned short) mds, pid, PPC_OPTIONS, (long) mda, 0, 0);
 
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: ppc_options: PASS\n");
 #endif
 
-	return(PASS);
+	return( PASS );
 #endif
+}
+
+int
+ppc_version(bid,mda, mds)
+register short bid;
+register char *mda;
+short mds;
+{
+#ifdef DEBUG
+if( ll_debug & ENTRY )
+	printf("ENTRY: ppc_version(%x,%x,%x)\n", bid, mda, mds);
+#endif
+
+/*
+ * Several error checks are performed:
+ *	1. 'bid' is in the proper range
+ *	2. 'mda' is non-zero
+ */
+
+	if( (bid < 0)  ||  (bid >= pp_bnbr)  ) {
+#ifdef DEBUG
+if( ll_debug & EXIT )
+	printf(" EXIT: ppc_version: FAIL on bid value\n");
+#endif
+		u.u_error = ENXIO;
+		return( FAIL );
+		}
+
+	if( (((int) mda) == 0) || (mds < 0)  ) {
+#ifdef DEBUG
+if( ll_debug & EXIT )
+	printf(" EXIT: ppc_version: FAIL on argument values\n");
+#endif
+		u.u_error = EFAULT;
+		return( FAIL );
+		}
+/*
+ * PPC_VERS requests go by way of express queue
+ *
+ */
+#ifndef STANDALONE
+#ifdef DEBUG
+	if( ll_debug & VTOP )
+		printf("	Translation of addr: %x->%x\n",
+			mda, vtop(mda,NULL));
+#endif
+	lla_express(bid, 0, 0 , 0, VERS, vtop(mda,NULL) ,0);
+#else
+	lla_express(bid, 0, 0 , 0, VERS, (long) mda, 0);
+#endif
+
+#ifdef DEBUG
+if( ll_debug & EXIT )
+	printf(" EXIT: ppc_version: PASS\n");
+#endif
+
+	return( PASS );
 }
 
 int
@@ -1073,7 +1133,7 @@ char dcode; /* code for either to turn terminal ready off, CREAD off
 		or turn off nothing */
 {
 #ifdef DEBUG
-if(ll_debug & ENTRY)
+if( ll_debug & ENTRY )
 	printf("ENTRY: ppc_disc(%x,%x,%x)\n", bid, pid, eflush);
 #endif
 
@@ -1083,25 +1143,25 @@ if(ll_debug & ENTRY)
  *	2. 'eflush' < 0 
  */
 
-	if ((bid < 0)  ||  (bid >= pp_bnbr)  ||
+	if( (bid < 0)  ||  (bid >= pp_bnbr)  ||
 	    (pid < 0)  ||  (pid > 5)	     ||
-	    ((BSTATE(bid) & ISSYSGEN) == 0)) {
+	    ((BSTATE(bid) & ISSYSGEN) == 0) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: ppc_conn: FAIL on bid value/sysgen\n");
 #endif
 		u.u_error = ENXIO;
-		return(FAIL);
+		return( FAIL );
 		}
 
 	if (eflush < 0) 
 	{
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: ppc_disc: FAIL on argument values\n");
 #endif
 		u.u_error = EFAULT;
-		return(FAIL);
+		return( FAIL );
 		}
 
 /*
@@ -1117,23 +1177,23 @@ if(ll_debug & EXIT)
 
 	i = lla_regular(bid, TRUE, 0, pid, PPC_DISC, 0, eflush,dcode);
 
-	if (ll_debug & EXIT)
+	if( ll_debug & EXIT )
 		printf(" EXIT: ppc_disc: %s\n", (i == PASS) ? "PASS" : "FAIL");
 
-	return(i);
+	return( i );
 	}
 #else
-	return(lla_regular(bid, TRUE, 0, pid, PPC_DISC, 0, eflush,dcode));
+	return( lla_regular(bid, TRUE, 0, pid, PPC_DISC, 0, eflush,dcode));
 #endif
 #else
-	return(lla_regular(bid, TRUE, 0, pid, PPC_DISC, 0, eflush,dcode));
+	return( lla_regular(bid, TRUE, 0, pid, PPC_DISC, 0, eflush,dcode));
 
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: ppc_disc: PASS\n");
 #endif
 
-	return(PASS);
+	return( PASS );
 #endif
 }
 
@@ -1142,7 +1202,7 @@ ppc_conn(bid, pid)
 register short bid, pid;
 {
 #ifdef DEBUG
-if(ll_debug & ENTRY)
+if( ll_debug & ENTRY )
 	printf("ENTRY: ppc_conn(%x,%x,%x)\n", bid, pid);
 #endif
 
@@ -1151,15 +1211,15 @@ if(ll_debug & ENTRY)
  *	1. 'bid' and 'pid' are in the proper range
  */
 
-	if ((bid < 0)  ||  (bid >= pp_bnbr)  ||
+	if( (bid < 0)  ||  (bid >= pp_bnbr)  ||
 	    (pid < 0)  ||  (pid > 5)	     ||
-	    ((BSTATE(bid) & ISSYSGEN) == 0)) {
+	    ((BSTATE(bid) & ISSYSGEN) == 0) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: ppc_conn: FAIL on bid value/sysgen\n");
 #endif
 		u.u_error = ENXIO;
-		return(FAIL);
+		return( FAIL );
 		}
 
 
@@ -1176,23 +1236,23 @@ if(ll_debug & EXIT)
 
 	i = lla_regular(bid, TRUE, 0, pid, PPC_CONN, 0, 0, 0);
 
-	if (ll_debug & EXIT)
+	if( ll_debug & EXIT )
 		printf(" EXIT: ppc_conn: %s\n", (i == PASS) ? "PASS" : "FAIL");
 
-	return(i);
+	return( i );
 	}
 #else
-	return(lla_regular(bid, TRUE, 0, pid, PPC_CONN, 0, 0, 0));
+	return( lla_regular(bid, TRUE, 0, pid, PPC_CONN, 0, 0, 0));
 #endif
 #else
-	return(lla_regular(bid, TRUE, 0, pid, PPC_CONN, 0, 0, 0));
+	return( lla_regular(bid, TRUE, 0, pid, PPC_CONN, 0, 0, 0));
 
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: ppc_conn: PASS\n");
 #endif
 
-	return(PASS);
+	return( PASS );
 #endif
 }
 
@@ -1203,7 +1263,7 @@ register short bid, pid;
 it is a noop operation to the peripheral */
 {
 #ifdef DEBUG
-if(ll_debug & ENTRY)
+if( ll_debug & ENTRY )
 	printf("ENTRY: ppc_break(%x,%x,%x)\n", bid, pid);
 #endif
 
@@ -1212,15 +1272,15 @@ if(ll_debug & ENTRY)
  *	1. 'bid' and 'pid' are in the proper range
  */
 
-	if ((bid < 0)  ||  (bid >= pp_bnbr)  ||
+	if( (bid < 0)  ||  (bid >= pp_bnbr)  ||
 	    (pid < 0)  ||  (pid > 5)	     ||
-	    ((BSTATE(bid) & ISSYSGEN) == 0)) {
+	    ((BSTATE(bid) & ISSYSGEN) == 0) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: ppc_break: FAIL on bid value/sysgen\n");
 #endif
 		u.u_error = ENXIO;
-		return(FAIL);
+		return( FAIL );
 		}
 
 
@@ -1237,23 +1297,23 @@ if(ll_debug & EXIT)
 
 	i = lla_regular(bid, TRUE, 0, pid, PPC_BRK, 0, arg, 0);
 
-	if (ll_debug & EXIT)
+	if( ll_debug & EXIT )
 		printf(" EXIT: ppc_break: %s\n", (i == PASS) ? "PASS" : "FAIL");
 
-	return(i);
+	return( i );
 	}
 #else
-	return(lla_regular(bid, TRUE, 0, pid, PPC_BRK, 0, arg, 0));
+	return( lla_regular(bid, TRUE, 0, pid, PPC_BRK, 0, arg, 0));
 #endif
 #else
-	return(lla_regular(bid, TRUE, 0, pid, PPC_BRK, 0, arg, 0));
+	return( lla_regular(bid, TRUE, 0, pid, PPC_BRK, 0, arg, 0));
 
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: ppc_break: PASS\n");
 #endif
 
-	return(PASS);
+	return( PASS );
 #endif
 }
 
@@ -1262,7 +1322,7 @@ ppc_device(bid, pid, pcf)
 register short bid, pid, pcf;
 {
 #ifdef DEBUG
-if(ll_debug & ENTRY)
+if( ll_debug & ENTRY )
 	printf("ENTRY: ppc_device(%x,%x,%x)\n", bid, pid, pcf);
 #endif
 
@@ -1272,18 +1332,18 @@ if(ll_debug & ENTRY)
  *	2. 'pcf' is a legal device command
  */
 
-	if ((bid < 0)  ||  (bid >= pp_bnbr)  ||
+	if( (bid < 0)  ||  (bid >= pp_bnbr)  ||
 	    (pid < 0)  ||  (pid > 5)	     ||
-	    ((BSTATE(bid) & ISSYSGEN) == 0)) {
+	    ((BSTATE(bid) & ISSYSGEN) == 0) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: ppc_device: FAIL on bid value/sysgen");
 #endif
 		u.u_error = ENXIO;
-		return(FAIL);
+		return( FAIL );
 		}
 
-	switch (pcf) {
+	switch( pcf ) {
 	case DR_ENA:
 	case DR_DIS:
 	case DR_ABR:
@@ -1297,11 +1357,11 @@ if(ll_debug & EXIT)
 		break;
 	default:
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: ppc_device: FAIL on pfc value\n");
 #endif
 		u.u_error = EFAULT;
-		return(FAIL);
+		return( FAIL );
 	}
 
 /*
@@ -1313,11 +1373,11 @@ if(ll_debug & EXIT)
 	lla_express(bid, 0, 0, pid, PPC_DEVICE, 0L, pcf);
 
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: ppc_device: PASS\n");
 #endif
 
-	return(PASS);
+	return( PASS );
 }
 
 int
@@ -1327,7 +1387,7 @@ register char *mda;
 short mds;
 {
 #ifdef DEBUG
-if(ll_debug & ENTRY)
+if( ll_debug & ENTRY )
 	printf("ENTRY: ppc_xmit(%x,%x,%x,%x)\n", bid, pid, mda, mds);
 #endif
 
@@ -1338,25 +1398,25 @@ if(ll_debug & ENTRY)
  *	3. 'mds' is in the interval [0,64]
  */
 
-	if ((bid < 0)  ||  (bid >= pp_bnbr)  ||
+	if( (bid < 0)  ||  (bid >= pp_bnbr)  ||
 	    (pid < 0)  ||  (pid > 5)	     ||
-	    ((BSTATE(bid) & ISSYSGEN) == 0)) {
+	    ((BSTATE(bid) & ISSYSGEN) == 0) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: ppc_xmit: FAIL on bid value/sysgen\n");
 #endif
 		u.u_error = ENXIO;
-		return(FAIL);
+		return( FAIL );
 		}
 
-	if ((((int) mda) == 0) ||
-	    (mds < 0)  ||  (mds > (CLSIZE  - 1))) {
+	if( (((int) mda) == 0) ||
+	    (mds < 0)  ||  (mds > (CLSIZE  - 1) )){
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: ppc_xmit: FAIL on argument values\n");
 #endif
 		u.u_error = EFAULT;
-		return(FAIL);
+		return( FAIL );
 		}
 
 /*
@@ -1370,29 +1430,29 @@ if(ll_debug & EXIT)
 	{
 	register int i;
 
-	if (ll_debug & VTOP)
+	if( ll_debug & VTOP )
 		printf("	Translation of cblock: %x->%x\n",
 			mda, cbvtop(mda));
 
 	i = lla_regular(bid, TRUE, (unsigned short) mds, pid, PPC_XMIT, (long) cbvtop(mda),0,0);
 
-	if (ll_debug & EXIT)
+	if( ll_debug & EXIT )
 		printf(" EXIT: ppc_xmit: %s\n", (i == PASS) ? "PASS" : "FAIL");
 
-	return(i);
+	return( i );
 	}
 #else
-	return(lla_regular(bid, TRUE, (unsigned short) mds, pid, PPC_XMIT, (long) cbvtop(mda),0,0));
+	return( lla_regular(bid, TRUE, (unsigned short) mds, pid, PPC_XMIT, (long) cbvtop(mda),0,0));
 #endif
 #else
 	lla_regular(bid, TRUE, (unsigned short) mds, pid, PPC_XMIT, (long) mda, 0, 0);
 
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: ppc_xmit: PASS\n");
 #endif
 
-	return(PASS);
+	return( PASS );
 #endif
 }
 
@@ -1402,7 +1462,7 @@ register short bid;
 register char *mda;
 {
 #ifdef DEBUG
-if(ll_debug & ENTRY)
+if( ll_debug & ENTRY )
 	printf("ENTRY: ppc_recv(%x,%x)\n", bid, mda);
 #endif
 
@@ -1412,23 +1472,23 @@ if(ll_debug & ENTRY)
  *	2. 'mda' is non-zero
  */
 
-	if ((bid < 0)  ||  (bid >= pp_bnbr)  ||
-	    ((BSTATE(bid) & ISSYSGEN) == 0)) {
+	if( (bid < 0)  ||  (bid >= pp_bnbr)  ||
+	    ((BSTATE(bid) & ISSYSGEN) == 0) ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: ppc_recv: FAIL on bid value/sysgen\n");
 #endif
 		u.u_error = ENXIO;
-		return(FAIL);
+		return( FAIL );
 		}
 
-	if ((int) mda == 0) {
+	if( (int) mda == 0 ) {
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: ppc_recv: FAIL on zero mda value\n");
 #endif
 		u.u_error = EFAULT;
-		return(FAIL);
+		return( FAIL );
 		}
 
 /*
@@ -1442,29 +1502,29 @@ if(ll_debug & EXIT)
 	{
 	register int i;
 
-	if (ll_debug & VTOP)
+	if( ll_debug & VTOP )
 		printf("	Translation of cblock: %x->%x\n",
 			mda, cbvtop(mda));
 
 	i = lla_regular(bid, TRUE, (unsigned short) CLSIZE - 1, SUPPLYBUF, PPC_RECV, (long) cbvtop(mda), 0, 0);
 
-	if (ll_debug & EXIT)
+	if( ll_debug & EXIT )
 		printf(" EXIT: ppc_recv: %s\n", (i == PASS) ? "PASS" : "FAIL");
 
-	return(i);
+	return( i );
 	}
 #else
-	return(lla_regular(bid, TRUE, (unsigned short) CLSIZE - 1, SUPPLYBUF, PPC_RECV, (long) cbvtop(mda),0,0));
+	return( lla_regular(bid, TRUE, (unsigned short) CLSIZE - 1, SUPPLYBUF, PPC_RECV, (long) cbvtop(mda),0,0));
 #endif
 #else
 	lla_regular(bid, TRUE, (unsigned short) CLSIZE - 1, SUPPLYBUF, PPC_RECV, (long) mda, 0,0);
 
 #ifdef DEBUG
-if(ll_debug & EXIT)
+if( ll_debug & EXIT )
 	printf(" EXIT: ppc_recv: PASS\n");
 #endif
 
-	return(PASS);
+	return( PASS );
 #endif
 }
 
@@ -1496,7 +1556,7 @@ char appl;
 	E_APPL(eentry,3)  = 0;
 
 #ifdef DEBUG
-if(ll_debug & RDUMP)
+if( ll_debug & RDUMP )
 	dmp_entry("EXPRESS REQUEST", &eentry);
 #endif
 
@@ -1506,9 +1566,9 @@ if(ll_debug & RDUMP)
  */
 
 	splevel = splpp();
-	if (BSTATE(bid) & EXPRESS) {
+	if( BSTATE(bid) & EXPRESS ) {
 #ifdef DEBUG
-if(ll_debug & RDUMP)
+if( ll_debug & RDUMP )
 	printf("	EXPRESS queue in use: %d %d\n", eload, eunload);
 #endif
 		/*
@@ -1519,9 +1579,9 @@ if(ll_debug & RDUMP)
 		 * Watch out for queue overflow: Drop this entry
 		 */
 
-		if (eload != eunload)
+		if(eload != eunload)
 		{
-			if (eload == 0)
+			if( eload == 0 )
 				i = maxsavexp - 1;
 			else
 				i = eload - 1;
@@ -1534,12 +1594,12 @@ if(ll_debug & RDUMP)
 			}
 		}
 
-		if ((i = eload + 1) == maxsavexp)
+		if( (i = eload + 1) == maxsavexp )
 			i = 0;
-		if (i == eunload) {
+		if( i == eunload ) {
 			cmn_err(CE_WARN, "PORTS: EXPRESS QUEUE OVERLOAD: One entry lost\n");
 #ifdef DEBUG
-if(! (ll_debug & RDUMP))
+if( ! (ll_debug & RDUMP) )
 	dmp_entry("EXPRESS REQUEST", &eentry);
 #endif
 			}
@@ -1562,7 +1622,7 @@ if(! (ll_debug & RDUMP))
  */
 
 #ifdef DEBUG
-if(ll_debug & INTER)
+if( ll_debug & INTER )
 	printf("BOARD %x EXPRESS (INT0) INTERRUPT: %x\n", bid,
 		(pp_addr[bid] + 1));
 #endif
@@ -1606,7 +1666,7 @@ char appl1;
 	E_APPL(eentry,3)  = 0;
 
 #ifdef DEBUG
-if(ll_debug & RDUMP)
+if( ll_debug & RDUMP )
 	dmp_entry("REQULAR REQUEST", &eentry);
 #endif
 
@@ -1616,8 +1676,8 @@ if(ll_debug & RDUMP)
  * Simply return a FAIL if there is not enough space
  */
 
-	if (PNBR(bid,subdev) == ((subdev == SUPPLYBUF) ? (RQSIZE-1) : NUM_ELEMENTS))
-		return(FAIL);
+	if( PNBR(bid,subdev) == ((subdev == SUPPLYBUF) ? (RQSIZE-1) : NUM_ELEMENTS) )
+		return( FAIL );
 
 /*
  * Add the new entry to the queue
@@ -1632,7 +1692,7 @@ if(ll_debug & RDUMP)
 
 	RQENTRY(bid,subdev,i) = eentry;
 
-	if (++i == RQSIZE)
+	if( ++i == RQSIZE )
 		i = 0;
 	RQLOAD(bid,subdev) = i * sizeof(RENTRY);
 
@@ -1644,10 +1704,10 @@ if(ll_debug & RDUMP)
  * If requested, send an "ATTENTION" interrupt to a board
  */
 
-	if (attn)
+	if( attn )
 		lla_attn(bid);
 
-	return(PASS);
+	return( PASS );
 }
 
 #ifdef DEBUG

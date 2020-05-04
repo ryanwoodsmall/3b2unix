@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)forms.files:forms.mk	1.27"
+#ident	"@(#)forms.files:forms.mk	1.28"
 
 LIBDIR = ..
 CH =
@@ -26,7 +26,7 @@ mv.fs nohup.fs nroff.fs od.fs passwd.fs paste.fs pg.fs pr.fs prcomp.fs prtyp.fs 
 ps.fs pu_menu.fs pwd.fs rm.fs rmdir.fs sdb.fs sdbwalk.fs sed.fs sh.fs shell.lpstat \
 size.fs sortc.fs sort.fs sorttyp.fs spell.fs split.fs strip.fs \
 su.fs tail.fs taili.fs tailn.fs umask.fs uname.fs unixwalk.fs uucp.fs \
-lex.fs yacc.fs ld.fs uucpl.fs uucpr.fs vi.fs viwalk.fs wc.fs who.fs \
+lex.fs yacc.fs ld.fs uucpl.fs uucpr.fs vi.fs vi.3.0 viwalk.fs wc.fs who.fs \
 stty.fs sttyrep.fs sttyset.fs 
 
 install : $(FILES)

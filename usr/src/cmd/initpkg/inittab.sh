@@ -5,12 +5,13 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)initpkg:./inittab.sh	1.16"
+#ident	"@(#)initpkg:./inittab.sh	1.18"
 
 if u3b2
 then echo "zu::sysinit:/etc/bzapunix </dev/console >/dev/console 2>&1
 fs::sysinit:/etc/bcheckrc </dev/console >/dev/console 2>&1
 ck::sysinit:/etc/setclk </dev/console >/dev/console 2>&1
+xdc::sysinit:sh -c 'if [ -x /etc/rc.d/0xdc ] ; then /etc/rc.d/0xdc ; fi' >/dev/console 2>&1
 mt:23:bootwait:/etc/brc </dev/console >/dev/console 2>&1
 pt:23:bootwait:/etc/ports </dev/console >/dev/console 2>&1
 is:2:initdefault:
@@ -27,7 +28,7 @@ RB:6:wait:echo \"\\\nThe system is being restarted.\" >/dev/console 2>&1
 rb:6:wait:/etc/uadmin 2 1 >/dev/console 2>&1 </dev/console
 co:234:respawn:/etc/getty console console
 ct:234:respawn:/etc/getty contty contty
-he:234:respawn:sh -c 'sleep 20 ; exec /etc/hdelogger >/dev/console 2>&1'" \
+he:234:respawn:sh -c 'sleep 60 ; exec /etc/hdelogger >/dev/console 2>&1'" \
 >inittab
 
 else

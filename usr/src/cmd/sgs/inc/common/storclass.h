@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sgs-inc:common/storclass.h	1.4"
+#ident	"@(#)sgs-inc:common/storclass.h	1.5"
 /*
  */
 
@@ -47,3 +47,4 @@
 #define  C_ALIAS	 105   /* duplicate tag */
 #define  C_HIDDEN	 106   /* special storage class for external */
 			       /* symbols in dmert public libraries  */
+#define  C_SHADOW	 107   /* shadow symbol */

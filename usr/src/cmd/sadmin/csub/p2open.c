@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sadmin:csub/p2open.c	1.2"
+#ident	"@(#)sadmin:csub/p2open.c	1.3"
 /*	
 	Similar to popen(3S) but with pipe to cmd's stdin and from stdout.
 */
@@ -65,8 +65,8 @@ FILE	*fp2;
 {
 	register int	pid,
 			r;
-	int		status,
-			(*hstat)(),
+	int		status;
+	void		(*hstat)(),
 			(*istat)(),
 			(*qstat)();
 

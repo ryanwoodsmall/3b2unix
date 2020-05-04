@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/subr.c	10.10"
+#ident	"@(#)kern-port:os/subr.c	10.10.2.3"
 #include "sys/types.h"
 #include "sys/sysmacros.h"
 #include "sys/param.h"
@@ -26,6 +26,8 @@
 #include "sys/var.h"
 #include "sys/conf.h"
 #include "sys/debug.h"
+#include "sys/region.h"
+#include "sys/proc.h"
 
 /*
  * update is the internal name of 'sync'. It goes through the disk
@@ -81,8 +83,6 @@ nulldev()
  * Generate an unused major device number.
  */
 
-#ifdef u3b2
-
 #define NDEV 128
 #define max(a, b)	((a) > (b) ? (a) : (b))
 
@@ -91,24 +91,40 @@ getudev()
 {
 	extern char MAJOR[];
 	static int next = 0;
+	int maxdevcnt = max(bdevcnt, cdevcnt);
 
 	for ( ; next < NDEV; next++)
-		if (MAJOR[next] >= max(bdevcnt, cdevcnt))
+		if (MAJOR[next] >= maxdevcnt)
 			return(next++);
 	return(-1);
 }
 
-#else
+/*
+ * Find a proc table pointer given a process id.  The code attempts
+ * to optimize the case in which repeated calls return successive
+ * proc table slots (as with ps(1)) by remembering where the search
+ * left off the last time.  Interspersed calls can defeat the
+ * optimization but ordinarily this won't happen.
+ */
 
-#define NDEV 256
-int
-getudev()
+struct proc *
+prfind(pid)
+register int pid;
 {
-	static int next = 0;
+	register struct proc *p;
+	static struct proc *lastp = NULL;
+	register struct proc *prend = (struct proc *) v.ve_proc;
 
-	if (next == 0)
-		next = bdevcnt;
-	return(next < NDEV ? next++ : -1);
+	if (lastp == NULL || lastp >= prend)
+		lastp = prend - 1;
+	p = lastp;
+	do {
+		if (++p >= prend)
+			p = &proc[0];
+		if (p->p_stat != 0 && p->p_pid == pid) {
+			lastp = p;
+			return(p);
+		}
+	} while (p != lastp);
+	return(NULL);
 }
-
-#endif

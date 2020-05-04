@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)dc:dc.h	1.6"
+#ident	"@(#)dc:dc.h	1.7"
 #define FATAL 0
 #define NFATAL 1
 #define BLK sizeof(struct blk)
@@ -27,7 +27,7 @@
 #define sfeof(p)	(((p)->rd==(p)->wt)?1:0)
 #define sfbeg(p)	(((p)->rd==(p)->beg)?1:0)
 #define sungetc(p,c)	*(--(p)->rd)=c
-#if interdata || u370 || u3b || u3b5 || u3b2
+#if interdata || u370 || u3b || u3b15 || u3b2
 #define NEGBYTE 0200
 #define MASK (-1 & ~0377)
 #define sgetc(p)	( ((p)->rd==(p)->wt) ? EOF :( ((*(p)->rd & NEGBYTE) != 0) ? ( *(p)->rd++ | MASK): *(p)->rd++ ))

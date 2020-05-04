@@ -1,4 +1,4 @@
-#ident	"@(#)core:setup.core4	1.6"
+#ident	"@(#)core:setup.core4	1.6.1.1"
 #
 #	Sets up "3B2 Core Unix Part 4" file system on floppy
 #
@@ -10,7 +10,6 @@ export PATH
 PATH=/bin:/usr/bin:/etc
 ROOT=/install
 cd ${ROOT}/usr/lib/terminfo
-mkdir o p
 ln 1/1620 1/1640
 ln 1/1620 4/450
 ln 1/1620 d/diablo

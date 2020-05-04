@@ -5,8 +5,8 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/mvwscanw.c	1.4.1.1"
-# include	"curses.ext"
+#ident	"@(#)curses:screen/mvwscanw.c	1.4.1.4"
+# include	"curses_inc.h"
 # include	<varargs.h>
 
 /*
@@ -15,7 +15,7 @@
  *
  */
 
-/* VARARGS */
+/*VARARGS*/
 mvwscanw(va_alist)
 va_dcl
 {

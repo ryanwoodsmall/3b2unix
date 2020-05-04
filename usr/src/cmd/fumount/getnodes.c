@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)rmntstat:getnodes.c	1.20"
+#ident	"@(#)rmntstat:getnodes.c	1.20.3.1"
 		/* this module is used in the fumount, fusage
 		   and rmntstat  commands */
 
@@ -64,7 +64,7 @@ struct nlist nl[] = {
 	{""}
 };
 
-#if u3b5 || u3b2
+#if u3b15 || u3b2
 #define MEMF "/dev/kmem"
 #endif
 
@@ -249,7 +249,7 @@ getnl:
 		if(rread(mem,adv_adr,Advtab,maxadv * sizeof(struct advertise)))
 			return(-1);
 	} else {
-		printf("could not allocate space for advertise table\n");
+		fprintf(stderr,"could not allocate space for advertise table\n");
 		return(-1);
 	}
 	Mount = (struct mount *)malloc(v.v_mount * sizeof(struct mount));
@@ -257,7 +257,7 @@ getnl:
 		if(rread(mem,mnt_adr,Mount,v.v_mount * sizeof(struct mount)))
 			return(-1);
 	} else {
-		printf("could not allocate space for mount table\n");
+		fprintf(stderr,"could not allocate space for mount table\n");
 		return(-1);
 	}
 	if(rread(mem, nsrmnt_adr, &nsrmnt, sizeof(nsrmnt)))
@@ -268,7 +268,7 @@ getnl:
 			return(-1);
 		
 	} else {
-		printf("could not allocate space for srmount table\n");
+		fprintf(stderr,"could not allocate space for srmount table\n");
 		return(-1);
 	}
 	if(rread(mem, mgdp_adr, &gdpsiz, sizeof(maxgdp)))
@@ -278,13 +278,13 @@ getnl:
 		if(rread(mem, gdp_adr, gdpp, gdpsiz * sizeof(struct gdp)))
 			return(-1);
 	} else {
-		printf("could not allocate space for gdp table\n");
+		fprintf(stderr,"could not allocate space for gdp table\n");
 		return(-1);
 	}
 		/* also need space for the client list */
 	client = (struct clnts *)malloc((nsrmnt + 1) * sizeof(struct clnts));
 	if(client == 0) {
-		printf("could not allocate space for gdp\n");
+		fprintf(stderr,"could not allocate space for gdp\n");
 		return(-1);
 	}
 	for(i = 0; i < (nsrmnt + 1); i++)
@@ -306,7 +306,7 @@ unsigned *ptr;
 	while(nl[i].n_name[0] != '\0') {
 		if(!strcmp(symbol,nl[i].n_name)) {
 			if(nl[i].n_value == 0) {
-				printf("copylval: '%s' is undefined\n",symbol);
+				fprintf(stderr,"copylval: '%s' is undefined\n",symbol);
 				return(-1);
 			}
 			*ptr = nl[i].n_value;
@@ -314,7 +314,7 @@ unsigned *ptr;
 		}
 		i++;
 	}
-	printf("copylval cannot find '%s'\n",symbol);
+	fprintf(stderr,"copylval cannot find '%s'\n",symbol);
 	return(-1);
 }
 

@@ -1,4 +1,4 @@
-#ident	"@(#)cmd-3b2:inst/bin/sysfsck	1.7"
+#ident	"@(#)cmd-3b2:inst/bin/sysfsck	1.7.1.1"
 
 #
 # sysfsck
@@ -53,7 +53,7 @@ then
 	if [ "${usrflag}" = y ]
 	then
 		echo "
-There is no /etc/fstab in your root file system. This is a required core file.
+There is no /etc/fstab in your root file system. This is a required file.
 The installation cannot be performed without it.\n" >&2
 		fsys -u ${ROOT_0}
 		exit 1

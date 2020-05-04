@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:m32/addr2.c	1.11"
+#ident	"@(#)as:m32/addr2.c	1.11.1.1"
 #include <stdio.h>
 #include <reloc.h>
 #include <storclass.h>
@@ -28,10 +28,9 @@ extern FILE
 	*fdrel,
 	*fdcode;
 extern upsymins
-	*lookup();
+	lookup();
 extern struct scnhdr sectab[];
 extern symbol
-	symtab[],
 	*dot;
 extern BYTE
 	*longsdi;
@@ -159,11 +158,10 @@ relpc8(sym,code)
 	register codebuf *code;
 {
 	long val;
-	short stype;
 
 	val = code->cvalue;
 	if (sym != NULLSYM)
-		if ((stype = sym->styp & TYPE) != dot->styp && stype != ABS)
+		if (sym->sectnum != dot->sectnum && sym->styp != ABS)
 			aerror("relpc8: reference to symbol in another section");
 		else
 			val += sym->value;
@@ -177,11 +175,10 @@ relpc16(sym,code)
 	register codebuf *code;
 {
 	long val;
-	short stype;
 
 	val = code->cvalue;
 	if (sym != NULLSYM)
-		if ((stype = sym->styp & TYPE) != dot->styp && stype != ABS)
+		if (sym->sectnum != dot->sectnum && sym->styp != ABS)
 			aerror("relpc16: reference to symbol in another section");
 		else
 			val += sym->value;
@@ -206,7 +203,10 @@ brnopt(sym,code)
 		codgen(8,JMPOPCD);
 		codgen(8,(long)CABSMD); /* descriptor for operand */
 		getcode(code);
-		sym = code->cindex ? (symtab + (code->cindex-1)) : (symbol *)NULL;
+		if (code->cindex)
+			GETSYMPTR(code->cindex-1,sym)
+		else
+			sym = (symbol *) NULL;
 		code->cnbits = 32;
 		reldir32(sym,code);
 	} /* if (*++longsdi) */
@@ -220,8 +220,10 @@ bsbnopt(sym,code)
 		codgen(8,code->cvalue >> 8); /* generate long form */
 		codgen(8,(long)CABSMD); /* descriptor for operand */
 		getcode(code);
-		sym = code->cindex ? (symtab + (code->cindex-1))
-				: (symbol *)NULL;
+		if (code->cindex)
+			GETSYMPTR(code->cindex-1,sym)
+		else
+			sym = (symbol *) NULL;
 		code->cnbits = 32;
 		reldir32(sym,code);
 	} /* if (*++longsdi) */
@@ -235,8 +237,10 @@ callnopt(sym,code)
 	if (*++longsdi) {
 		codgen(8,(long)CABSMD); /* descriptor for operand */
 		getcode(code);
-		sym = code->cindex ? (symtab + (code->cindex-1))
-				: (symbol *)NULL;
+		if (code->cindex)
+			GETSYMPTR(code->cindex-1,sym)
+		else
+			sym = (symbol *) NULL;
 		code->cnbits = 32;
 		reldir32(sym,code);
 	} /* if (*++longsdi) */

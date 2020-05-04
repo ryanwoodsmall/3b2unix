@@ -46,5 +46,18 @@ new	d--775 0 3
 		$
 	$
 $
+3.0	d--775 0 3
+	usr	d--775 0 3
+		bin	d--775 2 2
+			sar		---555 2 3	../usr/bin/sar3.0
+			timex		---555 2 3	../usr/bin/timex3.0
+		$
+		lib	d--775 0 3
+			sa 	d--775 4 2
+				sadc		--g555 2 3	../usr/lib/sa/sadc3.0
+			$
+		$
+	$
 $
-#ident	"@(#)pkg.perf:perf/proto	1.14"
+$
+#ident	"@(#)pkg.perf:perf/proto	1.15"

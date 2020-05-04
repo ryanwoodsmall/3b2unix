@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sh:ctype.c	1.7"
+#ident	"@(#)sh:ctype.c	1.9"
 /*
  *	UNIX shell
  */

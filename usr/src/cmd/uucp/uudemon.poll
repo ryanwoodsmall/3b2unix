@@ -1,8 +1,8 @@
 #! /bin/sh
-#ident	"@(#)uucp:uudemon.poll	2.2"
+#ident	"@(#)uucp:uudemon.poll	2.3"
 
-# This shell should be run out of crontab every hour,
-#  a little before  uudemon.hour since this one
+# This shell should be run out of crontab twice an hour,
+#  a little before  uudemon.hour, since this one
 #  does not start the scheduler.
 
 PATH=/bin:/usr/bin:/etc:/usr/lib/uucp

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:hdr/def.h	1.4"
+#ident	"@(#)mailx:hdr/def.h	1.5"
 #
 
 #include <sys/types.h>
@@ -38,6 +38,12 @@
 #define	NOSTR		((char *) 0)	/* Null string pointer */
 #define	MAXEXP		25		/* Maximum expansion of aliases */
 #define	equal(a, b)	(strcmp(a,b)==0)/* A nice function to string compare */
+
+#ifndef SIGRETRO
+#define	SIG		void
+#else
+#define	SIG		int
+#endif /* SIGRETRO */
 
 struct message {
 	short	m_flag;			/* flags, see below */

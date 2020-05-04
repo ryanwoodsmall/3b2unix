@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libns:nsrports.c	1.12"
+#ident	"@(#)libns:nsrports.c	1.12.2.1"
 #include <stdio.h>
 #include <fcntl.h>
 #include <sys/types.h>
@@ -27,6 +27,7 @@
 
 struct address		*astoa();
 extern int		errno;
+extern int		t_errno;
 extern struct address	*Myaddress;	/* address of this machine	*/
 extern char		*Net_spec;	/* transport provider name	*/
 static int		Listenfd = -1;	/* listen file descriptor	*/
@@ -380,7 +381,7 @@ int	*pd;	/* return port id	*/
 			    REL_SIGS;
 			    return(NON_FATAL);
 			default:
-			    PLOG3("(%5d) nswait: I_RECVFD Listenfd fails, errno=%d\n",
+			    PLOG3("(%5d) RFS Name Server: FATAL error in ioctl, errno=%d\n",
 				Logstamp, errno);
 			    REL_SIGS;
 			    return(FATAL);
@@ -532,6 +533,15 @@ int	pd;
 		remfrsel(pptr);
 
 	np_clean(pd);
-	nsclose(pd);
+	/* here we try to use t_close.  if pptr->p_fd is not a transport
+	 * endpoint, t_close will fail.  if it fails, we try a regular close. 
+	 */
+	LOG3(L_COMM, "(%5d) nsrclose: closing pd=%d\n",Logstamp,pd);
+	pptr->p_mode = UNUSED;
+	if (pptr->p_fd != -1) {
+		if (t_close(pptr->p_fd) == -1)
+			close(pptr->p_fd);
+		pptr->p_fd = -1;
+	}
 	return;
 }

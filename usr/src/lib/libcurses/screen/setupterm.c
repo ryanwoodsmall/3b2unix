@@ -5,115 +5,128 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/setupterm.c	1.29"
-#ifndef NOBLIT
-#include <sys/jioctl.h>
-#endif
-#include "curses.ext"
-#include "uparm.h"
-#ifndef termpath
-#define termpath(file) "/usr/lib/terminfo/file"
-#endif
+#ident	"@(#)curses:screen/setupterm.c	1.44"
+#ifndef	NOBLIT
+#include	<sys/jioctl.h>
+#endif	/* NOBLIT */
+#include	"curses_inc.h"
+#include	"uparm.h"
+#ifndef	_TERMPATH
+#define	_TERMPATH(file)	"/usr/lib/terminfo/file"
+#endif	/* _TERMPATH */
+#include	<errno.h>
 
-char *getenv();
-char *malloc();
-char ttytype[128];
-char _frst_tblstr[2048];
+chtype	bit_attributes[NUM_ATTRIBUTES] =
+	{
+	    A_STANDOUT,
+	    A_UNDERLINE,
+	    A_ALTCHARSET,
+	    A_REVERSE,
+	    A_BLINK,
+	    A_DIM,
+	    A_BOLD,
+	    A_INVIS,
+	    A_PROTECT
+	};
 
-TERMINAL		_first_term;
-TERMINAL *		cur_term = &_first_term;
-struct _bool_struct	_frst_bools;
-struct _bool_struct *	cur_bools = &_frst_bools;
-struct _num_struct	_frst_nums;
-struct _num_struct *	cur_nums = &_frst_nums;
-struct _str_struct	_frst_strs;
-struct _str_struct *	cur_strs = &_frst_strs;
+extern	char	*strncpy();
+char	*Def_term = "unknown",	/* default terminal type */
+	term_parm_err[32], ttytype[128], _frst_tblstr[1400];
 
-int _called_before = 0;	/* To check for first time. Used/cleared by restart.c */
+TERMINAL		_first_term, *cur_term = &_first_term;
+struct	_bool_struct	_frst_bools, *cur_bools = &_frst_bools;
+struct	_num_struct	_frst_nums, *cur_nums = &_frst_nums;
+struct	_str_struct	_frst_strs, *cur_strs = &_frst_strs;
 
-#ifdef DUMPTI
-extern char
-	*boolfnames[], *boolnames[], *boolcodes[],
-	*numfnames[], *numnames[], *numcodes[],
-	*strfnames[], *strnames[], *strcodes[];
+/* _called_before is used/cleared by delterm.c and restart.c */
+char	_called_before = 0;
+short	term_errno = -1;
 
-main (argc, argv)
-int argc;
-char **argv;
+#ifdef	DUMPTI
+extern	char	*boolfnames[], *boolnames[], *boolcodes[],
+		*numfnames[], *numnames[], *numcodes[],
+		*strfnames[], *strnames[], *strcodes[];
+
+main(argc, argv)	/* FOR DEBUG ONLY */
+int	argc;
+char	**argv;
 {
     if (argc > 1)
 	setupterm(argv[1], 1, (int *)0);
     else
-	setupterm((char *)0,1,(int *)0);
-    return 0;
+	setupterm((char *)0, 1, (int *)0);
+    return (0);
 }
 
-Pr(ch)
-register int ch;
+_Pr(ch)	/* FOR DEBUG ONLY */
+register	int	ch;
 {
     if (ch >= 0200)
-	{
+    {
 	printf("M-");
 	ch -= 0200;
-	}
+    }
     if ( (ch < ' ') || (ch == 0177) )
 	printf("^%c", ch ^ 0100);
     else
 	printf("%c", ch);
 }
 
-Sprint(n, string)
-int n;
-register char *string;
+_Sprint(n, string)	/* FOR DEBUG ONLY */
+int	n;
+register	char	*string;
 {
-    register int ch;
+    register	int	ch;
+
     if (n == -1)
-	{
+    {
 	printf(".\n");
 	return;
-	}
+    }
     printf(", string = '");
     while (ch = *string++)
-	Pr(ch&0377);
+	_Pr(ch&0377);
 
     printf("'.\n");
 }
 
-Mprint(n, memory)
-register int n;
-register char *memory;
+_Mprint(n, memory)	/* FOR DEBUG ONLY */
+register	int	n;
+register	char	*memory;
 {
-    register unsigned char ch;
+    register	unsigned	char	ch;
+
     while (ch = *memory++, n-- > 0)
-	Pr(ch&0377);
+	_Pr(ch&0377);
 }
 
-# define Vr2getshi()	Vr2getsh(ip-2)
+#define	_Vr2getshi()	_Vr2getsh(ip-2)
 
-# if vax || pdp11
-#  define Vr2getsh(ip)	(* (short *) (ip))
-# endif
+#if	vax || pdp11
+#define	_Vr2getsh(ip)	(* (short *) (ip))
+#endif	/* vax || pdp11 */
 
-# ifndef Vr2getsh
+#ifndef	_Vr2getsh
 /*
  * Here is a more portable version, which does not assume byte ordering
  * in shorts, sign extension, etc.
  */
-Vr2getsh(p)
-register char *p;
+_Vr2getsh(p)
+register	char	*p;
 {
-	register int rv;
-	if (*p == 0377)
-		return -1;
-	rv = *p++;
-	rv += *p * 256;
-	return rv;
+    register	int	rv;
+
+    if (*p == 0377)
+	return (-1);
+    rv = (unsigned char) *p++;
+    rv += (unsigned char) *p * 256;
+    return (rv);
 }
-# endif
+#endif	/* _Vr2getsh */
 
-#endif /* DUMPTI */
+#endif	/* DUMPTI */
 
-#define getshi()	getsh(ip) ; ip += 2
+#define	_Getshi()	_Getsh(ip) ; ip += 2
 
 /*
  * "function" to get a short from a pointer.  The short is in a standard
@@ -124,18 +137,18 @@ register char *p;
  * convenient and small to do this on a pdp-11.
  */
 
-#if vax || pdp11
-# define getsh(ip)	(* (short *) ip)
-#endif
+#if	vax || pdp11
+#define	_Getsh(ip)	(* (short *) ip)
+#endif	/* vax || pdp11 */
 /*
  * The following macro is partly due to Mike Laman, laman@sdcsvax
  *	NCR @ Torrey Pines.		- Tony Hansen
  */
-#if u3b || u3b15 || u3b2 || m68000
-# define getsh(ip)	((short) (*((unsigned char *) ip) | (*(ip+1) << 8)))
-#endif
+#if	u3b || u3b15 || u3b2 || m68000
+#define	_Getsh(ip)	((short) (*((unsigned char *) ip) | (*(ip+1) << 8)))
+#endif	/* u3b || u3b15 || u3b2 || m68000 */
 
-#ifndef getsh
+#ifndef	_Getsh
 /*
  * Here is a more portable version, which does not assume byte ordering
  * in shorts, sign extension, etc. It does assume that the C preprocessor
@@ -143,24 +156,24 @@ register char *p;
  * When ANSI C comes along, this should be changed to check <limits.h>
  * to see if the low character value is negative.
  */
-static getsh(p)
-register char *p;
+static
+_Getsh(p)
+register	char	*p;
 {
-	register int rv, rv2;
+    register	int	rv, rv2;
 
-# if	-1 == '\377'			/* sign extension occurs */
-	rv = (*p++) & 0377;
-	rv2 = (*p) & 0377;
-# else					/* no sign extension */
-	rv = *p++;
-	rv2 = *p;
-# endif
-	if ((rv2 == 0377) &&
-	    ((rv == 0377) || (rv == 0376)))
-		return -1;
-	return rv + (rv2 * 256);
+#if	-1 == '\377'			/* sign extension occurs */
+    rv = (*p++) & 0377;
+    rv2 = (*p) & 0377;
+#else	/* -1 == '\377'			/* no sign extension */
+    rv = *p++;
+    rv2 = *p;
+#endif	/* -1 == '\377' */
+    if ((rv2 == 0377) && ((rv == 0377) || (rv == 0376)))
+	return (-1);
+    return (rv + (rv2 * 256));
 }
-#endif
+#endif	/* _Getsh */
 
 /*
  * setupterm: low level routine to dig up terminfo from database
@@ -172,470 +185,561 @@ register char *p;
  * program to set up.
  */
 setupterm(term, filenum, errret)
-char *term;
-int filenum;	/* This is a UNIX file descriptor, not a stdio ptr. */
-int *errret;
+char	*term;
+int	filenum;	/* This is a UNIX file descriptor, not a stdio ptr. */
+int	*errret;
 {
-	char tiebuf[4096];
-	char fname[512];
-	register char *ip;
-	register char *cp;
-	int n, tfd;
-	char *lcp, *ccp;
-	int snames, nbools, nints, nstrs, sstrtab;
-	char *strtab;
-#ifdef DUMPTI
-	int Vr2val;
-#endif /* DUMPTI */
+    char	tiebuf[4096];
+    char	fname[512];
+    register	char	*ip;
+    register	char	*cp;
+    int		n, tfd;
+    char	*lcp, *ccp, **on_sequences, **str_array;
+    int		snames, nbools, nints, nstrs, sstrtab;
+    char	*strtab;
+#ifdef	DUMPTI
+    int		Vr2val;
+#endif	/* DUMPTI */
 
-	if (term == NULL)
-		term = getenv("TERM");
-	if (term == NULL || *term == '\0')
-		term = "unknown";
-	tfd = -1;
-	if ((cp=getenv("TERMINFO")) && *cp) {
-		if (strlen(cp) + 2 + strlen(term) > 512) {
-			if (errret == 0) {
-				write(2, "TERMINFO pathname for device exceeds 512 characters\r\n", 53);
-				exit(-5);
-			} else {
-				*errret = -1;
-				return -1;
-			}
-		}
-		strcpy(fname, cp);
-		cp = fname + strlen(fname);
-		*cp++ = '/';
-		*cp++ = *term;
-		*cp++ = '/';
-		strcpy(cp, term);
-		tfd = open(fname, 0);
-#ifdef DUMPTI
-		printf("looking in file %s\n", fname);
-#endif /* DUMPTI */
+    if (term == NULL)
+	term = getenv("TERM");
+    if (term == NULL || *term == '\0')
+	term = Def_term;
+    tfd = -1;
+    if (errret != 0)
+	*errret = -1;
+    if ((cp = getenv("TERMINFO")) && *cp)
+    {
+	if (strlen(cp) + 2 + strlen(term) > 512)
+	{
+	    term_errno = TERMINFO_TOO_LONG;
+	    goto out_err;
 	}
-	if (tfd < 0) {
-		strcpy(fname, termpath(a/));
-		cp = fname + strlen(fname);
-		cp[-2] = *term;
-		strcpy(cp, term);
-		tfd = open(fname, 0);
-#ifdef DUMPTI
-		printf("looking in file %s\n", fname);
-#endif /* DUMPTI */
-	}
+	(void) strcpy(fname, cp);
+	cp = fname + strlen(fname);
+	*cp++ = '/';
+	*cp++ = *term;
+	*cp++ = '/';
+	(void) strcpy(cp, term);
+	tfd = open(fname, 0);
+#ifdef	DUMPTI
+	printf("looking in file %s\n", fname);
+#endif	/* DUMPTI */
+	if ((tfd < 0) && (errno == EACCES))
+	    goto cant_read;
+    }
+    if (tfd < 0)
+    {
+	(void) strcpy(fname, _TERMPATH(a/));
+	cp = fname + strlen(fname);
+	cp[-2] = *term;
+	(void) strcpy(cp, term);
+	tfd = open(fname, 0);
+#ifdef	DUMPTI
+	printf("looking in file %s\n", fname);
+#endif	/* DUMPTI */
 
-	if (tfd < 0) {
-		if (access(termpath(.), 0)) {
-			if (errret == 0)
-				perror(termpath(.));
-			else
-				*errret = -1;
-		} else {
-			if (errret == 0) {
-				write(2, "No such terminal: ", 18);
-				write(2, term, strlen(term));
-				write(2, "\r\n", 2);
-			} else
-				*errret = 0;
-		}
-		if (errret == 0)
-			exit(-2);
-		else
-			return -1;
-	}
+    }
 
-	n = read(tfd, tiebuf, sizeof tiebuf);
-	close(tfd);
-	if (n <= 0) {
+    if (tfd < 0)
+    {
+	if (errno == EACCES)
+	{
+cant_read:
+	    term_errno = NOT_READABLE;
+	}
+	else
+	{
+	    if (access(_TERMPATH(.), 0))
+		term_errno = UNACCESSIBLE;
+	    else
+	    {
+		term_errno = NO_TERMINAL;
+		if (errret != 0)
+		    *errret = 0;
+	    }
+	}
+	(void) strcpy(term_parm_err, term);
+	goto out_err;
+    }
+
+    n = read(tfd, tiebuf, sizeof tiebuf);
+    (void) close(tfd);
+    if (n <= 0)
+    {
 corrupt:
-		if (errret == 0) {
-			write(2, "corrupted term entry\r\n", 22);
-			exit(-3);
-		} else
-			return -1;
-	} else if (n == sizeof tiebuf) {
-		if (errret == 0) {
-			write(2, "term entry too long\r\n", 21);
-			exit(-4);
-		} else
-			return -1;
-	}
-	cp = ttytype;
-	ip = tiebuf;
-
-	/* Pick up header */
-	snames = getshi();
-#ifdef DUMPTI
-	Vr2val = Vr2getshi();
-	printf("Magic number = %d, %#o [%d,%#o].\n",
-		snames, snames, Vr2val, Vr2val);
-#endif /* DUMPTI */
-	if (snames != MAGNUM) {
-		goto corrupt;
-	}
-	snames = getshi();
-#ifdef DUMPTI
-	Vr2val = Vr2getshi();
-	printf("Size of names = %d, %#o [%d,%#o].\n",
-		snames, snames, Vr2val, Vr2val);
-#endif /* DUMPTI */
-
-	nbools = getshi();
-#ifdef DUMPTI
-	Vr2val = Vr2getshi();
-	printf("Number of bools = %d, %#o [%d,%#o].\n",
-		nbools, nbools, Vr2val, Vr2val);
-#endif /* DUMPTI */
-
-	nints = getshi();
-#ifdef DUMPTI
-	Vr2val = Vr2getshi();
-	printf("Number of ints = %d, %#o [%d,%#o].\n",
-		nints, nints, Vr2val, Vr2val);
-#endif /* DUMPTI */
-
-	nstrs = getshi();
-#ifdef DUMPTI
-	Vr2val = Vr2getshi();
-	printf("Number of strings = %d, %#o [%d,%#o].\n",
-		nstrs, nstrs, Vr2val, Vr2val);
-#endif /* DUMPTI */
-
-	sstrtab = getshi();
-#ifdef DUMPTI
-	Vr2val = Vr2getshi();
-	printf("Size of string table = %d, %#o [%d,%#o].\n",
-		sstrtab, sstrtab, Vr2val, Vr2val);
-	printf("Names are: %.*s.\n", snames, ip);
-#endif /* DUMPTI */
-
-	/* allocate all of the space */
-	strtab = NULL;
-	if (_called_before) {
-		/* 2nd or more times through */
-		cur_term = (TERMINAL *) malloc(sizeof (TERMINAL));
-		if (!cur_term)
-			goto badmalloc;
-		cur_bools = (struct _bool_struct *) malloc(sizeof (struct _bool_struct));
-		if (!cur_bools)
-			goto freeterminal;
-		cur_nums = (struct _num_struct *) malloc(sizeof (struct _num_struct));
-		if (!cur_nums)
-			goto freebools;
-		cur_strs = (struct _str_struct *) malloc(sizeof (struct _str_struct));
-		if (!cur_strs) {
-			freenums:	free((char *)cur_nums);
-			freebools:	free((char *)cur_bools);
-			freeterminal:	free((char *)cur_term);
-			badmalloc:
-				if (errret == 0) {
-					write (2, "malloc returned NULL in setupterm\n", 34);
-					exit(-6);
-				} else {
-					*errret = -1;
-					return -1;
-				}
-		}
-	} else {
-		/* First time through */
-		_called_before = TRUE;
-		cur_term = &_first_term;
-		cur_bools = &_frst_bools;
-		cur_nums = &_frst_nums;
-		cur_strs = &_frst_strs;
-		if (sstrtab < sizeof(_frst_tblstr))
-			strtab = _frst_tblstr;
-	}
-
-	if (strtab == NULL) {
-		strtab = (char *) malloc(sstrtab);
-		if (strtab == NULL) {
-			if (cur_strs != &_frst_strs)
-				free((char *)cur_strs);
-			goto freenums;
-		}
-	}
-
-	cur_term->_bools = cur_bools;
-	cur_term->_nums = cur_nums;
-	cur_term->_strs = cur_strs;
-	cur_term->_strtab = strtab;
-	cur_term->sgr_mode = cur_term->sgr_faked = A_NORMAL;
-
-	/* no more catchable errors */
-	if (errret)
-		*errret = 1;
-
-	if (filenum == 1 && !isatty(filenum))
-		filenum = 2;	/* Allow output redirect */
-	cur_term -> Filedes = filenum;
-
-#ifndef DUMPTI
-# ifdef SYSV
-	cur_term->Nttyb.c_cflag = 0;
-# else
-	cur_term->Nttyb.sg_ispeed = 0;
-# endif /* SYSV */
-	def_shell_mode();
-#endif /* DUMPTI */
-
-	/* Skip names of terminals */
-	memcpy((char *)cp, (char *)ip, snames*sizeof(*cp));
-	ip += snames;
-
-	/*
-	 * Pull out the booleans.
-	 * Inner blocks are to share this register among two variables.
-	 */
+	term_errno = CORRUPTED;
+	goto out_err;
+    }
+    else
+	if (n == sizeof (tiebuf))
 	{
-		char *fp = &cur_bools->Sentinel;
-		register char s;
-#ifdef DUMPTI
-		register int tempindex = 0;
-#endif /* DUMPTI */
-		for (cp= &cur_bools->_auto_left_margin; nbools--; ) {
-			s = *ip++;
-#ifdef DUMPTI
-			printf("Bool %s [%s] (%s) = %d.\n",
-				boolfnames[tempindex],
-				boolnames[tempindex],
-				boolcodes[tempindex], s);
-			tempindex++;
-#endif /* DUMPTI */
-			if (cp < fp)
-				*cp++ = s & 01;
-		}
+	    term_errno = ENTRY_TOO_LONG;
+	    goto out_err;
 	}
+    cp = ttytype;
+    ip = tiebuf;
 
-	/* Force proper alignment */
-	if (((unsigned int) ip) & 1)
-		ip++;
+    /* Pick up header */
+    snames = _Getshi();
+#ifdef	DUMPTI
+    Vr2val = _Vr2getshi();
+    printf("Magic number = %d, %#o [%d, %#o].\n", snames, snames, Vr2val, Vr2val);
+#endif	/* DUMPTI */
+    if (snames != MAGNUM)
+	goto corrupt;
+    snames = _Getshi();
+#ifdef	DUMPTI
+    Vr2val = _Vr2getshi();
+    printf("Size of names = %d, %#o [%d, %#o].\n", snames, snames, Vr2val, Vr2val);
+#endif	/* DUMPTI */
 
-	/*
-	 * Pull out the numbers.
-	 */
+    nbools = _Getshi();
+#ifdef	DUMPTI
+    Vr2val = _Vr2getshi();
+    printf("Number of bools = %d, %#o [%d, %#o].\n", nbools, nbools, Vr2val, Vr2val);
+#endif	/* DUMPTI */
+
+    nints = _Getshi();
+#ifdef	DUMPTI
+    Vr2val = _Vr2getshi();
+    printf("Number of ints = %d, %#o [%d, %#o].\n", nints, nints, Vr2val, Vr2val);
+#endif	/* DUMPTI */
+
+    nstrs = _Getshi();
+#ifdef	DUMPTI
+    Vr2val = _Vr2getshi();
+    printf("Number of strings = %d, %#o [%d, %#o].\n", nstrs, nstrs, Vr2val, Vr2val);
+#endif	/* DUMPTI */
+
+    sstrtab = _Getshi();
+#ifdef	DUMPTI
+    Vr2val = _Vr2getshi();
+    printf("Size of string table = %d, %#o [%d, %#o].\n", sstrtab, sstrtab, Vr2val, Vr2val);
+    printf("Names are: %.*s.\n", snames, ip);
+#endif	/* DUMPTI */
+
+    /* allocate all of the space */
+    strtab = NULL;
+    if (_called_before)
+    {
+	/* 2nd or more times through */
+	if ((cur_term = (TERMINAL *) malloc(sizeof (TERMINAL))) == NULL)
+	    goto badmalloc;
+	if ((cur_bools = (struct _bool_struct *) malloc(sizeof (struct _bool_struct))) == NULL)
+	    goto freeterminal;
+	if ((cur_nums = (struct _num_struct *) malloc(sizeof (struct _num_struct))) == NULL)
+	    goto freebools;
+	if ((cur_strs = (struct _str_struct *) malloc(sizeof (struct _str_struct))) == NULL)
 	{
-		register short *sp;
-		short *fp = &cur_nums->Sentinel;
-		register int s;
-#ifdef DUMPTI
-		register int tempindex = 0;
-#endif /* DUMPTI */
-
-		for (sp= &cur_nums->_columns; nints--; ) {
-			s = getshi();
-#ifdef DUMPTI
-			Vr2val = Vr2getshi();
-			printf("Num %s [%s] (%s) = %d [%d].\n",
-				numfnames[tempindex],
-				numnames[tempindex],
-				numcodes[tempindex], s, Vr2val);
-			tempindex++;
-#endif /* DUMPTI */
-			if (sp < fp)
-				if (s < 0)
-					*sp++ = -1;
-				else
-					*sp++ = s;
-		}
+freenums:
+	    free((char *) cur_nums);
+freebools:	
+	    free((char *) cur_bools);
+freeterminal:
+	    free((char *) cur_term);
+badmalloc:
+	    term_errno = TERM_BAD_MALLOC;
+#ifdef	DEBUG
+	    strcpy(term_parm_err, "setupterm");
+#endif	/* DEBUG */
+out_err:
+	    if (errret == 0)
+	    {
+		termerr();
+		exit(-term_errno);
+	    }
+	    else
+		return (ERR);
 	}
+    }
+    else
+    {
+	/* First time through */
+	_called_before = TRUE;
+	cur_term = &_first_term;
+	cur_bools = &_frst_bools;
+	cur_nums = &_frst_nums;
+	cur_strs = &_frst_strs;
+	if (sstrtab < sizeof(_frst_tblstr))
+	    strtab = _frst_tblstr;
+    }
 
-#ifdef JWINSIZE
-	/*
-	 * ioctls for Blit - you may need to #include <jioctl.h>
-	 * This ioctl defines the window size and overrides what
-	 * it says in terminfo.
-	 */
+    if (strtab == NULL)
+    {
+	if ((strtab = (char *) malloc((unsigned) sstrtab)) == NULL)
 	{
-		struct jwinsize w;
-
-		if (ioctl(filenum, JWINSIZE, &w) != -1 &&
-			w.bytesy != 0 && w.bytesx != 0) {
-			cur_nums->_lines = (unsigned char) w.bytesy;
-			cur_nums->_columns = (unsigned char) w.bytesx;
-#ifdef DUMPTI
-	printf("ioctl JWINSIZE override: (lines,columns)=(%d,%d)\n",
-		w.bytesy, w.bytesx);
-#endif /* DUMPTI */
-		}
+	    if (cur_strs != &_frst_strs)
+		free((char *)cur_strs);
+	    goto freenums;
 	}
-#endif
+    }
 
-#ifdef TIOCGSIZE
-	/*
-	 * ioctls for Sun.
-	 */
+    /* no more catchable errors */
+    if (errret)
+	*errret = 1;
+
+    (void) strncpy(cur_term->_termname, term, 14);
+    /* In case the name is exactly 15 characters */
+    cur_term->_termname[14] = '\0';
+    cur_term->_bools = cur_bools;
+    cur_term->_nums = cur_nums;
+    cur_term->_strs = cur_strs;
+    cur_term->_strtab = strtab;
+    cur_term->sgr_mode = cur_term->sgr_faked = A_NORMAL;
+
+    if (filenum == 1 && !isatty(filenum))
+	filenum = 2;	/* Allow output redirect */
+    cur_term->Filedes = filenum;
+    _blast_keys(cur_term);
+    cur_term->_iwait = cur_term->fl_typeahdok = cur_term->_chars_on_queue =
+	cur_term->_fl_rawmode = cur_term->_ungotten = 0;
+    cur_term->_cursorstate = 1;
+    cur_term->_delay = cur_term->_inputfd = cur_term->_check_fd = -1;
+    (void) memset((char*)cur_term->_regs, 0, 26 * sizeof(short));
+
+#ifndef	DUMPTI
+    def_shell_mode();
+    /* This is a useful default for PROGTTY, too */
+    PROGTTY = SHELLTTY;
+#endif	/* DUMPTI */
+
+    /* Skip names of terminals */
+    (void) memcpy((char *) cp, (char *) ip, (int) (snames * sizeof(*cp)));
+    ip += snames;
+
+    /*
+     * Pull out the booleans.
+     * The for loop below takes care of a new curses with an old tic
+     * file and visa-versa.  nbools says how many bools the tic file has.
+     * So, we only loop for as long as there are bools to read.
+     * However, if this is an old curses that doesn't have all the
+     * bools that this new tic has dumped, then the extra if
+     * "if (cp < fp)" says that if we are going to read into our structure
+     * passed its size don't do it but we still need to keep bumping
+     * up the pointer of what we read in from the terminfo file.
+     */
+    {
+	char		*fp = &cur_bools->Sentinel;
+	register	char	s;
+#ifdef	DUMPTI
+	register	int	tempindex = 0;
+#endif	/* DUMPTI */
+	cp = &cur_bools->_auto_left_margin;
+	while (nbools--)
 	{
-		struct ttysize w;
-
-		if (ioctl(filenum, TIOCGSIZE, &w) != -1 &&
-			w.ts_lines > 0 && w.ts_cols > 0) {
-			cur_nums->_lines = w.ts_lines;
-			cur_nums->_columns = w.ts_cols;
-#ifdef DUMPTI
-	printf("ioctl TIOCGSIZE override: (lines,columns)=(%d,%d)\n",
-		w.ts_lines, w.ts_cols);
-#endif /* DUMPTI */
-		}
+	    s = *ip++;
+#ifdef	DUMPTI
+	    printf("Bool %s [%s] (%s) = %d.\n", boolfnames[tempindex],
+		boolnames[tempindex], boolcodes[tempindex], s);
+	    tempindex++;
+#endif	/* DUMPTI */
+	    if (cp < fp)
+		*cp++ = s & 01;
 	}
-#endif
+	if (cp < fp)
+	    (void) memset(cp, 0, (int) ((fp - cp) * sizeof(bool)));
+    }
 
-	/*
-	 * Check $LINES and $COLUMNS.
-	 */
+    /* Force proper alignment */
+    if (((unsigned int) ip) & 1)
+	ip++;
+
+    /*
+     * Pull out the numbers.
+     */
+    {
+	register	short	*sp = &cur_nums->_columns;
+	short		*fp = &cur_nums->Sentinel;
+	register	int	s;
+#ifdef	DUMPTI
+	register	int	tempindex = 0;
+#endif	/* DUMPTI */
+
+	while (nints--)
 	{
-		int ilines = 0, icolumns = 0;
-		lcp = getenv("LINES");
-		ccp = getenv("COLUMNS");
-		if (lcp)
-			if ((ilines = atoi(lcp)) > 0) {
-				cur_nums->_lines = ilines;
-#ifdef DUMPTI
-	printf("$LINES override: lines=%d\n", ilines);
-#endif /* DUMPTI */
-			}
-		if (ccp)
-			if ((icolumns = atoi(ccp)) > 0) {
-				cur_nums->_columns = icolumns;
-#ifdef DUMPTI
-	printf("$COLUMNS override: columns=%d\n", icolumns);
-#endif /* DUMPTI */
-			}
+	    s = _Getshi();
+#ifdef	DUMPTI
+	    Vr2val = _Vr2getshi();
+	    printf("Num %s [%s] (%s) = %d [%d].\n", numfnames[tempindex],
+		numnames[tempindex], numcodes[tempindex], s, Vr2val);
+	    tempindex++;
+#endif	/* DUMPTI */
+	    if (sp < fp)
+		if (s < 0)
+		    *sp++ = -1;
+		else
+		    *sp++ = s;
 	}
+	if (sp < fp)
+	    (void) memset((char *) sp, '\377', (int) ((fp - sp) * sizeof(short)));
+    }
 
-	/*
-	 * Pull out the strings.
-	 */
+#ifdef	JWINSIZE
+    /*
+     * ioctls for Blit - you may need to #include <jioctl.h>
+     * This ioctl defines the window size and overrides what
+     * it says in terminfo.
+     */
+    {
+	struct	jwinsize	w;
+
+	if (ioctl(filenum, JWINSIZE, &w) != -1 && w.bytesy != 0 && w.bytesx != 0)
 	{
-		register char **pp;
-		char **fp = &cur_strs->strs3.Sentinel;
-#ifdef DUMPTI
-		register int tempindex = 0;
-		register char *startstr = ip + 2*nstrs;
+	    cur_nums->_lines = (unsigned char) w.bytesy;
+	    cur_nums->_columns = (unsigned char) w.bytesx;
+#ifdef	DUMPTI
+	    printf("ioctl JWINSIZE override: (lines, columns)=(%d, %d)\n", w.bytesy, w.bytesx);
+#endif	/* DUMPTI */
+	}
+    }
+#endif	/* JWINSIZE */
 
-		printf("string table = '");
-		Mprint(sstrtab, startstr);
-		printf("'\n");
-#endif /* DUMPTI */
+#ifdef	TIOCGSIZE
+    /*
+     * ioctls for Sun.
+     */
+    {
+	struct	ttysize	w;
 
-		for (pp= &cur_strs->strs._back_tab; nstrs--; ) {
-			n = getshi();
-#ifdef DUMPTI
-			Vr2val = Vr2getshi();
-			printf("String %s [%s] (%s) offset = %d [%d]",
-				strfnames[tempindex],
-				strnames[tempindex],
-				strcodes[tempindex], n, Vr2val);
-			tempindex++;
-#endif /* DUMPTI */
-			if (pp < fp) {
-#ifdef DUMPTI
-				Sprint(n, startstr+n);
-#endif /* DUMPTI */
-				if (n < 0)
-					*pp++ = NULL;
-				else
-					*pp++ = strtab+n;
-			}
-#ifdef DUMPTI
-			else
-				Sprint(-1, (char *)0);
-#endif /* DUMPTI */
+	if (ioctl(filenum, TIOCGSIZE, &w) != -1 && w.ts_lines > 0 && w.ts_cols > 0)
+	{
+	    cur_nums->_lines = w.ts_lines;
+	    cur_nums->_columns = w.ts_cols;
+#ifdef	DUMPTI
+	    printf("ioctl TIOCGSIZE override: (lines, columns)=(%d, %d)\n", w.ts_lines, w.ts_cols);
+#endif	/* DUMPTI */
+	}
+    }
+#endif	/* TIOCGSIZE */
+
+    /*
+     * Check $LINES and $COLUMNS.
+     */
+    {
+	int	ilines = 0, icolumns = 0;
+
+	lcp = getenv("LINES");
+	ccp = getenv("COLUMNS");
+	if (lcp)
+	    if ((ilines = atoi(lcp)) > 0)
+	    {
+		cur_nums->_lines = ilines;
+#ifdef	DUMPTI
+		printf("$LINES override: lines=%d\n", ilines);
+#endif	/* DUMPTI */
+	    }
+	    if (ccp)
+		if ((icolumns = atoi(ccp)) > 0)
+		{
+		    cur_nums->_columns = icolumns;
+#ifdef	DUMPTI
+		    printf("$COLUMNS override: columns=%d\n", icolumns);
+#endif	/* DUMPTI */
 		}
-	}
+    }
 
-	memcpy(strtab, ip, sstrtab);
+    /* Pull out the strings. */
+    {
+	register	char	**pp = &cur_strs->strs._back_tab;
+	char		**fp = &cur_strs->strs3.Sentinel;
+#ifdef	DUMPTI
+	register	int	tempindex = 0;
+	register	char	*startstr = ip + sizeof(short) * nstrs;
 
-#ifndef DUMPTI
+	printf("string table = '");
+	_Mprint(sstrtab, startstr);
+	printf("'\n");
+#endif	/* DUMPTI */
 
-	/*
-	 * If tabs are being expanded in software, turn this off
-	 * so output won't get messed up.  Also, don't use tab
-	 * or backtab, even if the terminal has them, since the
-	 * user might not have hardware tabs set right.
-	 */
-# ifdef SYSV
-	if ((PROGTTY.c_oflag & TABDLY) == TAB3) {
-		PROGTTY.c_oflag &= ~TABDLY;
-		cur_strs->strs2._tab = NULL;
-		cur_strs->strs._back_tab = NULL;
-		reset_prog_mode();
+	while (nstrs--)
+	{
+	    n = _Getshi();
+#ifdef	DUMPTI
+	    Vr2val = _Vr2getshi();
+	    printf("String %s [%s] (%s) offset = %d [%d]", strfnames[tempindex],
+		strnames[tempindex], strcodes[tempindex], n, Vr2val);
+	    tempindex++;
+#endif	/* DUMPTI */
+	    if (pp < fp)
+	    {
+#ifdef	DUMPTI
+		_Sprint(n, startstr+n);
+#endif	/* DUMPTI */
+		if (n < 0)
+		    *pp++ = NULL;
+		else
+		    *pp++ = strtab + n;
+	    }
+#ifdef	DUMPTI
+	    else
+		_Sprint(-1, (char *) 0);
+#endif	/* DUMPTI */
 	}
-# else
-	if ((PROGTTY.sg_flags & XTABS) == XTABS) {
-		PROGTTY.sg_flags &= ~XTABS;
-		cur_strs->strs2._tab = NULL;
-		cur_strs->strs._back_tab = NULL;
-		reset_prog_mode();
-	}
-# endif
-# ifdef DIOCSETT
+	if (pp < fp)
+	    (void) memset((char *) pp, 0, (int) ((fp - pp) * sizeof(charptr)));
+    }
+
+    (void) memcpy(strtab, ip, sstrtab);
+
+#ifndef	DUMPTI
+
+    /*
+     * If tabs are being expanded in software, turn this off
+     * so output won't get messed up.  Also, don't use tab
+     * or backtab, even if the terminal has them, since the
+     * user might not have hardware tabs set right.
+     */
+#ifdef	SYSV
+    if ((PROGTTY.c_oflag & TABDLY) == TAB3)
+    {
+	PROGTTY.c_oflag &= ~TABDLY;
 	reset_prog_mode();
-# endif
-# ifdef LTILDE
-	ioctl(cur_term -> Filedes, TIOCLGET, &n);
-	if (n & LTILDE);
-		reset_prog_mode();
-# endif
-#endif /* DUMPTI */
+	goto next;
+    }
+#else	/* SYSV */
+    if ((PROGTTY.sg_flags & XTABS) == XTABS)
+    {
+	PROGTTY.sg_flags &= ~XTABS;
+	reset_prog_mode();
+	goto next;
+    }
+#endif	/* SYSV */
+    if (dest_tabs_magic_smso)
+    {
+next:
+	cur_strs->strs2._tab = cur_strs->strs._back_tab = NULL;
+    }
 
-#ifdef _VR2_COMPAT_CODE
-	memcpy(&cur_term->_b1, &cur_bools->_auto_left_margin,
-		(char *)&cur_term->_c1 - (char *)&cur_term->_b1);
-	memcpy(&cur_term->_c1, &cur_nums->_columns,
-		(char *)&cur_term->_Vr2_Astrs._s1 - (char *)&cur_term->_c1);
-	memcpy(&cur_term->_Vr2_Astrs._s1, &cur_strs->strs._back_tab,
-		(char *)&cur_term->Filedes - (char *)&cur_term->_Vr2_Astrs._s1);
-#endif /* _VR2_COMPAT_CODE */
+#ifdef	LTILDE
+    ioctl(cur_term -> Filedes, TIOCLGET, &n);
+#endif	/* LTILDE */
+#endif	/* DUMPTI */
 
-	cur_term->rmul_rmso_neq = strcmp(exit_underline_mode,exit_standout_mode);
-	cur_term->rmul_sgr0_neq = strcmp(exit_underline_mode,exit_attribute_mode);
-	cur_term->rmacs_sgr0_neq = strcmp(exit_alt_charset_mode,exit_attribute_mode);
-	cur_term->rmacs_rmso_neq = strcmp(exit_alt_charset_mode,exit_standout_mode);
-	cur_term->rmso_sgr0_neq = strcmp(exit_standout_mode,exit_attribute_mode);
+#ifdef	_VR2_COMPAT_CODE
+    (void) memcpy(&cur_term->_b1, &cur_bools->_auto_left_margin,
+	    (char *) &cur_term->_c1 - (char *) &cur_term->_b1);
+    (void) memcpy((char *) &cur_term->_c1, (char *) &cur_nums->_columns,
+	    (char *) &cur_term->_Vr2_Astrs._s1 - (char *) &cur_term->_c1);
+    (void) memcpy((char *) &cur_term->_Vr2_Astrs._s1, (char *) &cur_strs->strs._back_tab,
+	    (char *) &cur_term->Filedes - (char *) &cur_term->_Vr2_Astrs._s1);
+#endif	/* _VR2_COMPAT_CODE */
 
-	return 0;
+    on_sequences = cur_term->turn_on_seq;
+    str_array = (char **) cur_strs;
+    {
+	static	char	offsets[] =
+			{
+			    35,	/* enter_standout_mode, */
+			    36,	/* enter_underline_mode, */
+			    25,	/* enter_alt_charset_mode, */
+			    34,	/* enter_reverse_mode, */
+			    26,	/* enter_blink_mode, */
+			    30,	/* enter_dim_mode, */
+			    27,	/* enter_bold_mode, */
+			    32,	/* enter_secure_mode, */
+			    33,	/* enter_protected_mode, */
+			};
+
+	for (n = 0; n < NUM_ATTRIBUTES; n++)
+	{
+	    if (on_sequences[n] = str_array[offsets[n]])
+		cur_term->bit_vector |= bit_attributes[n];
+	}
+    }
+
+    if (!(set_attributes))
+    {
+	static	char	faked_attrs[] = { 1, 3, 4, 6 },
+			offsets[] =
+			{
+			    43,	/* exit_standout_mode, */
+			    44,	/* exit_underline_mode, */
+			    38,	/* exit_alt_charset_mode, */
+			};
+	char		**off_sequences = cur_term->turn_off_seq;
+	int		i;
+
+	if ((max_attributes == -1) && (ceol_standout_glitch || (magic_cookie_glitch >= 0)))
+	    max_attributes = 1;
+
+	/* Figure out what attributes need to be faked.  See vidupdate.c */
+
+	for (n = 0; n < sizeof(faked_attrs); n++)
+	{
+	    if ((!on_sequences[i = faked_attrs[n]]) ||
+		(strcmp(on_sequences[i], on_sequences[0]) == 0))
+	    {
+		cur_term->sgr_faked |= bit_attributes[i];
+	    }
+	}
+
+	cur_term->check_turn_off = A_STANDOUT | A_UNDERLINE | A_ALTCHARSET;
+
+	for (n = 0; n < sizeof(offsets); n++)
+	{
+	    if ((!(off_sequences[n] = str_array[offsets[n]])) ||
+		((n > 0) && (strcmp(off_sequences[n], off_sequences[0]) == 0)) ||
+		((n == 2) && (strcmp(exit_attribute_mode, off_sequences[n]) == 0)))
+	    {
+		cur_term->check_turn_off &= ~bit_attributes[n];
+	    }
+	}
+    }
+    cur_term->cursor_seq[0] = cursor_invisible;
+    cur_term->cursor_seq[1] = cursor_normal;
+    cur_term->cursor_seq[2] = cursor_visible;
+
+    return (OK);
 }
 
-#ifndef DUMPTI
+void
+_blast_keys(terminal)
+TERMINAL	*terminal;
+{
+    terminal->_keys = NULL;
+    terminal->internal_keys = NULL;
+    terminal->_ksz = terminal->_first_macro = 0;
+    terminal->_lastkey_ordered = terminal->_lastmacro_ordered = -1;
+    (void) memset((char*)terminal->funckeystarter, 0, 0400 * sizeof(bool));
+}
+
+#ifndef	DUMPTI
 
 reset_prog_mode()
 {
-	if (BR(Nttyb))
-		(void) ioctl(cur_term -> Filedes,
-#ifdef SYSV
-			TCSETAW,
-#else
-			TIOCSETN,
-#endif
-			&PROGTTY);
-# ifdef LTILDE
-	ioctl(cur_term -> Filedes, TIOCLGET, &cur_term -> oldlmode);
-	cur_term -> newlmode = cur_term -> oldlmode & ~LTILDE;
-	if (cur_term -> newlmode != cur_term -> oldlmode)
-		ioctl(cur_term -> Filedes, TIOCLSET, &cur_term -> newlmode);
-# endif
-#ifdef DIOCSETT
-	if (cur_term -> old.st_termt == 0)
-		ioctl(cur_term->Filedes, DIOCGETT, &cur_term -> old);
-	cur_term -> new = cur_term -> old;
-	cur_term -> new.st_termt = 0;
-	cur_term -> new.st_flgs |= TM_SET;
-	ioctl(cur_term->Filedes, DIOCSETT, &cur_term -> new);
-#endif
+    if (_BR(PROGTTY))
+#ifdef	SYSV
+	(void) ioctl(cur_term -> Filedes, TCSETAW, &PROGTTY);
+#else	/* SYSV */
+	(void) ioctl(cur_term -> Filedes, TIOCSETN, &PROGTTY);
+#endif	/* SYSV */
+
+#ifdef	LTILDE
+    ioctl(cur_term -> Filedes, TIOCLGET, &cur_term -> oldlmode);
+    cur_term -> newlmode = cur_term -> oldlmode & ~LTILDE;
+    if (cur_term -> newlmode != cur_term -> oldlmode)
+	ioctl(cur_term -> Filedes, TIOCLSET, &cur_term -> newlmode);
+#endif	/* LTILDE */
+#ifdef	DIOCSETT
+    if (cur_term -> old.st_termt == 0)
+	ioctl(cur_term->Filedes, DIOCGETT, &cur_term -> old);
+    cur_term -> new = cur_term -> old;
+    cur_term -> new.st_termt = 0;
+    cur_term -> new.st_flgs |= TM_SET;
+    ioctl(cur_term->Filedes, DIOCSETT, &cur_term -> new);
+#endif	/* DIOCSETT */
+    return (OK);
 }
 
 def_shell_mode()
 {
-#ifdef SYSV
-	(void) ioctl(cur_term -> Filedes, TCGETA, &SHELLTTY);
-#else
-	(void) ioctl(cur_term -> Filedes, TIOCGETP, &SHELLTTY);
-#endif
-	/* This is a useful default for Nttyb, too */
-	if (BR(Nttyb) == 0)
-		PROGTTY = SHELLTTY;
+#ifdef	SYSV
+    (void) ioctl(cur_term -> Filedes, TCGETA, &SHELLTTY);
+#else	/* SYSV */
+    (void) ioctl(cur_term -> Filedes, TIOCGETP, &SHELLTTY);
+#endif	/* SYSV */
+    return (OK);
 }
 
-#endif /* DUMPTI */
+#endif	/* DUMPTI */

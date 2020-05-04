@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)crash-3b2:rfs.c	1.16"
+#ident	"@(#)crash-3b2:rfs.c	1.16.3.5"
 /*
 * This file contains code for the crash functions:  adv, gdp, rcvd, sndd.
 */
@@ -38,6 +38,7 @@
 extern struct syment *Queue,*File,*Inode,*Mblock,*Proc;	/* namelist symbol */
 static struct syment *Nadv,*Advbuf,*Gdp;		/* pointers	*/
 struct syment *Rcvd, *Nrcvd,*Nsndd,*Sndd,*Maxgdp;
+extern int nmblock;					/* number of message blocks */
 
 
 /* check for rfs activity */
@@ -102,7 +103,7 @@ getadv()
 	}
 	checkboot();
 	fprintf(fp,"ADVERTISE TABLE SIZE = %d\n",nadv);
-	fprintf(fp,"SLOT  CNT      NAME      RCVD   CLIST   FLAGS\n");
+	fprintf(fp,"SLOT  RCNT  NAME           RCVD   CLIST  FLAGS\n");
 	if(args[optind]) {
 		all = 1;
 		do {
@@ -111,25 +112,25 @@ getadv()
 				continue;
 			if(arg2 != -1)
 				for(slot = arg1; slot <= arg2; slot++)
-					pradv(all,slot,phys,addr);
+					pradv(all,slot,phys,addr,nadv);
 			else {
 				if(arg1 < nadv)
 					slot = arg1;
 				else addr = arg1;
-				pradv(all,slot,phys,addr);
+				pradv(all,slot,phys,addr,nadv);
 			}
 			slot = addr = arg1 = arg2 = -1;
 		}while(args[++optind]);
 	}
 	else for(slot = 0; slot < nadv; slot++)
-		pradv(all,slot,phys,addr);
+		pradv(all,slot,phys,addr,nadv);
 }
 
 
 /* print advertise table */
 int
-pradv(all,slot,phys,addr)
-int all,slot,phys;
+pradv(all,slot,phys,addr,max)
+int all,slot,phys,max;
 long addr;
 {
 	struct advertise advbuf;
@@ -142,19 +143,22 @@ long addr;
 	if ((advbuf.a_flags == A_FREE) && !all)
 		return;
 	if(addr > -1) 
-		slot = getslot(addr,(long)Advbuf->n_value,sizeof advbuf,phys);
-	fprintf(fp,"%4d %4u %-14s",
-		slot,
+		slot = getslot(addr,(long)Advbuf->n_value,sizeof advbuf,phys,max);
+	if(slot == -1)
+		fprintf(fp,"  - ");
+	else fprintf(fp,"%4d",slot);
+	fprintf(fp,"  %4u  %-14s",
 		advbuf.a_count,
 		advbuf.a_name);
 	slot = ((long)advbuf.a_queue-(long)Rcvd->n_value)/sizeof (struct rcvd);
 	if((slot >= 0) && (slot < nrcvd))
 		fprintf(fp," %4d",slot);
 	else fprintf(fp,"   - ");
-	fprintf(fp," %8x", advbuf.a_clist);
-	fprintf(fp," %s%s%s",
+	fprintf(fp,"%8x", advbuf.a_clist);
+	fprintf(fp,"  %s%s%s%s",
 		advbuf.a_flags & A_RDONLY ? " ro" : " rw",
 		advbuf.a_flags & A_CLIST ? " cl" : "",
+		advbuf.a_flags & A_MINTER ? " mi" : "",
 		advbuf.a_flags & A_MODIFY ? " md" : "");
 	if(all)
 		fprintf(fp,"%s", advbuf.a_flags & A_INUSE ? " use" : "");
@@ -174,7 +178,7 @@ getgdp()
 	long arg1 = -1;
 	long arg2 = -1;
 	int c;
-	char *heading = "SLOT QUEUE FILE MNT SYSID FLAG\n";
+	char *heading = "SLOT QUEUE FILE MNT SYSID ISTATE 1SHOT  HDR IDAT HL DLEN TIDU FLAG\n";
 	int maxgdp;
 
 	if(!Gdp)
@@ -188,6 +192,10 @@ getgdp()
 	if(!Queue)
 		if(!(Queue = symsrch("queue")))
 			error("queue not found in symbol table\n");
+	if(!Mblock)
+		if(!(Mblock = symsrch("mblock"))) 
+			error("mblock not found in symbol table\n");
+	blockinit();
 	optind = 1;
 	while((c = getopt(argcnt,args,"efpw:")) !=EOF) {
 		switch(c) {
@@ -214,24 +222,25 @@ getgdp()
 				continue;
 			if(arg2 != -1)
 				for(slot = arg1; slot <= arg2; slot++)
-					prgdp(full,all,slot,phys,addr,heading);
+					prgdp(full,all,slot,phys,addr,heading,
+						maxgdp);
 			else {
 				if(arg1 < maxgdp)
 					slot = arg1;
 				else addr = arg1;
-				prgdp(full,all,slot,phys,addr,heading);
+				prgdp(full,all,slot,phys,addr,heading,maxgdp);
 			}
 			slot = addr = arg1 = arg2 = -1;
 		}while(args[++optind]);
 	}
 	else for(slot = 0; slot < maxgdp; slot++)
-		prgdp(full,all,slot,phys,addr,heading);
+		prgdp(full,all,slot,phys,addr,heading,maxgdp);
 }
 
 /* print gdp table */
 int
-prgdp(full,all,slot,phys,addr,heading)
-int full,all,slot,phys;
+prgdp(full,all,slot,phys,addr,heading,max)
+int full,all,slot,phys,max;
 long addr;
 char *heading;
 {
@@ -242,11 +251,13 @@ char *heading;
 		(char *)&gdpbuf,sizeof gdpbuf,"gdp structures");
 	if (!gdpbuf.queue && !all)
 		return;
-	if(addr > -1) 
-		slot = getslot(addr,(long)Gdp->n_value,sizeof gdpbuf,phys);
 	if(full)
 		fprintf(fp,"%s",heading);
-	fprintf(fp,"%4d",slot);
+	if(addr > -1) 
+		slot = getslot(addr,(long)Gdp->n_value,sizeof gdpbuf,phys,max);
+	if(slot == -1)
+		fprintf(fp,"  - ");
+	else fprintf(fp,"%4d",slot);
 	slot = ((long)gdpbuf.queue - (long)Queue->n_value)/sizeof (struct queue);
 	if((slot >= 0) && (slot < vbuf.v_nqueue))
 		fprintf(fp,"  %4d",slot);
@@ -255,9 +266,25 @@ char *heading;
 	if((slot >= 0) && (slot < vbuf.v_file))
 		fprintf(fp," %4d",slot);
 	else fprintf(fp,"   - ");	
-	fprintf(fp,"  %2d  %4x %s%s%s\n",
+	fprintf(fp,"  %2d  %4x      %1d     ",
 		gdpbuf.mntcnt,
 		gdpbuf.sysid,
+		gdpbuf.istate);
+	if(gdpbuf.oneshot)
+		fprintf(fp,"1");
+	else	fprintf(fp,"0");
+	slot = ((long)gdpbuf.hdr - (long)Mblock->n_value)/sizeof (struct msgb);
+	if((slot >= 0) && (slot < nmblock))
+		fprintf(fp," %4d",slot);
+	else fprintf(fp,"   - ");	
+	slot = ((long)gdpbuf.idata - (long)Mblock->n_value)/sizeof (struct msgb);
+	if((slot >= 0) && (slot < nmblock))
+		fprintf(fp," %4d",slot);
+	else fprintf(fp,"   - ");	
+	fprintf(fp," %2d %4d %4d %s%s%s\n",
+		gdpbuf.hlen,
+		gdpbuf.dlen,
+		gdpbuf.maxpsz,
 		(gdpbuf.flag & GDPDISCONN) ? " dis" : "",
 		(gdpbuf.flag & GDPRECOVER) ? " rec" : "",
 		(gdpbuf.flag & GDPCONNECT) ? " con" : "");
@@ -373,18 +400,19 @@ char *heading;
 		sizeof nsndd,"size of send descriptor table");
 	if(((rcvdbuf.rd_stat == 0) || (rcvdbuf.rd_stat & RDUNUSED)) && !all)
 		return;
-	if(addr > -1) 
-		slot = getslot(addr,(long)Rcvd->n_value,sizeof rcvdbuf,phys);
 	if(full) {
 		streaminit();
         	fprintf(fp,"%s",heading);
 	}
-	fprintf(fp,"%4d %4u %c",
-		slot,
+	if(addr > -1) 
+		slot = getslot(addr,(long)Rcvd->n_value,sizeof rcvdbuf,phys,size);
+	if(slot == -1)
+		fprintf(fp,"  - ");
+	else fprintf(fp,"%4d",slot);
+	fprintf(fp," %4u %c",
 		rcvdbuf.rd_act_cnt,
 		(rcvdbuf.rd_qtype & GENERAL) ? 'G' : 'S');
 		fprintf(fp," %s",
-			(rcvdbuf.rd_qtype & RDLBIN) ? "lbin" : 
 			((rcvdbuf.rd_qtype & RDTEXT) ? "text" : "    "));
 	if(rcvdbuf.rd_qtype & GENERAL) {
 		slot = ((long)rcvdbuf.rd_inode-(long)Inode->n_value)/
@@ -408,16 +436,10 @@ char *heading;
 		(rcvdbuf.rd_stat & RDLINKDOWN) ? " ldown" : "");
 	fprintf(fp,"\n");
 	if(full) {
-		fprintf(fp,"\tMSERVE QSIZE CONID SNDD NEXT   QSLP   RHEAD RTAIL\n");
-		fprintf(fp,"\t %5d %5d %5u",
-			rcvdbuf.rd_max_serv,
+		fprintf(fp,"\tQSIZE CONID NEXT   QSLP   RHEAD RTAIL\n");
+		fprintf(fp,"\t %5d %5u",
 			rcvdbuf.rd_qsize,
 			rcvdbuf.rd_connid);
-		slot = ((long)rcvdbuf.rd_sdnack-(long)Sndd->n_value)/
-			sizeof (struct sndd);
-		if((slot >= 0) && (slot < nsndd))
-			fprintf(fp," %4d",slot);
-		else fprintf(fp,"  -  ");
 		slot = ((long)rcvdbuf.rd_next-(long)Rcvd->n_value)/
 			sizeof (struct rcvd);
 		if((slot >= 0) && (slot < size))
@@ -439,7 +461,7 @@ char *heading;
 			if(rcvdbuf.rd_qtype & GENERAL) {
 				next = rcvdbuf.rd_user_list;
 				if(next)
-					fprintf(fp,"\n\t\tQUEUE SRMNT  ICNT  FCNT  RCNT  WCNT   NEXT\n");
+					fprintf(fp,"\n\tQUEUE SRMNT  ICNT  FCNT  RCNT  WCNT   NEXT   CWCNT CFLAG \n");
 				while(next) {
 					readmem((long)next,1,-1,(char *)&userbuf,
 						sizeof userbuf,"user list");
@@ -447,8 +469,8 @@ char *heading;
 					(long)Queue->n_value)/
 						sizeof (struct queue);
 					if((slot >= 0) && (slot < vbuf.v_nqueue))
-						fprintf(fp,"\t\t%5d",slot);
-					else fprintf(fp,"\t\t   - ");
+						fprintf(fp,"\t%5d",slot);
+					else fprintf(fp,"\t   - ");
 					fprintf(fp," %5d", userbuf.ru_srmntindx);
 					fprintf(fp," %5d %5d %5d %5d",
 						userbuf.ru_icount,
@@ -457,8 +479,17 @@ char *heading;
 						userbuf.ru_fwcnt);
 					next = userbuf.ru_next;
 					if(next)
-						fprintf(fp," %8x\n",next);
-				else fprintf(fp,"     -   \n");
+						fprintf(fp," %8x",next);
+					else fprintf(fp,"    -    ");
+					fprintf(fp," %5d",userbuf.ru_cwcnt);
+					fprintf(fp," %s%s%s%s%s\n",
+						(userbuf.ru_cflag & CACHE_OFF) ? " off" : "",
+						(userbuf.ru_cflag & CACHE_ENABLE) ? " ena" : "",
+						(userbuf.ru_cflag & CACHE_DISABLE) ? " dis" : "",
+						(userbuf.ru_cflag & CACHE_REENABLE) ? " ree" : "",
+						(userbuf.ru_cflag & CACHE_WRITE) ? " wrt" : "");
+					if(userbuf.ru_stat & RU_FREE)
+						break;
 				}
 			}
 			else fprintf(fp,"\n");
@@ -473,6 +504,7 @@ int
 getsndd()
 {
 	int slot = -1;
+	int full = 0;
 	int all = 0;
 	int phys = 0;
 	long addr = -1;
@@ -480,6 +512,7 @@ getsndd()
 	long arg2 = -1;
 	int c;
 	int nsndd;
+        char *heading = "SLOT RCNT SNDX MNDX CONID COPY PROC SQUE NEXT  MODE  STATE\n";
 
 	if(!Sndd)
 		if(!(Sndd = symsrch("sndd"))) 
@@ -488,9 +521,11 @@ getsndd()
 		if(!(Nsndd = symsrch("nsndd"))) 
 			error("cannot determine size of send descriptor table\n");
 	optind = 1;
-	while((c = getopt(argcnt,args,"epw:")) !=EOF) {
+	while((c = getopt(argcnt,args,"efpw:")) !=EOF) {
 		switch(c) {
 			case 'e' :	all = 1;
+					break;
+			case 'f' :	full = 1;
 					break;
 			case 'w' :	redirect();
 					break;
@@ -503,7 +538,8 @@ getsndd()
 	readmem((long)Nsndd->n_value,1,-1,(char *)&nsndd,
 		sizeof nsndd,"size of send descriptor table");
 	fprintf(fp,"SEND DESCRIPTOR TABLE SIZE = %d\n",nsndd);
-        fprintf(fp,"SLOT RCNT SNDX MNDX CONID COPY PROC SQUE NEXT  MODE  STATE\n");
+        if(!full)
+		fprintf(fp,"%s",heading);
 	if(args[optind]) {
 		all = 1;
 		do {
@@ -512,25 +548,26 @@ getsndd()
 				continue;
 			if(arg2 != -1)
 				for(slot = arg1; slot <= arg2; slot++)
-					prsndd(all,slot,phys,addr,nsndd);
+					prsndd(all,full,slot,phys,addr,heading,nsndd);
 			else {
 				if(arg1 < nsndd)
 					slot = arg1;
 				else addr = arg1;
-				prsndd(all,slot,phys,addr,nsndd);
+				prsndd(all,full,slot,phys,addr,heading,nsndd);
 			}
 			slot = addr = arg1 = arg2 = -1;
 		}while(args[++optind]);
 	}
 	else for(slot = 0; slot < nsndd; slot++)
-		prsndd(all,slot,phys,addr,nsndd);
+		prsndd(all,full,slot,phys,addr,heading,nsndd);
 }
 
 /* print sndd function */
 int
-prsndd(all,slot,phys,addr,size)
-int all,slot,phys,size;
+prsndd(all,full,slot,phys,addr,heading,size)
+int all,full,slot,phys,size;
 long addr;
+char *heading;
 {
 	struct sndd snddbuf;
 
@@ -538,10 +575,14 @@ long addr;
 		(char *)&snddbuf,sizeof snddbuf,"send descriptor table");
 	if(((snddbuf.sd_stat == 0) || (snddbuf.sd_stat & SDUNUSED)) && !all)
 		return;
+        if(full)
+		fprintf(fp,"%s",heading);
 	if(addr > -1) 
-		slot = getslot(addr,(long)Sndd->n_value,sizeof snddbuf,phys);
-	fprintf(fp,"%4d %4u %4u %4u %5u %4u",
-		slot,
+		slot = getslot(addr,(long)Sndd->n_value,sizeof snddbuf,phys,size);
+	if(slot == -1)
+		fprintf(fp,"  - ");
+	else fprintf(fp,"%4d",slot);
+	fprintf(fp," %4u %4u %4u %5u %4u",
 		snddbuf.sd_refcnt,
 		snddbuf.sd_sindex,
 		snddbuf.sd_mntindx,
@@ -567,9 +608,18 @@ long addr;
 		snddbuf.sd_mode & ISGID ? "g" : "-",
 		snddbuf.sd_mode & ISVTX ? "v" : "-",
 		snddbuf.sd_mode & 0777);
-	fprintf(fp,"%s%s%s",
+	fprintf(fp,"%s%s%s%s",
 		(snddbuf.sd_stat & SDUSED) ? " used" : "",
 		(snddbuf.sd_stat & SDSERVE) ? " serve" : "",
-		(snddbuf.sd_stat & SDLINKDOWN) ? " ldown" : "");
+		(snddbuf.sd_stat & SDLINKDOWN) ? " ldown" : "",
+		(snddbuf.sd_stat & SDCACHE) ? " cache" : "");
 	fprintf(fp,"\n");
+	if(full) {
+		fprintf(fp,"\t FHANDLE   OFFSET  CNT \n");
+		fprintf(fp,"\t%8x %8x %4d \n",
+			snddbuf.sd_fhandle,
+			snddbuf.sd_offset,
+			snddbuf.sd_count);
+		fprintf(fp,"\n");
+		}
 }

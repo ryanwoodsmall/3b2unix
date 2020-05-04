@@ -5,19 +5,19 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/scanw.c	1.4"
+#ident	"@(#)curses:screen/scanw.c	1.7"
 /*
  * scanw and friends
  *
  */
 
-# include	"curses.ext"
+# include	"curses_inc.h"
 # include	<varargs.h>
 
 /*
  *	This routine implements a scanf on the standard screen.
  */
-/* VARARGS */
+/*VARARGS1*/
 scanw(va_alist)
 va_dcl
 {

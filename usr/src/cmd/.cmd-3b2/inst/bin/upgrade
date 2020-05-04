@@ -1,4 +1,4 @@
-#ident	"@(#)cmd-3b2:inst/bin/upgrade	1.6"
+#ident	"@(#)cmd-3b2:inst/bin/upgrade	1.6.1.1"
 #
 # upgrade
 #
@@ -177,7 +177,7 @@ minutes; a large file system may require as much as forty-five minutes." >&2
 	then
 		fmthard -d 2:0:1:0:0 ${RSIX_0} > /dev/null
 	else
-		eval `prtvtoc -h ${RSIX_0} |
+		eval `prtvtoc -h ${RSIX_0} 2> /dev/null |
 			while read part tag flag base size junk
 			do
 				if [ ${part} -eq 2 ]

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)xt:xts.c	2.3"
+#ident	"@(#)xt:xts.c	2.4"
 
 /*	Copyright (c) 1984 AT&T	*/
 /*	  All Rights Reserved  	*/
@@ -21,63 +21,42 @@
 char		Usage[]	=	"Usage: %s [-f]\n";
 
 #include	"stdio.h"
+#include	"sys/jioctl.h"
 
 char *		name;
 int		display;
 
-void		error();
-
-extern void	xtstats();
+extern int	xtstats();
 
 extern char	_sobuf[];
 
-
 #define		Fprintf		(void)fprintf
 #define		SYSERROR	(-1)
-
-
 
 int
 main(argc, argv)
 	int		argc;
 	char *		argv[];
 {
-	name = *argv++;
+	name = *argv;
 
-	while ( --argc )
-	{
-		if ( argv[0][0] == '-' )
-			switch ( argv[0][1] )
-			{
-			 case 'f':	display++;	break;
-			 default:	error("bad flag '%c'", (char *)argv[0][1]);
-					return 1;
-			}
-		else
-		{
-			error("unrecognised argument '%s'", argv[0]);
-			return 1;
-		}
-		argv++;
+	if (argc != 1)
+		if (!(argc == 2 && (strcmp("-f", argv[1]) == 0))) {
+			Fprintf(stderr, Usage, name);
+			exit(1);
+		} else
+			 ++display;
+
+	if (ioctl(0, JMPX, 0) == -1){
+		Fprintf(stderr, "%s: Must be invoked with stdin attached to an xt channel.\n", name);
+		exit(1);
 	}
 
 	setbuf(stdout, _sobuf);
-	xtstats(0, stdout);
+	if ( xtstats(name, 0, stdout) )
+		exit(1);
 	if ( display )
 		Fprintf(stdout, "\f");
 
-	return 0;
-}
-
-
-
-void
-error(s1, s2)
-	char *	s1;
-	char *	s2;
-{
-	Fprintf(stderr, "%s - error - ", name);
-	Fprintf(stderr, s1, s2);
-	Fprintf(stderr, "\n");
-	Fprintf(stderr, Usage, name);
+	exit(0);
 }

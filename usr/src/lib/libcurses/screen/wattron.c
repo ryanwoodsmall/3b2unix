@@ -5,25 +5,13 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/wattron.c	1.3"
-/*
- * routines dealing with entering and exiting standout mode
- *
- */
+#ident	"@(#)curses:screen/wattron.c	1.7"
+#include	"curses_inc.h"
 
-# include	"curses.ext"
-
-/*
- * Turn on selected attributes.
- */
-wattron(win, attrs)
-register WINDOW	*win;
-int attrs;
+wattron(win,a)
+WINDOW	*win;
+chtype	a;
 {
-#ifdef DEBUG
-	if(outf) fprintf(outf, "WATTRON(%x, %o)\n", win, attrs);
-#endif
-
-	win->_attrs |= attrs;
-	return 1;
+    win->_attrs |= (a & A_ATTRIBUTES);
+    return (1);
 }

@@ -5,11 +5,12 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)fmthard:fmthard.c	1.5"
+#ident	"@(#)fmthard:fmthard.c	1.5.2.3"
 #include <stdio.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/vtoc.h>
 #include <sys/id.h>
 #include <sys/open.h>
@@ -21,12 +22,12 @@
 #define SWAP_72	 10106
  
 #define ROOT_10	  8928
-#define ROOT_32	 12510
-#define ROOT_72	 12636
+#define ROOT_32	 15210
+#define ROOT_72	 18144
 
 #define USR_10	  9360
-#define USR_32	 43920
-#define USR_72	126684
+#define USR_32	 41220
+#define USR_72	121176
 
 #define SIZE_10	 21888
 #define SIZE_32	 62550
@@ -106,6 +107,7 @@ char	**argv;
 	int		c;
 	char		*dfile, *vname;
 	struct vtoc	bufvtoc;
+	struct stat	statbuf;
 	extern char	*optarg;
 	extern int	optind;
 
@@ -152,10 +154,16 @@ char	**argv;
 
 	if (argc - optind != 1)
 		usage();
-	if(strncmp(argv[optind],"/dev/r",6) != 0)	{
+	if (stat(argv[optind], (struct stat *) &statbuf) == -1) {
+		(void) fprintf(stderr, "fmthard:  Cannot stat device %s\n",argv[optind]);
+		exit(1);
+	}
+
+	if ((statbuf.st_mode & S_IFMT) != S_IFCHR) {
 		(void) fprintf(stderr, "fmthard:  Must specify a raw device.\n");
 		exit(1);
 	}	
+
 	if ((fd = open(argv[optind], O_RDWR)) < 0) {
 		(void) fprintf(stderr, "fmthard:  Cannot open device %s\n",argv[optind]);
 		exit(1);
@@ -489,10 +497,19 @@ struct vtoc	*vtoc;
 	auto int	start;
 	auto int	size;
 
-	if (sscanf(data, "%d:%d:%x:%d:%d",
+	if (sscanf(data, "%x:%d:%x:%d:%d",
 	    &part, &tag, &flag, &start, &size) != 5) {
 		(void) fprintf(stderr, "Delta syntax error on \"%s\"\n", data);
 		exit(1);
+	}
+	if (part >= V_NUMPAR) {  /* Decimal 10 - 15 look like 16 - 21 */
+		part = part - 6;
+		if (part >= V_NUMPAR) {
+			(void) fprintf(stderr,
+			    "Error in data %s: No such partition %x\n",
+			    data, part+6);
+			exit(1);
+		}
 	}
 	vtoc->v_part[part].p_tag = tag;
 	vtoc->v_part[part].p_flag = flag;
@@ -529,17 +546,20 @@ struct vtoc	*vtoc;
 		if (line[0] == '\0' || line[0] == '\n' || line[0] == '*')
 			continue;
 		line[strlen(line) - 1] = '\0';
-		if (sscanf(line, "%d %d %x %d %d",
+		if (sscanf(line, "%x %d %x %d %d",
 		    &part, &tag, &flag, &start, &size) != 5) {
 			(void) fprintf(stderr, "%s: Syntax error on \"%s\"\n",
 			    dfile, line);
 			exit(1);
 		}
-		if (part >= V_NUMPAR) {
-			(void) fprintf(stderr,
-			    "Error in datafile %s: No such partition %d\n",
-			    dfile, part);
-			exit(1);
+		if (part >= V_NUMPAR) {  /* Decimal 10 - 15 look like 16 - 21 */
+			part = part - 6;
+			if (part >= V_NUMPAR) {
+				(void) fprintf(stderr,
+				    "Error in datafile %s: No such partition %x\n",
+				    dfile, part+6);
+				exit(1);
+			}
 		}
 		vtoc->v_part[part].p_tag = tag;
 		vtoc->v_part[part].p_flag = flag;

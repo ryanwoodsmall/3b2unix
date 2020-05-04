@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sh:timeout.h	1.5"
+#ident	"@(#)sh:timeout.h	1.7"
 /*
  *	UNIX shell
  */

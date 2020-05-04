@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)listen:nlsdata.c	1.2"
+#ident	"@(#)listen:nlsdata.c	1.3"
 
 /*
  * data used by network listener service library routines
@@ -15,4 +15,3 @@
 
 int _nlslog;	/* non-zero allows use of stderr for messages	*/
 struct t_call *_nlscall; /* call struct allocated by routines	*/
-

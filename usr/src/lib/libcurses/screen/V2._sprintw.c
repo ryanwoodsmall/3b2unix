@@ -5,9 +5,9 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/V2._sprintw.c	1.2"
+#ident	"@(#)curses:screen/V2._sprintw.c	1.5"
 
-# include	"curses.ext"
+# include	"curses_inc.h"
 # include	<varargs.h>
 
 #ifdef _VR2_COMPAT_CODE

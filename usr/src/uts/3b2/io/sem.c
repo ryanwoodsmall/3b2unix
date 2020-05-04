@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/sem.c	10.9"
+#ident	"@(#)kern-port:io/sem.c	10.10"
 /*
 **	Inter-Process Communication Semaphore Facility.
 */
@@ -27,7 +27,7 @@
 #include "sys/psw.h"
 #include "sys/pcb.h"
 #include "sys/user.h"
-#if !defined(u3b5) && !defined(u3b2)
+#if !defined(u3b15) && !defined(u3b2)
 #include "sys/seg.h"
 #endif
 #include "sys/proc.h"

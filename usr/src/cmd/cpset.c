@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)cpset:cpset.c	1.5.1.1"
+#ident	"@(#)cpset:cpset.c	1.5.1.2"
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -177,7 +177,11 @@ char *argv[];
 			exit(1);
 		} else notmp++;
 	}
-	while (len=read(fdin,bufr,4096)) write(fdout,bufr,len);
+	while (len=read(fdin,bufr,4096)) 
+		if ( write(fdout,bufr,len) == -1 ) {
+			perror("cpset: Write failed");
+			exit(1);
+		}
 	close(fdin);
 	close(fdout);
 

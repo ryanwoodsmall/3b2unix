@@ -5,8 +5,8 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sa:sadp.c	1.14.1.2"
-/*	sadp.c 1.14.1.2 of 8/27/85	*/
+#ident	"@(#)sa:sadp.c	1.14.1.4"
+/*	sadp.c 1.14.1.4 of 6/18/86	*/
 /*      sadp.c - For VAX and PDP11 machines,
 		disk profiler profiles rp06, rm05 and general disk drives.
 		It reads system buffer header pool, physical buffer header
@@ -19,7 +19,7 @@
 */
 
 #ifdef u3b2
-#undef	u3b5	/* A kludge to get around 3b2cc defining u3b5 */
+#undef	u3b15	/* A kludge to get around 3b2cc defining u3b15 */
 #endif 
 
 #include <stdio.h>
@@ -37,7 +37,7 @@
 #include <sys/dfc.h>
 #include <sys/dsktyp.h>
 #endif
-#ifdef u3b5
+#ifdef u3b15
 #include <sys/dfdrv.h>
 #endif
 #ifdef u3b2
@@ -84,7 +84,7 @@ struct {
 
 #endif
 
-#ifdef u3b5
+#ifdef u3b15
 
 #define NDRIVE	4
 #define DFDFC	0
@@ -278,7 +278,8 @@ char **argv;
 	extern  char    *optarg;
 	int c,j;
 	char *ctime(),*stime;
-	long time(),curt;
+	long curt;
+	extern time_t time();
 	long skdist[8];
 	long disk[8];
 
@@ -365,7 +366,7 @@ char **argv;
 			}
 			if (errflg)
 				break;
-#if u3b || u3b5
+#if u3b || u3b15
 			temp = 1;
 #else
 #if u3b2
@@ -536,7 +537,7 @@ char **argv;
 		exit2();
 #endif
 
-#ifdef u3b5
+#ifdef u3b15
 	lseek(f,(long)setup[DFCNT].n_value,0);
 	if (read(f,&dfcnt,sizeof dfcnt) == -1)
 		extmsg("cannot read disk counter");
@@ -621,7 +622,7 @@ char **argv;
 		ldlinfo(dskloc);
 #endif
  
-#ifdef u3b5
+#ifdef u3b15
 /*      initialize linfo table  */
 	getiocnt(dfloc);
 /*      save io count into linfo table  */
@@ -740,7 +741,7 @@ char **argv;
 		getsample(dskloc);
 #endif
 
-#ifdef u3b5
+#ifdef u3b15
 /*      start to snapshot the dskinfo table     */
 		if (dftbl(dfloc) == -1)
 			exit3();
@@ -769,7 +770,7 @@ char **argv;
 			getiocnt(dskloc);
 #endif
 
-#if u3b5
+#if u3b15
 			if (dftbl(dfloc) == -1)
 				exit3();
 			getiocnt(dfloc);
@@ -806,7 +807,7 @@ char **argv;
 					if (drvlist[k] == 0)
 					continue;
 					if (disk[i] != 0){
-#if u3b || u3b5 || u370
+#if u3b || u3b15 || u370
 						iocnt[i] = iocnt[i] - (long)linfo[i].iocnt;
 #else
 						iocnt[i] = ib[k].io_cnt - iocnt[i];
@@ -1109,7 +1110,7 @@ exit3()
 }
 #endif
  
-#ifdef u3b5
+#ifdef u3b15
 dftbl(x)
 register struct dfc *x;
 {

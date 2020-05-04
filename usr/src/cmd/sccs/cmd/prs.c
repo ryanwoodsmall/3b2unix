@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sccs:cmd/prs.c	6.9"
+#ident	"@(#)sccs:cmd/prs.c	6.11"
 /*************************************************************************/
 /*									 */
 /*	prs [-d<dataspec>] [-r<sid>] [-l] [-e] [-a] file ...		 */
@@ -29,8 +29,6 @@
 
 # include "../hdr/defines.h"
 # include "../hdr/had.h"
-
-#ident	"@(#)sccs:cmd/prs.c	6.9"
 
 struct stat Statbuf;
 char Null[1];
@@ -507,7 +505,7 @@ struct	stats	*statp;
 				putchar(':');
 				continue;
 			}
-#if u370 || u3b || u3b5 || u3b2
+#if u370 || u3b || u3b15 || u3b2
 			u.str[3] = *++lp;
 			u.str[2] = *++lp;
 #else
@@ -1013,10 +1011,8 @@ register struct packet *pkt;
 			satoi(p,&ser);
 			if (iod == END)
 				remq(pkt,ser);
-			else if ((ap = &pkt->p_apply[ser])->a_code == APPLY)
-				addq(pkt,ser,iod == INS ? YES : NO,iod,ap->a_reason & USER);
 			else
-				addq(pkt,ser,iod == INS ? NO : NULL,iod,ap->a_reason & USER);
+				addq(pkt,ser,iod == INS ? NO : NULL,iod, USER);
 		}
 	}
 	if (HAD_BD)

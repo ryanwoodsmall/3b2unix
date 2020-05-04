@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sysdef-3b2:sysdef.c	1.16"
+#ident	"@(#)sysdef-3b2:sysdef.c	1.16.3.1"
 #include	<stdio.h>
 #include	<a.out.h>
 /*  Fix known problem with a.out.h internal inconsistency  */
@@ -28,7 +28,7 @@
 #include	<ldfcn.h>
 #include	<ctype.h>
 
-#ifdef u3b5
+#ifdef u3b15
 #include	<sys/mmu.h>
 #define	ONLBE(d)	((d)&0x30)
 #endif
@@ -68,7 +68,7 @@ int		absolute;	/* an absolute boot file; the device information
 char	*os = "/unix";
 char	*mr = "/etc/master.d";
 char	line[256], flag[8], pre[8], pre_addr[20], rtn[20];
-#ifdef  u3b5
+#ifdef  u3b15
 struct	mmuseg	addr;
 #endif
 #ifdef  u3b2
@@ -78,6 +78,7 @@ int	nsp;
 int	nmuxlink, nstrpush, nstrevent, maxsepgcnt, strmsgsz, strctlsz;
 int	nadvertise, nrcvd, nrduser, nsndd, minserve, maxserve, maxgdp,
 	rfsize, rfs_vhigh, rfs_vlow, nsrmount;
+int	nremote, nlocal, rcache_time;
 char	strlofrac, strmedfrac;
 dev_t	root, swap, dump, pipe;
 char	MAJ[128];
@@ -96,7 +97,8 @@ struct nlist	nl[MAXI], *nlptr, *setup(), *endnm,
 	*pnmuxlink, *pnstrpush, *pnstrevent, *pmaxsepgcnt, *pstrlofrac,
 	*pstrmedfrac, *pstrmsgsz, *pstrctlsz, *pmaxgdp,
 	*pnadvertise, *pnrcvd, *pnrduser, *pnsndd, *pminserve,
-	*pmaxserve, *prfsize, *prfs_vhigh, *prfs_vlow, *pnsrmount;
+	*pmaxserve, *prfsize, *prfs_vhigh, *prfs_vlow, *pnsrmount,
+	*pnremote, *pnlocal, *prcache_time;
 
 #define ADDR	0	/* l_func[0] for _addr array */
 #define OPEN	1	/* l_func[1] for open routine */
@@ -288,6 +290,9 @@ main(argc, argv)
 	pnsrmount = setup("nsrmount");
 	seminfo = setup("seminfo");
 	shminfo = setup("shminfo");
+	pnremote = setup("nremote");
+	pnlocal = setup("nlocal");
+	prcache_time = setup("rc_time");
 	setup("");
 	nlist(os, nl);
 	for(nlptr = vs; nlptr != endnm; nlptr++) {
@@ -465,7 +470,21 @@ printf("%s\n",nlptr->n_name);
 		printf("%6d	entries in server mount table (NSRMOUNT)\n",
 			nsrmount);
 	}
-
+	if ( prcache_time->n_value ) {
+		MEMSEEK(prcache_time);	MEMREAD(rcache_time);
+		printf("%6d	max interval for turning off RFS caching (RCACHE_TIME)\n",
+			rcache_time);
+	}
+	if ( pnremote->n_value ) {
+		MEMSEEK(pnremote);	MEMREAD(nremote);
+		printf("%6d	minimum number of RFS buffers (NREMOTE)\n",
+			nremote);
+	}
+	if ( pnlocal->n_value ) {
+		MEMSEEK(pnlocal);	MEMREAD(nlocal);
+		printf("%6d	minimum number of local buffers (NLOCAL)\n",
+			nlocal);
+	}
 	if ( msginfo->n_value )
 		{
 		MEMSEEK(msginfo);	MEMREAD(minfo);
@@ -581,7 +600,7 @@ devices()
 			{
 			MEMREAD( addr );
 
-#ifdef u3b5
+#ifdef u3b15
 			if ( ! addr.valid )
 				break;
 
@@ -716,7 +735,7 @@ sysdev()
 				printf("  pipedev\t%s(%d)\tminor=%d\n", lnptr->l_cfnm, m, minor(pipe) );
 		}
 
-#ifdef u3b5
+#ifdef u3b15
 	if((lnptr = majsrch(dump)) == NULL)
 		fprintf(stderr, "unknown dump device\n");
 	else

@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)cpp:common/cpp.mk	1.15"
+#ident	"@(#)cpp:common/cpp.mk	1.16"
 #	Cpp Makefile
 #
 #
@@ -36,7 +36,8 @@ CPPCOM	= $(SGSBASE)/cpp/common
 #	Compilation Parameters
 #
 CC	= cc
-CFLAGS	= -O
+MSPEC =
+CFLAGS	= -O $(MSPEC)
 FLEX	= -DFLEXNAMES
 DEFLIST	= $(FLEX) 
 ENVPARMS = -DSGSINC=\"$(INCDIR)\" -DUSRINC=\"$(USRINC)\" -DPD_MACH=$(PD_MACH) -DPD_SYS=$(PD_SYS)
@@ -47,7 +48,7 @@ LIBES	=
 #	Lint Parameters
 #
 LINT	= lint
-LINTFLAGS = -p
+LINTFLAGS =
 O	= o
 #
 #	Other Commands
@@ -108,6 +109,7 @@ rodata.$O: cpy.c $(FRC)
 	fi
 	$(CC) $(CFLAGS) -c rodata.s
 #
+shrink : clean clobber
 clean :
 	$(RM) -f cpy.c y.tab.h rodata.c rodata.s $(OBJECTS)
 #

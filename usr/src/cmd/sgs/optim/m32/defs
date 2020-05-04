@@ -1,4 +1,4 @@
-#ident	"@(#)optim:m32/defs	1.7"
+#ident	"@(#)optim:m32/defs	1.8"
 
 /*      machine dependent include file for IS25 */
 
@@ -267,7 +267,7 @@
 # define REGS 0x1fff	/* bit 12 used for condition code analysis */
 # ifdef IMPRETVAL
 extern int RETREG;
-# else IMPRETVAL
+# else /* IMPRETVAL */
 # define RETREG 0x0003
 # endif /* IMPRETVAL */
 # define MXRETREG 0x0003

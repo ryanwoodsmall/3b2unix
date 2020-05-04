@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)initpkg:./mountall.sh	1.8"
+#ident	"@(#)initpkg:./mountall.sh	1.9"
 if u3b2
 then echo "#	Mount file systems according to file system table /etc/fstab.
 #	Note: written to depend on as few commands as possible.
@@ -28,7 +28,7 @@ cat \${fstab} |
 	while  read dev fs fsflags fstype dummy
 	do
 		case \${dev} in
-		'#' | '')	#  Ignore comments, empty lines
+		'#'* | '')	#  Ignore comments, empty lines
 			continue
 		esac
 		case \${dev} in

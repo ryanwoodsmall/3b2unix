@@ -5,22 +5,23 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uname:uname.c	1.17"
+#ident  "@(#)uname:uname.c	1.18"
 #include        <stdio.h>
 #include        "sys/utsname.h"
 
 #if u3b2
-#include	<string.h>
+#include        <string.h>
 #include        "sys/types.h"
-#include	"sys/psw.h"	/* psw.h:  nvram info, must follow "sys/types.h" */
+#include        "sys/psw.h"     /* psw.h:  nvram info, must follow "sys/types.h" */
 #include        "sys/sbd.h"
 #include        "sys/firmware.h"
-#include	"sys/param.h"
-#include	"sys/immu.h"
+#include        "sys/param.h"
+#include        "sys/immu.h"
 #include        "sys/nvram.h"
+#endif
+
 #include        "sys/sys3b.h"
 #define ROOTUID 0
-#endif
 
 struct utsname  unstr, *un;
 
@@ -39,60 +40,60 @@ int argc;
         char *nv_addr;  /* address of sysname data in nvram */
         struct nvparams nvp;
 
-	int Sflg=0;
-	char *optstring="asnrvmS:";
+        int Sflg=0;
+        char *optstring="asnrvmS:";
 #else
-	char *optstring="asnrvm";
+        char *optstring="asnrvm";
 #endif
 
-	char *sysname;
+        char *sysname;
         int sflg=0, nflg=0, rflg=0, vflg=0, mflg=0, errflg=0, optlet;
 
         un = &unstr;
         uname(un);
 
         while((optlet=getopt(argc, argv, optstring)) != EOF)
-		switch(optlet) {
-		case 'a':
-			sflg++; nflg++; rflg++; vflg++; mflg++;
-			break;
-		case 's':
-			sflg++;
-			break;
-		case 'n':
-			nflg++;
-			break;
-		case 'r':
-			rflg++;
-			break;
-		case 'v':
-			vflg++;
-			break;
-		case 'm':
-			mflg++;
-			break;
+                switch(optlet) {
+                case 'a':
+                        sflg++; nflg++; rflg++; vflg++; mflg++;
+                        break;
+                case 's':
+                        sflg++;
+                        break;
+                case 'n':
+                        nflg++;
+                        break;
+                case 'r':
+                        rflg++;
+                        break;
+                case 'v':
+                        vflg++;
+                        break;
+                case 'm':
+                        mflg++;
+                        break;
 #if u3b2
-		case 'S':
-			Sflg++;
-			sysname = optarg;
-			break;
+                case 'S':
+                        Sflg++;
+                        sysname = optarg;
+                        break;
 #endif
 
-		case '?':
-			errflg++;
-	        }
+                case '?':
+                        errflg++;
+                }
 
         if(errflg || (optind != argc))
-		usage();
+                usage();
 
-#if u3b2
-	if((Sflg > 1) || 
-	   (Sflg && (sflg || nflg || rflg || vflg || mflg))) {
-		usage();
-	}
+#if u3b2 || u3b15
+        if((Sflg > 1) || 
+           (Sflg && (sflg || nflg || rflg || vflg || mflg))) {
+                usage();
+        }
 
         /* If we're changing the system name */
-	if(Sflg) {
+        if(Sflg) {
                 if (getuid() != ROOTUID) {
                         if (geteuid() != ROOTUID) {
                                 (void) fprintf(stderr, "uname: not super user\n");
@@ -100,10 +101,11 @@ int argc;
                         }
                 }
                 /* name must contain less than 9 characters */
-		if(strlen(sysname) > 8) {
+                if(strlen(sysname) > 8) {
                         (void) fprintf(stderr, "uname: name must be <= 8 letters\n");
                         exit(1);
                 }
+#if u3b2
                 /* replace name in nvram */
                 strcpy(nv_data, sysname);
                 nv_addr = (char *) &(UNX_NVR->sys_name[0]);
@@ -111,15 +113,16 @@ int argc;
                 nvp.data = nv_data;
                 nvp.cnt = sizeof(UNX_NVR->sys_name);
                 sys3b(WNVR, &nvp, 0);
+#endif
 
                 /* replace name in kernel data section */
                 sys3b(SETNAME, nv_data, 0);
                 exit(0);
         }
 #endif
-						    /* "uname -s" is the default */
+                                                    /* "uname -s" is the default */
         if( !(sflg || nflg || rflg || vflg || mflg))
-		sflg++;
+                sflg++;
         if(sflg)
                 (void) fprintf(stdout, "%.*s", sizeof(un->sysname), un->sysname);
         if(nflg) {
@@ -145,10 +148,10 @@ int argc;
 usage()
 {
 #if u3b2
-	(void) fprintf(stderr, "usage:  uname [-snrvma]\n\tuname [-S system name]\n");
+        (void) fprintf(stderr, "usage:  uname [-snrvma]\n\tuname [-S system name]\n");
 #else
-	(void) fprintf(stderr, "usage:  uname [-snrvma]\n");
+        (void) fprintf(stderr, "usage:  uname [-snrvma]\n");
 #endif
 
-	exit(1);
+        exit(1);
 }

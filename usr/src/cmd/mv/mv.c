@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mv:mv.c	1.22"
+#ident	"@(#)mv:mv.c	1.24"
 /*
  * Combined mv/cp/ln command:
  *	mv file1 file2
@@ -36,6 +36,9 @@
 #define	FALSE	0
 #define MODEBITS 07777
 #define TRUE 1
+
+extern void perror();
+extern int errno;
 
 char	*malloc();
 char	*dname();
@@ -318,6 +321,7 @@ char *source, *target;
 			 
 			 if (unlink(target) < 0) {
 				fprintf(stderr, "%s: cannot unlink %s\n", cmd, target);
+				perror(cmd);
 				if (buf != NULL)
 					free(buf);
 				return(1);
@@ -370,8 +374,10 @@ skip:
 		
 		if((to = creat (target, 0666)) < 0) {
 			fprintf(stderr, "%s: cannot create %s\n", cmd, target);
+			perror(cmd);
 			if (buf != NULL)
 				free(buf);
+			close(from);
 			return (1);
 		}
 		
@@ -404,7 +410,7 @@ skip:
 					free(buf);
 				return (1);
 			}
-		
+
 		/*
 		 * If it was a move, leave times alone.
 		 */
@@ -437,6 +443,7 @@ skip:
 	if (unlink(source) < 0) {
 s_unlink:
 		fprintf(stderr, "%s: cannot unlink %s\n", cmd, source);
+		perror(cmd);
 		if (buf != NULL)
 			free(buf);
 		return(1);

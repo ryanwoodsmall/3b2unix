@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/uparm.h	1.1"
+#ident	"@(#)curses:screen/uparm.h	1.2"
 /*
  * Local configuration of various files.  Used if you can't put these
  * things in the standard places or aren't the super user, so you
@@ -37,7 +37,7 @@
 #define E_TERMINFO	"./terminfo.src"
 
 /* Location of terminfo binary directory tree */
-#define termpath(file)	"/usr/lib/terminfo/file"
+#define _TERMPATH(file)	"/usr/lib/terminfo/file"
 
 /* Location of the C shell */
 #define B_CSH		"/bin/csh"

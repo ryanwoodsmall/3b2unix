@@ -5,14 +5,14 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/systm.h	10.2"
+#ident	"@(#)kern-port:sys/systm.h	10.3.1.1"
 
 /*
  * Random set of variables used by more than one routine.
  */
 
 extern struct inode *rootdir;	/* pointer to inode of root directory */
-extern short cputype;		/* type of cpu = 40, 45, 70, 780, 0x3b5 */
+extern short cputype;		/* type of cpu = 40, 45, 70, 780, 0x3b15 */
 extern time_t lbolt;		/* time in HZ since last boot */
 extern time_t time;		/* time in sec from 1970 */
 
@@ -46,6 +46,8 @@ struct buf *bread();
 struct buf *breada();
 struct file *falloc();
 int	upath();
+int	spath();
+struct proc *prfind();
 
 /*
  * Structure of the system-entry table

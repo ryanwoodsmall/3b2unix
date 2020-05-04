@@ -1,10 +1,10 @@
-#ident	"@(#)vi:port/ex.news	1.11"
+#ident	"@(#)vi:port/ex.news	1.12"
 
 **********************************************************************
 *** NOTE: All pre-1980 commentary has been removed from this file. ***
 **********************************************************************
 
-Version 5.3a  	1986
+Version SVR3.1  	1986
 
    MAJOR STRUCTURAL CHANGES & ENHANCEMENTS:
 
@@ -31,15 +31,17 @@ Version 5.3a  	1986
 
 	      command line	encrypted file	  actions
 	      ------------	--------------	  -------
-	       vi -r file	   YES		prompted for file key
+	       vi -r file	   YES		prompted for key associated 
+						with recovered file
 						[editing session not encrypted]
 
 	       vi -r file	   NO		regular recovery
 						[editing session not encrypted]
 
 	      vi -r -x file	   YES		prompted for editing session key
-						prompted for file key
-						[editing session encrypted]
+						[editing session encrypted,
+						editing session key is used
+						to recover file]
 
 	      vi -r -x file	   NO  		prompted for editing session key
 						[editing session encrypted]

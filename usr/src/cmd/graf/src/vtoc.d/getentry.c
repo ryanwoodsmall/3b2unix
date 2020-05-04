@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)graf:src/vtoc.d/getentry.c	1.1"
+#ident	"@(#)graf:src/vtoc.d/getentry.c	1.1.1.1"
 /* <: t-5 d :> */
 #include <stdio.h>
 #include "vtoc.h"
@@ -44,7 +44,7 @@ FILE *fpi;
 char *str; 
 int len;
 {
-#if u370 | u3b | u3b5 | u3b2
+#if u370 | u3b | u3b15 | u3b2
 	int c;
 	char *p=str;
 #else

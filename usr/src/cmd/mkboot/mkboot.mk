@@ -5,12 +5,12 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)mkboot-3b2:mkboot.mk	1.6"
+#ident	"@(#)mkboot-3b2:mkboot.mk	1.6.1.1"
 INC = $(ROOT)/usr/include
 SOURCES = $(INC)/sys/boothdr.h mkboot.h xmkboot.l mkboot.y main.c util.c
 OBJECTS = mkboot.o main.o util.o
 LEXLIB = -ll
-CFLAGS = -s -O -I$(INC) -Uvax -Updp11 -Du3b5
+CFLAGS = -s -O -I$(INC) -Uvax -Updp11 -Du3b15
 #CFLAGS = -g -N -I$(INC) -DYYDEBUG=1 -DLEXDEBUG=1
 PR = xcl -x -2 -pmini
 

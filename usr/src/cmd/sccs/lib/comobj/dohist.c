@@ -5,11 +5,9 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sccs:lib/comobj/dohist.c	6.4"
+#ident	"@(#)sccs:lib/comobj/dohist.c	6.5"
 # include	"../../hdr/defines.h"
 # include	"../../hdr/had.h"
-
-#ident	"@(#)sccs:lib/comobj/dohist.c	6.4"
 
 extern char *Mrs;
 extern int Domrs;

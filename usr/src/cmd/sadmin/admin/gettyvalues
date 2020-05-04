@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:admin/gettyvalues	2.4"
+#ident	"@(#)sadmin:admin/gettyvalues	2.5"
 #	Flag Values found in /etc/gettydefs
 
 B0	Hang Up 
@@ -16,6 +16,7 @@ B600	600 Baud
 B75	75 Baud
 B9600	9600 Baud
 B19200	19200 Baud
+B38400	38400 Baud
 BRKINT	Signal Interrupt on Break
 BS0	No Delay After Backspace
 BS1	Short Delay After Backspace

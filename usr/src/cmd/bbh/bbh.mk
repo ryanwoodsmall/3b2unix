@@ -5,9 +5,9 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)bbh:bbh.mk	1.7"
+#ident	"@(#)bbh:bbh.mk	1.7.1.1"
 INCRT = $(ROOT)/usr/include
-CFLAGS = -O -I$(INCRT) -Uu3b -Uvax -Updp11 -Uu3b5 -Du3b2
+CFLAGS = -O -I$(INCRT) -Uu3b -Uvax -Updp11 -Uu3b15 -Du3b2
 LDFLAGS = -s
 MAKE = make "AS=$(AS)" "CC=$(CC)" "LD=$(LD)"
 INS = install

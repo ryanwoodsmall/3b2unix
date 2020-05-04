@@ -1,9 +1,9 @@
-520 clearall #ident	"@(#)script.files:t.ascf	1.2"
+520 clearall #ident	"@(#)script.files:t.ascf	1.3"
 705 3 10 55
                ASSIST COMMAND FORMS
 
 
-ASSIST command forms are interacive full-screen versions
+ASSIST command forms are interactive full-screen versions
 of UNIX system commands.  
 706 
 520 botarrow
@@ -24,7 +24,7 @@ of UNIX system commands.
 705 3001 3002 41
 Let us assume that we have two files: one 
 named "oldmemo" and one named "newmemo." 
-We'll use a ASSIST command form to see 
+We'll use an ASSIST command form to see 
 how "oldmemo" and "newmemo" differ.  
 706 
 520 boxarrow

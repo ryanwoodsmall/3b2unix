@@ -1,9 +1,11 @@
-#ident	"@(#)pkg.perf:perf/INSTALL	1.5"
+#ident	"@(#)pkg.perf:perf/INSTALL	1.7"
 #
 #	@(#)INSTALL	1.1
 #
 
 INSPATH=/install/new
+PATH30=/install/3.0
+SAPATH=/usr/lib/sa
 PKGNAME=`cat ${INSPATH}/usr/options/perf.name`
 
 echo "Installing the ${PKGNAME}"
@@ -50,6 +52,17 @@ then
 fi
 
 #
+# 	Check if package was ever installed on the system
+#	if so move sadc to Osadc .
+#
+
+if
+	[ -f /usr/options/perf.name ]
+then
+	mv ${SAPATH}/sadc ${SAPATH}/Osadc
+fi
+
+#
 #	Install the package.
 #
 
@@ -57,7 +70,18 @@ cd ${INSPATH}
 echo "The following files are being installed: "
 find . -print | cpio -pduvm /
 #
+
+#
+#	Check for release 3.0
+#
+if
+	[ `uname -r` = "3.0" ]
+then
+	cd ${PATH30}
+	find . -print | cpio -pdum / 2>/dev/null
+fi
 /install/install/setup
+rm -rf ${SAPATH}/Osadc
 echo "Installation of the ${PKGNAME} complete. "
 echo
 echo 'Execute "shutdown -i6 -g0 -y" and'

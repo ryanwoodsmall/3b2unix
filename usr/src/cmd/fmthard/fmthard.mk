@@ -5,13 +5,12 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)fmthard:fmthard.mk	1.4"
+#ident	"@(#)fmthard:fmthard.mk	1.4.2.1"
 
 ROOT =
 INCRT = $(ROOT)/usr/include
-CFLAGS = -O -I$(INCRT) -Uu3b -Uvax -Updp11 -Uu3b5 -Du3b2
+CFLAGS = -O -I$(INCRT)
 LDFLAGS = -s
-MAKE = make "AS=$(AS)" "CC=$(CC)" "LD=$(LD)"
 INS = install
 FRC =
 

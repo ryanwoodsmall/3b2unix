@@ -5,13 +5,13 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)kern-port:fs/fs.mk	10.3"
+#ident	"@(#)kern-port:fs/fs.mk	10.4.1.1"
 STRIPOPT = -x -r
 
 ROOT =
-INCRT = $(ROOT)/usr/include
-#CFLAGS = -I$(INCRT) -Uvax -Du3b2 -Uu3b5 -Updp11 -DINKERNEL $(MORECPP)
-CFLAGS = -I$(INCRT) -DINKERNEL $(MORECPP)
+INC = $(ROOT)/usr/include
+#CFLAGS = -I$(INC) -Uvax -Du3b2 -Uu3b15 -Updp11 -DINKERNEL $(MORECPP)
+CFLAGS = -I$(INC) -DINKERNEL $(MORECPP)
 FRC =
 
 all:
@@ -23,8 +23,8 @@ all:
 			;;\
 		*)\
 		cd  $$i;\
-			echo "====== make -f $$i \"MAKE=$(MAKE)\" \"AS=$(AS)\" \"CC=$(CC)\" \"LD=$(LD)\" \"FRC=$(FRC)\" \"INCRT=$(INCRT)\" \"MORECPP=$(MORECPP)\"";\
-		make -f $$i.mk "MAKE=$(MAKE)" "AS=$(AS)" "CC=$(CC)" "LD=$(LD)" "FRC=$(FRC)" "INCRT=$(INCRT)" "MORECPP=$(MORECPP)"; \
+			echo "====== make -f $$i \"MAKE=$(MAKE)\" \"AS=$(AS)\" \"CC=$(CC)\" \"LD=$(LD)\" \"FRC=$(FRC)\" \"INC=$(INC)\" \"MORECPP=$(MORECPP)\"";\
+		make -f $$i.mk "MAKE=$(MAKE)" "AS=$(AS)" "CC=$(CC)" "LD=$(LD)" "FRC=$(FRC)" "INC=$(INC)" "MORECPP=$(MORECPP)"; \
 		cd .. ;; \
 		esac;\
 		fi;\

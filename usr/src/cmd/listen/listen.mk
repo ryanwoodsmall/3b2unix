@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)listen:listen.mk	1.14"
+#ident	"@(#)listen:listen.mk	1.14.2.1"
 #	Copyright (c) 1984 AT&T
 #	  All Rights Reserved
 
@@ -34,8 +34,8 @@ CHKDIR = $(ROOT)/usr/net $(ROOT)/usr/net/nls
 INSDIR = $(ROOT)/usr/net/nls
 LIBDIR = $(ROOT)/usr/lib
 
-LSUID	= listen
-LSGID	= adm
+LSUID	= root
+LSGID	= sys
 LIBID	= bin
 
 LLDLIBS	= \
@@ -56,10 +56,11 @@ SRC	= \
 	lslog.c \
 	lssmb.c \
 	nlsaddr.c \
-	nlsdata.c $(DBGSRC)
+	$(DBGSRC)
 
 LIBSRC = \
 	nlsenv.c \
+	nlsdata.c \
 	nlsrequest.c
 
 S4SRC = \
@@ -128,11 +129,11 @@ LSOBJS	= \
 	lsdbf.o \
 	lssmb.o \
 	lsdata.o \
-	nlsdata.o \
 	nlsaddr.o
 
 NLSOBJS = \
 	$(LIBNLS)(nlsenv.o) \
+	$(LIBNLS)(nlsdata.o) \
 	$(LIBNLS)(nlsrequest.o)
 
 S4OBJS = \
@@ -167,7 +168,6 @@ lslog.o:	$(LSTINCS)
 lssmb.o:	$(INC)/stdio.h $(INC)/string.h $(LSTINC)/lssmbmsg.h \
 		$(LSTINC)/lsparam.h $(INC)/sys/tiuser.h $(LSTINC)/lsdbf.h
 lsdata.o:	$(LSTINCS)
-nlsdata.o:	$(INC)/sys/tiuser.h
 nlsaddr.o:	$(INC)/ctype.h $(INC)/sys/tiuser.h
 doprnt.o:	$(DBGINCS)
 
@@ -176,6 +176,7 @@ doprnt.o:	$(DBGINCS)
 # In addition, nlsconnect.o, nlsestab.o, and nlsname.o are only on the S4.
 
 $(LIBNLS)(nlsenv.o):	$(INC)/ctype.h $(LSTINC)/nlsenv.h $(INC)/sys/tiuser.h
+$(LIBNLS)(nlsdata.o):	$(INC)/sys/tiuser.h
 $(LIBNLS)(nlsrequest.o):	$(INC)/stdio.h $(INC)/ctype.h $(INC)/fcntl.h \
 				$(INC)/errno.h $(INC)/string.h $(INC)/sys/tiuser.h \
 				$(LSTINC)/listen.h

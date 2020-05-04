@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:debug/prtabs.c	10.4"
+#ident	"@(#)kern-port:debug/prtabs.c	10.4.1.2"
 #include	"sys/types.h"
 #include	"sys/param.h"
 #include	"sys/immu.h"

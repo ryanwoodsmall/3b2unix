@@ -6,7 +6,7 @@
 #	actual or intended publication of such source code.
 
 	.file	"strcmp.s"
-.ident	"@(#)libc-m32:gen/strcmp.s	1.3"
+.ident	"@(#)libc-m32:gen/strcmp.s	1.4"
 # Fast assembler language version of the following C-program for
 #			strcmp
 # which represents the `standard' for the C-library.
@@ -40,5 +40,4 @@ L1:
 	jne	L0			# not done yet: (*s1==*s2&&*s1!='\0')
 L2:
 	subb3	0(%r1),0(%r0),%r0	# return (*s2 - *s1)
-	movbbw	%r0,%r0			# extend sign
 	ret	&0

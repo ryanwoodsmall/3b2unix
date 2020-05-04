@@ -25,6 +25,7 @@ new	d--775 0 3
 		fcrt0.o	---664	2 2	../lib/fcrt0.o
 		fmcrt1.o	---664	2 2	../lib/fmcrt1.o
 		fmcrt0.o	---664	2 2	../lib/fmcrt0.o
+		pcrt1.o		---664  2 2	../lib/pcrt1.o
 		libc.a	---664	2 2	../lib/libc.a
 		libc_s.a	---664	2 2	../lib/libc_s.a
 		libld.a	---664	2 2	../lib/libld.a
@@ -36,4 +37,4 @@ $
 $
 $
 $
-#ident	"@(#)pkg.sgs:proto2.sgs	1.21"
+#ident	"@(#)pkg.sgs:proto2.sgs	1.22"

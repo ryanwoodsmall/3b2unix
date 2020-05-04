@@ -5,14 +5,13 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)kern-port:boot/olboot/makefile	10.5"
+#ident	"@(#)kern-port:boot/olboot/makefile	10.5.1.1"
 
 
 ROOT =
 INC = $(ROOT)/usr/include
-INCRT = ../..
 INCLOC = ..
-CFLAGS = -I$(INCLOC) -I$(INCRT) -I$(INC) -Uu3b -Uvax -Du3b2 -Updp11 $(DBO)
+CFLAGS = -I$(INCLOC) -I$(INC) -Uu3b -Uvax -Du3b2 -Updp11 $(DBO)
 STRIP = strip
 MAKE = make "AS=$(AS)" "CC=$(CC)" "LD=$(LD)"
 LIBNAME = libfm.a
@@ -80,54 +79,54 @@ lboot.o: lboot.c \
 	$(INC)/scnhdr.h \
 	$(INC)/storclass.h \
 	$(INC)/syms.h \
-	$(INCRT)/sys/boot.h \
-	$(INCRT)/sys/csr.h \
-	$(INCRT)/sys/elog.h \
-	$(INCRT)/sys/firmware.h \
-	$(INCRT)/sys/id.h \
-	$(INCRT)/sys/immu.h \
+	$(INC)/sys/boot.h \
+	$(INC)/sys/csr.h \
+	$(INC)/sys/elog.h \
+	$(INC)/sys/firmware.h \
+	$(INC)/sys/id.h \
+	$(INC)/sys/immu.h \
 	$(INCLOC)/sys/inode.h \
 	$(INCLOC)/sys/iobuf.h \
-	$(INCRT)/sys/lboot.h \
-	$(INCRT)/sys/nvram.h \
+	$(INC)/sys/lboot.h \
+	$(INC)/sys/nvram.h \
 	$(INCLOC)/sys/param.h \
-	$(INCRT)/sys/sbd.h \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/psw.h \
+	$(INC)/sys/sbd.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/psw.h \
 	$(FRC)
 
 $(LIBNAME)(basicio.o): basicio.c \
-	$(INCRT)/sys/boot.h \
-	$(INCRT)/sys/elog.h \
-	$(INCRT)/sys/firmware.h \
-	$(INCRT)/sys/ino.h \
+	$(INC)/sys/boot.h \
+	$(INC)/sys/elog.h \
+	$(INC)/sys/firmware.h \
+	$(INC)/sys/ino.h \
 	$(INCLOC)/sys/inode.h \
 	$(INCLOC)/sys/iobuf.h \
-	$(INCRT)/sys/lboot.h \
+	$(INC)/sys/lboot.h \
 	$(INCLOC)/sys/param.h \
-	$(INCRT)/sys/sysmacros.h \
-	$(INCRT)/sys/types.h \
+	$(INC)/sys/sysmacros.h \
+	$(INC)/sys/types.h \
 	$(FRC)
 
 $(LIBNAME)(findfile.o): findfile.c \
 	$(INCLOC)/sys/dir.h \
-	$(INCRT)/sys/firmware.h \
+	$(INC)/sys/firmware.h \
 	$(INCLOC)/sys/inode.h \
-	$(INCRT)/sys/lboot.h \
+	$(INC)/sys/lboot.h \
 	$(INCLOC)/sys/param.h \
-	$(INCRT)/sys/types.h \
+	$(INC)/sys/types.h \
 	$(FRC)
 
 $(LIBNAME)(findfs.o): findfs.c \
-	$(INCRT)/sys/boot.h \
-	$(INCRT)/sys/elog.h \
+	$(INC)/sys/boot.h \
+	$(INC)/sys/elog.h \
 	$(INCLOC)/sys/filsys.h \
-	$(INCRT)/sys/firmware.h \
+	$(INC)/sys/firmware.h \
 	$(INCLOC)/sys/inode.h \
 	$(INCLOC)/sys/iobuf.h \
-	$(INCRT)/sys/lboot.h \
+	$(INC)/sys/lboot.h \
 	$(INCLOC)/sys/param.h \
-	$(INCRT)/sys/types.h \
+	$(INC)/sys/types.h \
 	$(FRC)
 
 $(LIBNAME)(loadfile.o): loadfile.c \
@@ -140,11 +139,11 @@ $(LIBNAME)(loadfile.o): loadfile.c \
 	$(INC)/scnhdr.h \
 	$(INC)/storclass.h \
 	$(INC)/syms.h \
-	$(INCRT)/sys/firmware.h \
+	$(INC)/sys/firmware.h \
 	$(INCLOC)/sys/inode.h \
-	$(INCRT)/sys/lboot.h \
+	$(INC)/sys/lboot.h \
 	$(INCLOC)/sys/param.h \
-	$(INCRT)/sys/types.h \
+	$(INC)/sys/types.h \
 	$(FRC)
 
 $(LIBNAME)(loadprog.o): loadprog.c \
@@ -157,11 +156,11 @@ $(LIBNAME)(loadprog.o): loadprog.c \
 	$(INC)/scnhdr.h \
 	$(INC)/storclass.h \
 	$(INC)/syms.h \
-	$(INCRT)/sys/firmware.h \
+	$(INC)/sys/firmware.h \
 	$(INCLOC)/sys/inode.h \
-	$(INCRT)/sys/lboot.h \
+	$(INC)/sys/lboot.h \
 	$(INCLOC)/sys/param.h \
-	$(INCRT)/sys/types.h \
+	$(INC)/sys/types.h \
 	$(FRC)
 
 misc.o: misc.s \

@@ -5,17 +5,37 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/rfcanon.c	10.5"
+#ident	"@(#)kern-port:nudnix/rfcanon.c	10.5.2.6"
 
 #include "sys/types.h"
 #include "sys/sema.h"
+#include "sys/param.h"
+#include "sys/fs/s5dir.h"
+#include "sys/errno.h"
+#include "sys/signal.h"
+#include "sys/immu.h"
 #include "sys/stream.h"
 #include "sys/comm.h"
+#include "sys/psw.h"
+#include "sys/pcb.h"
+#include "sys/user.h"
+#include "sys/inode.h"
 #include "sys/message.h"
+#include "sys/region.h"
+#include "sys/proc.h"
+#include "sys/nserve.h"
+#include "sys/cirmgr.h"
+#include "sys/debug.h"
+#include "sys/rdebug.h"
+#include "sys/fs/s5param.h"
+#include "sys/fs/s5macros.h"
+#include "sys/buf.h"
+#include "sys/rbuf.h"
+#include "sys/sysinfo.h"
 #include "sys/dirent.h"
 #include "sys/hetero.h"
-#include "sys/rdebug.h"
-
+#include "sys/fcntl.h"
+#include "sys/file.h"
 
 
 /*
@@ -23,6 +43,10 @@
  *
  *	convert all RFS header and data parts to canonical formats
  *	called by sndmsg() before passing data to protocol module
+ *
+ *  WARNING: This routine will make the output data bigger.
+ *	It is assumed that the "bp" is big enough for the enlarged data.
+ *	See the warning message in fileop.c, right before "alocbuf".
  */
 
 rftocanon (bp, hetero)
@@ -30,7 +54,8 @@ register mblk_t	*bp;
 register int hetero;
 {
 	register struct response *msg;
-	register int i;
+	register struct message *mp;
+	register int i = 0;
 
 	if (hetero == NO_CONV)
 		return;
@@ -42,14 +67,18 @@ register int hetero;
 	if (msg->rp_type == RESP_MSG && msg->rp_errno == 0) {
  		switch (msg->rp_opcode)  {
 		case DUFCNTL:
-			i = tcanon("ssllss", msg->rp_data, msg->rp_data, 1);
-
+			switch (msg->rp_rval) {
+			case	F_GETLK:
+				i = tcanon("ssllss", msg->rp_data, msg->rp_data, 1);
+				break;
+			}
+			break;
 		case DUFSTAT:
 			i = tcanon("sssssssllll", msg->rp_data, msg->rp_data, 1);
 			break;
 
 		case DUFSTATFS:
-			i = tcanon("sssllllc6c6", msg->rp_data, msg->rp_data, 1);
+			i = tcanon("sllllllc6c6", msg->rp_data, msg->rp_data, 1);
 			break;
 
 		case DUGETDENTS:
@@ -63,24 +92,58 @@ register int hetero;
 			break;
 
 		case DUSTATFS:
-			i = tcanon("sssllllc6c6", msg->rp_data, msg->rp_data, 1);
+			i = tcanon("sllllllc6c6", msg->rp_data, msg->rp_data, 1);
 			break;
 
 		case DUUTSSYS:
 			i = tcanon("lsc6c6", msg->rp_data, msg->rp_data, 1);
 			break;
 
+		case DUCOPYOUT:
+			if (u.u_syscall == DUGETDENTS) {
+				i = dentcanon(msg->rp_count, msg->rp_data, msg->rp_data, 1);
+				if (i)
+					msg->rp_count = i;
+			}
+			break;
+
 		default:
-			i = 0;
 			break;
 		}
 
-		/* adjust the stream write pointer due to conversion expansion */
-		if (i)
-			bp->b_wptr = bp->b_rptr + sizeof(struct message) 
-				     + sizeof(struct response) - DATASIZE + i;
+	}
+	if (msg->rp_type == REQ_MSG ) {	  /*rp_type first in req & resp msg*/
+		register struct request *rmsg;
+
+		rmsg = (struct request *)PTOMSG(bp->b_rptr);
+ 		switch (rmsg->rq_opcode)  {
+		case DUFCNTL:
+			if (rmsg->rq_fflag & FRCACH) {
+				switch (rmsg->rq_cmd) {
+				case	F_GETLK:
+				case	F_SETLK:
+				case	F_SETLKW:
+				case	F_CHKFL:
+				case	F_FREESP:
+					i = tcanon("ssllss", rmsg->rq_data, rmsg->rq_data, 1);
+					break;
+				default:
+					break;
+				}
+			}
+			break;
+		default:
+			break;
+		}
 	}
 
+	/* adjust the stream write pointer due to conversion expansion */
+	if (i) {
+		bp->b_wptr = bp->b_rptr + sizeof(struct message) 
+			     + sizeof(struct response) - DATASIZE + i;
+		mp = (struct message *)bp->b_rptr;
+		mp->m_size = bp->b_wptr - bp->b_rptr;
+	}
 	if (hetero == DATA_CONV)
 		return;
 
@@ -112,7 +175,7 @@ register mblk_t	*bp;
 register int hetero;
 {
 	register struct response *msg;
-	register int i;
+	register int i = 0;
 
 	if (hetero == NO_CONV)
 		return;
@@ -136,20 +199,22 @@ register int hetero;
 	if (msg->rp_type == RESP_MSG && msg->rp_errno == 0) {
  		switch (msg->rp_opcode)  {
 		case DUFCNTL:
-			i = fcanon("ssllss", msg->rp_data, msg->rp_data);
-
+			switch (msg->rp_rval) {
+			case	F_GETLK:
+				i = fcanon("ssllss", msg->rp_data, msg->rp_data);
+				break;
+			}
+			break;
 		case DUFSTAT:
 			i = fcanon("sssssssllll", msg->rp_data, msg->rp_data);
 			break;
 
 		case DUFSTATFS:
-			i = fcanon("sssllllc6c6", msg->rp_data, msg->rp_data);
+			i = fcanon("sllllllc6c6", msg->rp_data, msg->rp_data);
 			break;
 
 		case DUGETDENTS:
 			i = denfcanon(msg->rp_count, msg->rp_data, msg->rp_data);
-			if (i)
-				msg->rp_count = i;
 			break;
 
 		case DUSTAT:
@@ -157,7 +222,7 @@ register int hetero;
 			break;
 
 		case DUSTATFS:
-			i = fcanon("sssllllc6c6", msg->rp_data, msg->rp_data);
+			i = fcanon("sllllllc6c6", msg->rp_data, msg->rp_data);
 			break;
 
 		case DUUTSSYS:
@@ -167,12 +232,37 @@ register int hetero;
 		default:
 			break;
 		}
+		if (i)
+			msg->rp_count = i;
 
+	}
+	if (msg->rp_type == REQ_MSG ) {	  /*rp_type first in req & resp msg*/
+		register struct request *rmsg;
+
+		rmsg = (struct request *)PTOMSG(bp->b_rptr);
+ 		switch (rmsg->rq_opcode)  {
+		case DUFCNTL:
+			switch (rmsg->rq_cmd) {
+			case	F_GETLK:
+			case	F_SETLK:
+			case	F_SETLKW:
+			case	F_CHKFL:
+			case	F_FREESP:
+				i = fcanon("ssllss", rmsg->rq_data, rmsg->rq_data);
+				rmsg->rq_prewrite = i;
+				break;
+			default:
+				break;
+			}
+			break;
+		default:
+			break;
+		}
 	}
 }
 
 
-
+static char rfs_dbuf[2048];
 
 
 /*This routine is written to convert directory entries to canon form for getdent
@@ -185,11 +275,10 @@ register char *from, *to;
 {
 	register int tlen, tcc;
 	struct dirent *dir;
-	char cbuf[1400];
 	register char *tmp;
 
 	tlen = 0;
-	tmp = cbuf;
+	tmp = rfs_dbuf;
 
 	while(count > 0){
 		dir = (struct dirent *)from;
@@ -200,7 +289,7 @@ register char *from, *to;
 		from += dir->d_reclen;
 		count -= dir->d_reclen;
 	}
-	bcopy(cbuf, to, tlen);
+	bcopy(rfs_dbuf, to, tlen);
 	return(tlen);
 }
 
@@ -218,16 +307,16 @@ register char *from, *to;
  register char *to;
  {
 	
-	register int tlen, tcc;
+	register int tlen, tcc, tmp;
 	struct dirent *dir;
 
 	tlen = 0;
 	while(count > 0){
-		tcc = fcanon("llsc0",from,to);
+		tcc = 4*sizeof(long) + ((strlen(from + 4*sizeof(long)) +1 + 3) & ~3);
+		tmp = fcanon("llsc0",from,to);
 		dir = (struct dirent *)to;
 		to += dir->d_reclen;
 		tlen += dir->d_reclen;
-		tcc = 4*sizeof(long) + ((strlen(from + 4*sizeof(long)) +1 + 3) & ~3);
 		from += tcc;
 		count -= tcc;
 	}

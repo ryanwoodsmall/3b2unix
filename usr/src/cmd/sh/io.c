@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sh:io.c	1.8"
+#ident	"@(#)sh:io.c	1.10"
 /*
  * UNIX shell
  */

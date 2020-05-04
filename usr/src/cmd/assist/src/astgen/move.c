@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)tools:move.c	1.7"
+#ident	"@(#)tools:move.c	1.8"
 
 #include "../forms/muse.h"
 #include "tools.h"
@@ -22,6 +22,8 @@ char *str;
 	move(y,x);
 }
 
+/*firstlet() tries to find a match between a user entered character and
+the first letter of one of the fields*/
 int firstlet(stname,maxnum,cmd,loc) /*letter and current variable number*/
 					/*returns item number*/
 struct labels *stname; /*label info*/

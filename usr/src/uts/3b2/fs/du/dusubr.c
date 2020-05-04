@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:fs/du/dusubr.c	10.10"
+#ident	"@(#)kern-port:fs/du/dusubr.c	10.14"
 #include "sys/types.h"
 #include "sys/sema.h"
 #include "sys/sysmacros.h"
@@ -135,5 +135,22 @@ register struct inode *ip;
 register struct stat *st;
 {
 	DUPRINT1 (DB_FSS,"dustatf: called\n");
+	remfileop (ip, NULL, NULL);
+}
+
+dustatfs (ip, st)
+register struct inode *ip;
+register struct stat *st;
+{
+	extern short dufstyp;
+
+	/* Ensure that only RFS/du inodes with send descriptors */
+	/* are sent to remfileop */
+	if (ip->i_fstyp != dufstyp) {
+		u.u_error = EINVAL;
+		return;
+	}
+
+	DUPRINT1 (DB_FSS,"dustatfs: called\n");
 	remfileop (ip, NULL, NULL);
 }

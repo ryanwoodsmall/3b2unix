@@ -5,9 +5,9 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/chkinput.c	1.6.1.1"
+#ident	"@(#)curses:screen/chkinput.c	1.6.1.7"
 /*
- * chk_input()
+ * chkinput()
  *
  * Routine to check to see if any input is waiting.
  * It returns a 1 if there is input waiting, and a zero if
@@ -17,124 +17,134 @@
  * parameter. It enables curses to stop a screen refresh whenever
  * a character is input.
  * Standard BTL UNIX 4.0 or 5.0 does not handle FIONREAD.
- * Changes have also been made to 'll_refresh.c' and 'insdelline.c' to
- * call this routine as "InputPending = chk_input()".
+ * Changes have been made to 'wrefresh.c' to
+ * call this routine as "_inputpending = chkinput()".
  * (delay.c and getch.c also use FIONREAD for nodelay, select and fast peek,
  * but these routines have not been changed).
  *
  * Philip N. Crusius - July 20, 1983
  * Modified to handle various systems March 9, 1984 by Mark Horton.
  */
-#include "curses.ext"
+#include	"curses_inc.h"
 
-#ifdef FIONREAD
-#define HAVE_CHK
-int
-_chk_input()
+#ifdef	FIONREAD
+#define	HAVE_CHK
+
+_chkinput()
 {
-	int i;
-	ioctl(SP->check_fd, FIONREAD, &i);
-	return i > 0;
+    int	i;
+
+    ioctl(SP->check_fd, FIONREAD, &i);
+    return (i > 0);
 }
-#endif /* FIONREAD */
+#endif	/* FIONREAD */
 
-#ifdef SELECT
-# ifndef HAVE_CHK
-# define HAVE_CHK
-int
-_chk_input()
+#ifdef	SELECT
+#ifndef	HAVE_CHK
+#define	HAVE_CHK
+_chkinput()
 {
-	struct _timeval {
-		long tv_sec;
-		long tv_usec;
-	};
-	int ifds, ofds, efds, n;
-	struct _timeval tv;
+    struct	_timeval
+    {
+	long	tv_sec;
+	long	tv_usec;
+    };
+    int		ifds, ofds, efds, n;
+    struct	_timeval	tv;
 
-	ifds = 1 << SP->check_fd;
-	ofds = efds = 0;
-	tv.tv_sec = tv.t_usec = 0;
-	n = select(20, &ifds, &ofds, &efds, &tv);
-	return n > 0;
+    ifds = 1 << SP->check_fd;
+    ofds = efds = 0;
+    tv.tv_sec = tv.t_usec = 0;
+    n = select(20, &ifds, &ofds, &efds, &tv);
+    return (n > 0);
 }
-# endif /* HAVE_CHK */
-#endif /* SELECT */
+#endif	/* HAVE_CHK */
+#endif	/* SELECT */
 
-#ifndef HAVE_CHK
-# ifdef SYSV
+#ifndef	HAVE_CHK
+#ifdef	SYSV
 
-int
-_chk_input()
+_chkinput()
 {
-	register int	fd;	/* input file descriptor index */
-	char	c;		/* character input */
+    unsigned	char	c;	/* character input */
 
-	/* If input is waiting in curses queue,	return(1).	*/
-	if (SP->input_queue[0] != -1)
-		return(1);
+    /*
+     * Only check typeahead if the user is using our input
+     * routines. This is because the read below will put
+     * stuff into the inputQ that will never be read and the
+     * screen will never get updated from now on.
+     * This code should GO AWAY when a poll() or FIONREAD can
+     * be done on the file descriptor as then the check
+     * will be non-destructive.
+     */
 
-	/* Only check typeahead if the user is using our input */
-	/* routines. This is because the ungetch() below will put */
-	/* stuff into the inputQ that will never be read and the */
-	/* screen will never get updated from now on. */
-	/* This code should GO AWAY when a poll() or FIONREAD can */
-	/* be done on the file descriptor as then the check */
-	/* will be non-destructive. */
-	if (!SP->fl_typeahdok)
-		return 0;
+    if (!cur_term->fl_typeahdok || (cur_term->_chars_on_queue == INP_QSIZE) ||
+	(cur_term->_check_fd < 0))
+    {
+	goto bad;
+    }
 
-	/*
-	 * We won't be called unless fd is valid.
-	 */
-	fd = SP->check_fd;
+    /* If input is waiting in curses queue, return (TRUE). */
 
-	if (read(fd, &c, 1) > 0) {
-		/*
-		 * A character was waiting.  Put it at the end
-		 * of the curses queue and return 1 to show that
-		 * input is waiting.
-		 */
-		_ungetch(c, 0);
-		return(1);
-	} else { /* No input was waiting so return 0. */
-		return(0);
+    if ((int) cur_term->_chars_on_queue > 0)
+    {
+#ifdef	DEBUG
+	if (outf)
+	{
+	    (void) fprintf(outf, "Found a character on the input queue\n");
+	    _print_queue();
 	}
-}
-# else
-int
-_chk_input()
-{
-	return 0;
-}
-# endif /* SYSV */
-#endif /* HAVE_CHK */
+#endif	/* DEBUG */
+	goto good;
+    }
 
-/*
-    Place a char onto the beginning or end of the input queue.
-*/
-_ungetch(ch, beginning)
-int ch, beginning;
-{
-	register i, temp;
-	register short *inputQ = SP->input_queue;
-
-	if (beginning)
-		/* place the character at the beg of the Q */
-		for (i = 0; i < INP_QSIZE; i++) {
-			temp = inputQ[i];
-			inputQ[i] = ch;
-			if (ch == -1)
-				break;
-			ch = temp;
-		}
-	else
-		/* place the character at the end of the Q */
-		for (i = 0; i < INP_QSIZE; i++) {
-			if (inputQ[i] == -1) {
-				inputQ[i] = ch;
-				if (i < INP_QSIZE - 1)
-					inputQ[i+1] = -1;
-				break;
-			}
-		}
+    if (read(cur_term->_check_fd, (char *) &c, 1) > 0)
+    {
+#ifdef	DEBUG
+	if (outf)
+	{
+	    (void) fprintf(outf, "Reading ahead\n");
+	}
+#endif	/* DEBUG */
+	/*
+	 * A character was waiting.  Put it at the end
+	 * of the curses queue and return 1 to show that
+	 * input is waiting.
+	 */
+#ifdef	DEBUG
+	if (outf)
+	    _print_queue();
+#endif	/* DEBUG */
+	cur_term->_input_queue[cur_term->_chars_on_queue++] = c;
+good:
+	return (TRUE);
+    }
+    else	/* No input was waiting so return 0. */
+    {
+#ifdef	DEBUG
+	if (outf)
+	    (void) fprintf(outf, "No input waiting\n");
+#endif	/* DEBUG */
+bad:
+	return (FALSE);
+    }
 }
+#else	/* SYSV */
+_chkinput()
+{
+    return (FALSE);
+}
+#endif	/* SYSV */
+#endif	/* HAVE_CHK */
+
+#ifdef	DEBUG
+_print_queue()	/* FOR DEBUG ONLY */
+{
+    int		i, j = cur_term->_chars_on_queue;
+    short	*inputQ = cur_term->_input_queue;
+
+    if (outf)
+	for (i = 0; i < j; i++)
+	    (void) fprintf (outf, "inputQ[%d] = %c\n", i, inputQ[i]);
+}
+#endif	/* DEBUG */

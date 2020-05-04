@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:com/access.c	1.18"
+#ident	"@(#)sdb:com/access.c	1.20"
 
 /*
  *	UNIX debugger
@@ -13,23 +13,28 @@
 
 #include "head.h"
 #define STAR	4
+/*
+**#define ISDSP(X)	( ( datmap.b1 <= X && X < datmap.e1 ) || \
+**			  ( datmap.b2 <= X && X < datmap.e2 ) )
+**#define ISISP(X)	( ( txtmap[libn].b1 <= X && X < txtmap[libn].e1 ) || \
+**			  ( txtmap[libn].b2 <= X && X < txtmap[libn].e2 ) )
+*/
+
+/*
 #define ISDSP(X)	((datmap.b1 <= X && X < datmap.e1) || \
 			 (datmap.b2 <= X && X < datmap.e2) || \
-			 (txtmap.b2 <= X && X < txtmap.e2))
-#define ISISP(X)	(txtmap.b1 <= X && X < txtmap.e1)
-/*
-** #define	ISDSP(X)	( ( datmap.b1 <= X && X < datmap.e1 ) || \
-**	 			  ( datmap.b2 <= X && X < datmap.e2 ) )
-** #define	ISISP(X)	( ( txtmap.b1 <= X && X < txtmap.e1 ) || \
-**				  ( txtmap.b2 <= X && X < txtmap.e2 ) )
+			 (txtmap[libn].b2 <= X && X < txtmap[libn].e2))
+#define ISISP(X)	( txtmap[libn].b1 <= X && X < txtmap[libn].e1)
 */
+#define ISDSP(X)	( isdsp(X))
+#define ISISP(X)	( isisp(X))
 #define WITHIN(adr, lbd, ubd) ((adr) >= (lbd) && (adr) < (ubd))
 
 extern int wtflag;	
 
 extern MSG		BADDAT;
 extern MSG		BADTXT;
-extern MAP		txtmap;
+extern MAP		txtmap[];
 extern MAP		datmap;
 extern STRING		errflg;
 extern int		errno;
@@ -358,8 +363,8 @@ long value;
 		closeparen();
 	}
 #endif
-	val = getpart(value,d);		/* if less than word, right part */
 #if vax || u3b
+	val = getpart(value,d);		/* if less than word, right part */
 	if (ISREGN(reg)) SDBREG(reglist[reg].roffs) = val;
 #endif
 
@@ -385,9 +390,11 @@ long value;
 			fprintf(FPRT1,"putreg(): could not read u_ar0\n");
 		uar0 += reglist[reg].roffs;
 		ptv = ptrace(WUREGS,pid,(int)uar0,value);
-		if (ptv == -1 || errno)
+		if (ptv == -1 && errno)
 			fprintf(FPRT1,"putreg(): could not write %s\n",reglist[reg].rname);
 		regvals[reg] = value;
+		if (reg = 15) 	
+			userpc = dot = USERPC;
 		}
 #endif
 #endif
@@ -621,9 +628,27 @@ L_INT	adr;
 	if (pid) {		/* tracing on ? */
 	     pmode = (space&DSP ? (rd?RDUSER:WDUSER) : (rd?RIUSER:WIUSER));
 	     w = ptrace(pmode, pid, adr, value);
+/*
+ * when a value of -1 is read, don't trust errno.
+ * to make sure there is a problem with adr, write 0 to it
+ * and try to read. 
+ */
 	     if (errno && (w == -1)) {
-	     	  errflg = (space&DSP ? BADDAT : BADTXT);
-		  chkerr();	/*  omit error checking elsewhere now ?? */
+			if (rd && (ptrace(WDUSER,pid,adr,0) != -1))
+			{
+	     			if (ptrace(pmode, pid, adr, value) == 0)
+					w = ptrace(WDUSER,pid,adr,w);
+				else
+				{
+	     	  			errflg = (space&DSP ? BADDAT : BADTXT);
+		  			chkerr();
+				}
+			}
+			else
+			{
+	     	  		errflg = (space&DSP ? BADDAT : BADTXT);
+		  		chkerr();
+			}
 	     }
 #if DEBUG
 		if (debugflag == 1)
@@ -652,7 +677,7 @@ L_INT	adr;
 		}
 #endif
 	}
-	file = (space&DSP ? datmap.ufd : txtmap.ufd);
+	file = (space&DSP ? datmap.ufd : txtmap[libn].ufd);
 	adr = sadr;		/* chkmap() overwrites adr */
 	if   (!chkmap(&adr,space)) {
 		errflg = file > 0 ?		
@@ -683,10 +708,10 @@ L_INT	adr;
 		else {	/* ISP */
 			extern long curoffs;	/* defined in symt.c */
 			if (adr != curoffs &&
-				(blseek(&sbuf, (long)adr, 0) == -1))
+				(blseek(&sbuf[libn], (long)adr, 0) == -1))
 				badflag = 1;
 			else if ((rd ?
-				bread(&sbuf,&w,sizeof(w)) :
+				bread(&sbuf[libn],&w,sizeof(w)) :
 				write(file,&value,sizeof(w))) < sizeof(w))
 					badflag = 1;
 			if (badflag || !rd) curoffs = ERROR-1;
@@ -695,7 +720,7 @@ L_INT	adr;
 		if (badflag) {
 			fprintf(FPRT1, "Cannot %s file '%s` [%s].\n",
 				rd ? "read" : "write",
-				space & DSP ? corfil : symfil,
+				space & DSP ? corfil : symfil[libn],
 				(space&DSP ? BADDAT : BADTXT));
 			if(!rd && (space & DSP))
 				fprintf(FPRT1,
@@ -724,6 +749,7 @@ chkmap(adr,space)
 	REG INT		space;
 {
 	REG MAPPTR amap;
+	REG int 	i, ret;
 #if DEBUG
 	if (debugflag ==1)
 	{
@@ -740,23 +766,31 @@ chkmap(adr,space)
 		closeparen();
 	}
 #endif
-	amap=((space&DSP?&datmap:&txtmap));
+	for (i = 0; i <= nshlib; i++)
+	{
+		amap=((space&DSP?&datmap:&txtmap[i]));
 #if vax || u3b
-	if ((space & STAR) || (!WITHIN(*adr, amap->b1, amap->e1))) {
+		if ((space & STAR) || (!WITHIN(*adr, amap->b1, amap->e1))) {
 #else
 #if u3b5 || u3b15 || u3b2
-	if (!WITHIN(*adr,amap->b1,amap->e1)) {
+		if (!WITHIN(*adr,amap->b1,amap->e1)) {
 #endif
 #endif
-		if (WITHIN(*adr, amap->b2, amap->e2)) {
-			*adr += (amap->f2) - (amap->b2);
+			if (WITHIN(*adr, amap->b2, amap->e2)) {
+				*adr += (amap->f2) - (amap->b2);
+				ret = 1;
+				break;
+			}
+			else {
+				/*return(0);	 errflg set in access() */
+				ret = 0;
+			}
 		}
 		else {
-			return(0);	/* errflg set in access() */
+			*adr += (amap->f1) - (amap->b1);
+			ret = 1;
+			break;
 		}
-	}
-	else {
-		*adr += (amap->f1) - (amap->b1);
 	}
 #if DEBUG
 	if (debugflag == 1)
@@ -770,7 +804,7 @@ chkmap(adr,space)
 		endofline();
 	}
 #endif
-	return(1);
+	return(ret);
 }
 
 POS
@@ -865,4 +899,32 @@ char *d;
 	}
 #endif
 	return(val);
+}
+isisp(adr)
+ADDR adr;
+{
+	int i;
+
+	for (i = 0; i <= nshlib; i++) {
+		if ( txtmap[i].b1 <= adr && adr < txtmap[i].e1) {
+			libn = i;
+			return(1);
+		}
+	}
+	return(0);
+}
+
+isdsp(adr)
+ADDR adr;
+{
+	int i;
+
+	for (i = 0; i <= nshlib; i++) {
+		if ((datmap.b1 <= adr && adr < datmap.e1) || 
+		    (datmap.b2 <= adr && adr < datmap.e2) || 
+		    (txtmap[i].b2 <= adr && adr < txtmap[i].e2)) {
+			return(1);
+		}
+	}
+	return(0);
 }

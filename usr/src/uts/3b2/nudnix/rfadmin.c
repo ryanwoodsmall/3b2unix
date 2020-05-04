@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/rfadmin.c	1.23"
+#ident	"@(#)kern-port:nudnix/rfadmin.c	1.23.3.9"
 /*
  *	Kernel daemon for remote-file administration.
  */
@@ -57,6 +57,7 @@ struct proc *s_zombie;			/* pointer to zombie children */
 sema_t rfadmin_sema;
 struct bqctrl_st rfmsgq;		/* queue for user-level daemon */
 int	rfmsgcnt;			/* how many msgs in user-level q */
+int creatsrv = 0;			/* indicates previous newproc failure */
 
 void reply(), user_msg(), que_umsg();
 extern void serv_fumount ();
@@ -110,6 +111,9 @@ rfdaemon ()
 	rfmsgq.qc_head = (struct msgb *) NULL;
 	rfmsgq.qc_tail = (struct msgb *) NULL;
 	rfmsgcnt = 0;
+	reply_port.sd_stat = SDUSED;
+	reply_port.sd_refcnt = 1;
+	reply_port.sd_copycnt = 0;
 	bootstate = DU_UP;
 	wakeup(&bootstate);	/* end of critical section begun in rfstart */
 
@@ -162,12 +166,30 @@ rfdaemon ()
 				break;
 				}
 			case DUSYNCTIME:
+				{
+				long	sig;
+				int	cursig;
+
 				DUPRINT1(DB_RFSYS, "rfadmin: date sync\n");
 				GDP(qp)->time = request->rq_synctime - time;
-				/*alocbuf and send reply */
-				while ((resp_bp = alocbuf (sizeof (struct response) - DATASIZE, BPRI_MED)) == NULL) {
+				/* alocbuf and send reply */
+				sig = u.u_procp->p_sig;
+				cursig = u.u_procp->p_cursig;
+				u.u_procp->p_sig = 0;
+				u.u_procp->p_cursig = 0;
+				while ((resp_bp = alocbuf(sizeof(struct response) - DATASIZE, BPRI_MED)) == NULL) {
+					sig |= u.u_procp->p_sig;
+					if (u.u_procp->p_cursig) {
+						if (cursig)
+							sig |= (1L << (u.u_procp->p_cursig - 1));
+						else
+							cursig = u.u_procp->p_cursig;
+					}
 					u.u_procp->p_sig = 0;
+					u.u_procp->p_cursig = 0;
 				}
+				u.u_procp->p_sig = sig;
+				u.u_procp->p_cursig = cursig;
 				response = (struct response *)PTOMSG(resp_bp->b_rptr);
 				response->rp_type = RESP_MSG;
 				size = sizeof (struct response) - DATASIZE;
@@ -179,6 +201,49 @@ rfdaemon ()
 				sndmsg (&reply_port, resp_bp, size, 
 					(rcvd_t)NULL);
 				break;
+				}
+			case DUCACHEDIS:
+				{
+				register queue_t *qp;
+				long sig;
+				int cursig;
+
+				qp = (queue_t *)((struct message *)(bp->b_rptr))->m_queue;
+				DUPRINT4(DB_CACHE, "rfadmin: got disable cache message, queue %x, mntindx %x, fhandle %x\n",
+				qp, request->rq_mntindx, request->rq_fhandle);
+				invalidate_cache(qp, request->rq_mntindx, request->rq_fhandle);
+				freemsg (bp);
+				/* alocbuf and send reply */
+				sig = u.u_procp->p_sig;
+				cursig = u.u_procp->p_cursig;
+				u.u_procp->p_sig = 0;
+				u.u_procp->p_cursig = 0;
+				while ((resp_bp = alocbuf(sizeof(struct response) - DATASIZE, BPRI_MED)) == NULL) {
+					sig |= u.u_procp->p_sig;
+					if (u.u_procp->p_cursig) {
+						if (cursig)
+							sig |= (1L << (u.u_procp->p_cursig - 1));
+						else
+							cursig = u.u_procp->p_cursig;
+					}
+					u.u_procp->p_sig = 0;
+					u.u_procp->p_cursig = 0;
+				}
+				u.u_procp->p_sig = sig;
+				u.u_procp->p_cursig = cursig;
+				response = (struct response *)PTOMSG(resp_bp->b_rptr);
+				response->rp_type = RESP_MSG;
+				size = sizeof (struct response) - DATASIZE;
+		 		response->rp_opcode = DUCACHEDIS;
+				response->rp_errno = 0;
+				response->rp_sig = 0;
+				(void)sndmsg (&reply_port, resp_bp, size, (rcvd_t)NULL);
+
+				/* link down is the only case that sndmsg
+				   can fail, if it happens, server recovery
+				   should take care of the losing message */
+				break;
+				}
 			default:
 				u.u_error = EINVAL;
 				DUPRINT2 (DB_RFSYS, "rfadmin: unknown opcode %d\n",
@@ -216,7 +281,15 @@ rfdaemon ()
 				msgflag &= ~MORE_SERVE;
 				splx(s);
 				if(idleserver <= 1 && nservers < maxserve) 
-					creat_server(1);
+					if (creat_server(1) == FAILURE &&
+					    idleserver == 0)
+						sendback(&reply_port,ENOMEM,RESP_MSG);
+			}
+			else if (msgflag & DEADLOCK) {
+				msgflag &= ~DEADLOCK;
+				splx(s);
+				if (idleserver == 0 && nservers == maxserve)
+					sendback(&reply_port,ENOMEM,NACK_MSG);
 			}
 		}
 		s = spl5();
@@ -235,24 +308,27 @@ int num;
 
 	DUPRINT2 (DB_SERVE,"create %d server(s) \n", num);
 	for (i = 0; i < num; i++) {	/* make minimum server */
-		switch (newproc(1)) {
+		switch (newproc(NP_FAILOK|NP_NOLAST|NP_SYSPROC)) {
 			case 0:
 				nservers++;
 				break;
 			case 1:
-				u.u_procp->p_flag |= SSYS;
 				u.u_cutime = u.u_cstime = u.u_utime = u.u_stime = 0;
 				u.u_procp->p_minwd = NULL;
 				serve();
 			default:
+			{
+				register int s;
 				DUPRINT1(DB_SERVE,"cannot create server \n");
-				/* post a signal to the last server so it won't go
-				   to sleep */
-				if (s_active)
-					psignal(s_active, SIGUSR1);
+				/* post a signal to the last server so it 
+				 * won't go to sleep */
+				psignal(s_active, SIGUSR1);
+				return(FAILURE);
 				break;
+			}
 		} 
 	}
+	return(SUCCESS);
 }
 
 /*
@@ -287,11 +363,27 @@ int	opcode;		/* what we did */
 	mblk_t	*resp_bp;
 	struct response *response;
 	int	size;
+	long	sig;
+	int	cursig;
 
-	/*alocbuf and send reply */
-	while ((resp_bp = alocbuf (sizeof (struct response) - DATASIZE, BPRI_MED)) == NULL) {
+	/* alocbuf and send reply */
+	sig = u.u_procp->p_sig;
+	cursig = u.u_procp->p_cursig;
+	u.u_procp->p_sig = 0;
+	u.u_procp->p_cursig = 0;
+	while ((resp_bp = alocbuf(sizeof(struct response) - DATASIZE, BPRI_MED)) == NULL) {
+		sig |= u.u_procp->p_sig;
+		if (u.u_procp->p_cursig) {
+			if (cursig)
+				sig |= (1L << (u.u_procp->p_cursig - 1));
+			else
+				cursig = u.u_procp->p_cursig;
+		}
 		u.u_procp->p_sig = 0;
+		u.u_procp->p_cursig = 0;
 	}
+	u.u_procp->p_sig = sig;
+	u.u_procp->p_cursig = cursig;
 	response = (struct response *)PTOMSG(resp_bp->b_rptr);
 	response->rp_type = RESP_MSG;
 	size = sizeof (struct response) - DATASIZE;
@@ -354,4 +446,157 @@ mblk_t	*bp;
 	enque (&rfmsgq, bp);
 	splx (s);
 	cvsema (&rfadmin_sema);
+}
+
+/*
+ *This routine is called when flow control is required.
+ *It is called with the buffer to be retransmitted along
+ *with the send descriptor which is already setup to retransmit
+ *to determine the destination.  The buffer type is a 2k type
+ *which is a critical resource for the driver. Hence, this buffer
+ *is freed and a lesser critical buffer (smaller) can be allocated.
+ *One, however, never knows which application may be hogging this 
+ *smaller buffer, so if one cannot be allocated, then use the one 
+ *you have.
+ */
+
+sendback(sd,errno,msgtype)
+sndd_t sd;
+int errno;
+int msgtype;
+{
+	mblk_t *nbp, *bp;
+	mblk_t *sigmsg();
+	register struct rcvd *rd;
+	register struct response *msg_out;
+	register struct message *msg, *nmsg;
+	int size, opcode;
+	int s;
+	/* 
+	 * It is wise at this point to try and use a
+	 * buffer of different size.  If it is available
+	 * then free up the buffer that just ran out of.
+	 * If you can't get anther size, reuse the one that 
+	 * came in.
+	 */
+	for (rd = rcvd; (rd < &rcvd[nrcvd]); rd++) {
+		if (!(rd->rd_stat & RDUSED) ||
+		    !(rd->rd_qtype & GENERAL) || rcvdemp(rd))
+			continue;
+		if (dequeue (rd, &bp, sd, &size) == SUCCESS) {
+			msg = (struct message *)bp->b_rptr;	
+			opcode = ((struct request *)PTOMSG(msg))->rq_opcode;
+			if ((opcode == DUCLOSE || opcode == DUIPUT) &&
+			   !(msg->m_stat & VER1) ) {
+				if ((nbp = allocb (sizeof(struct message)+
+				     sizeof (struct response)-DATASIZE, BPRI_MED)) != NULL) {
+					nbp->b_wptr += sizeof(struct message);
+					nmsg = (struct message *)nbp->b_rptr;	
+					bcopy ((caddr_t)msg, (caddr_t)nmsg,
+					       sizeof(struct message)+
+					       sizeof(struct request)-DATASIZE);
+					freemsg(bp);
+					DUPRINT2(DB_SYSCALL,"Sendback:3.0 DUCLOSE or DUIPUT opcode = %d\n",opcode);
+					s=splrf();
+					enque(&rd->rd_rcvdq,nbp);
+					rd->rd_qcnt++;
+					add_to_msgs_list(rd);
+					splx(s);
+					continue;
+				}else {	/* no small buffer enque and continue*/	
+					s=splrf();
+					enque(&rd->rd_rcvdq,bp);
+					rd->rd_qcnt++;
+					add_to_msgs_list(rd);
+					splx(s);
+					continue;
+				}
+			} 
+			if (!(msg->m_stat & GIFT)) {
+				if (opcode != DURSIGNAL) {
+					freemsg(bp);
+					continue;
+				}
+				if ((nbp = sigmsg(sd,bp)) == NULL)
+					continue;
+				bp = nbp;   /* message to be signalled */
+				msg = (struct message *)bp->b_rptr;	
+				opcode = ((struct request *)PTOMSG(msg))->rq_opcode;
+				msgtype = RESP_MSG;
+				errno = EINTR;
+			}
+			if ((nbp = allocb (sizeof(struct message)+
+			     sizeof (struct response)-DATASIZE, BPRI_MED)) != NULL) {
+				freemsg(bp);		 /* free scare buffer */
+				bp = nbp;
+			}
+			bp->b_rptr = bp->b_datap->db_base;
+			bp->b_wptr = bp->b_datap->db_base + sizeof(struct message);
+			bzero((char *)bp->b_rptr, sizeof(struct message)+
+			       sizeof(struct response)-DATASIZE);
+			msg_out = (struct response *)PTOMSG(bp->b_rptr);
+			msg_out->rp_opcode = opcode;
+			msg_out->rp_type = msgtype;
+			msg_out->rp_errno = errno;
+			msg_out->rp_bp = (long)bp;
+			msg_out->rp_sig = 0;
+			msg_out->rp_rval = 0;
+			msg_out->rp_subyte = 1;	     /* set to indicate no data */
+			msg_out->rp_cache = 0;
+			size = sizeof (struct response) - DATASIZE;
+			DUPRINT2(DB_SYSCALL,"SENDBACK: syscall=%d\n",opcode);
+
+			/*The only time sndmsg fails is if link is down at which point
+			 *you really don't care
+			*/
+			(void)sndmsg (sd, bp, size, (rcvd_t)NULL);
+		}
+	}
+}
+/* Note, Even though the signal queue "sigrd" is a high priority queue
+ * it must be serviced since large numbers of signal messges could
+ * accumulate on the overflow queue and hence cause deadlock.
+ * This routine tries to identify the process to be signalled.  If the
+ * request is still on the queue, it is taken off and returned.
+ * if there is one then send the signal back.
+ */
+mblk_t *
+sigmsg(sd,bp)
+struct sndd *sd;
+mblk_t *bp;
+{
+	register struct proc *l;
+	mblk_t *sbp;
+	mblk_t *chkrdq();
+	struct message *msig;
+	struct request *msg_in;
+	struct rcvd *queue;
+	register int s;
+
+	msig = (struct message *)bp->b_rptr;
+	msg_in = (struct request *) PTOMSG(msig);
+	for (l = s_active; l != NULL; l = l->p_rlink) {
+		DUPRINT3(DB_SIGNAL,"DURSIG DEADLOCK: l->p_sysid = %d  u.u_procp->p_sysid %d\n",l->p_sysid,u.u_procp->p_sysid);
+		if ((l->p_epid == (short)msg_in->rq_pid)  && 
+		    (l->p_sysid == u.u_procp->p_sysid)) { 
+			psignal(l, SIGTERM);
+			freemsg(bp);
+			return(NULL);
+		}
+	}
+	s=splrf();
+	queue =  inxtord(msig->m_dest);
+	if ((sbp = chkrdq(queue,msg_in->rq_pid,
+	     msg_in->rq_sysid)) == NULL) {
+		splx(s);	
+		freemsg(bp);	/*could not find msg on que */
+		return(NULL);
+	} else {
+		splx(s);
+		freemsg(bp);		/*found msg on queue free old buffer*/
+		msig = (struct message *)sbp->b_rptr;
+		msig->m_stat |= SIGNAL;
+		set_sndd(sd,(queue_t *)msig->m_queue,msig->m_gindex,msig->m_gconnid);
+		return(sbp);
+	}
 }

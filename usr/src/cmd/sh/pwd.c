@@ -5,9 +5,9 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sh:pwd.c	1.10"
-/*
- *	UNIX shell
+#ident "@(#)sh:pwd.c	1.14"
+/* 
+*	UNIX shell
  */
 
 #include		"mac.h"
@@ -18,7 +18,7 @@
 #define	DOT		'.'
 #define	NULL	0
 #define	SLASH	'/'
-#define MAXPWD	MAXNAMLEN
+#define MAXPWD	512
 
 extern char	longpwd[];
 
@@ -38,6 +38,8 @@ cwd(dir)
 	/* Now remove any .'s */
 
 	pdir = dir;
+	if(*dir == SLASH)
+		pdir++;
 	while(*pdir) 			/* remove /./ by itself */
 	{
 		if((*pdir==DOT) && (*(pdir+1)==SLASH))
@@ -51,10 +53,16 @@ cwd(dir)
 		if (*pdir) 
 			pdir++;
 	}
-	if(*(--pdir)==DOT && pdir>dir && *(--pdir)==SLASH)
-		*pdir = NULL;
+	/* take care of trailing /. */
+	if(*(--pdir)==DOT && pdir > dir && *(--pdir)==SLASH) {
+		if(pdir > dir) {
+			*pdir = NULL;
+		} else {
+			*(pdir+1) = NULL;
+		}
 	
-
+	}
+	
 	/* Remove extra /'s */
 
 	rmslash(dir);
@@ -71,6 +79,12 @@ cwd(dir)
 		/* Absolute path */
 
 		pcwd = cwdname;
+	 	if (pcwd >= &cwdname[MAXPWD])
+		{
+			didpwd=FALSE;
+			return;
+		}
+		*pcwd++ = *dir++;
 		didpwd = TRUE;
 	}
 	else
@@ -106,11 +120,35 @@ cwd(dir)
 			}
 			continue;
 		}
+	 	if (pcwd >= &cwdname[MAXPWD])
+		{
+			didpwd=FALSE;
+			return;
+		}
 		*pcwd++ = *dir++;
 		while((*dir) && (*dir != SLASH))
+		{  
+	 		if (pcwd >= &cwdname[MAXPWD])
+			{
+				didpwd=FALSE;
+				return;
+			}
 			*pcwd++ = *dir++;
+		} 
 		if (*dir) 
+		{
+	 		if (pcwd >= &cwdname[MAXPWD])
+			{
+			didpwd=FALSE;
+			return;
+			}
 			*pcwd++ = *dir++;
+		}
+	}
+	if (pcwd >= &cwdname[MAXPWD])
+	{
+		didpwd=FALSE;
+		return;
 	}
 	*pcwd = NULL;
 

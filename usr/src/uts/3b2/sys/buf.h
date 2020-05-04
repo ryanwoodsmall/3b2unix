@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/buf.h	10.2"
+#ident	"@(#)kern-port:sys/buf.h	10.2.3.2"
 
 /*
  *	Each buffer in the pool is usually doubly linked into 2 lists:
@@ -23,8 +23,18 @@
  *	Most drivers use the forward ptr as a link in their I/O active queue.
  *	A buffer header contains all the information required to perform I/O.
  *	Most of the routines which manipulate these things are in bio.c.
+ *
+ *      WARNING:  do not change size of the buf structure (sys/buf.h) without 
+ *	making a corresponding size change in the rbuf structure (sys/rbuf.h), 
+ *  	and vice versa).  The two structures define the two possible formats 
+ *	of the buffer header (the format used depends on whether the buffer 
+ *	contains local data or RFS data).  
+ *
+ *      This overlay of the two structures is an interim solution
+ *	that is expected to change in a future release.  Users
+ *	should be aware that the rbuf structure will probably go
+ *	away at that time.
  */
-
 typedef struct	buf
 {
 	int	b_flags;		/* see defines below */
@@ -47,6 +57,7 @@ typedef struct	buf
 	unsigned int b_resid;		/* words not transferred after error */
 	time_t	b_start;		/* request start time */
 	struct  proc  *b_proc;		/* process doing physical or swap I/O */
+	unsigned long	b_reltime;      /* previous release time */
 } buf_t;
 
 extern	struct	buf	buf[];		/* The buffer pool itself */
@@ -79,8 +90,7 @@ extern	char		*buffers[];
 #define B_STALE   0x0800
 #define B_VERIFY  0x1000
 #define B_FORMAT  0x2000
-#define B_RAMRD   0x4000
-#define B_RAMWT	  0x8000
+#define B_REMOTE  0x4000	/* buffer contains remote (RFS) data */
 
 /*
  *	Fast access to buffers in cache by hashing.
@@ -93,6 +103,7 @@ struct	hbuf
 	int	b_flags;
 	struct	buf	*b_forw;
 	struct	buf	*b_back;
+	int	b_pad;			/* round size to 2^n */
 };
 
 extern	struct	hbuf	hbuf[];
@@ -107,4 +118,19 @@ extern	struct	hbuf	hbuf[];
 	if (bp->b_flags&B_ERROR)\
 		if ((u.u_error = bp->b_error)==0)\
 			u.u_error = EIO;\
+}
+/*
+ * Unlink a buffer from the available list and mark it busy.
+ * (internal interface)
+ */
+#define notavail(bp) \
+{\
+	register s;\
+\
+	s = spl6();\
+	bp->av_back->av_forw = bp->av_forw;\
+	bp->av_forw->av_back = bp->av_back;\
+	bp->b_flags |= B_BUSY;\
+	bfreelist.b_bcount--;\
+	splx(s);\
 }

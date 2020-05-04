@@ -1,5 +1,5 @@
 410 false
-2 0 0 #ident
+2 0 0 #ident	"@(#)script.files:t.sdbintro	1.2"
 8 3 20 AN INTRODUCTION TO SDB 
 8 5 17 (Symbolic Debugging Program)
 705 8 8 62
@@ -78,5 +78,27 @@ variables and statements of the compiled program.
 15 
 9 19 7 Hmmm! Strange result!
 8 20 7 We'll use "sdb" to debug the program.
+15 
+520 arrow
+520 clearleft
+520 clearbot1
+8 0 0 $ sdb testdiv2
+18 
+15 
+1 1
+2 1 0
+15 
+3 No core image
+15 
+8 2 0 *
+15 
+705 18 7 61
+This is a warning message that "sdb" didn't find a core image.
+Don't worry.  You only want the core image if you have a core
+dump.  Our code didn't dump; it just didn't work right.
+706 
+520 arrow
+520 clearbot1
+8 19 7 The * is the "sdb" prompt. 
 15 
 520 arrow

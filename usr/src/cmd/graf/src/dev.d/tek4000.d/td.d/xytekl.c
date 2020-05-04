@@ -5,12 +5,12 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)graf:src/dev.d/tek4000.d/td.d/xytekl.c	1.5"
+#ident	"@(#)graf:src/dev.d/tek4000.d/td.d/xytekl.c	1.6"
 /* <: t-5 d :> */
 #include <stdio.h>
 #include "td.h"
 
-#if u370 | u3b | u3b5 | u3b2
+#if u370 | u3b | u3b15 | u3b2
 
 union addrbits{
 	int exword;

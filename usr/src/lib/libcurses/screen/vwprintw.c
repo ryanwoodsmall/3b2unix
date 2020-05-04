@@ -5,13 +5,13 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/vwprintw.c	1.1"
+#ident	"@(#)curses:screen/vwprintw.c	1.4"
 /*
  * printw and friends
  *
  */
 
-# include	"curses.ext"
+# include	"curses_inc.h"
 # include	<varargs.h>
 
 /*
@@ -22,6 +22,7 @@
  *	have one.
  */
 
+/*VARARGS2*/
 vwprintw(win, fmt, ap)
 register WINDOW	*win;
 register char * fmt;

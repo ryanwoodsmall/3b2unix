@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)df:df.c	1.32"
+#ident	"@(#)df:df.c	1.33"
 
 /*	Distributed Unix, FS Switching Version	*/
 #include <stdio.h>
@@ -214,7 +214,7 @@ char *dev, *fs_name;
 				bsize = BSIZE;
 				bshift = BSHIFT;
 			} else if(sblock.s_type == Fs2b) {
-#ifdef u3b5
+#ifdef u3b15
 				physblks = 4;
 				bsize = 4 * BSIZE;
 				bshift = BSHIFT + 2;

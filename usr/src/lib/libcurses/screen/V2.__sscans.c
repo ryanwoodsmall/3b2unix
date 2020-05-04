@@ -5,8 +5,8 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/V2.__sscans.c	1.3"
-# include	"curses.ext"
+#ident	"@(#)curses:screen/V2.__sscans.c	1.6"
+# include	"curses_inc.h"
 # include	<varargs.h>
 #ifdef _VR2_COMPAT_CODE
 /*

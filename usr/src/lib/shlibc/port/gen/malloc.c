@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libc-port:gen/malloc.c	1.13"
+#ident	"@(#)libc-port:gen/malloc.c	1.14"
 #include "shlib.h"
 #include "values.h"
 /*LINTLIBRARY*/
@@ -56,6 +56,10 @@
 #else
 #define BLOCK 1024	/* a multiple of WORD*/
 #endif
+#define MAXUNINT	(unsigned int) ~0	/* max unsigned int value	*/
+/* MAXNBYTES is the maximum value that nbytes can be and not have overflow during
+	the execution of the malloc calculations	*/
+#define MAXNBYTES	(unsigned int)(((MAXUNINT/BLOCK) * (BLOCK/WORD) - 2) * WORD)
 #define BUSY 1
 #define NULL 0
 #define testbusy(p) ((INT)(p)&BUSY)
@@ -86,6 +90,9 @@ unsigned nbytes;
 	register unsigned int temp;
 	register unsigned int incr = 0;
 	unsigned int sav_temp;
+
+	if (nbytes > MAXNBYTES)
+		return (NULL);
 
 	if(allocs[0].ptr == 0) {		/*first time*/
 		allocs[0].ptr = setbusy(&allocs[1]);
@@ -150,8 +157,8 @@ unsigned nbytes;
 			}
 			temp -= MAXALLOC;
 		}
-		if((INT)sbrk(temp) == -1) {
-			brk(q);   	/* move brkval back */
+		if((INT)sbrk((int) temp) == -1) {
+			brk((char *)q - incr);   	/* move brkval back */
 			return(NULL);
 		}
 		allocend = q;

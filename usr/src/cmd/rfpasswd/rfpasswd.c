@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)dupasswd:dupasswd.c	1.8"
+#ident	"@(#)rfpasswd:rfpasswd.c	1.9"
 #include <stdio.h>
 #include <ctype.h>
 #include <sys/utsname.h>
@@ -44,7 +44,7 @@ char *argv[];
 		exit(1);
 	}
 
-	if (getuid() != 0) {
+	if (geteuid() != 0) {
 		ERROR("must be super-user");
 		exit(1);
 	}

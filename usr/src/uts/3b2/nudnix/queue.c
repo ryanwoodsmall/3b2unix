@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/queue.c	10.21"
+#ident	"@(#)kern-port:nudnix/queue.c	10.24"
 /*
  *	q u e u e . c
  *
@@ -82,21 +82,26 @@ int	*size;
 {
 
 	rcvd_t queue;
-	int sig;
+	long sig = 0;
+	int cursig = 0;
 	int	s;
 	extern rcvd_t sigrd;
 
 	if (rqueue != (rcvd_t) ANY)  {
-		/* This is were we have to worry about remote signals.
+		/*
+		 * This is where we have to worry about remote signals.
 		 * If we were awakened and return with a 1, we've got
 		 * a signal and a signal message should be sent.  
 		 * Otherwise the wakeup was (presumably) because of an incoming
-		 * message.  The extra test is historical
+		 * message.  The extra test is historical.
 		 */
 
-		sig = u.u_procp->p_sig;
-		if (u.u_procp->p_flag & SRSIG)
+		if (u.u_procp->p_flag & SRSIG) {
+			sig = u.u_procp->p_sig;
+			cursig = u.u_procp->p_cursig;
 			u.u_procp->p_sig = 0;
+			u.u_procp->p_cursig = 0;
+		}
 
 		while (1) {
 			s = splrf();
@@ -108,23 +113,29 @@ int	*size;
 				DUPRINT2(DB_GDPERR, "de_queue: try to sleep on dead rd %x\n", rqueue);
 				u.u_error = ENOLINK;
 				splx(s);
+				u.u_procp->p_sig |= sig;
+				if (cursig)
+					u.u_procp->p_cursig = cursig;
 				return(FAILURE);
 			}
-			if (psema(&rqueue->rd_qslp, PREMOTE|PCATCH) != 0) {
+			if (sleep(&rqueue->rd_qslp, PREMOTE|PCATCH|PNOSTOP) != 0) {
 				splx(s);
 				if (!server()) {
 					if (!sysent[u.u_syscall].sy_setjmp) {
 						if (!(u.u_procp->p_flag & SRSIG)) {
-							DUPRINT3(DB_SIGNAL,"de_queue: op=%s,p_sig=%d\n",
-							sysname(u.u_syscall), sig);
-							if (sendrsig() == FAILURE)
+							DUPRINT4(DB_SIGNAL,"de_queue: op=%s,sig=%x,cursig=%d\n",
+							sysname(u.u_syscall), sig, cursig);	
+							if (sendrsig() == FAILURE) {
 								return(FAILURE);
+							}
 						}
 					}
+				} else if (rqueue->rd_stat & RDLINKDOWN) {
+					u.u_procp->p_sig |= sig;
+					if (cursig)
+						u.u_procp->p_cursig = cursig;
+					return (FAILURE);
 				}
-				else 
-					if (rqueue->rd_stat & RDLINKDOWN)
-						return (FAILURE);
 			} else {
 				splx(s);
 				DUPRINT2(DB_COMM, "de_queue: waken up on rd %x", rqueue);
@@ -139,9 +150,18 @@ int	*size;
 					break;
 			}
 			sig |= u.u_procp->p_sig;
+			if (u.u_procp->p_cursig) {
+				if (cursig)
+					sig |= (1L << (u.u_procp->p_cursig-1));
+				else
+					cursig = u.u_procp->p_cursig;
+			}
 			u.u_procp->p_sig = 0;
+			u.u_procp->p_cursig = 0;
 		}	
-		u.u_procp->p_sig = sig;
+		u.u_procp->p_sig |= sig;
+		if (cursig)
+			u.u_procp->p_cursig = cursig;
 		dequeue(rqueue,bufp,new_gift,size);
 		return(rqueue);
 	}
@@ -180,7 +200,7 @@ back:
 		 * The epid is reset so that we don't accidentally
 		 * try to signal this server
 		 */	  
-		if (psema(&u.u_procp->p_minwdlock, PREMOTE|PCATCH)) {
+		if (sleep(&u.u_procp->p_minwdlock, PREMOTE|PCATCH|PNOSTOP)) {
 			/* return to serve for exit */
 			del_from_proc_list (u.u_procp);
 			splx(s);

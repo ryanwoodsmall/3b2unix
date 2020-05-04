@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/xt.c	10.12"
+#ident	"@(#)kern-port:io/xt.c	10.14"
 #include "sys/sccsid.h"
 /*
 **      Blit Packet Protocol Driver (3B2)
@@ -87,14 +87,13 @@ static int      mybcopy();
 
 #define LINKSIZE (sizeof(struct Link) + sizeof(struct Channel)*(MAXPCHAN-1))
 char    xtbusy[MAXLINKS], *xtbuf;
-int     xt_cnt = 3;
+extern  int xt_cnt;
 Link_p  xtalloc();
 
 /*
- * use static storage for this stuff since don't have equiv
- * stuff in 3B2
+ * use static storage for this stuff since don't have equivalent stuff in 3B2.
  */
-	static char xtbuffer[LINKSIZE*3];       /*TEMP until figure what we need! */
+extern char xtbuffer[];       /*TEMP until figure what we need! */
 
 static int xterrstart;     /* bad packets caught in start() */
 static int xterrxtin;      /* bad packets caught in xtin() */
@@ -354,6 +353,7 @@ int     dev, cmd, arg, mode;
 		tp->t_line = tdev;              /* Stack new line discipline */
 		tp->t_link = LINK(dev);         /* Back pointer */
 		tp = &lp->chans[0].tty;
+		tp->t_cc[VMIN] = 2;		/* jerq message size */
 		(*linesw[tp->t_line].l_open)(tp);
 		if (!scanning)
 			xtscan();

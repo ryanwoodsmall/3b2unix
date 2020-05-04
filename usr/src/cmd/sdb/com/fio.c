@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:com/fio.c	1.10"
+#ident	"@(#)sdb:com/fio.c	1.11"
 
 #include "head.h"
 char	fbuf[256];	/* current line from file */
@@ -18,7 +18,7 @@ char	fbuf[256];	/* current line from file */
 finit( name )
 char *name;
 {
-	register char *p, *q;
+	register char *p;
 	
 #if DEBUG
 	if (debugflag ==1)

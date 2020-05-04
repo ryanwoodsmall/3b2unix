@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libns:negotiate.c	1.9"
+#ident	"@(#)libns:negotiate.c	1.9.1.1"
 #include "fcntl.h"
 #include "string.h"
 #include "stdio.h"
@@ -24,6 +24,14 @@
 #define NDATA_CANON	"lc20ic64c64ii"
 #define NDATA_CLEN	176			/* length of canonical ndata */
 #define LONG_CLEN	4			/* length of canonical long */
+
+/* return error codes for negotiate() */
+#define	N_ERROR		-1		/* error is in errno */
+#define	N_TERROR	-2		/* error is in t_errno */
+#define N_VERROR	-3		/* version mismatch */
+#define	N_CERROR	-4		/* fcanon/tcanon failed */
+#define	N_FERROR	-5		/* bad flag as argument */
+#define	N_PERROR	-6		/* passwords did not match */
 
 /* negotiate data packect */
 
@@ -53,14 +61,10 @@ long flag;
 
 	/* fill in ndata structure */
 
-	if (netname(netnam) < 0) {
-		perror("negotiate");
-		return(-1);
-	}
-	if (getoken(&token) < 0) {
-		perror("negotiate");
-		return(-1);
-	}
+	if (netname(netnam) < 0)
+		return(N_ERROR);
+	if (getoken(&token) < 0)
+		return(N_ERROR);
 
 	(void) strncpy(&ndata.n_passwd[0], passwd, PASSWDLEN);
 	(void) strncpy(&ndata.n_netname[0], netnam, MAXDNAME);
@@ -68,34 +72,28 @@ long flag;
 	ndata.n_token = token;
 	n_buf.nd_ndata = ndata;
 
-	if (rfsys(RF_VERSION,VER_GET,&n_buf.n_vhigh,&n_buf.n_vlow) < 0) {
-		perror("negotiate");
-		return(-1);
-	}
+	if (rfsys(RF_VERSION,VER_GET,&n_buf.n_vhigh,&n_buf.n_vlow) < 0)
+		return(N_ERROR);
 
 	/* exchange ndata structures */
 
 	if ((n = tcanon(NDATA_CANON, &n_buf, &nbuf[0], 0)) == 0) {
-		return(-1);
+		return(N_CERROR);
 	}
-	if (t_snd(fd, nbuf, n, 0) != n) {
-		t_error("negotiate");
-		return(-1);
-	}
-	if (rf_rcv(fd, &nbuf[0], NDATA_CLEN, &flgs) != NDATA_CLEN) {
-		t_error("negotiate");
-		return(-1);
-	}
+	if (t_snd(fd, nbuf, n, 0) != n)
+		return(N_TERROR);
+
+	if (rf_rcv(fd, &nbuf[0], NDATA_CLEN, &flgs) != NDATA_CLEN)
+		return(N_TERROR);
+
 	if (fcanon(NDATA_CANON, &nbuf[0], &n_buf) == 0) {
-		return(-1);
+		return(N_CERROR);
 	}
 
 	/* check version number, and calculate value for gdpmisc	*/
-	if ((rfversion=rfsys(RF_VERSION,VER_CHECK,&n_buf.n_vhigh,&n_buf.n_vlow)) < 0){
-	    (void) fprintf(stderr,"negotiate: version mismatch, %s wanted vhigh=%d, vlow=%d\n",
-		ndata.n_netname,n_buf.n_vhigh,n_buf.n_vlow);
-	    return(-1);
-	}
+	if ((rfversion=rfsys(RF_VERSION,VER_CHECK,&n_buf.n_vhigh,&n_buf.n_vlow)) < 0)
+	    return(N_VERROR);
+
 	ndata = n_buf.nd_ndata;
 
 	/* ndata now contains the other machine's data */
@@ -106,14 +104,12 @@ long flag;
 
 		dlen = strcspn(&ndata.n_netname[0], ".");
 		ulen = strlen(&ndata.n_netname[0]) - dlen - 1;
-		if ((domnam = malloc(dlen + 1)) == NULL) {
-			perror("negotiate");
-			return(-1);
-		}
-		if ((unam = malloc(ulen + 1)) == NULL) {
-			perror("negotiate");
-			return(-1);
-		}
+		if ((domnam = malloc(dlen + 1)) == NULL)
+			return(N_ERROR);
+
+		if ((unam = malloc(ulen + 1)) == NULL)
+			return(N_ERROR);
+
 		(void) strncpy(domnam, &ndata.n_netname[0], dlen);
 		(void) strncpy(unam, &ndata.n_netname[0] + dlen + 1, ulen);
 
@@ -122,12 +118,12 @@ long flag;
 		switch (checkpw(DOMPASSWD, ndata.n_passwd, domnam, unam)) {
 		case 0:
 			if (rfsys(RF_VFLAG, V_GET) == V_SET)
-				return(-1);
+				return(N_ERROR);
 			break;
 		case 1:
 			break;
 		case 2:
-			return(-1);
+			return(N_PERROR);
 		} /* end switch */
 
 		/* send/receive proper machine response for type */
@@ -140,27 +136,20 @@ long flag;
 			ndata.n_hetero = DATA_CONV;
 		}
 		if ((n = tcanon("l", &ndata.n_hetero, &nbuf[0], 0)) == 0) {
-			return(-1);
+			return(N_CERROR);
 		}
-		if (t_snd(fd, nbuf, n, 0) != n) {
-			t_error("negotiate");
-			return(-1);
-		}
+		if (t_snd(fd, nbuf, n, 0) != n)
+			return(N_TERROR);
 	}
 	else if (flag == CLIENT) { /* CLIENT -- handle hetero input from SERVER	*/
 
-		if (rf_rcv(fd, &nbuf[0], LONG_CLEN, &flgs) != LONG_CLEN) {
-			t_error("negotiate");
-			return(-1);
-		}
-		if (fcanon("l", &nbuf[0], &ndata.n_hetero) == 0) {
-			return(-1);
-		}
+		if (rf_rcv(fd, &nbuf[0], LONG_CLEN, &flgs) != LONG_CLEN)
+			return(N_TERROR);
+		if (fcanon("l", &nbuf[0], &ndata.n_hetero) == 0)
+			return(N_CERROR);
 	}
-	else {
-		(void) fprintf(stderr, "negotiate: bad flag, value=%d\n",flag);
-		return(-1);
-	}
+	else
+		return(N_FERROR);
 	return(rfversion);
 }
 

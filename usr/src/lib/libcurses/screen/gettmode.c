@@ -5,9 +5,8 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/gettmode.c	1.1"
-/* BSD curses compatibility routine */
+#ident	"@(#)curses:screen/gettmode.c	1.2"
 gettmode()
 {
-	/* No-op included only for upward compatibility. */
 }
+

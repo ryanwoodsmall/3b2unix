@@ -1,11 +1,20 @@
-#ident	"@(#)terminfo:adds.ti	1.7"
+#ident	"@(#)terminfo:adds.ti	1.10"
 # # --------------------------------
 #
 # Manufacturer:	ADDS
 # Class:	II
 #
+screwpoint|adds viewpoint with ^O bug,
+	am,
+	dl1=\El,
+	cols#80, lh#0, lines#24, lw#0, nlab#0,
+	bel=^G, clear=\f$<10.1*>, cr=\r, cub1=\b, cud1=\n,
+	cuf1=^F, cup=\EY%p1%'\s'%+%c%p2%'\s'%+%c$<6>, cuu1=^Z,
+	ed=\Ek$<16.1*>, el=\EK$<16>, ind=\n, is2=^G, kcub1=^U,
+	kcud1=\n, kcuf1=^F, kcuu1=^Z, khome=^A, ll=^A,
 fviewpoint|flaky adds viewpoint with ^O bug,
 	cr=^M, cud1=^J, ind=^J, bel=^G, am, cub1=^H, lines#24, cols#80,
+	dl1=\El,
 	cup=\EY%p1%' '%+%c%p2%' '%+%c$<6>, is2=,
 	ed=\Ek$<16.1*>, el=\EK$<16>, cuf1=^F, cuu1=^Z, clear=^L$<10.1*>, ll=^A,
 	kcub1=^U, kcuf1=^F, kcud1=^J, kcuu1=^Z, khome=^A,
@@ -13,6 +22,7 @@ viewpoint|adds viewpoint,
 	cr=^M, cud1=^J, ind=^J, bel=^G, am, cub1=^H, lines#24, cols#80,
 	cup=\EY%p1%' '%+%c%p2%' '%+%c$<6>, is2=^O\E0`,
 	ed=\Ek$<16.1*>, el=\EK$<16>, cuf1=^F, cuu1=^Z, clear=^L$<10.1*>, ll=^A,
+	dl1=\El,
 	kcub1=^U, kcuf1=^F, kcud1=^J, kcuu1=^Z, khome=^A,
 	kf0=^B1, kf2=^B2, kf3=^B!, kf4=^B", kf5=^B#,
 	rmso=^O, smso=\E0P^N, rmul=^O, smul=\E0`^N,
@@ -42,7 +52,7 @@ regent100|Adds Regent 100,
 	cup=^K%p1%' '%+%c^P%p2%{10}%/%{16}%*%p2%{10}%m%+%c,
 	xmc#1, use=regent,
 regent20|Adds Regent 20,
-	ed=\Ek, el=\EK, cup=^K%p1%' '%+%c^P%p1%{10}%/%{16}%*%p2%{10}%m%+%c,
+	ed=\Ek, el=\EK, cup=^K%p1%' '%+%c^P%p2%{10}%/%{16}%*%p2%{10}%m%+%c,
 	use=regent,
 regent25|Adds Regent25,
 	khome=^A, kcub1=^U, kcuf1=^F, kcuu1=^Z, kcud1=^J, use=regent20,

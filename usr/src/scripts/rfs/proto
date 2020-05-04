@@ -5,6 +5,7 @@ install	d--775 0 3
 	Rlist		---555 2 2	./install/rfs/Rlist.rfs
 	UNINSTALL	---555 2 2	./install/rfs/UNINSTALL
 	INSTALL 	---555 2 2	./install/rfs/INSTALL
+    	ORDER		---555 2 2 	./install/rfs/ORDER1
 	setup 		---555 2 2	./install/rfs/setup
 	unsetup 	---555 2 2	./install/rfs/unsetup
 $
@@ -37,10 +38,8 @@ new	d--775 0 3
 			rfpasswd	---555 2 2	../usr/bin/rfpasswd
 			rfstart		---555 2 2	../usr/bin/rfstart
 			rfstop		---555 2 2	../usr/bin/rfstop
-			rfuadmin	---554 2 2	../usr/bin/rfuadmin
-			rfudaemon	---550 2 2	../usr/bin/rfudaemon
 			fumount		---555 2 2	../usr/bin/fumount
-			fusage		---555 2 2	../usr/bin/fusage
+			fusage		--g555 2 3	../usr/bin/fusage
 			idload		---555 2 2	../usr/bin/idload
 			dname		---555 2 2	../usr/bin/dname
 			rfadmin		---555 2 2	../usr/bin/rfadmin
@@ -48,6 +47,8 @@ new	d--775 0 3
 			unadv		---555 2 2	../usr/bin/unadv
 		$
 		nserve	d--775 0 3
+			rfuadmin	---554 2 2	../usr/nserve/rfuadmin
+			rfudaemon	---550 2 2	../usr/nserve/rfudaemon
 			nserve		---550 2 2	../usr/nserve/nserve
 			auth.info	d--775 0 3
 			$

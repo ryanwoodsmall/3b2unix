@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)expr:expr.c	1.13"
+#ident	"@(#)expr:expr.c	1.16"
 # define A_STRING 258
 # define NOARG 259
 # define OR 260
@@ -24,7 +24,10 @@
 # define MCH 273
 # define MATCH 274
 
-#define ESIZE	256
+/* size of array used to compile regular expressions */
+#define ESIZE	1024
+/* size of subexpression array */
+#define MSIZE	128
 #define error(c)	errxx()
 #define EQL(x,y) !strcmp(x,y)
 
@@ -34,7 +37,7 @@
 #define UNGETC(c)	(--sp)
 #define RETURN(c)	return
 #define ERROR(c)	errxx()
-#include  "regexp.h"
+#include  <regexp.h>
 
 long atol();
 char *ltoa(), *strcpy(), *strncpy();
@@ -45,8 +48,11 @@ int	Ac;
 int	Argi;
 int noarg;
 int paren;
-
-char Mstring[1][128];
+/*	
+ *	Array used to store subexpressions in regular expressions
+ *	Only one subexpression allowed per regular expression currently 
+ */
+char Mstring[1][MSIZE];
 char *malloc();
 
 
@@ -197,14 +203,14 @@ register char *p;
 	register num;
 	extern char *braslist[], *braelist[], *loc2;
 
-	compile(p, expbuf, &expbuf[512], 0);
+	compile(p, expbuf, &expbuf[ESIZE], 0);
 	if(nbra > 1)
 		yyerror("Too many '\\('s");
 	if(advance(s, expbuf)) {
 		if(nbra == 1) {
 			p = braslist[0];
 			num = braelist[0] - p;
-			if ((num > 127) || (num < 0)) yyerror("Paren problem");
+			if ((num > MSIZE - 1) || (num < 0)) yyerror("Paren problem");
 			(void) strncpy(Mstring[0], p, num);
 			Mstring[0][num] = '\0';
 		}
@@ -364,4 +370,5 @@ main(argc, argv) char **argv;
 	(void) write(1, buf, (unsigned) strlen(buf));
 	(void) write(1, "\n", 1);
 	exit((!strcmp(buf, "0") || !buf[0])? 1: 0);
+	/* NOTREACHED */
 }

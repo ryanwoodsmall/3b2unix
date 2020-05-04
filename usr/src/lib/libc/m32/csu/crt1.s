@@ -6,7 +6,7 @@
 #	actual or intended publication of such source code.
 
 	.file	"crt1.s"
-	.ident	"@(#)libc-m32:csu/crt1.s	1.1"
+	.ident	"@(#)libc-m32:csu/crt1.s	1.3"
 # C runtime startoff
 # modified for System V - release 2 function-call floating-point
 
@@ -21,6 +21,7 @@
 
 # global entities defined elsewhere, but used here
 	.globl	__fpstart
+	.globl  setchrclass	# Routine that initializes _ctype[]
 	.globl	main
 	.globl	exit
 
@@ -48,6 +49,8 @@ _start:
 
 	CALL	0(%sp),__fpstart	# set up floating-point state
 
+	PUSHW	&0
+	CALL    -4(%sp), setchrclass	# initialize _ctype array
 	CALL	-3*4(%sp),main
 
 	PUSHW	%r0
@@ -64,7 +67,6 @@ _mcount:			# dummy version for the case when
 	.align	4
 environ:
 	.word	0
-
 	.section	.init,"x"
 _istart:
 	SAVE	%fp

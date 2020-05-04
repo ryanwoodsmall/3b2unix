@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/clock.c	10.8"
+#ident	"@(#)kern-port:os/clock.c	10.9"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/tuneable.h"
@@ -98,7 +98,7 @@ psw_t ps;
 	if (USERMODE(ps)) {
 		a = CPU_USER;
 		u.u_utime++;
-		if (u.u_prof.pr_scale)
+		if (u.u_prof.pr_scale & ~1)
 			retval = 1;
 	} else {
 		if (pc == waitloc) {

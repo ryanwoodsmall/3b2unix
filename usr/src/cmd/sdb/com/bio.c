@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:com/bio.c	1.8"
+#ident	"@(#)sdb:com/bio.c	1.9"
 
 #include "head.h"
 
@@ -34,6 +34,7 @@ struct brbuf *brs; char *buff; {
 	}
 	else if (debugflag == 2)
 	{
+/*
 		enter2("bread");
 		arg("brs");
 		printf("0x%x",brs);
@@ -44,6 +45,7 @@ struct brbuf *brs; char *buff; {
 		arg("nbytes");
 		printf("0x%x",nbytes);
 		closeparen();
+*/
 	}
 #endif
 	if (nbytes > 0) {
@@ -60,9 +62,11 @@ struct brbuf *brs; char *buff; {
 					}
 					else if (debugflag == 2)
 					{
+/*
 						exit2("bread");
 						printf("0x%x",-1);
 						endofline();
+*/
 					}
 #endif
 					return(-1);
@@ -76,9 +80,11 @@ struct brbuf *brs; char *buff; {
 					}
 					else if (debugflag == 2)
 					{
+/*
 						exit2("bread");
 						printf("0x%x",nbytes-nb);
 						endofline();
+*/
 					}
 #endif
 					return(nbytes-nb);
@@ -118,9 +124,11 @@ struct brbuf *brs; char *buff; {
 	}
 	else if (debugflag == 2)
 	{
+/*
 		exit2("bread");
 		printf("0x%x",nbytes);
 		endofline();
+*/
 	}
 #endif
 	return(nbytes);

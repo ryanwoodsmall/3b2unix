@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:cmd2.c	1.4"
+#ident	"@(#)mailx:cmd2.c	1.6"
 #
 
 #include "rcv.h"
@@ -177,6 +177,7 @@ Save1(msgvec, mark)
 int *msgvec;
 {
 	register char *from, *file;
+	char recfile[128];
 
 	from = nameof(&message[*msgvec-1], 0);
 	for (file=from; *file; file++)
@@ -187,7 +188,8 @@ int *msgvec;
 			break;
 		} else
 			file--;
-	savemsglist(file, msgvec, mark);
+	getrecf(file, recfile, 1);
+	savemsglist(expand(recfile), msgvec, mark);
 	return(0);
 }
 
@@ -220,13 +222,13 @@ int *msgvec;
 	lc = 0;
 	for (ip = msgvec; *ip && ip-msgvec < msgCount; ip++) {
 		mesg = *ip;
-		touch(mesg);
 		mp = &message[mesg-1];
 		if ((t = send(mp, obuf, 0)) < 0) {
 			perror(file);
 			fclose(obuf);
 			return(1);
 		}
+		touch(mesg);
 		lc += t;
 		cc += mp->m_size;
 		if (mark)

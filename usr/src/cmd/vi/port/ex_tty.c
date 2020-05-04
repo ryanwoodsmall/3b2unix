@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident "@(#)vi:port/ex_tty.c	1.7"
+#ident "@(#)vi:port/ex_tty.c	1.8"
 
 #include "ex.h"
 #include "ex_tty.h"
@@ -75,6 +75,9 @@ setterm(type)
 #ifdef TRACE
 	if (trace) fprintf(trace, "after setupterm, lines %d, columns %d, clear_screen '%s', cursor_address '%s'\n", lines, columns, clear_screen, cursor_address);
 #endif
+	if(exit_attribute_mode)
+		putpad(exit_attribute_mode);
+	exit_bold = (exit_standout_mode ? exit_standout_mode : (exit_attribute_mode ? exit_attribute_mode : 0));
 	i = lines;
 	if (lines <= 1)
 		lines = 24;

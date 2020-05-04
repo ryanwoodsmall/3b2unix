@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)lint:lint.c	1.8"
+#ident	"@(#)lint:lint.c	1.11"
 /*	3.0 SID #	1.2	*/
 /* lint.c
  *	This file contains the major functions for the first pass of lint
@@ -519,7 +519,7 @@ lprt( p, down, uses ) register NODE *p;
 			if( (uses&VALUSED) && !(q->sflags&SSET) ){
 				if( q->sclass == AUTO || q->sclass == REGISTER ){
 					if( !ISARY(q->stype ) && !ISFTN(q->stype)
-					  && q->stype!=STRTY ){
+					  && q->stype!=STRTY && q->stype!=UNIONTY){
 						/* "%.8s may be used before set" */
 						/* "%s may be used before set" */
 						WERROR( MESSAGE( 1 ), q->sname );
@@ -688,7 +688,7 @@ andable( p ) NODE *p;
 	if( stab[r].sclass == AUTO || stab[r].sclass == PARAM ) return(0); 
 	/* "cannot take address of %.8s" */
 	/* "cannot take address of %s" */
-	if( stab[r].sclass == REGISTER ) UERROR( MESSAGE( 18 ), stab[r].sname );
+/*	if( stab[r].sclass == REGISTER ) UERROR( MESSAGE( 18 ), stab[r].sname );*/
 	return(1);
 }
 /* clocal - do local checking on tree
@@ -804,9 +804,7 @@ exname( p ) char *p;
 	static char aa[8];
 	register int i;
 
-#if !( ibm | gcos )
-	if( !pflag ) return(p);
-#endif
+#if defined( ibm ) || defined( gcos )
 	for( i=0; i<6; ++i ){
 		if( isupper(*p ) ) aa[i] = tolower( *p );
 		else aa[i] = *p;
@@ -814,6 +812,8 @@ exname( p ) char *p;
 	}
 	aa[6] = '\0';
 	return( aa );
+#endif
+	return(p);
 }
 /* strip - strip full name to get basename */
 char *

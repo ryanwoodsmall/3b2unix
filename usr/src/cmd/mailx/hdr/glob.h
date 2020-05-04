@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:hdr/glob.h	1.2"
+#ident	"@(#)mailx:hdr/glob.h	1.4"
 /*
  * mailx -- a modified version of a University of California at Berkeley
  *	mail program
@@ -71,6 +71,8 @@ extern char	**altnames;		/* List of alternate names for user */
 extern int	debug;			/* Debug flag set */
 extern int	rmail;			/* Being called as rmail */
 extern char	*prompt;		/* prompt string */
+extern int	space;			/* Current maximum number of messages */
+extern int	maxfiles;		/* Maximum number of open files */
 
 #include <setjmp.h>
 
@@ -91,3 +93,4 @@ struct strings {
 	unsigned s_nleft;		/* Number of bytes left here */
 };
 extern struct strings stringdope[];
+

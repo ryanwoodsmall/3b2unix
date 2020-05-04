@@ -5,8 +5,8 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sa:sa.h	1.16"
-/*	sa.h 1.16 of 5/23/85 */
+#ident	"@(#)sa:sa.h	1.19"
+/*	sa.h 1.19 of 6/26/86 */
 /*	sa.h contains struct sa and defines variable used 
 		in sadc.c and sar.c.
 	The nlist setup table in sadc.c is arranged as follows:
@@ -32,7 +32,7 @@
 		- symbol name of dskinfo table
 		- symbol name of MTC tape drive.
 		- symbol name for _sysinfo.
-		- symbol name for minfo. (also after sysinfo for u3b2 and u3b5)
+		- symbol name for minfo. (also after sysinfo for u3b2 and u3b15)
 		- symbol names for system tables: inode, file,
 			process and record locking.
 		- symbol name for _var.
@@ -54,7 +54,7 @@
  
  
 #ifdef u3b2
-#undef	u3b5	/* A kludge to get around 3b2cc defining u3b5 */
+#undef	u3b15	/* A kludge to get around 3b2cc defining u3b15 */
 #endif 
  
 #include <a.out.h>
@@ -101,19 +101,23 @@
 #ifdef u3b2
 #define ID	0
 #define IF	1
-#define SINFO	2
-#define	MINFO	3
-#define INO	4
-#define FLE	5
-#define TXT	6
-#define PRO	7
-#define FLCK	8
-#define V	9
-#define IDEQ	10
-#define SERR	11
-#define DINFO	12
-#define	MINSERVE	13
-#define	MAXSERVE	14
+#define	SD00	2
+#define SINFO	3
+#define	MINFO	4
+#define INO	5
+#define FLE	6
+#define TXT	7
+#define PRO	8
+#define FLCK	9
+#define V	10
+#define IDEQ	11
+#define SERR	12
+#define DINFO	13
+#define	MINSERVE	14
+#define	MAXSERVE	15
+#define	SD00TC	16
+#define	SD00LU	17
+#define RCINFO	18
 #endif
 
 #ifdef u3b
@@ -135,21 +139,23 @@
 #define	MAXSERVE	15
 #endif
 
-#ifdef u3b5
+#ifdef u3b15
 #define DFDFC	0
-#define SINFO	1
-#define	MINFO	2
-#define INO	3
-#define FLE	4
-#define TXT	5
-#define PRO	6
-#define FLCK	7
-#define V	8
-#define DFCNT	9
-#define SERR	10
-#define	DINFO	11
-#define	MINSERVE	12
-#define	MAXSERVE	13
+#define	SD01	1
+#define SINFO	2
+#define	MINFO	3
+#define INO	4
+#define FLE	5
+#define TXT	6
+#define PRO	7
+#define FLCK	8
+#define V	9
+#define DFCNT	10
+#define SERR	11
+#define	DINFO	12
+#define	MINSERVE	13
+#define	MAXSERVE	14
+#define SD01_D	15
 #endif
  
 #ifdef u370
@@ -220,6 +226,7 @@ struct nlist setup[] = {
 struct nlist setup[] = {
 	{"idtime"},
 	{"ifstat"},
+	{"sd00_tc_cnt"},
 	{"sysinfo"},
 	{"minfo"},
 	{"inode"},
@@ -233,13 +240,17 @@ struct nlist setup[] = {
 	{"dinfo"},
 	{"minserve"},
 	{"maxserve"},
+	{"sd00_tc"},
+	{"sd00_lu_cnt"},
+	{"rcinfo"},
 	{0},
 };
 #endif
 
-#ifdef u3b5
+#ifdef u3b15
 struct nlist setup[] = {
 	{"df_dfc"},
+	{"Sd01_diskcnt"},
 	{"sysinfo"},
 	{"minfo"},
 	{"inode"},
@@ -253,6 +264,7 @@ struct nlist setup[] = {
 	{"dinfo"},
 	{"minserve"},
 	{"maxserve"},
+	{"sd01_d"},
 	{0},
 };
 #endif
@@ -326,7 +338,7 @@ char devnm[SINFO][6] ={
 #endif
 
 #ifdef u3b2
-#define NDEVS 3
+#define NDEVS 60
 /*	iotbsz, devnm tables define the initial value of number of drives
 	and name of devices.
 */
@@ -336,12 +348,13 @@ int iotbsz[SINFO] = {
 };
 char devnm[SINFO][6] ={
 	"hdsk-",		/* integral hard disk */
-	"fdsk-"		/* integral floppy disk */
+	"fdsk-",		/* integral floppy disk */
+	"sd00-"
 };
 #endif
 
-#ifdef u3b5
-#define NDEVS 100
+#ifdef u3b15
+#define NDEVS 200
 /*	iotbsz, devnm tables define the initial value of number of drives
 	and name of devices.
 */
@@ -349,7 +362,8 @@ int iotbsz[SINFO] = {
 	0
 };
 char devnm[SINFO][6] ={
-	"dsk-"
+	"dsk-",
+	"sd01-"
 };
 #endif
 
@@ -387,10 +401,11 @@ struct	iodev {
  
 struct sa {
 	struct	sysinfo si;	/* defined in /usr/include/sys/sysinfo.h  */
-#if	vax || u3b || u3b5 || u3b2
+#if	vax || u3b || u3b15 || u3b2
 	struct	minfo	mi;	/* defined in /usr/include/sys/sysinfo.h */
 #endif
 	struct	dinfo	di;	/* defined in /usr/include/sys/sysinfo.h */
+	struct	rcinfo	rc;	/* defined in /usr/include/sys/sysinfo.h */
 	int	minserve;
 	int	maxserve;
 	int	szinode;	/* current size of inode table  */
@@ -441,12 +456,13 @@ struct sa {
 #endif
 
 #ifndef u370
-	long	devio[NDEVS][4]; /* device unit information  */
+	long	devio[NDEVS][5]; /* device unit information  */
 #endif 
 
 #define	IO_OPS	0  /* number of I /O requests since boot  */
 #define	IO_BCNT	1  /* number of blocks transferred since boot */
 #define	IO_ACT	2  /* cumulative time in ticks when drive is active  */
 #define	IO_RESP	3  /* cumulative I/O response time in ticks since boot  */
+#define	IO_ID	4
 };
 extern struct sa sa;

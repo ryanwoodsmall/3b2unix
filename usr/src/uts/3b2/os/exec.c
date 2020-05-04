@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/exec.c	10.19"
+#ident	"@(#)kern-port:os/exec.c	10.20.5.6"
 
 #include "sys/types.h"
 #include "sys/param.h"
@@ -84,8 +84,8 @@ exece()
 	/*
 	 * Look at what we got, u.u_exdata.ux_mag = 410/411/413
 	 *
-	 *  410 is RO text (3B5 supports *only* this magic number)
-	 *  411 is separated ID (3B5 treats this as 0410)
+	 *  410 is RO text
+	 *  411 is separated ID (treated like a 0410)
 	 *  413 is RO text in an "aligned" a.out file
 	 */
 	switch (u.u_exdata.ux_mag) {
@@ -171,7 +171,7 @@ exece()
 		reglock(rp);
 		detachreg(prp, &u);
 	}
-	u.u_dmm = 0;
+	u.u_nshmseg = u.u_dmm = 0;
 
 	/*
 	 * load any shared libraries that are needed
@@ -195,9 +195,6 @@ exece()
 		psignal(u.u_procp, SIGKILL);
 		goto done;
 	}
-
-	/* SDT[2] table and size have been changed */
-	loadmmu(u.u_procp, SCN2);
 
 	/*
 	 *	Set up the user's stack.
@@ -362,16 +359,15 @@ register struct exdata *exec_data;
 
 	FS_READI(ip);
 
-	if ((u.u_count != 0) || (filhdr.f_magic != M32MAGIC)) {
+	if ((u.u_count != 0) ||
+	    (filhdr.f_magic != M32MAGIC) || !(filhdr.f_flags & F_EXEC)){
 		u.u_error = ENOEXEC;
 		goto bad;
 	}
-	if (((filhdr.f_flags & F_BM32B) && !fast32b()) ||
-	    ((filhdr.f_flags & F_BM32MAU) && !mau_present)) {
-		u.u_error = EFAULT;
-		goto bad;
-	}
-	if (!(filhdr.f_flags & F_BM32RST) && !fast32b()) {
+
+	if (( (filhdr.f_flags & F_BM32B)   && !fast32b())   ||
+	    (!(filhdr.f_flags & F_BM32RST) && !fast32b())   ||
+	    ( (filhdr.f_flags & F_BM32MAU) && !mau_present) ){
 		u.u_error = EFAULT;
 		goto bad;
 	}
@@ -607,7 +603,7 @@ short  dpregtyp;
 	 *	Allocate the data region.
 	 */
 
-	if ((rp = allocreg(ip, RT_PRIVATE, 0)) == NULL) {
+	if ((rp = allocreg(ip, RT_PRIVATE)) == NULL) {
 		prele(ip);
 		goto out;
 	}
@@ -670,7 +666,7 @@ short  dpregtyp;
 		}
 		if (u.u_procp->p_flag & SSEXEC)
 			u.u_procp->p_flag |= SPRSTOP;
-		else if (u.u_procp->p_flag & STRC)
+		if (u.u_procp->p_flag & STRC)
 			psignal(u.u_procp, SIGTRAP);
 	}
 
@@ -723,8 +719,6 @@ struct   exdata *dat_start;
 		}
 
 		/* Locate the shared lib and get its header info.  */
-
-		u.u_syscall = DUEXEC;
 
 		u.u_dirp = (caddr_t)(bp + bp[1]);
 		bp += bp[0];
@@ -786,7 +780,7 @@ int	newsp;
 	 *	the process.
 	 */
 
-	if ((rp = allocreg(NULL, RT_PRIVATE, 0)) == NULL)
+	if ((rp = allocreg(NULL, RT_PRIVATE)) == NULL)
 		return(-1);
 
 	if ((prp = attachreg(rp, &u, userstack, PT_STACK, SEG_RW)) == NULL) {
@@ -819,7 +813,6 @@ int	newsp;
 	}
 
 	rp->r_nvalid = nargc;
-	loadmmu(u.u_procp, SCN3);
 	u.u_pcb.sub = (int *)((uint)userstack + ctob(rp->r_pgsz));
 	regrele(rp);
 
@@ -845,4 +838,263 @@ register int    n;
 
 	plock(u.u_exdata.ip);
 	iput(u.u_exdata.ip);
+
+}
+/*
+ *	Run Time Library System Calls
+ */
+
+struct libargs	{
+	char	*l_path;
+	char	*l_buf;
+	int	l_flags;
+};
+
+struct lib_stat {
+	caddr_t		lb_lib;		/* library control */
+	unsigned long	lb_status;	/* status of attach */
+	unsigned long	lb_flags;	/* library flags */
+};
+
+/* lb_status flags */
+
+#define	LS_PREV	0x1	/* Library was previously attached */
+
+/* Format of a .lib section */
+
+#define MAXLIB	256	/*maximum size of a .lib section */
+#define L_TOTAL 0	/* total number of words in the .lib entry */
+#define L_TOPATH 1	/* number of words to the pathname information */
+#define L_EXTRA 2	/* the start of the "extra" structure */
+
+/* Format of an "extra" structure */
+
+#define L_LENGTH 0	/* Length of an "extra" structure */
+#define L_CODE	1	/* The "type" of information */
+#define L_VALUE 2	/* the start of the value */
+
+/* L_CODE values */
+
+#define L_FLAGS 1	/* the type of a flags entry */
+#define L_LBLIB 2	/* the type of a library section */
+
+
+libattach()
+{
+	struct	inode	*ip;
+	struct	exdata	lib_head;
+	unsigned long	libdata[MAXLIB/sizeof(unsigned long)];
+	struct	lib_stat lb_ret;
+	preg_t	*prp;
+	unsigned	ep;
+
+	/*
+	 * l_flags is available for future system call expansion.
+	 */
+	if (((struct libargs *)u.u_ap)->l_flags != 0) {
+		u.u_error = EINVAL;
+		return;
+	}
+
+	/*
+	 * In case the system call goes remote set u_syscall.
+	 */
+	u.u_syscall = DUEXEC;
+
+	/*
+	 * gethead does iput on error
+	 */
+	if (((ip = namei(upath, 0)) == NULL) || (gethead(ip, &lib_head)))
+		return;
+
+	if (lib_head.ux_mag != 0443) {
+		u.u_error = ELIBBAD;
+		iput(ip);
+		return;
+	}
+
+	/*
+	 * Truncate the size of the .lib section if too big and try
+	 * to process anyways.
+	 */
+
+	if (lib_head.ux_lsize > MAXLIB)
+		lib_head.ux_lsize = MAXLIB;
+
+	ip->i_flag |= ITEXT;
+	prele(ip);
+
+	lb_ret.lb_lib = (caddr_t) NULL;
+	lb_ret.lb_flags = NULL;
+	lb_ret.lb_status = NULL;
+
+	/*
+	 * Verify that a .lib section exists.  If it doesn't, continue
+	 * with out generating an error.  Otherwise, extract the "extra"
+	 * information from the first .lib entry.  Ignore the remaining
+	 * .lib entries
+	 */
+	if (lib_head.ux_loffset != 0 && lib_head.ux_lsize != 0) {
+		register int lsize;
+
+		u.u_base = (caddr_t) libdata;
+		u.u_count = lib_head.ux_lsize;
+		u.u_offset = lib_head.ux_loffset;
+		u.u_segflg = 1;
+
+		FS_READI(ip);
+
+		if (u.u_count != 0) {
+			if (u.u_error == 0)
+				u.u_error = ELIBSCN;
+			goto badatt;
+		}
+
+		lsize = lib_head.ux_lsize/sizeof(unsigned long);
+
+		if (libdata[L_TOPATH] > lsize) {
+			u.u_error = ELIBSCN;
+			goto badatt;
+		}
+		ep = L_EXTRA;
+		while( ep < libdata[L_TOPATH]) {
+			/*
+			 * Ignore with out error any entries that aren't
+			 * known types
+			 */
+			switch (libdata[ep + L_CODE]) {
+			 case L_FLAGS:
+				lb_ret.lb_flags = libdata[ep + L_VALUE];
+				break;
+			 case L_LBLIB:
+				lb_ret.lb_lib = (caddr_t)libdata[ep + L_VALUE];
+				break;
+			}
+			/*
+			 * cast to a long to avoid carries on the increment
+			 */
+			if ((long)libdata[ep + L_LENGTH] <= 0 ||
+			    (ep += libdata[ep + L_LENGTH]) > libdata[L_TOPATH]) {
+				u.u_error = ELIBSCN;
+				goto badatt;
+			}
+		}
+		/*
+		 * Check for a malformed .lib entry
+		 */
+		if (ep != libdata[L_TOPATH]) {
+			u.u_error = ELIBSCN;
+			goto badatt;
+		}
+
+	}
+
+	/*
+	 * Check to see if this library was previously attached
+	 */
+	for(prp = curproc->p_region;prp->p_reg; prp++)
+		if (prp->p_reg->r_iptr == ip) {
+			lb_ret.lb_status |= LS_PREV;
+			break;
+		}
+
+	if (!(lb_ret.lb_status & LS_PREV)) {
+		/*
+		 * Verify the library can be attached and attach it
+		 */
+		if (u.u_exdata.ux_nshlibs >= shlbinfo.shlbs) {
+			u.u_error = ELIBMAX;
+			goto badatt;
+		}
+		if(getxfile(&lib_head, PT_LIBTXT, PT_LIBDAT) == -1) {
+			libdetacher(lib_head.ux_txtorg);
+			return;
+		}
+		u.u_exdata.ux_nshlibs++;
+	} else {
+		/*
+		 * The library is already attached so decrement the use
+		 * count.
+		 */
+		plock(ip);
+		iput(ip);
+	}
+
+	/*
+	 * Return the libinfo structure to the caller.  If the
+	 * copyout fails, detach the library and return a fault.
+	 */
+	if(copyout(&lb_ret, ((struct libargs *)u.u_ap)->l_buf, sizeof(lb_ret))) {
+		if(!(lb_ret.lb_status & LS_PREV)) {
+			libdetacher(lib_head.ux_txtorg);
+			u.u_exdata.ux_nshlibs--;
+		}
+		u.u_error = EFAULT;
+		return;
+	}
+
+	u.u_rval1 = lib_head.ux_txtorg;
+	shlbinfo.shlbatts++;
+	return;
+
+badatt:
+	plock(ip);
+	iput(ip);
+}
+
+libdetach()
+{
+	struct  libdes {
+		caddr_t	libdes;
+	};
+
+	if(libdetacher(((struct libdes *)u.u_ap)->libdes))
+		u.u_exdata.ux_nshlibs--;
+	else
+		u.u_error = EINVAL;
+}
+
+libdetacher(libd)
+caddr_t libd;
+{
+	register preg_t	*prp;
+	register reg_t	*rp;
+	struct inode	*lib_inode = 0;
+
+	prp = u.u_procp->p_region;
+
+	/*
+	 * Scan the pregion table for the inode number of the attached
+	 * library.  If none, is found, the address is invalid.
+	 */
+
+	for (prp = curproc->p_region; prp->p_reg; prp++)
+		if ((prp->p_regva == libd) && prp->p_type == PT_LIBTXT) {
+			lib_inode = prp->p_reg->r_iptr;
+			break;
+		}
+
+	if (lib_inode == 0) {
+		return(0);
+	}
+
+	/*
+	 * Scan the pregion table for the library's regions and detach
+	 * them.
+	 */
+	while (rp = prp->p_reg) {
+		caddr_t regva;
+
+		if (rp->r_iptr != lib_inode) {
+			prp++;
+			continue;
+		}
+		plock(lib_inode);
+		reglock(rp);
+		regva = prp->p_regva;
+		u.u_execsz -= rp->r_pgsz;
+		detachreg(prp, &u);
+		loadmmu(u.u_procp, secnum(regva));
+	}
+	return(1);
 }

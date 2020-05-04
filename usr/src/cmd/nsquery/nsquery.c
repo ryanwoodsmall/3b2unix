@@ -5,14 +5,20 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)nsquery:nsquery.c	1.7"
+#ident	"@(#)nsquery:nsquery.c	1.7.2.3"
+#include  <sys/types.h>
+#include  <sys/sema.h>
+#include  <sys/rfsys.h>
+#include  <sys/comm.h>
 #include  <stdio.h>
 #include  <ctype.h>
 #include  <nserve.h>
+#include  <errno.h>
 
 void	exit();
 static	char	*cmd;
 extern	int	errno;
+extern	int	ns_errno;
 extern	int	optind,	opterr;
 extern	char	*optarg;
 extern	char	*dompart();
@@ -25,11 +31,22 @@ char	*argv[];
 
 	int	chr;
 	int	errflag = 0, hflag = 0;
+	int	rtn;
 	char	*name = "*";
 	char 	*usage = "nsquery [-h] [<name>]";
 
 
 	cmd = argv[0];
+
+	if ((rtn = rfsys(RF_RUNSTATE)) < 0) {
+		perror(cmd);
+		exit(1);
+	}
+
+	if (rtn != DU_UP) {
+		fprintf(stderr, "%s: RFS is not running\n", cmd);
+		exit(1);
+	}
 
 	while ((chr = getopt(argc,argv,"h")) != EOF)
 		switch(chr) {
@@ -58,7 +75,15 @@ char	*argv[];
 		fprintf(stdout,"RESOURCE        ACCESS      SERVER                    DESCRIPTION\n\n");
 
 	if (ns_info(name) == FAILURE) {
-		nserror(cmd);
+		if (ns_errno == R_SETUP) {
+			fprintf(stderr, "%s: cannot set up communication with the name server\n", cmd);
+			fprintf(stderr, "%s: possible cause: heavily loaded RFS activity\n", cmd);
+		} else if (ns_errno == R_RCV) {
+			fprintf(stderr, "%s: no information received from name server\n", cmd);
+			fprintf(stderr, "%s: possible cause: unknown domain name specified or a connection\n", cmd);
+			fprintf(stderr, "         to the name server could not be established\n");
+		} else
+			nserror(cmd);
 		exit(1);
 	}
 	exit(0);

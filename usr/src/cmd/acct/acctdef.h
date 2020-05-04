@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)acct:acctdef.h	1.8"
+#ident	"@(#)acct:acctdef.h	1.10"
 /*
  *	defines, typedefs, etc. used by acct programs
  */
@@ -16,7 +16,7 @@
  */
 typedef	unsigned short	uid_t;
 
-#if u3b || u3b5 || u3b2
+#if u3b || u3b15 || u3b2
 #define HZ	100
 #else
 #define HZ	60
@@ -31,7 +31,7 @@ typedef	unsigned short	uid_t;
  *	limits which may have to be increased if systems get larger
  */
 #define A_SSIZE	1000	/* max number of sessions in 1 acct run */
-#define A_TSIZE	100	/* max number of line names in 1 acct run */
+#define A_TSIZE	128	/* max number of line names in 1 acct run */
 #define A_USIZE	500	/* max number of distinct login names in 1 acct run */
 
 #define EQN(s1, s2)	(strncmp(s1, s2, sizeof(s1)) == 0)
@@ -48,6 +48,6 @@ typedef	unsigned short	uid_t;
 #ifdef vax
 #define KCORE(clicks)	((double) clicks/2)
 #endif
-#if u3b || u3b5 || u3b2
+#if u3b || u3b15 || u3b2
 #define KCORE(clicks)	((double) clicks*2)
 #endif

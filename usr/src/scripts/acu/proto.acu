@@ -8,6 +8,7 @@ install d--775 0 3
 $
 new	d--775 0 3
 	bin	d--775 2 2
+		chkshlib	---775	2 2	../bin/chkshlib
 		mkshlib	---775	2 2	../bin/mkshlib
 	$
 	usr	d--775 0 3
@@ -29,12 +30,6 @@ new	d--775 0 3
 			flip	---755	2 2	../usr/lib/flip
 			lint1	---775	2 2	../usr/lib/lint1
 			lint2	---775	2 2	../usr/lib/lint2
-			llib-lc	---664	2 2	../usr/lib/llib-lc
-			llib-lc.ln	---664	2 2	../usr/lib/llib-lc.ln
-			llib-lm	---664	2 2	../usr/lib/llib-lm
-			llib-lm.ln	---664	2 2	../usr/lib/llib-lm.ln
-			llib-port	---664	2 2	../usr/lib/llib-port
-			llib-port.ln	---664	2 2	../usr/lib/llib-port.ln
 			lpfx	---755	2 2	../usr/lib/lpfx
 			nmf	---755	2 2	../usr/lib/nmf
 			xcpp	---775	2 2	../usr/lib/xcpp

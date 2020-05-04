@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/t_snd.c	1.3"
+#ident	"@(#)libnsl:nsl/t_snd.c	1.4.1.1"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/errno.h"
@@ -32,7 +32,7 @@ int flags;
 	struct strbuf ctlbuf, databuf;
 	struct T_data_req *datareq;
 	int flg = 0;
-	int tmpcnt, tmp;
+	unsigned tmpcnt, tmp;
 	char *tmpbuf;
 	register struct _ti_user *tiptr;
 
@@ -81,10 +81,13 @@ int flags;
 					t_errno = TSYSERR;
 				return(-1);
 			} else
+				tiptr->ti_state = TLI_NEXTSTATE(T_SND, tiptr->ti_state);
 				return(nbytes - tmp);
 		}
 		tmp = tmp - tmpcnt;
 		tmpbuf = tmpbuf + tmpcnt;
 	}
+
+	tiptr->ti_state = TLI_NEXTSTATE(T_SND, tiptr->ti_state);
 	return(nbytes - tmp);
 }

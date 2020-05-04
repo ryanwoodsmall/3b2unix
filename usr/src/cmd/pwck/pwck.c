@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)pwck:pwck.c	1.6"
+#ident	"@(#)pwck:pwck.c	1.7"
 
 #include	<sys/types.h>
 #include	<sys/param.h>
@@ -102,7 +102,7 @@ char **argv;
 	/*  Check that UID is numeric and <= MAXUID  */
 
 		len = (delim[2]-delim[1])-1;
-		if(len > 5) {
+		if ( (len > 5) || (len < 1) ) {
 			error(ERROR4);
 		}
 		else {
@@ -121,7 +121,7 @@ char **argv;
 	/*  Check that GID is numeric and <= MAXUID  */
 
 		len = (delim[3]-delim[2])-1;
-		if(len > 5) {
+		if ( (len > 5) || (len < 1) ) {
 			error(ERROR5);
 		}
 		else {
@@ -155,6 +155,9 @@ char **argv;
 		if((buf[(delim[5]+1)]) != '\n') {
 			for(j=0, i=(delim[5]+1); i<delim[6]; j++, i++) {
 				logbuf[j]=buf[i];
+			}
+			if(strcmp(logbuf,"*") == 0)  {  /* subsystem login */
+				continue;
 			}
 			if((stat(logbuf,&obuf)) == -1) {
 				error(ERROR7);

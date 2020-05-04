@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libcrypt_x:cryptio.c	1.4"
+#ident	"@(#)libcrypt_x:cryptio.c	1.7"
 #include <stdio.h>
 #include <signal.h>
 #define	READER		0
@@ -78,7 +78,7 @@ char *keyarg;
 		signal(SIGPIPE,pstat);
 		return(-1);
 	}
-	signal(SIGPIPE,pstat);
+	(void)signal(SIGPIPE,pstat);
 	return(1);
 }
 
@@ -128,11 +128,10 @@ int b[2];
 	temp = tempbuf;
 	for(i = 0; i < KSIZE; i++)
 		temp[i] = *a++; 
-	time(&gorp);
-	gorp += getpid();
+	gorp = getuid() + getgid();
 
 	for(i = 0; i < 4; i++)
-		*temp++ ^= (char)((gorp>>(8*i))&0377); 
+		temp[i] ^= (char)((gorp>>(8*i))&0377); 
 
 	if (cryptopen(b) == -1)
 		return(-1);

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/streamio.c	10.17"
+#ident	"@(#)kern-port:os/streamio.c	10.17.3.4"
 
 #include "sys/types.h"
 #include "sys/file.h"
@@ -111,6 +111,12 @@ retry:
 		}
 
 		stp->sd_flag |= STWOPEN;
+
+		/*
+		 * Set up to test if opens create a controlling tty.
+		 */
+		if (!u.u_ttyp) stp->sd_flag |= CTTYFLG;
+
 		/*
 		 * Open all modules and devices down stream to notify
 		 * that another user is streaming.
@@ -127,7 +133,11 @@ retry:
 				break;
 			}
 		}
-		stp->sd_flag &= ~STWOPEN;
+		if (u.u_ttyp  &&  (stp->sd_flag&CTTYFLG)  &&  !u.u_error) {
+			stp->sd_pgrp = *u.u_ttyp;
+			u.u_ttyip = stp->sd_inode;
+		}
+		stp->sd_flag &= ~(CTTYFLG | STWOPEN);
 		wakeup((caddr_t)stp);
 		return;
 	} 
@@ -201,9 +211,7 @@ retry:
 		stp->sd_flag |= STRHUP;
 		stp->sd_wrq = NULL; 		/* free stream */
 		strst.stream.use--;
-
 		freeq(qp);
-		strst.queue.use--;
 
 		ip->i_sptr = NULL;
 		if (!u.u_error)
@@ -216,7 +224,7 @@ retry:
 	 */
 	if (u.u_ttyp && (stp->sd_flag&CTTYFLG)) {
 		stp->sd_pgrp = *u.u_ttyp;
-		u.u_ttyip = ip;
+		u.u_ttyip = stp->sd_inode;
 	}
 	stp->sd_flag &= ~CTTYFLG;
 }
@@ -283,8 +291,6 @@ struct inode *ip;
 
 	/* free stream head queue pair */
 	freeq(qp);
-	strst.queue.use--;
-
 	splx(s);
 
 	while (mp) {
@@ -999,7 +1005,7 @@ int flag;
 				return;
 			}
 			strioc.ic_cmd = cmd;
-			strioc.ic_timout = 0;
+			strioc.ic_timout = INFTIM;
 
 			switch (cmd) {
 				case TCXONC:
@@ -1130,6 +1136,7 @@ int flag;
 		{
 			char mname[FMNAMESZ+1];
 			int i;
+			queue_t *q;
 
 			if (stp->sd_flag & STRHUP) {
 				u.u_error = ENXIO;
@@ -1185,6 +1192,17 @@ int flag;
 				}
 				stp->sd_pushcnt++;
 			}
+
+			/*
+			 * If flow control is on, don't break it - enable
+			 * first back queue with svc procedure
+			 */
+			if (RD(stp->sd_wrq)->q_flag & QWANTW) {
+				for (q = backq(RD(stp->sd_wrq->q_next));
+				     q && !q->q_qinfo->qi_srvp; q = backq(q));
+				if (q) qenable(q);
+			}
+
 			stp->sd_flag &= ~(CTTYFLG | STWOPEN);
 			wakeup((caddr_t)stp);
 			return;
@@ -1329,7 +1347,7 @@ int flag;
 				    !fpdown->f_inode || 
 				    !(stpdown = fpdown->f_inode->i_sptr) ||
 				    !(stpdown->sd_flag & STPLEX) ||
-				    !(linkblkp = findlinks(NULL,
+				    !(linkblkp = findlinks(getendq(stp->sd_wrq),
 					     	stpdown->sd_wrq, arg))) {
 					/* invalid user supplied index number */
 					u.u_error = EINVAL;
@@ -1356,10 +1374,10 @@ int flag;
 			u.u_error = EINVAL;
 			return;
 		}
-		if (!putctl1(stp->sd_wrq->q_next, M_FLUSH, arg))
-			u.u_error = EAGAIN;
-		else
-			if (qready()) runqueues();
+		while (!putctl1(stp->sd_wrq->q_next, M_FLUSH, arg))
+			if (strwaitbuf(1, BPRI_HI, 1)) return;
+
+		if (qready()) runqueues();
 		return;
 
 	case I_SRDOPT:
@@ -1496,6 +1514,11 @@ int flag;
 				u.u_rval1 = 0;
 				return;
 			}
+
+			if (bp->b_datap->db_type == M_PASSFP) {
+				u.u_error = EBADMSG;
+				return;
+			}
 	
 			if (bp->b_datap->db_type == M_PCPROTO) 
 				strpeek.flags = RS_HIPRI;
@@ -1509,7 +1532,7 @@ int flag;
 			u.u_base = strpeek.ctlbuf.buf;
 			u.u_count = strpeek.ctlbuf.maxlen;
 			u.u_segflg = 0;
-			while (bp && bp->b_datap->db_type!=M_DATA && u.u_count) {
+			while (bp && bp->b_datap->db_type!=M_DATA && u.u_count >= 0) {
 				if (n = min(u.u_count, bp->b_wptr - bp->b_rptr))
 					iomove(bp->b_rptr, n, B_READ);
 				if (u.u_error)
@@ -1575,6 +1598,11 @@ int flag;
 				return;
 			}
 	
+			if (resstp->sd_flag & (STRERR|STRHUP|STPLEX)) {
+				u.u_error = ((resstp->sd_flag&STPLEX) ? EINVAL : resstp->sd_error);
+				return;
+			}
+
 			/* get read queue of stream terminus */
 			for (q = resstp->sd_wrq->q_next; q->q_next; q = q->q_next);
 			q = RD(q);
@@ -1746,7 +1774,7 @@ int copyflg;
 	}
 
 	while (!(bp = allocb(sizeof(struct iocblk), BPRI_HI))) 
-		if (strwaitbuf(sizeof(struct iocblk), BPRI_HI)) return;
+		if (strwaitbuf(sizeof(struct iocblk), BPRI_HI, 1)) return;
 
 	iocbp = (struct iocblk *)bp->b_wptr;
 	iocbp->ioc_count = strioc->ic_len;
@@ -2383,7 +2411,6 @@ register queue_t *qp;
 		backq(WR(qp))->q_next = WR(qp)->q_next;
 	freeq(qp);
 	splx(s);
-	strst.queue.use--;
 }
 
 
@@ -2749,7 +2776,7 @@ long flag;
 		 * to allocate a message block for the ctl part.
 		 */
 		while (!(bp = allocb(count, pri))) 
-			if (strwaitbuf(count, pri)) return(NULL);
+			if (strwaitbuf(count, pri, 1)) return(NULL);
 
 		bp->b_datap->db_type = msgtype;
 		if (copyin(base, bp->b_wptr, count)) {
@@ -2777,6 +2804,10 @@ long flag;
 getbp:
 			if (size < QBSIZE) {
 				if (bp = allocb(size, pri)) goto gotbp;
+				if (strwaitbuf(size, pri, 1)) {
+					freemsg(mp);
+					return(NULL);
+				}
 			} else {
 				if ((class = getclass(size)) == NCLASS) {
 					class = NCLASS-1;
@@ -2785,10 +2816,16 @@ getbp:
 				if (bp = allocb(rbsize[class], pri)) goto gotbp;
 				if (bp = allocb(rbsize[--class], pri)) goto gotbp;
 				if (bp = allocb(rbsize[--class], pri)) goto gotbp;
-			}
-			if (strwaitbuf(size, pri)) {
-				freemsg(mp);
-				return(NULL);
+				/*
+				 * Have strwaitbuf() call bufcall up to 3
+				 * times to mimic 3 allocb() tries above.
+				 * This prevents failure if there are no
+				 * buffers configured for 'size' bytes.
+				 */
+				if (strwaitbuf(size, pri, 3)) {
+					freemsg(mp);
+					return(NULL);
+				}
 			}
 			goto getbp;
 
@@ -2820,17 +2857,32 @@ gotbp:
 
 /*
  * Wait for a buffer to become available.  Return 1 if not able to wait,
- * 0 if buffer is probably there.
+ * 0 if buffer is probably there.  'ncalls' is # of bufcall() attempts.
  */
-strwaitbuf(size, pri)
-int size, pri;
+strwaitbuf(size, pri, ncalls)
+int size, pri, ncalls;
 {
 	extern setrun();
 
 	if (!bufcall(size, pri, setrun, u.u_procp)) {
-		u.u_error = EAGAIN;
+		if (ncalls > 1) {
+			int i, class;
+
+			/*
+			 * assume size won't exceed largest buffer size
+			 * and won't loop below lowest buffer size
+			 */
+			class = getclass(size);
+			for (i = 1; i < ncalls; i++)
+				if (bufcall((size = rbsize[--class]), pri,
+				    setrun, u.u_procp))
+					goto bufpass;
+		}
+		u.u_error = ENOSR;
 		return(1);
 	}
+
+bufpass:
 	if (sleep((caddr_t)&(u.u_procp->p_flag), STOPRI|PCATCH)) {
 		strunbcall(size, pri, u.u_procp);
 		u.u_error = EINTR;

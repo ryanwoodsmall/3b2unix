@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/flock.c	10.8"
+#ident	"@(#)kern-port:os/flock.c	10.8.2.1"
 
 /*
  *	Notes :

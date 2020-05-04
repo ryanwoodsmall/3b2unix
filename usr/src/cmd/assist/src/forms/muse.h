@@ -5,8 +5,11 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)forms:muse.h	1.17"
+#ident	"@(#)forms:muse.h	1.18"
 
+/* muse.h -- header file that contains declarations only,
+             for both mforms and tforms.  For explanations,
+             see musedefs.h  */
 #include   <stdio.h> 
 #include   <curses.h>
 #include   <ctype.h>

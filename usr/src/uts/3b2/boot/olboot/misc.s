@@ -6,13 +6,13 @@
 #	actual or intended publication of such source code.
 
 
-	.ident	"@(#)kern-port:boot/olboot/misc.s	1.1"
+	.ident	"@(#)kern-port:boot/olboot/misc.s	1.2"
 #
 #	OLBOOT ENTRY POINT
 #
 #	Olboot is called by mboot (which is operating on the IAU
 #	stack).  The IAU stack is only 1K (0x30100 - 0x30500) for
-#	release 1.2 of the 3B5.  This code will switch the stack
+#	release 1.2 of the 3B15.  This code will switch the stack
 #	to address &sstack (length estack-sstack); the stack
 #	bounds in the current PCB will also be adjusted.
 #

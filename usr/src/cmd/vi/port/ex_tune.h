@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident "@(#)vi:port/ex_tune.h	1.8"
+#ident "@(#)vi:port/ex_tune.h	1.9"
 /*
  * Definitions of editor parameters and limits
  */
@@ -42,10 +42,10 @@
 #define LBSIZE		BUFSIZ		/* Line buffer size */
 #define CRSIZE		BUFSIZ		/* Crypt block size */
 
-#define ESIZE		512
+#define ESIZE		1024
 /* FNSIZE is also defined in expreserve.c */
 #define	FNSIZE		128		/* Max file name size */
-#define	RHSSIZE		256		/* Size of rhs of substitute */
+#define	RHSSIZE		512		/* Size of rhs of substitute */
 #define	NBRA		9		/* Number of re \( \) pairs */
 #define	TAGSIZE		32		/* Tag length */
 #define	ONMSZ		128		/* Option name size */

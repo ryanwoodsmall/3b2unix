@@ -1,4 +1,4 @@
-#ident 	"@(#)shlibc:spec	1.3"
+#ident 	"@(#)shlibc:spec	1.8"
 ##
 ## Libc_s specification file
 ##
@@ -129,12 +129,13 @@ strncmp	120
 strncpy	121
 strrchr	122
 time	123
-tolower	124
-toupper	125
+old_tolower	124
+old_toupper	125
 ungetc	126
 unlink	127
 utime	128
 write	129-150
+
 #objects
 ##
 ##
@@ -143,6 +144,8 @@ write	129-150
 ##
 port/gen/ctype_def.o
 port/gen/mall_def.o
+port/gen/reall_def.o
+port/gen/free_def.o
 port/stdio/stdio_def.o
 m32/gen/gen_def.o
 m32/fp/fp_def.o
@@ -156,7 +159,7 @@ m32/fp/fp_data.o
 ##	Some frequently used functions, called randomly
 
 m32/gen/abs.o
-port/gen/tolower.o
+port/gen/old_tolower.o
 port/stdio/ungetc.o
 m32/gen/strcmp.o
 
@@ -200,7 +203,7 @@ port/stdio/putchar.o
 
 ##	infrequently called, page glue
 
-port/gen/toupper.o
+port/gen/old_toupper.o
 
 ##	stdio group
 
@@ -350,8 +353,12 @@ _libc_environ		environ
 
 #init mall_def.o
 _libc_malloc		malloc
-_libc_free		free
+
+#init reall_def.o
 _libc_realloc		realloc
+
+#init free_def.o
+_libc_free		free
 	
 #init stdio_def.o
 _libc__sibuf		_sibuf
@@ -360,3 +367,22 @@ _libc__smbuf		_smbuf
 _libc__iob		_iob
 _libc__lastbuf		_lastbuf
 _libc__bufendtab	_bufendtab
+
+## HIDE all symbols, except those that are :
+## 1. In the branch table
+## 2. In #init's
+## 3. Explicity EXPORTed below
+
+#hide linker *
+#export linker
+errno
+optarg
+opterr
+optind
+optopt
+_asr
+_fp_hw
+_fpfault
+_fpftype
+_old.fp
+d.vect

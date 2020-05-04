@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/comm.c	10.36"
+#ident	"@(#)kern-port:nudnix/comm.c	10.36.7.9"
 /*  These are the communications routines called from the UNIX kernel.
  *  They deal with send and receive descriptors, and with sending
  *  and receiving messages.
@@ -34,18 +34,20 @@
 #include "sys/cirmgr.h"
 #include "sys/debug.h"
 #include "sys/rdebug.h"
+#include "sys/sysinfo.h"
+#include "sys/recover.h"
 
 #define p_minwdlock	p_trlock
 
 /*
  *  Don't let RFS start unless we have enough resources:
- *	SNDD: one for rfdaemon, one for mount, one for request
- *	RCVD: mount, signals, rfdaemon, one to do something
+ *	SNDD: one for rfdaemon, one for mount, one for request, one for cache
+ *	RCVD: mount, signals, rfdaemon, cache, one to do something
  *	MINGDP: at least one circuit
  */
 
-#define MINSNDD		3
-#define MINRCVD		4
+#define MINSNDD		4
+#define MINRCVD		5
 #define MINGDP		1
 
 /*  Global variables used by this routine.  */
@@ -57,10 +59,16 @@ rcvd_t	rdfreelist;		/*  free recv desc link list		*/
 rcvd_t	sigrd;			/*  rd for signals */
 rcvd_t	cfrd;			/*  rd for mounts */
 static ushort connid;
-int	sdlowmark;		/* sd free count low mark */
 int	serverslp = 0;		/* server sleep for buffer flag */
+int	clientslp = 0;		/* client sleep for buffer flag */
+mblk_t	*server_bp = NULL;	/* server stream buffer */
+mblk_t	*client_bp = NULL;	/* client stream buffer */
+int	nserverbuf = 1;		/* number of 2k server stream buffer */
+sndd_t	cache_sd;		/* SD for sending cache disable messages */
+rcvd_t	cache_rd;		/* RD for receiving cache disable responses */
 
 extern rcvd_t rd_recover; 	/* recovery receive descriptor */
+extern int info_ipretry;		/* the total number of retries for iput*/
 
 /*  
  *	create a send descriptor.
@@ -86,21 +94,15 @@ cr_sndd ()
 	DUPRINT2(DB_SD_RD, "cr_sndd: sd %x\n",retsndd);
 	sdfreelist = retsndd->sd_next;
 	sdfree--;		
-	/* flush nacker queue if sd free count is low */
-	if (sdfree < sdlowmark) {
-		DUPRINT2(DB_GDPERR, "cr_sndd: send desc free count %x is low\n", sdfree);
-		for (i = 0; i < nrcvd; i++) {
-			if (rcvd[i].rd_stat == RDUNUSED)
-				continue;
-			nackflush(&rcvd[i], -1);
-		}
-	}
 	retsndd->sd_refcnt = 1;
 	retsndd->sd_queue = NULL;
 	retsndd->sd_copycnt = 0;
 	retsndd->sd_connid = 0;
 	retsndd->sd_sindex = 0;
 	retsndd->sd_stat = SDUSED;
+	retsndd->sd_fhandle = 0;
+	retsndd->sd_count = 0;
+	retsndd->sd_offset = 0;
 	splx(s);
 	return (retsndd);
 }
@@ -139,6 +141,8 @@ del_sndd (sd)
 sndd_t	sd;
 {
 
+	struct response *resp;
+
 	DUPRINT2(DB_SD_RD, "del_sndd: sd %x\n", sd);
 	ASSERT(sd->sd_stat != SDUNUSED);
 	if(sd->sd_refcnt > 1) 
@@ -147,10 +151,27 @@ sndd_t	sd;
 		mblk_t	*in_bp;
 		mblk_t	*out_bp;
 		struct	request	*req;
+		long	sig;
+		int	cursig;
 
-		while ((out_bp = alocbuf (sizeof (struct request) - DATASIZE, BPRI_MED)) == NULL) {
+resend:
+		sig = u.u_procp->p_sig;
+		cursig = u.u_procp->p_cursig;
+		u.u_procp->p_sig = 0;
+		u.u_procp->p_cursig = 0;
+		while ((out_bp = alocbuf(sizeof(struct request)-DATASIZE, BPRI_MED)) == NULL) {
+			sig |= u.u_procp->p_sig;
+			if (u.u_procp->p_cursig) {
+				if (cursig)
+					sig |= (1L << (u.u_procp->p_cursig-1));
+				else
+					cursig = u.u_procp->p_cursig;
+			}
 			u.u_procp->p_sig = 0;
+			u.u_procp->p_cursig = 0;
 		}
+		u.u_procp->p_sig = sig;
+		u.u_procp->p_cursig = cursig;
 		req = (struct request *) PTOMSG(out_bp->b_rptr);
 		req->rq_type = REQ_MSG;
 		req->rq_sysid = get_sysid(sd); 
@@ -164,12 +185,16 @@ sndd_t	sd;
 				DUPRINT1 (DB_SD_RD, 
 				"del_sndd succeeds because link is gone\n");
 				u.u_error = 0;
-			} else {
-				DUPRINT2 (DB_SD_RD, 
-				"del_sndd: rsc errno %d on CLOSE \n",u.u_error);
-			}
+			} 
 		} else {
-			freemsg (in_bp);
+			resp = (struct response *)PTOMSG(in_bp->b_rptr);
+			info_ipretry++;
+			if (resp->rp_errno == ENOMEM && resp->rp_type == NACK_MSG) {
+				DUPRINT4(DB_SYSCALL,"pid = %d opcode=%d, RETRY = %d \n",u.u_procp->p_pid,u.u_syscall,info_ipretry);
+				freemsg (in_bp);	/*alway free message */
+				goto resend;
+			}
+			freemsg (in_bp);	/*alway free message */
 		}
 done:
 		free_sndd(sd);
@@ -182,14 +207,15 @@ done:
  *	field in the message if there is a gift.
  */
 sndmsg (sd, bp, bytes, gift)
-sndd_t	sd;		/*  which send descriptor to send on		*/
-mblk_t	*bp;		/*  message pointer				*/
+register sndd_t	sd;	/*  which send descriptor to send on		*/
+register mblk_t	*bp;	/*  message pointer				*/
 int	bytes;		/*  how much of the buffer to send		*/
 rcvd_t	gift;		/*  gift, if there is one			*/
 {
 	register struct	message	*msg;
-	register mblk_t *tli_msg;
-	register int s;
+	register struct gdp *tgdp;
+	queue_t *rq, *wq;
+	int s;
 
 	DUPRINT4(DB_COMM,"sndmsg: sd %x bp %x gift %x\n", sd, bp, gift);
 	ASSERT(sd && sd->sd_stat != SDUNUSED);
@@ -199,12 +225,13 @@ rcvd_t	gift;		/*  gift, if there is one			*/
 		u.u_error = ENOLINK;
 		return (FAILURE);
 	}
-	ASSERT(sd->sd_queue);
+	rq = sd->sd_queue;
+	ASSERT(rq);
+	tgdp = (struct gdp *)rq->q_ptr;
+	wq = WR(rq);
 	s = splrf();
-	while(!canput(WR(sd->sd_queue)->q_next)) {
-		struct gdp *tgdp;
+	while(!canput(wq)) {
 		DUPRINT2(DB_GDPERR, "sndmsg: queue full on sd %x\n", sd);
-		tgdp = (struct gdp *)sd->sd_queue->q_ptr;
 		sleep(tgdp, PZERO-1);
 		if (sd->sd_stat & SDLINKDOWN) {
 			DUPRINT1(DB_RECOVER, "sndmsg: trying to send over dead link\n");
@@ -214,8 +241,8 @@ rcvd_t	gift;		/*  gift, if there is one			*/
 			return (FAILURE);
 		}
 	}
-
 	splx(s);
+
 	msg = (struct message *) bp->b_rptr;
 	((struct request *) PTOMSG(bp->b_rptr))->rq_pid =
 		u.u_procp->p_pid;	/* store the pid for signals */
@@ -224,6 +251,7 @@ rcvd_t	gift;		/*  gift, if there is one			*/
 	msg->m_dest = sd->sd_sindex;
 	msg->m_connid = sd->sd_connid;
 	msg->m_cmd = 0;	/* not used */
+	msg->m_stat |= VER1;
 	if (gift)  {
 		msg->m_stat |= GIFT;
 		msg->m_gindex = rdtoinx (gift);
@@ -231,7 +259,7 @@ rcvd_t	gift;		/*  gift, if there is one			*/
 		ASSERT(gift->rd_stat != RDUNUSED);
 		/* Keep track of who gets gift. */
 		if (gift->rd_qtype & SPECIFIC) 
-			(struct queue *) gift->rd_user_list = sd->sd_queue;
+			(struct queue *) gift->rd_user_list = rq;
 		/* (Keep track of GENERAL RDs in make_gift.) */
 	}
 	msg->m_size = bytes + sizeof (struct message);
@@ -239,10 +267,9 @@ rcvd_t	gift;		/*  gift, if there is one			*/
 	/*
 	 *	convert RFS headers and data to canonical forms
 	 */
-	rftocanon(bp, GDP(sd->sd_queue)->hetero);
-
-	putnext( WR(sd->sd_queue), bp);
-	if (qready()) runqueues();
+	rftocanon(bp, tgdp->hetero);
+	putq(wq, bp);
+	rcinfo.snd_msg++;
 	return (SUCCESS);
 }
 
@@ -260,7 +287,6 @@ int	bpri;		/* buffer allocation priority */
 	register mblk_t	*nbp;
 	int	s;
 	extern	setrun();
-	extern	mblk_t *server_bp;
 	extern	wake_serverbp();
 
 	ASSERT (size <= MSGBUFSIZE);
@@ -274,7 +300,8 @@ int	bpri;		/* buffer allocation priority */
 						break;
 					nbp->b_rptr = nbp->b_datap->db_base;
 					nbp->b_wptr = nbp->b_datap->db_base + sizeof(struct message);
-					((struct message *)nbp->b_rptr)->m_stat = 0;
+					bzero((char *)nbp->b_rptr, sizeof(struct
+					       message)+ sizeof(struct response)-DATASIZE);
 					return (nbp);
 				}
 			}
@@ -295,7 +322,7 @@ int	bpri;		/* buffer allocation priority */
 			DUPRINT1(DB_GDPERR, "alocbuf: bufcall fail\n");
 			return(NULL);
 		}
-		if (sleep((caddr_t)&(u.u_procp->p_flag), PREMOTE|PCATCH) != 0) {
+		if (sleep((caddr_t)&(u.u_procp->p_flag), PREMOTE|PCATCH|PNOSTOP) != 0) {
 			/* wake up due to signal */
 			strunbcall(size + sizeof(struct message), bpri, u.u_procp);
 			DUPRINT1(DB_GDPERR, "alocbuf: wake up by signal\n");
@@ -304,7 +331,8 @@ int	bpri;		/* buffer allocation priority */
 		strunbcall(size + sizeof(struct message), bpri, u.u_procp);
 	}
 	mbp->b_wptr += sizeof(struct message);
-	((struct message *)mbp->b_rptr)->m_stat = 0;
+	bzero((char *)mbp->b_rptr, sizeof(struct message)+
+	       sizeof(struct response)-DATASIZE);
 	return (mbp);
 }
 
@@ -315,7 +343,12 @@ wake_serverbp()
 	wakeup((caddr_t)&server_bp);
 }
 
+wake_clientbp()
+{
 
+	clientslp = 0;
+	wakeup((caddr_t)&client_bp);
+}
 
 /*
  *	Reuse incoming message buffer for response if the size
@@ -331,6 +364,8 @@ mblk_t	*bp;
 int	size;
 {
 	mblk_t	*nbp;
+	long	sig;
+	int	cursig;
 
 	if (size <= (bp->b_datap->db_lim - bp->b_datap->db_base) &&
 	    bp->b_datap->db_ref == 1) {
@@ -339,20 +374,79 @@ int	size;
 		if (nbp != NULL) {
 			nbp->b_rptr = nbp->b_datap->db_base;
 			nbp->b_wptr = nbp->b_datap->db_base + sizeof(struct message);
-			((struct message *)nbp->b_rptr)->m_stat = 0;
+			bzero((char *)nbp->b_rptr, sizeof(struct message)+
+			       sizeof(struct response)-DATASIZE);
 			return (nbp);
 		}
 	}
 
 	/* fail to reuse the buffer */
 	/* allocate a buffer that is big enough */
-	while ((nbp = alocbuf (size, BPRI_MED)) == NULL) {
+	sig = u.u_procp->p_sig;
+	cursig = u.u_procp->p_cursig;
+	u.u_procp->p_sig = 0;
+	u.u_procp->p_cursig = 0;
+	while ((nbp = alocbuf(size, BPRI_MED)) == NULL) {
+		sig |= u.u_procp->p_sig;
+		if (u.u_procp->p_cursig) {
+			if (cursig)
+				sig |= (1L << (u.u_procp->p_cursig - 1));
+			else
+				cursig = u.u_procp->p_cursig;
+		}
 		u.u_procp->p_sig = 0;
+		u.u_procp->p_cursig = 0;
 	}
+	u.u_procp->p_sig = sig;
+	u.u_procp->p_cursig = cursig;
 	return (nbp);
 }
 
+/*
+ *	getcbp = get client buffer pointer.  Called by copyin to
+ *	ensure that a buffer will be returned and thus prevent deadlock
+ */
 
+mblk_t *
+getcbp(size)
+int	size;
+{
+	int s;
+	mblk_t	*nbp = NULL;
+	extern wake_clientbp();
+	
+	 /* allocate a buffer that is big enough 
+	 * if you fail to allocate a buffer try
+	 * to use the preallocated client_bp
+	 * If you fail go allocate client_bp sleep for .5 sec 
+	 * and try reusing your original buffer.
+	 * this is an end condition and should rarely happen
+	 * depending on the number of buffers configured.
+	*/
+
+	while ((nbp = allocb (size + sizeof (struct message), BPRI_MED)) == NULL) {
+		if (client_bp->b_datap->db_ref == 1) {
+			if ((nbp = dupmsg(client_bp)) == NULL)
+				continue;
+			nbp->b_rptr = nbp->b_datap->db_base;
+			nbp->b_wptr = nbp->b_datap->db_base + sizeof(struct message);
+			bzero((char *)nbp->b_rptr, sizeof(struct message)+
+			       sizeof(struct response)-DATASIZE);
+			return (nbp);
+		}
+		s = spl5();
+		if (clientslp == 0) {
+			clientslp++;
+			timeout (wake_clientbp, 0, 50);  /*sleep for 1 sec*/
+		}
+		splx(s);
+		sleep ((caddr_t)&client_bp, PZERO);
+		continue;
+	}
+	bzero((char *)nbp->b_rptr, sizeof(struct message)+
+	       sizeof(struct response)-DATASIZE);
+	return (nbp);
+}
 
 /*  
  *	Create a receive descriptor.
@@ -369,13 +463,11 @@ char	type;
 		rdfreelist = retrcvd->rd_next;
 		rdfree--;
 		retrcvd->rd_qsize = qsize;
-		retrcvd->rd_max_serv = minserve;
 		retrcvd->rd_qcnt = 0;
 		retrcvd->rd_inode = NULL;
 		retrcvd->rd_refcnt = 1;
 		retrcvd->rd_act_cnt = 0;
 		retrcvd->rd_qtype = type;
-		retrcvd->rd_sdnack = NULL;
 		retrcvd->rd_user_list = NULL;
 		retrcvd->rd_connid = connid++;
 		retrcvd->rd_rcvdq.qc_head = NULL;
@@ -470,11 +562,6 @@ int	*size;		/*  output - how many bytes there are		*/
 	DUPRINT5(DB_COMM, "dequeue: rd_act_cnt=%d que=%x, msg %x qcnt %x\n", rd->rd_act_cnt,rd,bp,rd->rd_qcnt);
 	rd->rd_qcnt--;
 	
-	/* send back GDP NACKs if needed because queue is not full now */
-	if (rd->rd_sdnack != NULL) {
-		nackflush(rd, rd->rd_qsize - rd->rd_qcnt);
-	}
-	
 	msg = (struct message *)bp->b_rptr;
 	if ((rcvdemp(rd)) && (rd->rd_qtype & GENERAL)) 
 		rm_msgs_list(rd);
@@ -490,6 +577,7 @@ int	*size;		/*  output - how many bytes there are		*/
 		set_sndd (sd, (queue_t *)msg->m_queue, msg->m_gindex, msg->m_gconnid);
 		sd->sd_mntindx = msg_in->rq_mntindx;
 	}
+	rcinfo.rcv_msg++;
 	return (SUCCESS);
 }
 
@@ -498,8 +586,10 @@ int	*size;		/*  output - how many bytes there are		*/
 comminit ()
 {
 	extern rcvd_t sigrd;
-	sndd_t tmp;
-	rcvd_t rd;
+	register sndd_t tmp;
+	register rcvd_t rd;
+	register mblk_t *bp;
+	register int i;
 	
 	if (nsndd < MINSNDD || nrcvd < MINRCVD || maxgdp < MINGDP)
 		return(FAILURE);
@@ -518,8 +608,6 @@ comminit ()
 	}
 	sndd[nsndd - 1].sd_next = NULL;
 	sdfreelist = sndd;
-	if ((sdlowmark = nsndd/10) == 0)
-		sdlowmark = 1;
 	
 	for (rd = rcvd; rd < &rcvd[nrcvd]; rd++) {
 		rd->rd_stat = RDUNUSED;
@@ -531,13 +619,43 @@ comminit ()
 	rdfree = nrcvd;
 	sdfree = nsndd;
 
-	/* create well-known RDs */
+	/* create well-known RDs & SDs */
 	cfrd = cr_rcvd (NSQSIZE, GENERAL);	/* chow fun */
 	sigrd = cr_rcvd (SIGQSIZE, GENERAL);	/* signals */
-	sigrd->rd_max_serv = maxserve;	/*max server count*/
 	rd_recover = cr_rcvd (NSQSIZE, SPECIFIC);  /* recovery */
-
+	cache_rd = cr_rcvd (1, SPECIFIC);	/* cache RD */
+	cache_sd = cr_sndd ();			/* cache SD */
 	connid = 0;
+
+	/*
+	 *Allocate one buffer for client
+	 */
+	if ((bp = allocb (sizeof(struct message) + sizeof(struct response), BPRI_MED)) == NULL) {
+		printf("WARNING: not enough stream buffers for RFS, RFS failed\n");
+		u.u_error = ENOMEM;
+		commdinit();
+		return(FAILURE);
+	}
+	client_bp = bp;
+
+	/* allocate maxserve number of 2K stream buffers for server usage */
+	for (i = 0; i < nserverbuf; i++) {
+		if ((bp = allocb (sizeof(struct message) + sizeof(struct response), BPRI_MED)) == NULL) {
+			/* fail to get enough stream buffers for server usage,
+			   fail the RFS startup and free stream buffers */
+			printf("WARNING: not enough stream buffers for RFS, RFS failed\n");
+			u.u_error = ENOMEM;
+			commdinit();
+			return(FAILURE);
+		}
+
+		bp->b_wptr += sizeof(struct message);
+		bzero((char *)bp->b_rptr, sizeof(struct message)+
+		       sizeof(struct response)-DATASIZE);
+		bp->b_next = server_bp;
+		server_bp = bp;
+	}
+
 	return(SUCCESS);
 }
 
@@ -545,10 +663,22 @@ comminit ()
 
 commdinit()
 {
+	register mblk_t *bp;
+
 	DUPRINT1 (DB_RFSTART, "commdinit \n");
 	del_rcvd (cfrd, NULL);
 	del_rcvd (sigrd, NULL);
 	del_rcvd (rd_recover, NULL);
+	del_rcvd (cache_rd, NULL);
+	free_sndd(cache_sd);
+	while (bp = server_bp) {
+		server_bp = bp->b_next;
+		freemsg(bp);
+	}
+	if (client_bp) {
+		freemsg(client_bp);
+		client_bp = NULL;
+	}
 }
 
 arrmsg (bp)
@@ -559,8 +689,10 @@ mblk_t	*bp;
 	sndd_t	sd;
 	struct proc *found;
 	extern struct proc *get_free_proc();
+	extern dblk_t *dbfreelist[];
 	extern void add_to_msgs_list ();
 	extern rcvd_t sigrd;
+	extern	int	msgflag;
 	
 	/*
 	 *	put the message in the right receive queue
@@ -583,34 +715,6 @@ mblk_t	*bp;
 		rd = sigrd;
 		ASSERT (rd->rd_stat != RDUNUSED);
 	}
-/* Take nacker queue out
-	else {
-		ASSERT (rd->rd_stat != RDUNUSED);
-		if (rd->rd_qcnt >= rd->rd_qsize) {
-			register struct request *msg_in;
-			DUPRINT2(DB_RSC, "arrmsg: rd %x queue is full\n", msgp->m_dest);
-			ASSERT (msgp->m_stat & GIFT);
-			if ((sd = sdfreelist) == NULL) {
-				printf("arrmsg: fail to create sd for sending nack, remote syscall may hang\n");
-				freemsg(bp);
-				return;
-			}
-			msg_in = (struct request *) PTOMSG(msgp);
-			sdfreelist = sd->sd_next;
-			sdfree--;		
-			sd->sd_refcnt = 1;
-			sd->sd_copycnt = 0;
-			sd->sd_stat = SDUSED;
-			set_sndd (sd, (queue_t *)msgp->m_queue, msgp->m_gindex, msgp->m_gconnid);
-			sd->sd_mntindx = msg_in->rq_mntindx;
-			DUPRINT2(DB_RSC, "arrmsg: create sd %x for nack\n", sd);
-			sd->sd_next = rd->rd_sdnack;
-			rd->rd_sdnack = sd;
-			freemsg(bp);
-			return;
-		}
-	}
-	*/
 
 	enque (&rd->rd_rcvdq, bp);
 	rd->rd_qcnt++;
@@ -621,52 +725,18 @@ mblk_t	*bp;
 		if (found = get_free_proc() ) 
 			vsema(&found->p_minwdlock, 0);
 		add_to_msgs_list (rd); 
+		if (!found) 
+			if(nservers < maxserve){
+				msgflag |= MORE_SERVE;
+				wakeup(&rd_recover->rd_qslp);
+				
+			} else if ( nservers == maxserve &&
+				    testb(2048,BPRI_MED) == 0){ 
+				msgflag |= DEADLOCK;
+				wakeup(&rd_recover->rd_qslp);
+			}
 	}	
 }
-
-/*
- *	nackflush() -- To send GDP NACKS 
- *		rd -- receive descriptor to send back nack
- *		cnt -- number of nacks to be sent back
- *		       -1 means send all nacks back
- */
-
-nackflush(rd, cnt)
-register rcvd_t	rd;
-register int	cnt;
-{
-	register mblk_t	*bp;
-	register struct	request * req;
-	register sndd_t	sd;
-	register sndd_t	tmpsd;
-	register int	s;
-
-	s = splrf();
-	sd = rd->rd_sdnack;
-	while (sd != NULL && cnt--) {
-		tmpsd = sd;
-		rd->rd_sdnack = sd->sd_next;
-		sd->sd_srvproc = u.u_procp;
-		while ((bp = alocbuf (sizeof (struct request) - DATASIZE, BPRI_MED)) == NULL) {
-			u.u_procp->p_sig = 0;
-		}
-		req = (struct request *) PTOMSG(bp->b_rptr);
-		req->rq_type = REQ_MSG;
-		req->rq_opcode = DUGDPNACK;
-		if (sndmsg (sd, bp, sizeof (struct request) - DATASIZE,(rcvd_t)NULL) == FAILURE) { 
-			register int mntindx;
-			mntindx = sd->sd_mntindx;
-			if (--srmount[mntindx].sr_slpcnt == 0)
-				wakeup ( &srmount[mntindx]);
-			DUPRINT2(DB_GDPERR, "nackflush: can not send message sd %x\n",sd);
-		}
-		DUPRINT3(DB_RSC, "nackflush: send NACK for rd %x sd %x\n", rd, sd);
-		free_sndd(tmpsd);
-		sd = rd->rd_sdnack;
-	}
-	splx(s);
-}
-
 
 clean_text (ip)
 inode_t *ip;
@@ -678,10 +748,11 @@ inode_t *ip;
 		if (rp->r_type != RT_STEXT)
 			continue;
 		if (ip == rp->r_iptr) {
-			ip->i_flag &= ~ITEXT;
-			break;
+			rlstunlock();
+			return;
 		}
 	}
+	ip->i_flag &= ~ITEXT;
 	rlstunlock();
 
 }

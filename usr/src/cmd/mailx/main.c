@@ -5,14 +5,13 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:main.c	1.11"
+#ident	"@(#)mailx:main.c	1.13"
 #
 
 #include <errno.h>
 #include "rcv.h"
 #include <sys/stat.h>
-typedef	int	(*sigtype)();
-extern sigtype m_sigset();
+typedef	SIG	(*sigtype)();
 
 /*
  * mailx -- a modified version of a University of California at Berkeley
@@ -52,11 +51,15 @@ main(argc, argv)
 {
 	register char *ef;
 	register int i, argp;
-	int mustsend, uflag, hdrstop(), (*prevint)(), f,goerr = 0;
+	int mustsend, uflag, hdrstop(), f,goerr = 0;
+	SIG (*prevint)();
 	int loaded = 0;
 	FILE *ibuf, *ftat;
 	extern char _sobuf[];
 	struct termio tbuf;
+	int c;
+	extern char *optarg;
+	extern int optind;
 
 #ifdef signal
 	Siginit();
@@ -97,18 +100,8 @@ main(argc, argv)
 	mustsend = 0;
 	if (argc > 0 && **argv == 'r')
 		rmail++;
-	for (i = 1; i < argc; i++) {
-
-		/*
-		 * If current argument is not a flag, then the
-		 * rest of the arguments must be recipients.
-		 */
-
-		if (*argv[i] != '-') {
-			argp = i;
-			break;
-		}
-		switch (argv[i][1]) {
+	while ((c = getopt(argc, argv, "efFh:HinNr:s:u:UdIT:")) != EOF)
+		switch (c) {
 		case 'e':
 			/*
 			 * exit status only
@@ -121,13 +114,8 @@ main(argc, argv)
 			 * Next argument is address to be sent along
 			 * to the mailer.
 			 */
-			if (i >= argc - 1) {
-				fprintf(stderr, "Address required after -r\n");
-				goerr++;
-			}
 			mustsend++;
-			rflag = argv[i+1];
-			i++;
+			rflag = optarg;
 			break;
 
 		case 'T':
@@ -135,18 +123,12 @@ main(argc, argv)
 			 * Next argument is temp file to write which
 			 * articles have been read/deleted for netnews.
 			 */
-			if (i >= argc - 1) {
-				fprintf(stderr, "Name required after -T\n");
-				goerr++;
-				break;
-			}
-			Tflag = argv[i+1];
+			Tflag = optarg;
 			if ((f = creat(Tflag, 0600)) < 0) {
 				perror(Tflag);
 				exit(1);
 			}
 			close(f);
-			i++;
 			/* fall through for -I too */
 
 		case 'I':
@@ -161,13 +143,7 @@ main(argc, argv)
 			 * Next argument is person to pretend to be.
 			 */
 			uflag++;
-			if (i >= argc - 1) {
-				fprintf(stderr, "Missing user name for -u\n");
-				goerr++;
-				break;
-			}
-			strcpy(myname, argv[i+1]);
-			i++;
+			strcpy(myname, optarg);
 			break;
 
 		case 'i':
@@ -193,18 +169,12 @@ main(argc, argv)
 			 * far (count of times message has been
 			 * forwarded) to help avoid infinite mail loops.
 			 */
-			if (i >= argc - 1) {
-				fprintf(stderr, "Number required for -h\n");
-				goerr++;
-				break;
-			}
 			mustsend++;
-			hflag = atoi(argv[i+1]);
+			hflag = atoi(optarg);
 			if (hflag == 0) {
 				fprintf(stderr, "-h needs non-zero number\n");
 				goerr++;
 			}
-			i++;
 			break;
 
 		case 's':
@@ -212,14 +182,8 @@ main(argc, argv)
 			 * Give a subject field for sending from
 			 * non terminal
 			 */
-			if (i >= argc - 1) {
-				fprintf(stderr, "Subject req'd for -s\n");
-				goerr++;
-				break;
-			}
 			mustsend++;
-			sflag = argv[i+1];
-			i++;
+			sflag = optarg;
 			break;
 
 		case 'f':
@@ -229,13 +193,19 @@ main(argc, argv)
 			 * If no argument is given after -f, we read his
 			 * mbox file in his home directory.
 			 */
-			if (i >= argc - 1) {
+			if ( argc == optind ) {
 				ef = (char *) calloc(1, strlen(Getf("MBOX"))+1);
 				strcpy(ef, Getf("MBOX"));
 			}
-			else
-				ef = argv[i + 1];
-			i++;
+			else 
+				if ( argv[optind][0] == '-' ) {
+					ef = (char *) calloc(1, strlen(Getf("MBOX"))+1);
+					strcpy(ef, Getf("MBOX"));
+				} 
+				else {
+					ef = argv[optind];
+					optind++;
+				}
 			break;
 
 		case 'F':
@@ -265,11 +235,14 @@ main(argc, argv)
 			Hflag++;
 			break;
 
+		case '?':
 		default:
-			fprintf(stderr, "Unknown flag: %s\n", argv[i]);
 			goerr++;
+			break;
 		}
-	}
+
+	if ( optind != argc )
+		argp = optind;
 
 	/*
 	 * Check for inconsistent arguments.
@@ -349,11 +322,11 @@ main(argc, argv)
 	if (!loaded) load(Getf("MAILRC"));
 	if (msgCount > 0 && !noheader && value("header") != NOSTR) {
 		if (setjmp(hdrjmp) == 0) {
-			if ((prevint = m_sigset(SIGINT, SIG_IGN)) != (sigtype) SIG_IGN)
-				m_sigset(SIGINT, hdrstop);
+			if ((prevint = sigset(SIGINT, SIG_IGN)) != (sigtype) SIG_IGN)
+				sigset(SIGINT, hdrstop);
 			announce();
 			fflush(stdout);
-			m_sigset(SIGINT, prevint);
+			sigset(SIGINT, prevint);
 		}
 	}
 	if (Hflag || (!edit && msgCount == 0)) {
@@ -364,9 +337,9 @@ main(argc, argv)
 	}
 	commands();
 	if (!edit) {
-		m_sigset(SIGHUP, SIG_IGN);
-		m_sigset(SIGINT, SIG_IGN);
-		m_sigset(SIGQUIT, SIG_IGN);
+		sigset(SIGHUP, SIG_IGN);
+		sigset(SIGINT, SIG_IGN);
+		sigset(SIGQUIT, SIG_IGN);
 		quit();
 	}
 	exit(0);
@@ -381,7 +354,7 @@ hdrstop()
 	clrbuf(stdout);
 	printf("\nInterrupt\n");
 	fflush(stdout);
-	m_sigrelse(SIGINT);
+	sigrelse(SIGINT);
 	longjmp(hdrjmp, 1);
 }
 

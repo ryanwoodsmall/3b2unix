@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)curses:libcurses.mk	1.11"
+#ident	"@(#)curses:libcurses.mk	1.12"
 #
 #	Curses Library High Level Makefile.
 #
@@ -53,11 +53,14 @@ MAKE=make
 ROOT=
 USRLIB = $(ROOT)/usr/lib
 
-all:	libcurses.a tools
-
-libcurses.a:
+all:
 	@cd ./screen ; $(MAKE) rmhdrs
 	@cd ./screen ; $(MAKE) cktmp
+	@cd ./screen ; $(MAKE)
+
+libcurses.a:
+	#@cd ./screen ; $(MAKE) rmhdrs
+	#@cd ./screen ; $(MAKE) cktmp
 	@cd ./screen ; $(MAKE) libcurses.a
 	@echo
 	@echo "Libcurses.a has been made."

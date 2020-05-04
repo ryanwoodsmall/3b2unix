@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)cmd-3b2:pnewboot.c	1.2"
+#ident	"@(#)cmd-3b2:pnewboot.c	1.2.1.1"
 /*
  * Simplified version of newboot. Avoids stdio to help in
  * the first-3B2-restore-floppy space crunch.
@@ -53,7 +53,7 @@ int	warn();
  * VTOC contains pointers which determine where lboot is to be loaded;
  * it is updated as one entire block (BSIZE long)
  *
- * Any changes here must be coordinated with /usr/src/uts/3b5/boot/mboot/mboot.c
+ * Any changes here must be coordinated with /usr/src/uts/3b15/boot/mboot/mboot.c
  */
 union	{
 	struct vtoc	vtoc_buffer;

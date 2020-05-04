@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:com/udef.c	1.15"
+#ident	"@(#)sdb:com/udef.c	1.17"
 
 
 #include	"head.h"
@@ -90,19 +90,24 @@ ADDR adsubn, adsubc;		/* addresses of __dbsubn, __dbsubc */
 int adargs;			/* address of __dbargs */
 
 /* symbol table info */
-long	ststart;		/* offset of symbol table in a.out */
-struct brbuf sbuf;		/* buffer for symbol table entry */
-long	extstart;		/* offset of first external in a.out */
+long	ststart[MAXNLIB];	/* offset of symbol table in a.out */
+struct brbuf sbuf[MAXNLIB];		/* buffer for symbol table entry */
+long	extstart[MAXNLIB];		/* offset of first external in a.out */
+struct branchtbl brtbl[MAXNLIB];	/* address and size of branchtable */
 
 /* address info */
 ADDR	dot;			/* current address */
 
 /* setup information */
-extern STRING	symfil, corfil;	/* file names */
-INT	fsym, fcor;		/* file descriptors */
-INT	fakecor = 0;		/* 1 iff user "core" not really core file */
-MAP	txtmap, datmap;		/* maps */
-INT	argcount;		/* number of arguments to sdb */
+extern STRING	symfil[], corfil;	/* file names */
+INT	fsym[MAXNLIB], fcor;		/* file descriptors */
+INT	fakecor = 0;			/* 1 if user "core" not really core */
+char	slnames[MAXNLIB][128];		/* shared libs paths */
+					/* file */
+MAP	txtmap[MAXNLIB], datmap;	/* maps */
+INT	argcount;			/* number of arguments to sdb */
+INT	libn;				/* library number */
+INT	nshlib;				/* number of shared libs */
 
 /* process info */
 L_INT	cntval;			/* count for c and s instructions */
@@ -124,6 +129,8 @@ char	otype;			/* type of last displayed variable */
 char	oclass;			/* class of last displayed variable */
 short	oincr;			/* size of last displayed variable */
 				/* need short to hold size of case stmt */
+ADDR	dpstart;		/* start address of doprnt */
+ADDR	dpsize;			/* size of doprnt text */
 #ifndef SGTTY
   struct termio sdbttym, usrttym;	/* tty structure(s) */
   int sdbttyf, usrttyf;			/* fcntl flags */
@@ -132,7 +139,7 @@ short	oincr;			/* size of last displayed variable */
 #endif
 enum lastcom lastcom;
 char	oldargs[128];
-char prname[50];		/* print name used by outvar */
+char prname[MAXPRLEN];		/* print name used by outvar */
 jmp_buf	env;			/* environment for setjmp, longjmp */
 int	debug;			/* toggled by Y command */
 int	vmode;			/* verbose; toggled by 'v' command */
@@ -157,7 +164,7 @@ L_INT		loopcnt;
 
 /* setup.c */
 INT		magic;
-STRING		symfil	= "a.out";
+STRING		symfil[MAXNLIB];
 STRING		corfil	= "core";
 
 /* machdep.h */

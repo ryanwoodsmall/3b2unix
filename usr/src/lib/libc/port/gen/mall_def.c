@@ -5,13 +5,11 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libc-port:gen/mall_def.c	1.2"
+#ident	"@(#)libc-port:gen/mall_def.c	1.3"
 /*
  * Contains the definitions
  * of the pointers to the
- * malloc, free, realloc and _assert
+ * malloc, and _assert
  */
 
  char * (* _libc_malloc)() = 0;
- char * (* _libc_realloc)() = 0;
- void   (* _libc_free)() = 0;

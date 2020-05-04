@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)initpkg:./rc0.sh	1.13"
+#ident	"@(#)initpkg:./rc0.sh	1.15"
 
 if u3b2
 then echo "
@@ -13,7 +13,8 @@ then echo "
 #	Leaves the system in a state where it is safe to turn off the power
 #	or go to firmware.
 
-stty sane tab3 2>/dev/null
+a=\`stty -g\`	#save stty values for later restoration
+
 echo 'The system is coming down.  Please wait.'
 
 #	The following segment is for historical purposes.
@@ -58,7 +59,7 @@ sleep 10
 sleep 10
 sync;sync;sync
 /etc/umountall
-stty sane 2>/dev/null
+stty \$a 2>/dev/null    #restore saved stty values
 sync;  sync
 echo '
 The system is down.'

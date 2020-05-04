@@ -5,33 +5,33 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)tools:control.c	1.33"
+#ident	"@(#)tools:control.c	1.35"
 
 /*
  * control.c is the main() routine of vforms -- command form
  * generation tool for ASSIST.
  *
- * Usage: vforms [<command or menu name>]
- *
  * It performs the following steps:
  *
  * 1. Initialization.
- * 2. If argc==2: read <name>.fs file into datastructure.
- *    If argc==1: prompt user for type (menu vs. form) and <name>
+ * 2. If existing form: read <name>.fs file into datastructure (using
+ *    read_in().
  * 3. Create temp file to be used for template.  The same temp
  *    file is used throughout the program.
- * 4. If argc==1, dump user into vi/toolong/copy_file_ds cycle.
+ * 4. If new form, put user into vi/toolong/copy_file_ds cycle
+ *    to create initial screen layout.
  * 5. Enter the main switch:
- *    e -- edit: copy_form_file: copy datastructure into temp file.
- *               layout(): vi temp file
- *                         check filecontents w/ toolong; 
- *                         copy_file_form: file to datastructure
- *                         prompt(0), reorder: clean up datastructure
- *    g -- global: change/add global attributes: exit mess,
- *                 form/menu help.
- *    q -- quit: check first if wrote into file
- *    s -- select new field; call vedit() to change attributes
- *    w -- write into file
+ *    Edit: copy_form_file: copy datastructure into temp file.
+ *          layout(): vi temp file
+ *                    check filecontents w/ toolong; 
+ *                    copy_file_form: file to datastructure
+ *                    prompt(0), reorder: clean up datastructure
+ *    Global: change/add global attributes: cf_global()
+ *            [m_global()] : exit mess, *                 form/menu help.
+ *    Quit: check first if wrote into file
+ *    Select new field; call select() and vedit() to change attributes
+ *    Try ASSIST.
+ *    Write into file
  *
  */
 
@@ -55,16 +55,16 @@
 #define   SHELL_EXP   8
 #define   REDRAW      {clearok(curscr,TRUE); wrefresh(curscr);}
 
-char editor[16];
-char fthelp[128];
+char editor[16];    /* Name of editor; vi is deafult */
+char fthelp[128];   /* Name of astgen help file(s) */
 char tf_name[128];
 
-struct fieldlink {
+struct fieldlink {  /* Used by select(). */
    struct field *f_pt;
    struct fieldlink *next;
 };
 
-struct two_index {
+struct two_index {  /* Not used */
    struct index *pr_pt;
    struct index *po_pt;
 };
@@ -72,12 +72,12 @@ struct two_index {
 char nullchar;
 
 char *calloc(), *malloc();
-struct charstr {
+struct charstr {  /* Used by askstring() -- prompt for string user input */
    char *str;
    char ch;
 };
 
-struct first_second {
+struct first_second {  /* Used to find captions and segments in vi screen */
    char first[1024];
    char second[1024];
 };
@@ -124,6 +124,9 @@ char *argv[];
    int new = 0;
    struct stat buf;
 
+/*
+ * Set signals.
+ */
    signal(SIGINT,SIG_IGN);
    signal(SIGQUIT,SIG_IGN);
    signal(SIGALRM,SIG_IGN);
@@ -134,19 +137,31 @@ char *argv[];
       exit(1);
    }
 
+/*
+ * Needed for the temp.fs file -- used for Try ASSIST.
+ */
    if (access(".",02) != 0) {
       fprintf(stderr,"Current directory does not have write permission\n");
       exit(1);
    }
 
 
+/*
+ * .fs is not allowed as ENTIRE fs file name.
+ */
    if (strcmp(argv[1],".fs") == 0) {
       fprintf(stderr,"ASSIST file name %s not allowed \n",argv[1]);
       exit(1);
    }
 
+/*
+ * Remove .fs extension, if any.
+ */
    MINFS(argv[1]);
 
+/*
+ * Remove basename from argv[1], and perform some tests.
+ */
    c_pt = argv[1] + strlen(argv[1]) - 1;
    while (c_pt>argv[1] && *c_pt!= '/') c_pt--;
    if (*c_pt=='/') c_pt++;
@@ -166,6 +181,10 @@ char *argv[];
       exit(1);
    }
 
+/*
+ * Form full pathname.  The "new" flag determines whether
+ * you are desgining a new form or changing an old one.
+ */
    sprintf(s,"%s.fs",argv[1]);
    if (access(s,00)==0) {
       if (access(s,04)!=0) {
@@ -185,6 +204,9 @@ char *argv[];
    }
    else new = 1;
 
+/*
+ * Initialize data structures for mforms' read_in() routine.
+ */
    lab_pt = labels;
    lab_pt->memory = 0;
    lab_pt->files_name = (char*)calloc((unsigned)(strlen(argv[1])+2),
@@ -194,6 +216,9 @@ char *argv[];
 
    get_path();
 
+/*
+ * Set paths for help files.
+ */
    if (strlen(muselib)>100) {
       fprintf(stderr,"%s has more than 100 characters \n",muselib);
       exit(1);
@@ -203,6 +228,9 @@ char *argv[];
 
    strcpy(fthelp,"ftype.help");
 
+/*
+ * Determine editor.
+ */
    if ((c_pt=getenv("EDITOR"))!=(char*)0 && *c_pt && strlen(c_pt)<16)
       strcpy(editor,c_pt);
    else strcpy(editor,"vi");
@@ -212,10 +240,16 @@ char *argv[];
       exit(1);
    }
 
+/*
+ * Define special characters and terminal capabilities.
+ */
    termstuff();
 
    nullchar = null;
 
+/* 
+ * Initialize curses.
+ */
    catchtty(&termbuf);
 
    initscr();
@@ -233,7 +267,7 @@ char *argv[];
 
    clear();
 
-   if (new==0) {
+   if (new==0) {   /* Modify existing fs file */
       /* Needed to hook up right with read_in.c */
       last_field_pt = fields+MAXFIELDS-1;
       last_segm_pt = segments+MAXSEGMS-1;
@@ -242,7 +276,7 @@ char *argv[];
       last_v_pt = vfuncs+NUMVFUNCS-1;
       read_in(0);   /* Read fs file into data structure */
    }
-   else if (new==1) {
+   else if (new==1) {   /* Create new fs file */
       last_field_pt = fields;
       last_segm_pt = segments;
       last_fi_pt = fixes;
@@ -252,6 +286,10 @@ char *argv[];
       form_help = exit_mess = (char*)0;
       maxpage = page = 1;
 
+/*
+ * First user action: prompt whether command form or menu.
+ * "mode" is an mforms global variable.
+ */
       helpnum = 20;
 AA:   
       switch(ask("Are you creating a menu or a command form (m/c):",1,1,"mc",helpnum,fthelp)) {
@@ -270,8 +308,9 @@ AA:
       }
    }
 
-   /*
- * Create and open temp file to contain template.
+/*
+ * Create and open temp file to contain template layout file.
+ * Store in char *tf_name.
  */
    c_pt = tmpnam((char*)0);
    if (c_pt==(char*)0) {
@@ -285,7 +324,7 @@ AA:
    strcpy(tf_name,c_pt);
    sprintf(edstr,"%s %s",editor,tf_name);
 
-   /*
+/*
  * If creating a new file, MUST first design layout.
  */
 
@@ -305,6 +344,9 @@ AA:
       else
          mvprintw(6,1, "in a temporary file with an editor.");
 
+/*
+ * Second user action: sample layout or empty layout file.
+ */
       helpnum = 21;
 BB:   
       switch(ask(
@@ -314,6 +356,7 @@ BB:
          addstr("es");
          move(LINES-1,0);
          refresh();
+         /* Display layout sample*/
          if (mode==MENU) intro(tf_name,menuinfo);
          else intro(tf_name,cfinfo);
          break;
@@ -336,8 +379,14 @@ BB:
       clear();
       move(0,0);
       refresh();
+/*
+ * Call layout design module, layout().
+ */
       layout(tf_name,1,edstr);
       i = 1;
+/*
+ * Choose "reasonable" values for relative field location.
+ */
       for (f_pt = fields; f_pt<=last_field_pt; f_pt++)
          if (f_pt->type==7) f_pt->loc= i++;
    }
@@ -345,52 +394,55 @@ BB:
    clear();
    helpnum = 22;
 
+/*
+ * Display and handle the TOP astgen menu.
+ */
    t_cur = 0;
    display_menu();
-   storeline(0,LINES-3);
    for (;;)
    {
       rsp = getch();
       err_rpt(0,FALSE);
       switch(rsp) {
-      case KEY_F(3):
+      case KEY_F(3):   /* Redraw */
       case CTRL(l):
          REDRAW;
          break;
-      case CTRL(M):
+      case CTRL(M):    /* Move cursor down */
       case CTRL(N):
       case CTRL(J):
       case KEY_DOWN:
          mvaddstr(t_lab[t_cur].ylab,t_lab[t_cur].xlab,t_lab[t_cur].name);
          t_cur = nextvar(6,t_cur);
          break;
-      case CTRL(P):
+      case CTRL(P):    /* Move cursor up */
       case KEY_UP:
          mvaddstr(t_lab[t_cur].ylab,t_lab[t_cur].xlab,t_lab[t_cur].name);
          t_cur = prevvar(6,t_cur);
          break;
-      case CTRL(Y):
+      case CTRL(Y):    /* Item help */
       case KEY_F(6):
          fhelp(thelpfile,t_cur,1,10);
          err_rpt(0,0);
          break;
-      case CTRL(g):
+      case CTRL(g):    /* Select action */
       case KEY_F(1):
          switch(t_cur) {
-         case 0:
+         case 0:       /* Edit layout */
             clear();
             move(0,0);
             refresh();
-            copy_form_file(tf_name);
-            layout(tf_name,2,edstr);
+            copy_form_file(tf_name); /* Copy data structure on vi screen */
+            layout(tf_name,2,edstr); /* Edit vi screen */
             writeflag=0;
-            display_menu();
+            display_menu();          /* Re-draw TOP astgen Menu */
             break;
-         case 3:
-            if ((i=chkwrite())!=0) {
+         case 3:   /* Try ASSIST */
+            if ((i=chkwrite())!=0) { /* Check if data structure is OK */
                err_rpt(i,TRUE);
                break;
             }
+            /* Find mforms pathname */
             if (getenv("ASSISTBIN")==(char*)0) {
                err_rpt(1,TRUE);
                break;
@@ -404,39 +456,44 @@ BB:
                err_rpt(2,TRUE);
                break;
             }
+            /* Finalize command line for Try ASSIST */
             strcat(mforms," -c temp");
             if ((tf_pt = fopen("temp.fs","w"))==0) {
                err_rpt(9,TRUE);
                break;
             }
-            WRITE_OUT;
+            WRITE_OUT;   /* Put data structure in ./temp.fs */
             fclose(tf_pt);
             if (access("temp.fs",02)!=0) {
                err_rpt(10,TRUE);
                break;
             }
+            /* Get out of curses state */
             clear();
             refresh();
             saveterm(); 
             resetterm();
             updatetty(&termbuf);
+            /* run .../mforms -c temp.fs */
             system(mforms);
+            /* Get back into curses state */
             catchtty(&termbuf);
             fixterm();
+            /* Remove temp.fs file */
             unlink("temp.fs");
             mvaddstr(LINES-1,0," Type any key to continue with astgen.");
             refresh();
             getch();
             display_menu();
             break;
-         case 2:
+         case 2:  /* global information */
             if (mode == MENU)
                mglobal();
             else global();
             writeflag=0;
             display_menu();
             break;
-         case 5:
+         case 5:  /* quit, but first prompt for write */
             if (writeflag==0) {
                helpnum = 22;
 DD:
@@ -475,7 +532,10 @@ DD:
             printf("\n");
             exit(1);
             break;
-         case 1:
+         case 1:   /* Select field for attributes setting */
+                   /* The way you return to the TOP astgen Menu is
+                      by passing a "0" all the way up, via select() to
+                      main(). */
             fl = select((struct fieldlink *)0,
                 " Select Field Whose Attributes You Want to Set ",0);
             if (mode == MENU)
@@ -500,7 +560,7 @@ DD:
             display_menu();
             writeflag=0;
             break;
-         case 4:
+         case 4:   /* Write into fs file */
             writeflag=1;
             sprintf(s,"%s.fs",lab_pt->files_name);
             if ((tf_pt = fopen(s,"w")) != NULL) {
@@ -525,7 +585,7 @@ DD:
             beep();
          } /*switch t_cur*/
          break; /*for f1 switch*/
-      default:
+      default:   /* First letter based cursor move */
          if ((tmp=firstlet(t_lab,6,rsp,t_cur)) == -1)
             flushinp();
          else 
@@ -545,7 +605,7 @@ DD:
 } /*main*/
 
 
-/* EXIT FUNCTION                                                                   */
+/* EXIT FUNCTION.  See done() routine in mforms.  */
 
 int vdone()
 {
@@ -597,6 +657,9 @@ int vdone()
 }
 
 
+/*
+ * Copy appropriate layout sample file  to vi screen file.
+ */
 intro(out_name,in_name)
 register char *in_name, *out_name;
 {  
@@ -616,6 +679,9 @@ register char *in_name, *out_name;
 }
 
 
+/*
+ * Redraw TOP astgen Menu.
+ */
 VOID display_menu()
 {
    clear();
@@ -643,6 +709,15 @@ VOID display_menu()
    refresh();
 }
 
+/*
+ * Routine for vi screen based forms/menu layout.
+ * It assumes that layout file (tf_n) exists.  It calls vi,
+ * and copies screen contents back into data structure (using
+ * copy_file_form() which, in turn, uses prompt().
+ * "s" contains "vi... " command line, for system().
+ * "flag" is passed to copy_file_form and prompt(). No interactive
+ * prompting for new file (flag=1); 2 otherwise.
+ */
 layout(tf_n,flag,s)
 register char *tf_n;
 register int flag;
@@ -654,23 +729,25 @@ register char *s;
    resetterm();
    updatetty(&termbuf);
 
-   prompt((struct field *)0,3);  /* Reset taken[] */
+
+   prompt((struct field *)0,3);  /* Reset taken[]. '3' is special flag*/
 
    if (access(tf_n,04) != 0) {
       fprintf(stderr,"Layout file has no read permission\n",s);
       exit(4);
    }
 
+/* Call "vi..." and check layout file; do not allow user out of loop until
+   layout is OK -- toolong() is checker */
    do {
-      if (system(s)==256) {
-         fprintf(stderr,"Editor in \"%s\" not found\n",s);
-         exit(9);
-      }
+      system(s);
    }   while (toolong(tf_n) == 0);
 
    catchtty(&termbuf);
    fixterm();
 
+/* Continue prompting [prompt() called via copy_file_form() until
+   everything is OK */
    i=0;
    do {
       clear();
@@ -678,11 +755,13 @@ register char *s;
          status = 4;
          vdone();
       }
-      i=copy_file_form(tf_pt,flag);
+      i=copy_file_form(tf_pt,flag);   /* Prompt */
       fclose(tf_pt);
-   }  while (i==0);
+   }  while (i==0);     /* while not OK */
 
-   prompt((struct field *)0,flag);
-   reorder();
+   prompt((struct field *)0,flag);  /* When 1st arg of prompt() is 0,
+                 only cleanup; no user prompting */
+   reorder();  /* make sure that ordering of elements in fields[]
+                  array is same as ->loc ordering */
 }
 

@@ -5,11 +5,14 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)rfadmin:rfadmin.c	1.1"
+#ident	"@(#)rfadmin:rfadmin.c	1.3.3.1"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/utsname.h>
 #include <sys/rfsys.h>
+#include <sys/sema.h>
+#include <sys/comm.h>
+#include <sys/rdebug.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <nserve.h>
@@ -24,6 +27,8 @@
 #define	PRIM_RTN	1
 #define	REMOVE		2
 #define	ADD		4
+#define	QUERY		8
+#define OPTION	       16
 
 #define MINLENGTH 	6
 
@@ -33,7 +38,7 @@
 #define	PRIMARY		1
 #define SECONDARY	2
 
-#define SEM_FILE	"/tmp/rfadmin"
+#define SEM_FILE	"/etc/.rfadmin"
 
 extern	char	*optarg;
 extern	int	optind;
@@ -53,6 +58,7 @@ char *argv[];
 	int	error = 0;
 	int	c;
 	char	*host;
+	char	*optname;
 
 	cmd_name = argv[0];
 
@@ -60,13 +66,19 @@ char *argv[];
 	 *	Process arguments.
 	 */
 
-	while ((c = getopt(argc, argv, "pa:r:")) != EOF) {
+	while ((c = getopt(argc, argv, "pqa:r:o:")) != EOF) {
 		switch (c) {
 			case 'p':
 				if (flag)
 					error = 1;
 				else
 					flag |= PRIM_RTN;
+				break;
+			case 'q':
+				if (flag)
+					error = 1;
+				else
+					flag |= QUERY;
 				break;
 			case 'r':
 				if (flag)
@@ -84,6 +96,14 @@ char *argv[];
 					host = optarg;
 				}
 				break;
+			case 'o':
+				if (flag)
+					error = 1;
+				else {
+					flag |= OPTION;
+					optname = optarg;
+				}
+				break;
 			case '?':
 				error = 1;
 		}
@@ -96,12 +116,36 @@ char *argv[];
 
 	if (error) {
 		fprintf(stderr, "%s: usage: %s [-p]\n", cmd_name, cmd_name);
+		fprintf(stderr, "                %s [-q]\n", cmd_name);
 		fprintf(stderr, "                %s [-a domain.host]\n", cmd_name);
 		fprintf(stderr, "                %s [-r domain.host]\n", cmd_name);
+		fprintf(stderr, "                %s [-o optionname]\n", cmd_name);
 		exit(1);
 	}
 
-	if (getuid() != 0) {
+	/*
+	 *	If the "-q" option was specified, print out a message
+	 *	stating if RFS is running or not (do not have to be
+	 *	root in this case).
+	 */
+
+	if (flag & QUERY)
+		exit(query_rtn());
+
+	/*
+	 *	Handle -o options.  Super-user restrictions must be done by
+	 *	each option individually.
+	 */
+
+	if (flag & OPTION)
+		exit(handle_opt(optname));
+
+	/*
+	 *	At this point, all other options require super-user
+	 *	priviledges.
+	 */
+
+	if (geteuid() != 0) {
 		fprintf(stderr, "%s: must be super user\n", cmd_name);
 		exit(1);
 	}
@@ -124,6 +168,25 @@ char *argv[];
 }
 
 static
+query_rtn()
+{
+	int rtn;
+
+	if ((rtn = rfsys(RF_RUNSTATE)) < 0) {
+		perror(cmd_name);
+		return(2);
+	}
+
+	if (rtn == DU_UP) {
+		printf("RFS is running\n");
+		return(0);
+	}
+
+	printf("RFS is not currently running\n");
+	return(1);
+}
+
+static
 update_passwd(host, cmd)
 char *host;
 int   cmd;
@@ -131,7 +194,6 @@ int   cmd;
 	char domain[MAXDNAME], name[SZ_MACH];
 	char filename[BUFSIZ];
 	int sem;
-	int rtn;
 	struct utsname uts;
 
 	/*
@@ -139,7 +201,9 @@ int   cmd;
 	 */
 
 	strncpy(name, namepart(host), SZ_MACH);
+	name[SZ_MACH - 1] = '\0';
 	strncpy(domain, dompart(host), MAXDNAME);
+	domain[MAXDNAME - 1] = '\0';
 	if (domain[0] == '\0' || name[0] == '\0') {
 		fprintf(stderr, "%s: host name <%s> must be specified as domain.host\n", cmd_name, name);
 		return(1);
@@ -186,18 +250,53 @@ int   cmd;
 	}
 
 	if (cmd == ADD)
-		rtn = add_rtn(filename, name);
-	else {
-		if (is_prime(name, domain, SECONDARY) == NO)
-			rtn = remove_rtn(filename, name);
-		else {
-			fprintf(stderr, "%s: removal of secondary name server <%s> disallowed\n", cmd_name, name);
-			rtn = 1;
-		}
+		return(add_rtn(filename, name));
+
+	if (is_prime(name, domain, SECONDARY) == YES) {
+		fprintf(stderr, "%s: removal of secondary name server <%s> disallowed\n", cmd_name, name);
+		return(1);
 	}
 
-	close(sem);
-	unlink(SEM_FILE);
+	if (is_prime(name, domain, PRIMARY) == YES) {
+		fprintf(stderr, "%s: removal of primary name server disallowed\n", cmd_name);
+		return(1);
+	}
+
+	if (adv_res(name) == YES)
+		fprintf(stderr, "%s: warning: %s currently has resources advertised\n", cmd_name, name);
+
+	return(remove_rtn(filename, name));
+}
+
+static
+adv_res(name)
+char   *name;
+{
+	char	cmd[512];
+	FILE	*fp;
+	int	rtn;
+
+	/*
+	 *	Determine if the host has resources advertised.
+	 */
+
+	sprintf(cmd, "nsquery -h %s 2>/dev/null", name);
+	if ((fp = popen(cmd, "r")) == NULL)
+		return(NO);
+
+	/*
+	 *	Get the first character.  This is done beacuse
+	 *	a new-line will be present even if no resources
+	 *	are advertised.
+	 */
+
+	fgetc(fp);
+	if (fgetc(fp) == EOF)
+		rtn = NO;
+	else
+		rtn = YES;
+
+	pclose(fp);
 	return(rtn);
 }
 
@@ -319,7 +418,7 @@ char	*name;
 	 */
 
 	if (unlink(filename) == -1 || link(tempfile, filename) == -1 ||
-	    unlink(tempfile) == -1) {
+	    unlink(tempfile) == -1 || chmod(filename, 0600) == -1) {
 		fprintf(stderr, "%s: error in creating new password file <%s>\n", cmd_name, filename);
 		return(1);
 	}
@@ -410,13 +509,16 @@ primary_rtn()
 	 */
 
 	if ((rtn = ns_getblock(&send)) == (struct nssend *)NULL) {
-		if (ns_errno == R_PERM)
+		if (ns_errno == R_PERM) {
 			fprintf(stderr, "%s: not currently primary name server\n", cmd_name);
-		else if (ns_errno == R_NONAME) {
+			return(1);
+		}
+		if (ns_errno == R_NONAME) {
 			fprintf(stderr, "%s: could not relinquish primary responsibilities\n", cmd_name);
 			fprintf(stderr, "%s: possible cause: no secondary name servers running\n", cmd_name);
-		} else
-			nserror(cmd_name);
+			return(2);
+		}
+		nserror(cmd_name);
 		return(1);
 	}
 	return(0);
@@ -431,6 +533,15 @@ pr_primary()
 
 	char   key[MAXDNAME+1];
 	char  *dname = getdname();
+
+	/*
+	 *	Determine if RFS is running.
+	 */
+
+	if (rfs_up() != 0) {
+		perror(cmd_name);
+		return(1);
+	}
 
 	/*
 	 *	Initialize the information structure to send to the
@@ -457,7 +568,7 @@ pr_primary()
 	 */
 
 	if ((rtn = ns_getblock(&send)) != (struct nssend *)NULL) {
-		printf("primary for domain %s is %s\n", dname, *rtn->ns_mach);
+		printf("the acting name server for domain %s is %s\n", dname, *rtn->ns_mach);
 		return(0);
 	}
 
@@ -654,4 +765,50 @@ char	 *name;
 		}
 		return(crypt(u_newpass, saltc));
 	}
+}
+
+/*
+ *	Handle -o options here.
+ *	NOTE:  Individual options are required to validate that the user
+ *	is super user, if necessary.
+ */
+
+handle_opt(opt)
+int	*opt;
+{
+	int	tmp;
+
+	if (strcmp(opt, "loopback") == 0) {
+		if (geteuid() != 0) {
+			fprintf(stderr, "%s: option \"%s\": must be super user\n",cmd_name, opt);
+			return(1);
+		}
+		rdebug(DB_LOOPBCK);
+	}
+	else if (strcmp(opt, "noloopback") == 0) {
+		if (geteuid() != 0) {
+			fprintf(stderr, "%s: option \"%s\": must be super user\n",cmd_name, opt);
+			return(1);
+		}
+		tmp = rdebug(-2);
+		rdebug(0);
+		rdebug(tmp & ~DB_LOOPBCK);
+	}
+	else if (strcmp(opt, "loopmode") == 0) {
+		if (geteuid() != 0) {
+			fprintf(stderr, "%s: option \"%s\": must be super user\n",cmd_name, opt);
+			return(1);
+		}
+		tmp = rdebug(-2);	/* -2 returns dudebug level */
+		if (tmp & DB_LOOPBCK)
+			printf("on\n");
+		else
+			printf("off\n");
+	}
+	else {
+		fprintf(stderr,"%s: option \"%s\" not known\n",cmd_name,opt);
+		return(1);
+	}
+
+	return(0);
 }

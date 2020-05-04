@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)graf:src/gtop.d/gtop.c	1.1"
+#ident	"@(#)graf:src/gtop.d/gtop.c	1.1.1.1"
 /* <: t-5 d :> */
 #include<stdio.h>
 #include "debug.h"
@@ -171,7 +171,7 @@ int            *oldstyle;
 {
 if((unsigned) cd->style > LONGDASH) cd->style = SOLID;
 if(cd->style != *oldstyle) {
-#if u370 | u3b | u3b5 | u3b2
+#if u370 | u3b | u3b15 | u3b2
   linemod(styles[cd->style]);
 #else
   linemod(styles[cd->style]);

@@ -5,18 +5,14 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/has_ic.c	1.1"
-/*
- * Routines to deal with setting and resetting modes in the tty driver.
- * See also setupterm.c in the termlib part.
- */
-#include "curses.ext"
+#ident	"@(#)curses:screen/has_ic.c	1.3"
 
-/*
- * Query: Does it have insert/delete char?
- */
-int
+#include "curses_inc.h"
+
+/* Query: Does it have insert/delete char? */
+
 has_ic()
 {
-	return (insert_character || enter_insert_mode) && delete_character;
+    return ((insert_character || enter_insert_mode || parm_ich) &&
+		(delete_character || parm_dch));
 }

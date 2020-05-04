@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)head:ctype.h	1.6"
+#ident	"@(#)head:ctype.h	1.9"
 /*	3.0 SID #	1.2	*/
 #define	_U	01	/* Upper case */
 #define	_L	02	/* Lower case */
@@ -31,7 +31,7 @@ extern char	_ctype[];
 #define	isgraph(c)	((_ctype + 1)[c] & (_P | _U | _L | _N))
 #define	iscntrl(c)	((_ctype + 1)[c] & _C)
 #define	isascii(c)	(!((c) & ~0177))
-#define	_toupper(c)	((c) - 'a' + 'A')
-#define	_tolower(c)	((c) - 'A' + 'a')
+#define	_toupper(c)     ((_ctype + 258)[c])
+#define	_tolower(c)	((_ctype + 258)[c])
 #define	toascii(c)	((c) & 0177)
 #endif

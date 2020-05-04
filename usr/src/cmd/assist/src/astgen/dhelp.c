@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)tools:dhelp.c	1.8"
+#ident	"@(#)tools:dhelp.c	1.10"
 
 /*	this routine opens the specified file, looks for a line that
 *	begins with the specified item number, and prints the following
@@ -77,10 +77,13 @@ int x,y,num; /*item number*/
 
         fclose(fp);
         winwidth = maxl+3;
+        if (winsize + y > LINES-2) 
+           y = 3;
 	hm=newwin(winsize,winwidth,y,x);
         idlok(hm,TRUE);
         keypad(hm,TRUE);
         intrflush(hm,TRUE);
+/*now draw box around window*/
 	if (term & ALTCHAR) wattron(hm,A_ALTCHARSET);
 	for (i=xwin+1;i<winwidth-1;i++) mvwaddch(hm,ywin,i,HOR);
 	for (i=xwin+1;i<winwidth-1;i++) mvwaddch(hm,winsize-1,i,HOR);
@@ -111,6 +114,7 @@ int x,y,num; /*item number*/
 	wrefresh(hm);
         flushinp();
 	wgetch(hm);	/*wait until user is ready before clearing help*/
+			/*unlike mforms, the character is not saved*/
 	touchwin(stdscr);
 	return(0); /*all done*/
 }

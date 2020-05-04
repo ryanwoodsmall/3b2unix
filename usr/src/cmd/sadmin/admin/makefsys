@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:admin/makefsys	2.12"
+#ident	"@(#)sadmin:admin/makefsys	2.16"
 #	Create a new file system on a removable medium.
 #help# 
 #help#	Makefsys creates a new file system on a removable medium which can
@@ -60,17 +60,23 @@ eval `labelfsname "${l}"`
 
 if [ -n "${label}"  -o  -n "${fsname}" ]
 then
+	Ofsname=${fsname}
+	Olabel=${label}
+
 	echo "This medium already has a label and/or file system name.
 	${label:+label = ${label}		}${fsname:+file system name = ${fsname}}"
 	checkyn ${flags} -f \
 	'
 	WARNING:  If you answer "yes", all data on this medium will be LOST!
-	BE SURE THIS IS WHAT YOU WANT TO DO!!
+	          BE SURE THIS IS WHAT YOU WANT TO DO!!
 Do you want to erase this file system and build another?'  ||  {
 		echo 'This medium will not be erased.  Remove the medium.'
 		exit 0
 	}
 fi
+
+echo "\tNOTE: Making a file system involves labeling the medium"
+echo "\t      and then mounting the medium."
 
 label=`checkre ${flags} ${label:+-D${label}} -H'
 	The medium label identifies this particular medium.
@@ -80,7 +86,8 @@ label=`checkre ${flags} ${label:+-D${label}} -H'
 	"Enter the label to be put on the medium ${label:+(default: ${label})} [?, q]" \
 	'^.\{1,6\}$' 'Must be at least one and no more than 6 characters.' \
 	'^[!-~]*$' 'Must be printing characters only only.'`
-
+while true
+do
 fsname=`checkre ${flags} ${fsname:+-D${fsname}} -H'
 	The file system name is the name of the directory where you want the
 	file system mounted.  It determines the first name in the full path
@@ -92,6 +99,35 @@ fsname=`checkre ${flags} ${fsname:+-D${fsname}} -H'
 	'^/\{0,1\}[a-zA-Z0-9]*$' 'Must be letters and numbers only.'`
 
 fsname=`expr ${fsname} : '/*\(.*\)'`
+ERR=0
+if [ -f /${fsname} ]
+then
+	echo "\tA file by that name already exists in the root directory."
+	ERR=1
+elif [ -d /${fsname} ]
+	then
+	mounted=`/etc/mount | sed 's; .*;;'`
+	if echo "$mounted" | grep "/${fsname}\$"
+	then
+		echo "\tA file system with that name is already mounted."
+		ERR=1
+	else
+		echo "\tWARNING: A directory of that name already exists."
+		echo "\t         Once this medium is mounted, it will overlay"
+		echo "\t         all files and directories in the original"
+		echo "\t         directory (making them inaccessible) until"
+		echo "\t         this medium is unmounted."
+	fi
+fi
+if [ $ERR -eq 1 ]
+then
+	echo "\tPlease choose another name."
+	fsname=$Ofsname
+	label=$Olabel
+else
+	break
+fi
+done
 
 blocks=`spclsize -b ${ddrive}`
 #	Funny calculation of inodes gives nice multiple-of-10 values.
@@ -99,9 +135,13 @@ inodes=`expr ${blocks} / 70 \* 10`
 halfblocks=`expr ${blocks} / 2`
 while true
 do
-	i=`checkre ${flags} -fe -D "${inodes}" \
+	i=`checkre ${flags} -fe -D "${inodes}" -H"
+	This number represents the maximum number of files and directories
+	that the medium will be able to contain and must be between 1 and ${halfblocks}.
+	This number may be automatically rounded up to accommodate the blocksize 
+	of the medium." \
 		"Enter the maximum number of files and directories on this medium
-	(default ${inodes}) [q]:" \
+	(default ${inodes}) [?,q]:" \
 		'^[0-9]\{1,\}$' 'You must enter a number or just press RETURN.' \
 		-R '^00*$' 'The number must be greater than zero.'`
 	if [ ${i} -lt ${halfblocks} ]
@@ -135,7 +175,6 @@ if [ ! -d /${fsname} ]
 then
 	mkdir /${fsname}
 fi
-chmod 777 /${fsname}
 /etc/mount ${ddrive} /${fsname}  ||  {
 	admerr $0 mount of ${ddrive} on /${fsname} failed.
 	exit 1

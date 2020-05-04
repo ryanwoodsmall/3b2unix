@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)xenv:m32/template.mk	1.35"
+#ident	"@(#)xenv:m32/template.mk	1.38"
 #
 #	WE-32000 GLOBAL MAKEFILE
 #
@@ -85,6 +85,7 @@ GRP=bin
 #
 #
 MAKE=make
+YACC=yacc
 CC=cc
 FFLAG=
 ENV=
@@ -95,7 +96,8 @@ LIBLD=$(BASE)/libld/m32/libld.a
 #
 #
 ENVPARMS=MAKE="$(MAKE)" SGS="$(SGS)" ARCH="$(ARCH)" OWN="$(OWN)" GRP="$(GRP)" \
-	DBO="$(DBO)" ARFORMAT="$(ARFORMAT)" FLEX="$(FLEX)" LDLIBS="$(LDLIBS)"
+	DBO="$(DBO)" ARFORMAT="$(ARFORMAT)" FLEX="$(FLEX)" LDLIBS="$(LDLIBS)" \
+	YACC="$(YACC)"
 
 CPPARMS=CC="$(CC)" FFLAG="$(FFLAG)" ENV="$(ENV)" ROOT="$(ROOT)" \
 	VERSION="$(VERSION)" USRINC="$(USRINC)"
@@ -121,7 +123,8 @@ all:	libs
 	cd $(BASE)/dump/m32; $(MAKE) $(ENVPARMS) $(CCPARMS)
 	cd $(BASE)/list/m32; $(MAKE) $(ENVPARMS) $(CCPARMS)
 	cd $(BASE)/lorder/m32; $(MAKE) $(ENVPARMS)
-	cd $(BASE)/mkshlib/m32; $(MAKE) $(ENVPARMS)
+	cd $(BASE)/mkshlib/m32; $(MAKE) $(ENVPARMS) $(CCPARMS)
+	cd $(BASE)/chkshlib/m32; $(MAKE) $(ENVPARMS) $(CCPARMS)
 	cd $(BASE)/nm/m32; $(MAKE) $(ENVPARMS) $(CCPARMS)
 	cd $(BASE)/size/m32; $(MAKE) $(ENVPARMS) $(CCPARMS)
 	cd $(BASE)/strip/m32; $(MAKE) $(ENVPARMS) $(CCPARMS)
@@ -150,7 +153,8 @@ install: libinstall
 	cd $(BASE)/dump/m32; $(MAKE) $(ENVPARMS) $(CCPARMS) $(DIRPARMS) install
 	cd $(BASE)/list/m32; $(MAKE) $(ENVPARMS) $(CCPARMS) $(DIRPARMS) install
 	cd $(BASE)/lorder/m32; $(MAKE) $(ENVPARMS) $(DIRPARMS) install
-	cd $(BASE)/mkshlib/m32; $(MAKE) $(ENVPARMS) $(DIRPARMS) install
+	cd $(BASE)/mkshlib/m32; $(MAKE) $(ENVPARMS) $(CCPARMS) $(DIRPARMS) install
+	cd $(BASE)/chkshlib/m32; $(MAKE) $(ENVPARMS) $(CCPARMS) $(DIRPARMS) install
 	cd $(BASE)/nm/m32; $(MAKE) $(ENVPARMS) $(CCPARMS) $(DIRPARMS) install
 	cd $(BASE)/size/m32; $(MAKE) $(ENVPARMS) $(CCPARMS) $(DIRPARMS) install
 	cd $(BASE)/strip/m32; $(MAKE) $(ENVPARMS) $(CCPARMS) $(DIRPARMS) install
@@ -185,6 +189,7 @@ save:
 	cd $(BASE)/list/m32; $(MAKE) $(ENVPARMS) $(DIRPARMS) save
 	cd $(BASE)/lorder/m32; $(MAKE) $(ENVPARMS) $(DIRPARMS) save
 	cd $(BASE)/mkshlib/m32; $(MAKE) $(ENVPARMS) $(DIRPARMS) save
+	cd $(BASE)/chkshlib/m32; $(MAKE) $(ENVPARMS) $(DIRPARMS) save
 	cd $(BASE)/nm/m32; $(MAKE) $(ENVPARMS) $(DIRPARMS) save
 	cd $(BASE)/size/m32; $(MAKE) $(ENVPARMS) $(DIRPARMS) save
 	cd $(BASE)/strip/m32; $(MAKE) $(ENVPARMS) $(DIRPARMS) save
@@ -208,6 +213,7 @@ uninstall:
 	cd $(BASE)/list/m32; $(MAKE) $(ENVPARMS) $(DIRPARMS) uninstall
 	cd $(BASE)/lorder/m32; $(MAKE) $(ENVPARMS) $(DIRPARMS) uninstall
 	cd $(BASE)/mkshlib/m32; $(MAKE) $(ENVPARMS) $(DIRPARMS) uninstall
+	cd $(BASE)/chkshlib/m32; $(MAKE) $(ENVPARMS) $(DIRPARMS) uninstall
 	cd $(BASE)/nm/m32; $(MAKE) $(ENVPARMS) $(DIRPARMS) uninstall
 	cd $(BASE)/size/m32; $(MAKE) $(ENVPARMS) $(DIRPARMS) uninstall
 	cd $(BASE)/strip/m32; $(MAKE) $(ENVPARMS) $(DIRPARMS) uninstall
@@ -228,6 +234,7 @@ shrink: libshrink
 	cd $(BASE)/list/m32; $(MAKE) $(ENVPARMS) shrink
 	cd $(BASE)/lorder/m32; $(MAKE) $(ENVPARMS) shrink
 	cd $(BASE)/mkshlib/m32; $(MAKE) $(ENVPARMS) shrink
+	cd $(BASE)/chkshlib/m32; $(MAKE) $(ENVPARMS) shrink
 	cd $(BASE)/nm/m32; $(MAKE) $(ENVPARMS) shrink
 	cd $(BASE)/size/m32; $(MAKE) $(ENVPARMS) shrink
 	cd $(BASE)/strip/m32; $(MAKE) $(ENVPARMS) shrink

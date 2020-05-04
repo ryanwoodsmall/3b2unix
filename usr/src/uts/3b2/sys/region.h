@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/region.h	10.5"
+#ident	"@(#)kern-port:sys/region.h	10.5.2.2"
 
 /*
  * Per region descriptor.  One is allocated for
@@ -43,7 +43,7 @@ typedef	struct	region	{
 #define RG_LOCK		0x0008	/* Region is locked */
 #define RG_WANTED	0x0010	/* Wakeup rp after clearing RG_LOCK */
 #define RG_WAITING	0x0020	/* Wakeup rp->r_flags when RG_DONE is set */
-#define XREMOTE		0x0040	/* remote region entry */
+#define RG_WASTEXT	0x0040	/* Region was shared text, is now private */
 
 /*
  * Region types

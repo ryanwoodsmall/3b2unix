@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)ld:common/ld1.c	1.39"
+#ident	"@(#)ld:common/ld1.c	1.39.1.2"
 #include "system.h"
 
 #include <stdio.h>
@@ -46,7 +46,7 @@
 #if TRVEC
 #if IAPX
 #include "sgs.h"
-#endif IAPX
+#endif 
 #define OKMAGIC(x)	((unsigned short) x == (unsigned short) magic)
 #else
 #include "sgs.h"

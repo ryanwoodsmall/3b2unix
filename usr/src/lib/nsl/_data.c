@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/_data.c	1.2"
+#ident	"@(#)libnsl:nsl/_data.c	1.2.1.1"
 #include "sys/types.h"
 #include "sys/timod.h"
 #include "stdio.h"
@@ -18,4 +18,7 @@
  */
 struct _ti_user *_ti_user = 0;
 
-struct _ti_user _null_ti = { 0, 0, NULL, 0, NULL, NULL, NULL, 0, 0, 0, 0, 0};
+/*
+ * This must be here to preserve compatibility
+ */
+struct _oldti_user _old_ti = { 0, 0, NULL,0,NULL,NULL,NULL,0,0,0,0,0 };

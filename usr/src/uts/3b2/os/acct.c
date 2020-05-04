@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/acct.c	10.8"
+#ident	"@(#)kern-port:os/acct.c	10.8.2.1"
 #include "sys/types.h"
 #include "sys/sysmacros.h"
 #include "sys/param.h"
@@ -23,6 +23,8 @@
 #include "sys/file.h"
 #include "sys/debug.h"
 #include "sys/conf.h"
+#include "sys/region.h"
+#include "sys/proc.h"
 
 struct acct	acctbuf;
 struct inode	*acctp;
@@ -104,7 +106,7 @@ acct(st)
 	u.u_limit = (daddr_t)5000;
 	u.u_fmode = FWRITE;
 
-	FS_WRITEI(ip);
+	WRITEI(ip);
 	if (u.u_error)
 		ip->i_size = siz;
 	prele(ip);

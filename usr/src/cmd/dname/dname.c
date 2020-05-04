@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)dname:dname.c	1.9"
+#ident	"@(#)dname:dname.c	1.10"
 #include <stdio.h>
 #include <ctype.h>
 #include <nserve.h>
@@ -103,7 +103,7 @@ char	 *domain;
 	register char *ptr;
 	int  inval_chr;
 
-	if (getuid() != 0) {
+	if (geteuid() != 0) {
 		fprintf(stderr, "dname: must be super user to change domain name\n");
 		return(1);
 	}
@@ -165,7 +165,7 @@ char *netspec;
 	char  path[BUFSIZ];
 	struct stat sbuf;
 
-	if (getuid() != 0) {
+	if (geteuid() != 0) {
 		fprintf(stderr, "dname: must be super user to change network specification\n");
 		return(1);
 	}

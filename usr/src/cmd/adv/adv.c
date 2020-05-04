@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)adv:adv.c	1.12"
+#ident	"@(#)adv:adv.c	1.14.1.1"
 #include  <stdio.h>
 #include  <fcntl.h>
 #include  <ctype.h>
@@ -151,7 +151,7 @@ char *argv[];
 		exit(1);
 	}
 
-	if (getuid() != 0) {
+	if (geteuid() != 0) {
 		fprintf(stderr,"%s: must be super-user\n",cmd);
 		exit(1);
 	}
@@ -208,6 +208,16 @@ char *argv[];
 		roflag |= A_MODIFY;
 	} else
 		req_type = NS_ADV;	
+
+	/*
+	 *	Lock a temporary file to prevent many advertises from
+	 *	updating "/etc/advtab" at the same time.
+	 */
+
+	if ((temprec = creat(ADVLOCK, 0600)) == -1 ||
+	     lockf(temprec, F_LOCK, 0L) < 0) {
+		fprintf(stderr, "%s: warning: cannot lock temp file <%s>\n",cmd,ADVLOCK);
+	}
 	
 	/*
 	 *	Invoke the advfs() system call to advertise a new resource,
@@ -231,22 +241,11 @@ char *argv[];
 		exit(1);
 	}
 
-	/*
-	 *	Lock a temporary file to prevent many advertises from
-	 *	updating "/etc/advtab" at the same time.
-	 */
-
-	if ((temprec = creat(ADVLOCK, 0600)) == -1 ||
-	     lockf(temprec, F_LOCK, 0L) < 0) {
-		fprintf(stderr, "%s: warning: cannot lock temp file <%s>\n",cmd,ADVLOCK);
-	}
-
 	if (mflag)
 		update_entry(resource,path,roflag,desc,mlist);
 	else
 		add_entry(resource,path,roflag,desc,mlist);
 
-	unlink(ADVLOCK);
 	exit(0);
 }
 
@@ -269,7 +268,7 @@ list_advlog()
 			if (num_args != 1)
 				continue;
 			fgets(advbuf,BUFSIZE,fp);
-			fprintf(stdout,"%-14.14s%s\n",res,advbuf);
+			fprintf(stdout,"%-14.14s%s",res,advbuf);
 		}
 		fclose(fp);
 	}
@@ -672,7 +671,6 @@ char	*clients[];
 	stat(ADVFILE,&stbuf);
 	if ((fp1 = fopen(TEMPADV, "w")) == NULL) {
 		fprintf(stderr,"%s: cannot create temporary advertise file <%s>\n",cmd,TEMPADV);
-		unlink(ADVLOCK);
 		exit(1);
 	}
 
@@ -721,7 +719,6 @@ char	*clients[];
 
 	if ((fp = fopen(ADVFILE, "a")) == NULL) {
 		fprintf(stderr,"%s: cannot open <%s>\n",cmd,ADVFILE);
-		unlink(ADVLOCK);
 		exit(1);
 	}
 	fprintf(fp,"%s  %s  %s  \"%s\" ",res,path,flg[rflag],desc);
@@ -840,13 +837,10 @@ char	*dir;
 		fprintf(stderr,"%s: system call interrupted\n",cmd);
 		break;
 	case EBUSY:
-		fprintf(stderr,"%s: <%s> already advertised\n",cmd,res);
-		break;
-	case ENXIO:
-		fprintf(stderr,"%s: <%s> is remotely mounted, cannot re-advertise\n",cmd,res);
+		fprintf(stderr,"%s: resource <%s> currently advertises a different directory\n",cmd,res);
 		break;
 	case EEXIST:
-		fprintf(stderr,"%s: <%s> is remotely mounted, cannot re-advertise\n",cmd,dir);
+		fprintf(stderr,"%s: re-advertise error: <%s> was originally advertised under\n     a different resource name\n",cmd,dir);
 		break;
 	case ENOSPC:
 		fprintf(stderr,"%s: advertise table overflow\n",cmd);
@@ -865,6 +859,12 @@ char	*dir;
 		break;
 	case ENOPKG:
 		fprintf(stderr,"%s: RFS package not installed\n",cmd);
+		break;
+	case ESRMNT:
+		fprintf(stderr,"%s: re-advertise error: a client that is not in the specified\n     client list currently has <%s> mounted\n",cmd,res);
+		break;
+	case EACCES:
+		fprintf(stderr,"%s: re-advertise error: resource <%s> originally advertised\n     with different permissions\n",cmd,res);
 		break;
 	default:
 		fprintf(stderr,"%s: errno <%d>, cannot advertise <%s>\n",cmd,errno,res);

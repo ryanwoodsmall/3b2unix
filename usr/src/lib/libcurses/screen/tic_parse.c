@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/tic_parse.c	1.13"
+#ident	"@(#)curses:screen/tic_parse.c	1.15"
 /*********************************************************************
 *                         COPYRIGHT NOTICE                           *
 **********************************************************************
@@ -58,7 +58,7 @@
 #include <sys/stat.h>
 #include <stdio.h>
 #include <ctype.h>
-#include "curses.ext"
+#include "curses_inc.h"
 #include "compiler.h"
 #include "object.h"
 
@@ -239,7 +239,6 @@ do_entry(item_ptr)
 struct use_item	*item_ptr;
 {
 	long					entry_offset;
-	int					i;
 	register int				token_type;
 	register struct name_table_entry	*entry_ptr;
 	int					found_forward_use = FALSE;

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mail:mail.c	1.83"
+#ident	"@(#)mail:mail.c	1.91"
 /*
  	Mail to a remote machine will normally use the uux command.
  	If available, it may be better to send mail via 3bsend, nusend,
@@ -35,7 +35,7 @@
 #include	<setjmp.h>
 #include	<sys/utsname.h>
 
-#define USE_NISEND 1    /* switch for 3bsend */
+#define USE_NISEND 1    /* switch for nisend */
 #define USE_NUSEND 1    /* switch for nusend */
 #define USE_USEND  1    /* switch for usend  */
 
@@ -105,7 +105,7 @@ char	*errlist[]={"",
 #define	LSIZE		BUFSIZ		/* maximum size of a line */
 #define	MAXLET		300		/* maximum number of letters */
 #define FROMLEVELS	20		/* maxium number of forwards */
-#define MAXFILENAME	128		/* max length of a filename */
+#define MAXFILENAME	512		/* max length of a filename */
 #define DEADPERM	0600		/* permissions of dead.letter */
 
 #ifndef	MFMODE
@@ -153,7 +153,7 @@ struct	let {
 
 struct	utsname utsn;
 int	changed;	/* > 0 says mailfile has changed */
-char	curlock[50];
+char	curlock[MAXFILENAME];
 char	dead[] = "/dead.letter";	/* name of dead.letter */
 int	delete();
 int	delflg = 1;
@@ -164,13 +164,13 @@ int	flge = 0;	/* 1 says 'e' option specified */
 int	flgF = 0;	/* 1 = Installing/Removing  Forwarding */
 int	flgf = 0;	/* 1 says 'f' option specified */
 int	flgh = 0;	/* 1 says 'h' option specified */
-int	flago = 0;	/* 1 says 'o' specified */
 int	flgp = 0;	/* 1 says 'p' option specified */
 int	flgs = 0;	/* 1 says 's' option specified */
 int	flgw = 0;	/* 1 says 'w' option specified */
 int	forward;	/* 1 says print in fifo order */
 #define FORWMSG	" forwarded by %s\n"
 char	from[] = "From ";	/* from-line sentinel */
+int	from_len = 0;
 int	fromlevel = 0;	/* Counts number of From lines */
 #define FRWLMSG "%s: Forwarding loop detected in %s's mailfile on system %s \n\n"
 char	frwrd[] = "Forward to ";	/* forwarding sentinel */
@@ -183,7 +183,7 @@ long	iop;
 int	interactive = 0;	/* 1 says user is interactive */
 int	ismail = TRUE;		/* default to program=mail */
 char	*lettmp;		/* pointer to tmp filename */
-char	lfil[50];
+char	lfil[MAXFILENAME];
 char	line[LSIZE];	/* holds a line of a letter in many places */
 int	locked;		/* 1 says lockfile exists */
 char	maildir[] = "/usr/mail/";	/* directory for mail files */
@@ -205,14 +205,14 @@ struct	passwd *pwd;
 char	program[20];	/* program name */
 int	replying = 0;	/* 1 says we are replying to a letter */
 char	resp[LSIZE];	/* holds user's response in interactive mode */
-char	savefile[256];	/* holds filename of save file */
+char	savefile[MAXFILENAME];	/* holds filename of save file */
 char	tmpdir[] = "";	/* default directory for tmp files */
 #define RMTMSG	" remote from %s\n"
 #define RTRNMSG	"***** UNDELIVERABLE MAIL sent to %s, being returned by %s!%s *****\n"
 int	savdead();
-int	(*saveint)();
+void	(*saveint)();
 char	sendto[1024];
-int	(*setsig())();
+void	(*setsig())();
 char	*thissys;	/* Holds name of the system we are on */
 FILE	*tmpf;		/* file pointer for temporary files */
 char	TO[] = "To: ";
@@ -224,20 +224,6 @@ long	ftell();
 
 jmp_buf	sjbuf;
 
-#ifdef USE_NISEND
-jmp_buf nisendfail;
-int     nisendjmp = FALSE;
-#endif
- 
-#ifdef USE_NUSEND
-jmp_buf nusendfail;
-int	nusendjmp = FALSE;
-#endif
-
-#ifdef USE_USEND
-jmp_buf usendfail;
-int	usendjmp = FALSE;
-#endif
 
 unsigned umsave;
 char	*help[] = {
@@ -296,6 +282,7 @@ char	**argv;
 	register int i;
 	char *cptr;
 
+	from_len = strlen(from);
 	/*
 		Strip off path name of this command for use in messages
 	*/
@@ -375,13 +362,13 @@ char	**argv;
 	return
 		rc	-> former signal
  */
-int (*setsig(i, f))()
+void (*setsig(i, f))()
 int      i;
 int      (*f)();
 {
-	register int (*rc)();
+	register void (*rc)();
 
-	if ((rc = signal(i, SIG_IGN)) != (int (*)()) SIG_IGN) signal(i, f);
+	if ((rc = signal(i, SIG_IGN)) != (void (*)()) SIG_IGN) signal(i, f);
 	return(rc);
 }
 
@@ -833,7 +820,7 @@ copyback()
 	if (flgf) strcpy(savefile,mailfile);
 	else cat(savefile,mailsave,my_name);
 
-	if ((malf = fopen(savefile, "w",E_FILE)) == NULL) {
+	if ((malf = fopen(savefile, "w")) == NULL) {
 		if (!flgf) errmsg(E_FILE,"Cannot open savefile");
 		else errmsg(E_FILE,"Cannot re-write the alternate file");
 		done(0);
@@ -877,7 +864,7 @@ copyback()
 	/*
 		Empty mailbox?
 	*/
-	if ((n == 0) && ((stbuf.st_mode | MFMODE) == MFMODE)) 
+	if ((n == 0) && ((stbuf.st_mode & 07777) == MFMODE)) 
 		unlink(mailfile);
 	if (new && !flgf) printf("New mail arrived\n");
 	unlock();
@@ -1045,7 +1032,7 @@ char **argv;
 	struct	tm *bp, *localtime();
 	char	*tp, *zp;
 	int	n,newline = 1,lnum = 0;
-	char	buf[128],last1c,last2c;
+	char	buf[1024],last1c,last2c;
 
 	for (i = 1; i < argc; ++i) {
 	        if (argv[i][0] == '-') {
@@ -1069,8 +1056,13 @@ char **argv;
 	bp = localtime(&iop);
 	tp = asctime(bp);
 	zp = tzname[bp->tm_isdst];
+
+	/*
+		Write out the from line header for the letter
+	*/
 	sprintf(buf, "%s%s %.16s %.3s %.5s", from, my_name, tp, zp, tp+20);
 	if (!wtmpf(buf, strlen(buf))) done(0);
+
 	/*
 		Copy to list in mail entry?
 	*/
@@ -1085,6 +1077,7 @@ char **argv;
 		}
 		if (!wtmpf("\n", 1)) done(0);
 	}
+
 	iop = ftell(tmpf);
 	flgf = 1;
 	/*
@@ -1104,13 +1097,11 @@ char **argv;
 
 		if (newline && line[0] == '.' && line[1] == '\n') break;
 		last2c = last1c;
-		last1c = line[n-1];
 
-		if (last1c == '\n') {
+		if ((last1c = line[n-1]) == '\n') {
 			newline = 1;
 			lnum++;
-		}
-		else newline = 0;
+		} else newline = 0;
 
 		if (n > 1) last2c = line[n-2];
 
@@ -1121,28 +1112,14 @@ char **argv;
 			system fowarding the mail.
 		*/
 		if (newline && line[0] == from[0]) 
-			if (strncmp(line,from,5) == SAME) 
+			if (strncmp(line,from,from_len) == SAME) 
 				if (!wtmpf(">", 1)) done(0);
 
 		/*
 			Find out how many "from" lines
 		*/
-		if (newline && fromflg == 0 && (strncmp(line, from, 5) == SAME || strncmp(line, ">From ", 6) == SAME)) fromlevel++;
+		if (newline && fromflg == 0 && (strncmp(line, from, from_len) == SAME || strncmp(line, ">From ", 6) == SAME)) fromlevel++;
 		else fromflg = 1;
-
-		/*
-			If there are no From/>From lines, then ensure
-			the presence of at least one new-line to mark
-			the end-of-headers. The only exception to this
-			is if the line begins with Subject: which mailx
-			recognizes as the subject line. We do this only 
-			if the -s option is not specified. mailx(1) 
-			MUST call mail(1) with the -s option!
-		*/
-		if (lnum == 1) {
-			if (!flgs && fromflg && line[0] != '\n' && strncmp(line,"Subject:",8)) 
-					if (!wtmpf("\n", 1)) done(0);
-		}
 
 		if (!wtmpf(line, n)) done(0);
 		flgf = 0;
@@ -1177,7 +1154,7 @@ char **argv;
 	let[1].adr = ftell(tmpf);
 	if (fclose(tmpf) == EOF) {
 		tmperr();
-		return;
+		done(0);
 	}
 	if (flgf) return;
 	tmpf = doopen(lettmp,"r",E_TMP);
@@ -1201,6 +1178,7 @@ char **argv;
 	}
 	if (maxerr && dflag == 2) mkdead();
 	fclose(tmpf);
+	done(0);
 }
 
 savdead()
@@ -1245,10 +1223,10 @@ register char *name;
 		}
 	*p = '\0';
 
-	if (local) sprintf(cmd, "rmail %s", rsys);
-	if ((strcmp(thissys, rsys) == SAME)) {
+	if (local) sprintf(cmd, "exec rmail %s", rsys);
+	if ((strcmp(thissys, rsys) == SAME) && (!local)) {
 		local++;
-		sprintf(cmd, "rmail %s", name+1);
+		sprintf(cmd, "exec rmail %s", name+1);
 	}
 
 	/*
@@ -1262,79 +1240,60 @@ register char *name;
 
 #ifdef USE_NISEND
 		/*
-			If mail can't be sent over 3B network try the 
-			next selected method.
+			Try sending mail over 3B network
 		*/
-		if (setjmp(nisendfail) == 0) {
-			nisendjmp = TRUE;
-			/*
-				Send mail over 3B network
-			*/
-			if (access("/usr/3bnet/lib/3bsend", A_EXIST) != CERROR) {
-				sprintf(dir,"/usr/3bnet/tmp");
-				sprintf(pfx,"%s",thissys);
-				tmpremote = tempnam(dir,pfx);
-				sprintf(cmd, "/usr/3bnet/lib/3bsend -s -e -d%s -f%s -!'rmail %s < %s; rm %s' - 2> /dev/null", rsys, tmpremote, name+1, tmpremote, tmpremote);
+		if (access("/usr/3bnet/lib/3bsend", A_EXIST) != CERROR) {
+			sprintf(dir,"/usr/3bnet/tmp");
+			sprintf(pfx,"%s",thissys);
+			tmpremote = tempnam(dir,pfx);
+			sprintf(cmd, "/usr/3bnet/lib/3bsend -s -e -d%s -f%s -!'rmail %s < %s; rm %s' - 2> /dev/null", rsys, tmpremote, name+1, tmpremote, tmpremote);
 #ifdef DEBUG
-printf("%s\n", cmd);
+printf("%d: %s\n", getpid(),cmd);
 #endif
-				if (pipletr(n,cmd,local) == TRUE) {
-					nisendjmp = FALSE;
-					return(TRUE);
-				}
+			if (pipletr(n,cmd,local) == TRUE) {
+				return(TRUE);
 			}
 		}
-		nisendjmp = FALSE;
 #endif
 
 #ifdef USE_NUSEND
 		/*
 			If mail can't be sent over NSC network use uucp.
 		*/
-		if (setjmp(nusendfail) == 0) {
-			nusendjmp = TRUE;
-			sprintf(remote, "%s%s", NSCCONS, rsys);
-			if (access(remote, A_EXIST) != CERROR) {
-				/*
-					Send mail over NSC network
-				*/
-				sprintf(cmd, "/usr/bin/nusend -d %s -s -e -!'rmail %s' - 2>/dev/null", rsys, name+1);
+		sprintf(remote, "%s%s", NSCCONS, rsys);
+		if (access(remote, A_EXIST) != CERROR) {
+			/*
+				Send mail over NSC network
+			*/
+			sprintf(cmd, "exec /usr/bin/nusend -d %s -s -e -!'rmail %s' - 2>/dev/null", rsys, name+1);
 #ifdef DEBUG
-printf("%s\n", cmd);
+printf("%d: %s\n", getpid(),cmd);
 #endif
-				if (pipletr(n,cmd,local) == TRUE) {
-					nusendjmp = FALSE;
-					return(TRUE);
-				}
+			if (pipletr(n,cmd,local) == TRUE) {
+				return(TRUE);
 			}
 		}
-		nusendjmp = FALSE;
 #endif
 
 #ifdef USE_USEND
-		if (setjmp(usendfail) == 0) {
-			usendjmp = TRUE;
-			if (access("/usr/bin/usend", A_EXIST) != CERROR){
-				sprintf(cmd, "/usr/bin/usend -s -d%s -uNoLogin -!'rmail %s' - 2>/dev/null", rsys, name+1);
+		if (access("/usr/bin/usend", A_EXIST) != CERROR){
+			sprintf(cmd, "exec /usr/bin/usend -s -d%s -uNoLogin -!'rmail %s' - 2>/dev/null", rsys, name+1);
 #ifdef DEBUG
-printf("%s\n", cmd);
+printf("%d: %s\n", getpid(),cmd);
 #endif
-				if (pipletr(n,cmd,local) == TRUE) {
-					usendjmp = FALSE;
-					return(TRUE);
-				}
+			if (pipletr(n,cmd,local) == TRUE) {
+				return(TRUE);
 			}
 		}
-		usendjmp = FALSE;
 #endif
 
 		/*
 			Use uux to send mail
 		*/
-		if (strchr(name+1, '!')) sprintf(cmd, "/usr/bin/uux - %s!rmail \\(%s\\)", rsys, name+1);
-		else sprintf(cmd, "/usr/bin/uux - %s!rmail %s", rsys, name+1);
+		if (strchr(name+1, '!')) sprintf(cmd, "exec /usr/bin/uux - %s!rmail \\(%s\\)", rsys, name+1);
+		else sprintf(cmd, "exec /usr/bin/uux - %s!rmail %s", rsys, name+1);
 #ifdef DEBUG
-printf("%s\n", cmd);
+printf("%d: %s\n", getpid(),cmd);
 #endif
 	}
 	/*
@@ -1357,27 +1316,12 @@ int	n;
 char	*name;
 {
 	register char *p;
-	char	file[MAXFILENAME],savefile[MAXFILENAME];
-	int 	i=0, j=0, rc=0,lastsys=0;
+	char	file[MAXFILENAME];
+	int 	i=0, j=0, rc=0;
 	char	user[80];
 	char	*temp;
 	char 	tmpsendto[1024];
 
-	/*
-		Shorten address of recipient --- if possible
-	*/
-	if (!flago) {
-		temp=malloc((unsigned)(strlen(thissys) +3));
-		sprintf(temp,"!%s!",thissys);
-		/*
-			Look for !thissys! in the address.
-			to insure that thissys won't match substrings
-			in other machine names.
-		*/
-		while ((rc = substr(name, temp)) > 0) {
-			name = name + rc + strlen(temp);
-		}
-	}
 
 	strcpy(uval, name);
 	if(level > 20) {
@@ -1425,7 +1369,6 @@ char	*name;
 		goback(0);
 		return(FALSE);
 	}
-	cat(file, maildir, name);
 
 	/*
 		Before we append to the user's mailfile we check
@@ -1463,17 +1406,6 @@ register int i;
 {
 	setsig(i, delete);
 
-#ifdef USE_NISEND
-	if (i == SIGPIPE && nisendjmp == TRUE) longjmp(nisendfail, 1);
-#endif
-
-#ifdef USE_NUSEND
-	if (i == SIGPIPE && nusendjmp == TRUE) longjmp(nusendfail, 1);
-#endif
-
-#ifdef USE_USEND
-	if (i == SIGPIPE && usendjmp == TRUE) longjmp(usendfail, 1);
-#endif
 
 	if (i > SIGQUIT) fprintf(stderr, "%s: ERROR signal %d\n",program,i);
 	else fprintf(stderr, "\n");
@@ -1488,7 +1420,7 @@ register int i;
 done(needtmp)
 int	needtmp;
 {
-	unlock();
+	unlink(curlock);
 	if (!needtmp) unlink(lettmp);
 	if (!maxerr) maxerr = error;
 	exit(maxerr);
@@ -1722,7 +1654,7 @@ doFopt(argcount)
 createmf(file)
 char *file;
 {
-	int (*istat)(), (*qstat)(), (*hstat)();
+	void (*istat)(), (*qstat)(), (*hstat)();
 
 	if (access(file, A_EXIST) == CERROR) {
 		umask(0);
@@ -1902,10 +1834,9 @@ char	**arglst;
 			optcnt++;
 			break;
 		/*
-			turn off address optimization
+			This option no longer does anything. Ignore it.
 		*/
 		case 'o':
-			flago = 1;
 			oarg = optind - 1;
 			optcnt++;
 			break;
@@ -2087,7 +2018,8 @@ FILE	*f;
 {
 int	i,ch;
 	for (i=0; (ch=getc(f)) != EOF  && i < maxlen; ) 
-		if ((line[i++] = ch) == '\n') break;
+		if ( ch != '\0' )
+			if ((line[i++] = ch) == '\n') break;
 	line[i] = '\0';
 	return(i);
 }
@@ -2165,6 +2097,8 @@ char	*command;
 FILE	*rmf;
 
 	int	pid, rc;
+	int	i;
+	void	exit();
 
 	/*
 		Spawn the shell to execute command, however, since the 
@@ -2175,6 +2109,8 @@ FILE	*rmf;
 	if ((pid = fork()) == CHILD) {
 		setuid(getuid());
 		setgid(getgid());
+		for ( i = SIGHUP; i < SIGTERM; i++ )
+			setsig(i, exit);
 		if ((rmf = popen(command, "w")) != NULL) {
 			copylet(letter, rmf, local? FORWARD: REMOTE);
 			rc = pclose(rmf);
@@ -2233,9 +2169,9 @@ mkdead()
 dowait(pidval)
 int	pidval;
 {
-	register int pid, w;
+	register int w;
 	int status;
-	int (*istat)(), (*qstat)();
+	void (*istat)(), (*qstat)();
 
 	/*
 		Parent temporarily ignores signals so it will remain 
@@ -2271,8 +2207,8 @@ char	*user;
 	struct passwd *pwd_ptr;
 	int restore = 0,c,m_age,s_age;
 	FILE *Istream, *Ostream;
-	char *cptr,command[100];
-	char save[100],mail[100], home[100];
+	char command[512];
+	char save[MAXFILENAME],mail[MAXFILENAME], hme[MAXFILENAME];
 
 	cat(mail,maildir,user);
 	cat(save,mailsave,user);
@@ -2281,7 +2217,7 @@ char	*user;
 		If no save file return, otherwise save the size
 		and time of the savefile
 	*/
-	if (stat(save,&stbuf) != 0) return(0);
+	if (stat(save,&stbuf) != 0) return;
 	s_age = stbuf.st_mtime;
 
 	/*
@@ -2294,10 +2230,10 @@ char	*user;
 		m_age = stbuf.st_mtime;
 		if (m_age > s_age && (pwd_ptr = getpwnam(user)) != NULL) {
 			lock(mail);
-			strcpy(home,pwd_ptr->pw_dir);
-			strcat(home,"/MAIL.SAVED");
-			if ((Ostream = fopen(home,"a")) == NULL) {
-				fprintf(stderr,"%s: Cannot open file '%s' for output\n",program,home);
+			strcpy(hme,pwd_ptr->pw_dir);
+			strcat(hme,"/MAIL.SAVED");
+			if ((Ostream = fopen(hme,"a")) == NULL) {
+				fprintf(stderr,"%s: Cannot open file '%s' for output\n",program,hme);
 				unlock();
 				return;
 			}
@@ -2316,8 +2252,8 @@ char	*user;
 				return;
 			}
 			unlock();
-			chmod(home,MFMODE);
-			sprintf(command,"echo \"Your mail save file has just been appended to\n'%s' by the mail program.\" | mail %s",home,user);
+			chmod(hme,MFMODE);
+			sprintf(command,"echo \"Your mail save file has just been appended to\n'%s' by the mail program.\" | mail %s",hme,user);
 			systm(command);
 			return;
 		}
@@ -2331,7 +2267,7 @@ char	*user;
 		if (link(save,mail) != 0) {
 			unlock();
 			perror("Restore failed to link to mailfile");
-			return(-1);
+			return;
 		}
 
 		chmod(mail,MFMODE);
@@ -2339,7 +2275,7 @@ char	*user;
 		if (unlink(save) != 0) {
 			unlock();
 			perror("Cannot unlink saved file");
-			return(-1);
+			return;
 		}
 
 		unlock();
@@ -2351,7 +2287,7 @@ char	*user;
 		systm(command);
 
 	}
-	return(0);
+	return;
 }
 lock(file)
 char *file;
@@ -2370,7 +2306,8 @@ char *file;
 
 	if (strlen(cptr) > 13) {
 		fprintf(stderr,"%s: Cannot lock file as length of basename '%s' is > 13 characters\n",program,cptr);
-		return;
+		errmsg(E_LOCK,"");
+		done(0);
 	}
 
 	if (locked == LOCKON) return;
@@ -2389,8 +2326,8 @@ char *file;
 			if (kill(lpid,0) == CERROR) 
 				(void)unlink(curlock);
 
-		(void)fclose(stream);
 	}
+	(void)fclose(stream);
 
 	for (i = 0; i < 10; i++) {
 		if ((filedes = open(curlock,O_WRONLY | O_CREAT | O_EXCL)) != CERROR) {
@@ -2399,12 +2336,16 @@ char *file;
 			if (write(filedes,buf,len) != len) {
 				close(filedes);
 				perror("Error writing pid to lock file");
-				return;
+				if ( unlink(curlock) != 0 )
+					perror("Couldn't unlink lock file");
+				error = E_LOCK;
+				done(0);
 			}
 			close(filedes);
 			locked = LOCKON;
 			return;
 		}
+		close(filedes);
 		sleep(5*(i+1));
 	/*	Recheck for the existence of a lock file in case one
 		was created and the process then died without removing it
@@ -2415,8 +2356,8 @@ char *file;
 				if (kill(lpid,0) == CERROR) 
 					(void)unlink(curlock);
 	
-			(void)fclose(stream);
 		}
+		(void)fclose(stream);
 	}
 	printf("Trying to create lock file '%s'\n",curlock);
 	fflush(stdout);

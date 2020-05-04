@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:boot/lboot/main.c	10.6"
+#ident	"@(#)kern-port:boot/lboot/main.c	10.7.1.1"
 
 #include <sys/types.h>
 #include <a.out.h>
@@ -26,12 +26,12 @@
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
 #endif
-#ifdef u3b5
+#ifdef u3b15
 #include <sys/termio.h>
 #endif
 #endif
 
-#ifdef u3b5
+#ifdef u3b15
 #include <sys/cc.h>
 #endif
 
@@ -102,7 +102,7 @@ address topboot;	/* highest address used by lboot */
 /*
  * Static function declarations for this file
  */
-#ifdef u3b5
+#ifdef u3b15
 static void	fix_10_edt();
 #endif
 #if TEST
@@ -259,7 +259,7 @@ main()
 
 	topboot = (address)end;
 
-#ifdef u3b5
+#ifdef u3b15
 	/*
 	 * initialize CC console uart from contents of unit_equip field
 	 * of CC EDT entry
@@ -279,7 +279,7 @@ main()
 		else
 			if (0 == strcmp("CC",edtp->dev_name) && edtp->version == 0x0100)
 				/*
-				 * this is a 1.0 3B5; the EDT must be "adjusted"
+				 * this is a 1.0 3B15; the EDT must be "adjusted"
 				 */
 				edtscan(EDT_START, 0, fix_10_edt);
 		}
@@ -342,7 +342,7 @@ main()
 						for (j=0; j<_MAXFILES; ++j)
 							prt[j] = answer[j]=='y';
 						++flags;
-#ifdef u3b5
+#ifdef u3b15
 						printf("Boot device is IDFC(%d)\n", (int)sgnum((long)BOOT_DEVP->boot_addr));
 #endif
 #ifdef u3b2
@@ -351,7 +351,7 @@ main()
 						}
 					break;
 				case 3:
-#ifdef u3b5
+#ifdef u3b15
 					printf("Boot disk? ");
 					if (scanf(answer) == SCANF_OK && (p=strtok(answer,"\r\n\t ")) != NULL)
 						{
@@ -374,7 +374,7 @@ main()
 #endif
 					break;
 				case 4:
-#ifdef u3b5
+#ifdef u3b15
 					++flags;
 #endif
 #ifdef u3b2
@@ -453,8 +453,8 @@ main()
 		treset();
 		}
 	}
-
-#ifdef u3b5
+
+#ifdef u3b15
 /*
  * Fix_10_edt()
  *
@@ -472,7 +472,7 @@ fix_10_edt(edtp)
 	edtp->ioa_edti = 0;
 	}
 #endif
-
+
 /*
  * Break_hit()
  *
@@ -500,12 +500,12 @@ printf(str,ar1,ar2,ar3,ar4,ar5,ar6,ar7,ar8,ar9)
 		BreakHit = TRUE;
 #endif
 
-#ifdef u3b5
+#ifdef u3b15
 	if ((*(IAU_FNCTS)->pfi[PRINTF]) (str,ar1,ar2,ar3,ar4,ar5,ar6,ar7,ar8,ar9) == -1)
 		BreakHit = TRUE;
 #endif
 	}
-
+
 /*
  * Messages corresponding to errno; those messages that cannot occur
  * have been replaced by NULL pointers to conserve space
@@ -1074,7 +1074,7 @@ register char *fname;
 	BreakHit = saveit;
 	}
 #endif
-
+
 #if DEBUG1d
 /*
  *	Pwd
@@ -1142,7 +1142,7 @@ pwd()
 	printf("%s\n", cwd);
 	}
 #endif
-
+
 #if TEST
 #ifdef u3b2
 /*
@@ -1159,7 +1159,7 @@ exception()
 	panic("stack trace");
 	}
 #endif
-
+
 /*
  * Panic(message)
  */
@@ -1302,11 +1302,11 @@ printframe(fp, words)
  *
  *	time()    - return current time in seconds
  *	elapsed() - print current and elapsed time
- *	sitcmd()  - communicate with SIT (u3b5 only)
+ *	sitcmd()  - communicate with SIT (u3b15 only)
  */
 
 
-#ifdef u3b5
+#ifdef u3b15
 /*
  * sitcmd(command, flag, data)
  *
@@ -1492,7 +1492,7 @@ elapsed(message)
 
 	last_time = seconds;
 	}
-
+
 #if DEBUG1b
 /*
  * _spmonitor(name)
@@ -1513,8 +1513,8 @@ _spmonitor(name)
 	return(name);
 	}
 #endif
-
-#else ! TEST
+
+#else
 /*
  * Panic(message)
  */

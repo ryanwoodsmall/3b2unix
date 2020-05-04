@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/startup.c	10.10"
+#ident	"@(#)kern-port:os/startup.c	10.10.1.2"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/psw.h"
@@ -415,7 +415,7 @@ p0init()
 	u.u_kpcb    = kpcb_syscall;
 	u.u_procp   = &proc[0];
 	u.u_cmask   = CMASK;
-	u.u_limit   = CDLIMIT;
+	u.u_limit   = v.v_ulimit;
 
 	/*	initialize process data structures
 	*/
@@ -430,7 +430,7 @@ p0init()
 	((int *)proc[0].p_sramb)[SCN3 - SCN2] = NS3SDE - 1;
 	proc[0].p_size = USIZE;
 	proc[0].p_stat = SRUN;
-	proc[0].p_flag = SLOAD | SSYS;
+	proc[0].p_flag = SLOAD | SSYS | SULOAD;
 	proc[0].p_nice = NZERO;
 
 	pdptr = ubptbl(&proc[0]);

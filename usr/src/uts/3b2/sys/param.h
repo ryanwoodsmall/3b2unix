@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/param.h	10.10"
+#ident	"@(#)kern-port:sys/param.h	10.12"
 /*
  * fundamental variables
  * don't change too often
@@ -72,6 +72,7 @@
 
 #define	PMASK	0177
 #define	PCATCH	0400
+#define	PNOSTOP	01000
 #define	PSWP	0
 #define	PINOD	10
 #define	PRIBIO	20
@@ -92,6 +93,7 @@
 #define NBPS	0x20000		/* Number of bytes per segment */
 #define	NBPW	sizeof(int)	/* number of bytes in an integer */
 #define	NCPS	64		/* Number of clicks per segment */
+#define	CPSSHIFT	6	/* LOG2(NCPS) if exact */
 #define	NBPC	2048		/* Number of bytes per click */
 #define	BPCSHIFT	11	/* LOG2(NBPC) if exact */
 #define	NULL	0

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)tools:util.c	1.21"
+#ident	"@(#)tools:util.c	1.22"
 
 #include "../forms/muse.h"
 #include "vdefs.h"
@@ -279,6 +279,9 @@ int num;
 
 
 
+/*
+ * Remove valfunc from field -- valfunc specified as pointer.
+ */
 int rmval(f_pt,v_pt)
 struct field *f_pt;
 struct vfunc *v_pt;
@@ -301,6 +304,9 @@ struct vfunc *v_pt;
 }
 
 
+/*
+ * Remove valfunc from field -- valfunc specified by index number
+ */
 int rmvaln(f_pt,num)
 struct field *f_pt;
 int num;
@@ -321,7 +327,11 @@ int num;
    return(1);
 }
 
-int location()
+/*
+ * Call select() routine to allow user to set command line 
+ * substring locatons.
+ */
+int location()  
 {  struct fieldlink *select();
    struct field *f_pt, *f0_pt;
    int *locs, retflag=1;
@@ -334,7 +344,7 @@ int location()
 "Command Line Order [BU = bundled option]",
   2) == 0) retflag = 0;
 
-/*
+/*  Next 22 lines made obsolete by closegaps() routine in read_in.c.
    locs = (int*)calloc((unsigned)((int)(last_field_pt-fields)+2),sizeof(int));
 
    for (f_pt=fields; f_pt<=last_field_pt; f_pt++)  {
@@ -437,6 +447,10 @@ struct vfunc *v_pt;
    return(0);
 }
 
+/*
+ * Checks if string ocnatins character that would do harm if included
+ * in .fs file.  Flag determiones whether CR's are acceptable.
+ */
 int chckstr(s,flag)
 char *s;
 int flag;
@@ -479,6 +493,9 @@ int flag;
    return(0);
 }
 
+/*
+ * Checks whjether character would do harm if included in .fs file
+ */
 int chckchar(ch)
 char ch;
 { 
@@ -526,6 +543,9 @@ char ch;
 */
 
 
+/*
+ * Checks if command (editor) is in user PATH.
+ */
 int isinpath(t)
 char *t;
 {  int test=1;
@@ -561,6 +581,11 @@ char *t;
    return(test);
 }
 
+/*
+ * Function that checks parameters for format() valfunc.
+ * If flag=0, just checks whether there are ^P's.
+ * If flag=1, checks if suffixes required by ^P are present.
+ */
 int chckformat(v_pt,flag)
 struct vfunc *v_pt;
 int flag;
@@ -587,8 +612,11 @@ int flag;
 }
 
 
-VOID rm_ref(f_pt,t)  /* Removes all references to an removed field 
-                        from all icmp, req, and a_l_o lists */
+/*
+ * Removes all references to an removed field 
+ * from all icmp, req, and a_l_o lists.
+ */
+VOID rm_ref(f_pt,t)  
 struct field *f_pt;
 int *t;
 {  struct field *f0_pt;
@@ -608,8 +636,11 @@ int *t;
    }
 }
 
-rm_idx(in_pt_pt,fn)   /* Removes index matching fn from linked index 
-                         list pointed at by in_pt_pt   */
+/*
+ * Removes index matching fn from linked index 
+ * list pointed at by in_pt_pt  .
+ */
+rm_idx(in_pt_pt,fn)   
 struct index **in_pt_pt;
 int fn;
 {  struct index *in0_pt;
@@ -655,6 +686,10 @@ int fn;
 *  }
 *  
 */
+
+/*
+ * Add index w/ num=num to linked index list starting at in_pt.
+ */
 struct index *addidx(in_pt,num)
 struct index *in_pt;
 int num;

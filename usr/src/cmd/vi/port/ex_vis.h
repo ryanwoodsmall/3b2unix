@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident "@(#)vi:port/ex_vis.h	1.7"
+#ident "@(#)vi:port/ex_vis.h	1.8"
 /*
  * Ex version 3
  *
@@ -109,8 +109,8 @@ var	short	vcnt;
  * data itself.  It is also rearranged during insert mode across line
  * boundaries to make incore work easier.
  */
-var	char	*vtube[TUBELINES];
-var	char	*vtube0;
+var	short	*vtube[TUBELINES];
+var	short	*vtube0;
 
 /*
  * The current cursor position within the current line is kept in
@@ -209,10 +209,10 @@ var	short	holdupd;	/* Hold off update when echo line is too long */
  * Miscellaneous variables
  */
 var	short	CDCNT;		/* Count of ^D's in insert on this line */
-var	char	DEL[VBSIZE];	/* Last deleted text */
+var	char	DEL[VBSIZE+1];	/* Last deleted text */
 var	bool	HADUP;		/* This insert line started with ^ then ^D */
 var	bool	HADZERO;	/* This insert line started with 0 then ^D */
-var	char	INS[VBSIZE];	/* Last inserted text */
+var	char	INS[VBSIZE+1];	/* Last inserted text */
 var	int	Vlines;		/* Number of file lines "before" vi command */
 var	int	Xcnt;		/* External variable holding last cmd's count */
 var	bool	Xhadcnt;	/* Last command had explicit count? */
@@ -252,7 +252,6 @@ var	char	workcmd[5];	/* Temporary for lastcmd */
  */
 #define	INF		30000
 #define	LASTLINE	LINE(vcnt)
-#define	OVERBUF		QUOTE
 #define	beep		obeep
 #define	cindent()	((outline - vlinfo[vcline].vliny) * WCOLS + outcol)
 #define	vputp(cp, cnt)	tputs(cp, cnt, vputch)

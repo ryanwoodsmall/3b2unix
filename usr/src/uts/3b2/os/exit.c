@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/exit.c	10.11"
+#ident	"@(#)kern-port:os/exit.c	10.17"
 #include "sys/types.h"
 #include "sys/param.h"
 #include "sys/sysmacros.h"
@@ -32,7 +32,6 @@
 #include "sys/cmn_err.h"
 #include "sys/debug.h"
 #include "sys/inline.h"
-
 
 /*
  * exit system call:
@@ -112,8 +111,7 @@ exit(rv)
 	((struct proc *)p)->p_stime = u.u_cstime + u.u_stime;
 	flag = 0;
 
-	if ((q = p->p_child) != NULL)
-	{
+	if ((q = p->p_child) != NULL) {
 		for (;   ;   q = q->p_sibling) {
 			/* loop termination condition tested in last if */
 			/* q is child of exiting proc (p) */
@@ -123,7 +121,8 @@ exit(rv)
 			if (q->p_stat == SZOMB)
 				flag = 1;
 			else {
-				if (q->p_stat == SSTOP && (q->p_flag & STRC))
+				if (q->p_stat == SSTOP && (q->p_flag & STRC)
+				  && q->p_whystop == SIGNALLED)
 					setrun(q);
 			}
 
@@ -170,7 +169,11 @@ exit(rv)
 
 	p->p_pgrp = 0;
 	p->p_stat = SZOMB;
+	p->p_cursig = 0;	/* make sure zombie is not set running */
+	p->p_sig = 0L;
 	psignal(p->p_parent, SIGCLD);
+	if (p->p_trace)
+		wakeup((caddr_t)p->p_trace);
 
 	ASSERT(noilocks() == 0);
 
@@ -199,10 +202,11 @@ loop:
 			return;
 		}
 		if (p->p_stat == SSTOP) {
-			if ((p->p_flag & STRC) && (p->p_flag&SWTED) == 0) {
+			if ((p->p_flag & (STRC|SWTED)) == STRC
+			  && p->p_whystop == SIGNALLED) {
 				p->p_flag |= SWTED;
 				u.u_rval1 = p->p_pid;
-				u.u_rval2 = (fsig(p)<<8) | 0177;
+				u.u_rval2 = (p->p_cursig<<8) | 0177;
 				return;
 			}
 			continue;
@@ -236,13 +240,16 @@ register struct proc *p;
 	}
 	u.u_cutime += ((struct proc *)p)->p_utime;
 	u.u_cstime += ((struct proc *)p)->p_stime;
-	p->p_stat = NULL;
+	p->p_stat = 0;
 	p->p_pid = 0;
 	p->p_ppid = 0;
 	p->p_sig = 0L;
 	p->p_flag = 0;
 	p->p_wchan = 0;
+	p->p_cursig = 0;
 	p->p_trace = 0;
+	p->p_whystop = 0;
+	p->p_whatstop = 0;
 
 	q = p->p_parent;
 	if (q->p_child == p)
@@ -257,7 +264,8 @@ register struct proc *p;
 	}
 }
 
-/* clean up common process stuff -- called from newproc()
+/*
+ * clean up common process stuff -- called from newproc()
  * on error in fork() due to no swap space
  */
 pexit()
@@ -265,7 +273,7 @@ pexit()
 
 	/* don't include punlock() since not needed for newproc() clean */
 
-	for (i=0; i<v.v_nofiles; i++)
+	for (i = 0; i < v.v_nofiles; i++)
 		if (u.u_ofile[i] != NULL) 
 			closef(u.u_ofile[i]);
 	plock(u.u_cdir);

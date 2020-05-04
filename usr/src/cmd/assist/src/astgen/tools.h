@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)tools:tools.h	1.2"
+#ident	"@(#)tools:tools.h	1.3"
 
 #define CTRL(q) ('q' & 037)
 #define CTRL(l) ('l' & 037)
@@ -21,6 +21,8 @@
 #define	ESC	'\033'
 #define	BS	'\010'
 
+/*used by several routines.  It contains menu items and coordinates,
+and other routines rely on this for screen movement*/
 struct labels {
 	int xlab; /*x coord of label*/
 	int ylab; /*y coord of label*/

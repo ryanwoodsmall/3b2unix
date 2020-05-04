@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)ipc:/ipcs.c	1.8"
+#ident	"@(#)ipc:/ipcs.c	1.9"
 /*
 **	ipcs - IPC status
 **	Examine and print certain things about message queues, semaphores,
@@ -38,7 +38,7 @@
 #define	SHMINFO	6
 
 struct nlist nl[] = {		/* name list entries for IPC facilities */
-#if u3b || u3b5 || u3b2
+#if u3b || u3b15 || u3b2
 	{"time", 0, 0, 0, C_EXT, 0},
 	{"msgque", 0, 0, 0, C_EXT, 0},
 	{"sema", 0, 0, 0, C_EXT, 0},
@@ -386,4 +386,4 @@ time_t	time;	/* time to be displayed */
 		printf(" no-entry");
 }
 
-/* <@(#)ipc:/ipcs.c	1.8> */
+/* <@(#)ipc:/ipcs.c	1.9> */

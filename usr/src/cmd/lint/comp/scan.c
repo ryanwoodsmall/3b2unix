@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)comp:common/scan.c	1.11"
+#ident	"@(#)comp:common/scan.c	1.13"
 
 
 # include "mfile1"

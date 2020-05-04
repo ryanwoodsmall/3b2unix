@@ -1,4 +1,4 @@
-#ident	"@(#)sh::fix	1.11"
+#ident	"@(#)sh::fix	1.13"
 for i do
 	$CC -O -S -c $i.c
 	ed - <<\! $i.s 

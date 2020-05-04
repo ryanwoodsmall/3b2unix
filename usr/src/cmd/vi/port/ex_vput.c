@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident "@(#)vi:port/ex_vput.c	1.9"
+#ident "@(#)vi:port/ex_vput.c	1.10"
 
 #include "ex.h"
 #include "ex_tty.h"
@@ -31,14 +31,14 @@ vclear()
 	destline = 0;
 	outline = 0;
 	if (inopen)
-		vclrbyte(vtube0, WCOLS * (WECHO - ZERO + 1));
+	vclrbyte(vtube0, WCOLS * (WECHO - ZERO + 1));
 }
 
 /*
  * Clear memory.
  */
 vclrbyte(cp, i)
-	register char *cp;
+	register short *cp;
 	register int i;
 {
 
@@ -70,9 +70,9 @@ vclrlin(l, tp)
 vclreol()
 {
 	register int i, j;
-	register char *tp;
+	register short *tp;
 
-#ifdef ADEBUG
+#ifdef TRACE
 	if (trace)
 		fprintf(trace, "vclreol(), destcol %d, ateopr() %d\n", destcol, ateopr());
 #endif
@@ -347,7 +347,7 @@ char *msg;
 vgoto(y, x)
 	register int y, x;
 {
-	register char *tp;
+	register short *tp;
 	register int c;
 
 	/*
@@ -515,7 +515,7 @@ int	slakused;		/* This much of tabslack will be used up */
 vprepins()
 {
 	register int i;
-	register char *cp = vtube0;
+	register short *cp = vtube0;
 
 	for (i = 0; i < DEPTH(vcline); i++) {
 		vmaktop(LINE(vcline) + i, cp);
@@ -525,18 +525,18 @@ vprepins()
 
 vmaktop(p, cp)
 	register int p;
-	char *cp;
+	short *cp;
 {
 	register int i;
-	char temp[TUBECOLS];
+	short temp[TUBECOLS];
 
 	if (p < 0 || vtube[p] == cp)
 		return;
 	for (i = ZERO; i <= WECHO; i++)
 		if (vtube[i] == cp) {
-			copy(temp, vtube[i], WCOLS);
-			copy(vtube[i], vtube[p], WCOLS);
-			copy(vtube[p], temp, WCOLS);
+			copy(temp, vtube[i], WCOLS * sizeof(short));
+			copy(vtube[i], vtube[p], WCOLS * sizeof(short));
+			copy(vtube[p], temp, WCOLS * sizeof(short));
 			vtube[i] = vtube[p];
 			vtube[p] = cp;
 			return;
@@ -555,7 +555,7 @@ vinschar(c)
 	int c;		/* char --> int */
 {
 	register int i;
-	register char *tp;
+	register short *tp;
 
 	if ((!enter_insert_mode || !exit_insert_mode) && ((hold & HOLDQIK) || !value(vi_REDRAW) || value(vi_SLOWOPEN))) {
 		/*
@@ -593,6 +593,7 @@ vinschar(c)
 		}
 		return;
 	}
+	
 	/*
 	 * Compute the number of positions in the line image of the
 	 * current line.  This is done from the physical image
@@ -648,7 +649,7 @@ vinschar(c)
 		while (--inssiz);
 		return;
 	}
-
+	
 	/*
 	 * Have to really do some insertion, thus
 	 * stake out the bounds of the first following
@@ -736,7 +737,7 @@ vinschar(c)
 vrigid()
 {
 	register int col;
-	register char *tp = vtube0 + tabend;
+	register short *tp = vtube0 + tabend;
 
 	for (col = tabend; col < linend; col++)
 		if ((*tp++ & TRIM) == 0) {
@@ -759,7 +760,6 @@ vneedpos(cnt)
 {
 	register int d = DEPTH(vcline);
 	register int rmdr = d * WCOLS - linend;
-
 	if (cnt <= rmdr - insert_null_glitch)
 		return;
 	endim();
@@ -805,8 +805,8 @@ vishft()
 	int tshft = 0;
 	int j;
 	register int i;
-	register char *tp = vtube0;
-	register char *up;
+	register short *tp = vtube0;
+	register short *up;
 	short oldhold = hold;
 
 	shft = value(vi_TABSTOP);
@@ -899,7 +899,7 @@ vishft()
 viin(c)
 	int c;		/* char --> int */
 {
-	register char *tp, *up;
+	register short *tp, *up;
 	register int i, j;
 	register bool noim = 0;
 	int remdoom;
@@ -1112,13 +1112,14 @@ endim()
 vputchar(c)
 	register int c;
 {
-	register char *tp;
+	register short *tp;
 	register int d;
 
 	c &= (QUOTE|TRIM);
 #ifdef TRACE
-	if (trace)
+	if (trace) {
 		tracec(c);
+	}
 #endif
 	/* Fix problem of >79 chars on echo line. */
 	if (destcol >= WCOLS-1 && splitw && destline == WECHO)
@@ -1282,8 +1283,8 @@ def:
 physdc(stcol, endcol)
 	int stcol, endcol;
 {
-	register char *tp, *up;
-	char *tpe;
+	register short *tp, *up;
+	short *tpe;
 	register int i;
 	register int nc = endcol - stcol;
 
@@ -1362,7 +1363,7 @@ physdc(stcol, endcol)
 			*up++ = i;
 		while (--nc);
 	} else {
-		copy(up + stcol, up + endcol, WCOLS - endcol);
+		copy(up + stcol, up + endcol, (WCOLS - endcol) * sizeof(short));
 		vclrbyte(tpe - nc, nc);
 	}
 }
@@ -1421,8 +1422,9 @@ vputch(c)
 {
 
 #ifdef TRACE
-	if (trace)
+	if (trace) {
 		tracec(c);
+	}
 #endif
 	vputc(c);
 }

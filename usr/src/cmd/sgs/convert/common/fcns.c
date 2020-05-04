@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)convert:common/fcns.c	1.22"
+#ident	"@(#)convert:common/fcns.c	1.23"
 
 #include	<stdio.h>
 #include	<ar.h>
@@ -402,6 +402,7 @@ char	*infile;
 		case CNMAGIC:
 		case COMAGIC:
 		case CPMAGIC:
+		case CLMAGIC:
 			hdrsize = AOUTSIZE;
 			aoutconv(opthead);
 			break;

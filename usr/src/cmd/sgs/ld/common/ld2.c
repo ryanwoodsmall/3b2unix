@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)ld:common/ld2.c	1.31"
+#ident	"@(#)ld:common/ld2.c	1.31.1.2"
 #include "system.h"
 
 #include <stdio.h>
@@ -29,6 +29,9 @@
 
 #define BASIC_TYPES (STYP_TEXT | STYP_DATA | STYP_BSS)
 #define	K8	0x2000L
+
+extern int scope_changes;
+
 static ITEMID dotacid;
 static OUTSECT *dotosptr;
 /*eject*/
@@ -814,6 +817,16 @@ updatsms()
 	while ( i <= numldsyms )
 	{
 		symp = getsym(i++);
+		/*
+		 * If we haven't seen a real definition of
+		 * "p" from an input file, meaning that "p"
+		 * was mentioned ONLY on a hide/export directive,
+		 * [and this is an absolute run], omit "p" from
+		 * the output symbol table.
+		 */
+		if (!aflag && scope_changes &&
+		   symp->sm_seen == 0 && symp->sm_how != __undefined)
+		   continue;
 		if( symp->sment.n_scnum > 0 ) {
 			isp = symp->smscnptr;
 			symp->sment.n_scnum = isp->isoutsec->ossecnum;

@@ -1,4 +1,4 @@
-#ident	"@(#)mk::mksyshead	1.15"
+#ident	"@(#)mk::mksyshead	1.17"
 #
 #	Install UNIX System 'sys' header files
 #
@@ -17,9 +17,9 @@ then
 elif u3b2
 then
 	MACH=3b2/sys
-elif u3b5
+elif u3b15
 then
-	MACH=3b5/sys
+	MACH=3b15/sys
 fi
 #
 rm -fr $TARGDIR/[a-m]* ; rm -fr $TARGDIR/*
@@ -34,15 +34,23 @@ do
 done
 #	Set file and directory permissions
 DIRS=`find $TARGDIR -type d -print`
-chmod 755 $DIRS
+
+for MODE in $DIRS
+do	chmod 755 $MODE
+done
+
 FILES=`find $TARGDIR -type f -print`
-chmod 664 $FILES
+
+for MODE in $FILES
+do	chmod 664 $MODE
+done
+
 #	If native build then set owner and group
 if [ "$ROOT" = "" ]
 then
-	chgrp bin $FILES
-	chown bin $FILES
-	chgrp bin $DIRS
-	chown bin $DIRS
+	for OWN_GRP in $FILES $DIRS
+	do	chown bin $OWN_GRP
+		chgrp bin $OWN_GRP
+	done
 fi
 exit 0

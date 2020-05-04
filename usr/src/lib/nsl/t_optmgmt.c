@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/t_optmgmt.c	1.3"
+#ident	"@(#)libnsl:nsl/t_optmgmt.c	1.3.3.2"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/errno.h"
@@ -21,7 +21,7 @@
 extern int t_errno;
 extern int errno;
 extern struct _ti_user *_t_checkfd();
-extern int (*sigset())();
+extern void (*sigset())();
 extern char *memcpy();
 
 
@@ -34,7 +34,7 @@ struct t_optmgmt *ret;
 	register char *buf;
 	register struct T_optmgmt_req *optreq;
 	register struct _ti_user *tiptr;
-	int (*sigsave)();
+	void (*sigsave)();
 
 
 	if ((tiptr = _t_checkfd(fd)) == NULL)
@@ -55,7 +55,7 @@ struct t_optmgmt *ret;
 		size = optreq->OPT_offset + optreq->OPT_length;
 	}
 
-	if (!_t_do_ioctl(fd, buf, size, TI_OPTMGMT, 0)) {
+	if (!_t_do_ioctl(fd, buf, size, TI_OPTMGMT, NULL)) {
 		sigset(SIGPOLL, sigsave);
 		return(-1);
 	}
@@ -72,6 +72,7 @@ struct t_optmgmt *ret;
 	ret->opt.len = optreq->OPT_length;
 	ret->flags = optreq->MGMT_flags;
 
+	tiptr->ti_state = TLI_NEXTSTATE(T_OPTMGMT, tiptr->ti_state);
 	return(0);
 }
 

@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)cu:cu.mk	2.5"
+#ident	"@(#)cu:cu.mk	2.8"
 #
 #
 # ***************************************************************
@@ -26,9 +26,9 @@ UUDIR=../uucp
 LDFLAGS = -s
 
 CUDIR = .
+#CFLAGS = -O -DSTANDALONE -DSMALL -I$(UUDIR)	#for smaller a.outs
 CFLAGS = -O -DSTANDALONE -I$(UUDIR)
-CFLAGS = -O -DSTANDALONE -DSMALL -I$(UUDIR) #for smaller a.outs
-LIBS= -lnsl_s
+LIBS= -lc_s -lnsl_s
 
 #	Use the following lines for DATAKIT
 # CFLAGS = -O -DSTANDALONE -I$(UUDIR) -DDATAKIT
@@ -43,12 +43,12 @@ INS=cpset
 # INS=../uucp/Cpset
 
 CUOBJS =  cu.o callers.o getargs.o culine.o uucpdefs.o ulockf.o\
-	 conn.o altconn.o interface.o strsave.o sysfiles.o strecpy.o
+	 conn.o altconn.o interface.o strsave.o sysfiles.o strecpy.o stoa.o
 
 CUSRC =  cu.c altconn.c culine.c $(UUDIR)/callers.c\
 	$(UUDIR)/conn.c $(UUDIR)/uucpdefs.c $(UUDIR)/ulockf.c \
 	$(UUDIR)/getargs.c $(UUDIR)/interface.c $(UUDIR)/strsave.c \
-	$(UUDIR)/sysfiles.c $(UUDIR)/strecpy.c
+	$(UUDIR)/sysfiles.c $(UUDIR)/strecpy.c $(UUDIR)/stoa.c
 
 cu:	copyright $(CUOBJS)
 	$(CC) $(CFLAGS) $(CUOBJS) $(LIBS) $(LDFLAGS) -o cu
@@ -101,3 +101,6 @@ sysfiles.o:	$(UUDIR)/sysfiles.c  $(UUDIR)/sysfiles.h
 
 strecpy.o:	$(UUDIR)/strecpy.c
 	$(CC) -c $(CFLAGS) $(UUDIR)/strecpy.c
+
+stoa.o:	$(UUDIR)/stoa.c
+	$(CC) -c $(CFLAGS) $(UUDIR)/stoa.c

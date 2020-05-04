@@ -5,20 +5,28 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)chroot:chroot.c	1.5"
+#ident	"@(#)chroot:chroot.c	1.6"
 # include <stdio.h>
 # include <errno.h>
 
+#define	ROOT	0
 main(argc, argv)
 char **argv;
 {
 	extern char *sys_errlist[];
 	extern int sys_nerr;
+	unsigned short geteuid();
 
 	if(argc < 3) {
 		printf("usage: chroot rootdir command arg ...\n");
 		exit(1);
 	}
+
+	if ( geteuid() != ROOT ) {
+		printf("chroot: not super-user\n");
+		exit(1);
+	}
+
 	argv[argc] = 0;
 	if(argv[argc-1] == (char *) -1) /* catches potential problems in
 					 old 16 bit implimentations */

@@ -10,7 +10,6 @@ $
 new	d--775 0 3
 	lib	d--775 0 3
 		optim	---775 2 2	../lib/optim
-		nmawk	---664 2 2	../lib/nmawk
 		libPW.a	---664 2 2	../lib/libPW.a
 	$
 	usr	d--775 0 3
@@ -25,6 +24,12 @@ new	d--775 0 3
 				libm.a	---664	2 2	../usr/lib/libp/libm.a
 				libmalloc.a	---664	2 2	../usr/lib/libp/libmalloc.a
 			$
+			llib-lc	---664	2 2	../usr/lib/llib-lc
+			llib-lc.ln	---664	2 2	../usr/lib/llib-lc.ln
+			llib-lm	---664	2 2	../usr/lib/llib-lm
+			llib-lm.ln	---664	2 2	../usr/lib/llib-lm.ln
+			llib-port	---664	2 2	../usr/lib/llib-port
+			llib-port.ln	---664	2 2	../usr/lib/llib-port.ln
 		$
 		bin	d--775 2 2
 			m4	---775	2 2	../usr/bin/m4
@@ -35,4 +40,4 @@ $
 $
 $
 $
-#ident	"@(#)pkg.sgs:proto3.sgs	1.11"
+#ident	"@(#)pkg.sgs:proto3.sgs	1.15"

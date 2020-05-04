@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:temp.c	1.4"
+#ident	"@(#)mailx:temp.c	1.5"
 #
 
 #include "rcv.h"
@@ -70,7 +70,6 @@ tinit()
 	assign("MAILRC", Getf("MAILRC"));
 	assign("DEAD", Getf("DEAD"));
 	assign("save", "");
-	assign("addsopt", "");
 	assign("asksub", "");
 	assign("header", "");
 }

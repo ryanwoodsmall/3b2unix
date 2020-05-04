@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)cpp:common/yylex.c	1.10"
+#ident	"@(#)cpp:common/yylex.c	1.11"
 
 #include "y.tab.h"
 #ifdef FLEXNAMES
@@ -177,6 +177,7 @@ tobinary( st, b )
 {
 	int n, c, t;
 	char *s;
+	int warned = 0;
 
 	n = 0;
 	s = st;
@@ -184,8 +185,13 @@ tobinary( st, b )
 	{
 		switch( c )
 		{
+		case '8': case '9':
+			if (b <= 8 && !warned) {
+				ppwarn("Illegal octal number %s", st);
+				warned = 1;
+			}
 		case '0': case '1': case '2': case '3': case '4': 
-		case '5': case '6': case '7': case '8': case '9': 
+		case '5': case '6': case '7':
 			t = c - '0';
 			break;
 		case 'a': case 'b': case 'c': case 'd': case 'e': case 'f': 

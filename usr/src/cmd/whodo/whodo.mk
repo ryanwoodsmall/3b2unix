@@ -5,19 +5,20 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)whodo:whodo.mk	1.9"
+#ident	"@(#)whodo:whodo.mk	1.9.1.1"
 #       whodo make file
 
 ROOT =
-INCLUDE = $(ROOT)/usr/include
+INC = $(ROOT)/usr/include
 INSDIR = $(ROOT)/etc
-CFLAGS = -s -O
+CFLAGS = -O
+LDFLAGS = -s
 INS=install
 
 all:	whodo
 
 whodo:
-	$(CC) -I$(INCLUDE) $(CFLAGS) -o whodo whodo.c $(LDLIBS)
+	$(CC) -I$(INC) $(CFLAGS) -o whodo whodo.c $(LDFLAGS) $(LDLIBS)
 
 install:	all
 	$(INS) -f $(INSDIR) -m 2755 -g sys whodo

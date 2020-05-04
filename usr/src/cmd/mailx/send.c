@@ -5,12 +5,11 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:send.c	1.8"
+#ident	"@(#)mailx:send.c	1.11"
 #
 
 #include "rcv.h"
-typedef	int	(*sigtype)();
-extern sigtype m_sigset();
+typedef	SIG	(*sigtype)();
 extern time_t time();
 
 #ifdef VMUNIX
@@ -137,6 +136,7 @@ writeit:
 		if (ferror(obuf))
 			return(-1);
 	}
+	fflush(obuf);
 	if (ferror(obuf))
 		return(-1);
 	if (ishead && (mailp->m_flag & MSTATUS))
@@ -267,6 +267,7 @@ sendmail(str)
 	char *bufp;
 	register int t;
 	struct header head;
+	char recfile[128];
 
 	if (blankline(str))
 		head.h_to = NOSTR;
@@ -276,7 +277,8 @@ sendmail(str)
 	head.h_cc = NOSTR;
 	head.h_bcc = NOSTR;
 	head.h_seq = 0;
-	mail1(&head, value("record"));
+	getrecf(head.h_to, recfile, 0);
+	mail1(&head, recfile);
 	return(0);
 }
 
@@ -371,7 +373,7 @@ mail1(hp, recfile)
 
 	to = outof(to, mtf, hp);
 	rewind(mtf);
-	to = verify(to);
+/*	to = verify(to); */
 	if (senderr && !remote) {
 topdog:
 
@@ -438,14 +440,14 @@ topdog:
 		sigchild();
 #ifdef SIGTSTP
 		if (remote == 0) {
-			m_sigset(SIGTSTP, SIG_IGN);
-			m_sigset(SIGTTIN, SIG_IGN);
-			m_sigset(SIGTTOU, SIG_IGN);
+			sigset(SIGTSTP, SIG_IGN);
+			sigset(SIGTTIN, SIG_IGN);
+			sigset(SIGTTOU, SIG_IGN);
 		}
 #endif
-		m_sigignore(SIGHUP);
-		m_sigignore(SIGINT);
-		m_sigignore(SIGQUIT);
+		sigignore(SIGHUP);
+		sigignore(SIGINT);
+		sigignore(SIGQUIT);
 		s = fileno(mtf);
 		for (i = 3; i < 15; i++)
 			if (i != s)

@@ -5,30 +5,33 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)nserve:nserve.mk	1.11"
+#ident	"@(#)nserve:nserve.mk	1.11.3.1"
 ROOT =
+TESTDIR = .
+INSDIR = $(ROOT)/usr/nserve
+INCRT = $(ROOT)/usr/include
+INS = :
+CFLAGS=-O -s $(DEBUG) $(LOG) $(PROFILE)
 CC = cc
 NSLIB = -lns
 NSL = nsl_s
 LIB = $(NSLIB) -l$(NSL) -lcrypt
 LLIB = $(ROOT)/usr/src/lib/libns/llib-lns.ln
-INSDIR = $(ROOT)/usr/nserve
 LOG=-DLOGGING -DLOGMALLOC
 PROFILE=
 DEBUG=
-INCDIR=$(ROOT)/usr/include
-CFLAGS=-O $(DEBUG) $(LOG) $(PROFILE)
 EXECS=nserve
 SOURCE=nserve.c nsrec.c nsfunc.c nsdb.c
 OBJECTS=nserve.o nsrec.o nsfunc.o nsdb.o
+FRC =
 
 all:	$(EXECS)
 nserve: $(OBJECTS)
-	$(CC) $(CFLAGS) $(OBJECTS) $(LIB) -o nserve $(LDLIBS)
+	$(CC) $(CFLAGS) $(OBJECTS) $(LIB) -o $(TESTDIR)/nserve $(LDLIBS)
 debug:
-	make -f nserve.mk DEBUG="-g -DLOGGING -DLOGMALLOC" all
+	$(MAKE) -f nserve.mk DEBUG="-g -DLOGGING -DLOGMALLOC" all
 dashg:
-	make -f nserve.mk NSL=nsl NSLIB=-lnsdb DEBUG="-g -DLOGGING -DLOGMALLOC" all
+	$(MAKE) -f nserve.mk NSL=nsl NSLIB=-lnsdb DEBUG="-g -DLOGGING -DLOGMALLOC" all
 lint:
 	lint -pua $(SOURCE) $(LLIB)
 
@@ -37,19 +40,21 @@ install: all
 	then \
 		mkdir $(INSDIR) ; \
 	fi ;
-	cp $(EXECS) $(INSDIR)
+	/etc/install -f $(INSDIR) $(EXECS)
+	$(CH)chmod 550 $(INSDIR)/$(EXECS)
 uninstall:
-	(cd $(INSDIR); -rm -f $(EXECS))
+	(cd $(INSDIR); rm -f $(EXECS))
 
 clean:
 	-rm -f *.o
 
 clobber: clean
 	-rm -f $(EXECS)
+FRC: 
 
 #### dependencies now follow
 
-nserve.o: nsdb.h nslog.h $(INCDIR)/nsaddr.h stdns.h $(INCDIR)/nserve.h nsports.h
-nsrec.o: nsdb.h nslog.h $(INCDIR)/nsaddr.h stdns.h $(INCDIR)/nserve.h nsports.h
+nserve.o: nsdb.h nslog.h $(INCRT)/nsaddr.h stdns.h $(INCRT)/nserve.h nsports.h
+nsrec.o: nsdb.h nslog.h $(INCRT)/nsaddr.h stdns.h $(INCRT)/nserve.h nsports.h
 nsdb.o: nsdb.h stdns.h nslog.h
-nsfunc.o: nsdb.h stdns.h $(INCDIR)/nserve.h nslog.h
+nsfunc.o: nsdb.h stdns.h $(INCRT)/nserve.h nslog.h

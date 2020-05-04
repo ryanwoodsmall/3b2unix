@@ -26,7 +26,6 @@ mntname=${2:-/install}
 PKGINFO=`cat ${mntname}/install/packagename`
 ORDER=`cat ${mntname}/install/ORDER`
 
-echo "\nThis is floppy  # ${ORDER} of
- ${PKGINFO}"
-echo "\nPlease start with floppy  # 1\n"
+echo "\nThis is floppy diskette number ${ORDER} of ${PKGINFO}"
+echo "\nPlease start with floppy diskette number 1\n"
 exit 1

@@ -5,100 +5,100 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)awk:main.c	1.5"
-#include "stdio.h"
-#include "ctype.h"
-#include "awk.def"
+#ident	"@(#)awk:main.c	2.5"
+#define DEBUG
+#include <stdio.h>
+#include <ctype.h>
+#include <signal.h>
 #include "awk.h"
-#define TOLOWER(c)	(isupper(c) ? tolower(c) : c) /* ugh!!! */
+#include "y.tab.h"
 
 int	dbg	= 0;
-int	svflg	= 0;
-int	rstflg	= 0;
 int	svargc;
-char	**svargv, **xargv;
-extern FILE	*yyin;	/* lex input file */
-char	*lexprog;	/* points to program argument if it exists */
-extern	errorflag;	/* non-zero if any syntax errors; set by yyerror */
+uchar	**svargv;
+uchar	*cmdname;	/* gets argv[0] for error messages */
+extern	FILE *yyin;	/* lex input file */
+uchar	*lexprog;	/* points to program argument if it exists */
+extern	int errorflag;	/* non-zero if any syntax errors; set by yyerror */
+int	compile_time = 1;	/* 0 when machine starts.  for error printing */
 
-int filefd, symnum, ansfd;
-char *filelist;
-extern int maxsym, errno;
-main(argc, argv) int argc; char *argv[]; {
+main(argc, argv)
+	int argc;
+	uchar *argv[];
+{
+	uchar *progfile = NULL, *progarg = NULL, *fs = NULL, *freezename = NULL;
+	extern int fpecatch();
+
+	cmdname = argv[0];
 	if (argc == 1)
-		{
-		fprintf(stderr, "awk: Usage: awk [-f source | 'cmds'] [files]\n");
-		exit(2);
-		}
-	syminit();
-	while (argc > 1) {
-		argc--;
-		argv++;
-		/* this nonsense is because gcos argument handling */
-		/* folds -F into -f.  accordingly, one checks the next
-		/* character after f to see if it's -f file or -Fx.
-		*/
-		if (argv[0][0] == '-' && TOLOWER(argv[0][1]) == 'f' && argv[0][2] == '\0') {
-			yyin = fopen(argv[1], "r");
-			if (yyin == NULL)
-				error(FATAL, "can't open %s", argv[1]);
+		error(FATAL, "Usage: %s [-f source | 'cmds'] [files]", cmdname);
+	yyin = NULL;
+	while (argc > 1 && argv[1][0] == '-' && argv[1][1] != '\0') {
+		switch (argv[1][1]) {
+		case 'f':	/* next argument is program filename */
 			argc--;
 			argv++;
+			if ((yyin = fopen(argv[1], "r")) == NULL)
+				error(FATAL, "can't open file %s", argv[1]);
+			progfile = argv[1];
 			break;
-		} else if (argv[0][0] == '-' && TOLOWER(argv[0][1]) == 'f') {	/* set field sep */
-			if (argv[0][2] == 't')	/* special case for tab */
-				**FS = '\t';
-			else
-				**FS = argv[0][2];
-			continue;
-		} else if (argv[0][0] != '-') {
-			dprintf("cmds=|%s|\n", argv[0], NULL, NULL);
-			yyin = NULL;
-			lexprog = argv[0];
-			argv[0] = argv[-1];	/* need this space */
-			break;
-		} else if (strcmp("-d", argv[0])==0) {
-			dbg = 1;
-		}
-		else if(strcmp("-S", argv[0]) == 0) {
-			svflg = 1;
-		}
-		else if(strncmp("-R", argv[0], 2) == 0) {
-			if(thaw(argv[0] + 2) == 0)
-				rstflg = 1;
-			else {
-				fprintf(stderr, "not restored\n");
-				exit(1);
+		case 'F':	/* set field separator */
+			if (argv[1][2] != 0) {	/* arg is -Fsomething */
+				if (argv[1][2] == 't' && argv[1][3] == 0)	/* special case for tab */
+					fs = (uchar *) "\t";
+				else
+					fs = &argv[1][2];
+			} else {	/* it's -F (space) something */
+				argc--;
+				argv++;
+				if (argv[1][0] == 't' && argv[1][1] == 0)
+					fs = (uchar *) "\t";
+				else
+					fs = &argv[1][0];
 			}
+			break;
+		case 'd':
+			dbg = 1;
+			break;
+		case 'R': case 'S':
+			error(FATAL, "-R and -S options are no longer available");
+			break;
 		}
+		argc--;
+		argv++;
 	}
-	if (argc <= 1) {
-		argv[0][0] = '-';
-		argv[0][1] = '\0';
-		argc++;
-		argv--;
+	if (yyin == NULL) {	/* no -f; first argument is program */
+		dprintf("program = |%s|\n", argv[1]);
+		progarg = lexprog = argv[1];
+		argc--;
+		argv++;
 	}
-	svargc = --argc;
-	svargv = ++argv;
-	dprintf("svargc=%d svargv[0]=%s\n", svargc, svargv[0], NULL);
-	*FILENAME = *svargv;	/* initial file name */
-	if(rstflg == 0)
-		yyparse();
+	while (argc > 1) {	/* do leading "name=val" */
+		if (!isclvar(argv[1]))
+			break;
+		setclvar(argv[1]);
+		argc--;
+		argv++;
+
+	}
+	argv[0] = cmdname;	/* put prog name at front of arglist */
+	svargc = argc;
+	svargv = argv;
+	dprintf("svargc=%d, svargv[0]=%s\n", svargc, svargv[0]);
+	syminit(svargc, svargv);
+	if (fs)
+		*FS = tostring(fs);
+	*FILENAME = svargv[1];	/* initial file name */
+	if (argc == 1) {	/* no filenames; use stdin */
+		initgetrec();
+	}
+	signal(SIGFPE, fpecatch);
+	yyparse();
 	dprintf("errorflag=%d\n", errorflag, NULL, NULL);
-	if (errorflag)
-		exit(errorflag);
-	if(svflg) {
-		svflg = 0;
-		if(freeze("awk.out") != 0)
-			fprintf(stderr, "not saved\n");
-		exit(0);
-	}
-	run(winner);
+	if (errorflag == 0) {
+		compile_time = 0;
+		run(winner);
+	} else
+		bracecheck();
 	exit(errorflag);
-}
-
-
-yywrap()
-{
-	return(1);
 }

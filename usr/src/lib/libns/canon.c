@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libns:canon.c	1.3"
+#ident	"@(#)libns:canon.c	1.3.1.2"
 
 #include "sys/types.h"
 #include "sys/param.h"
@@ -21,7 +21,7 @@
 #define	IALIGN(p)		(char *)(((int)p+3) & ~3)
 #define	LALIGN(p)		(char *)(((int)p+3) & ~3)
 #endif
-#ifdef	u3b2
+#if u3b2 || u3b5 || u3b15
 #define	SALIGN(p)		(char *)(((int)p+1) & ~1)
 #define	IALIGN(p)		(char *)(((int)p+3) & ~3)
 #define	LALIGN(p)		(char *)(((int)p+3) & ~3)

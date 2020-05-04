@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)labelit:labelit.c	1.14"
+#ident	"@(#)labelit:labelit.c	1.15"
 #include <stdio.h>
 #include <sys/param.h>
 #ifndef	RT
@@ -114,7 +114,7 @@ char **argv;
 	printf("Current fsname: %.6s, Current volname: %.6s,",
 		S.s_fname, S.s_fpack, S.s_fsize);
 	if (S.s_magic == FsMAGIC && S.s_type == Fs2b)
-#ifdef u3b5
+#ifdef u3b15
 		printf(" Blocks: %ld, Inodes: %d\nFS Units: 2Kb, ",
 			S.s_fsize * 4, (S.s_isize - 2) * 32);
 #else

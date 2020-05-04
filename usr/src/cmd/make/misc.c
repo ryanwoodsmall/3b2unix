@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)make:misc.c	1.7.1.1"
+#ident	"@(#)make:misc.c	1.7.1.3"
 
 #include "defs"
 #include "ctype.h"
@@ -37,7 +37,7 @@ CHARSTAR s;
 	hashval = 0;
 
 	for(t=s; *t!=CNULL ; ++t)
-		hashval += *t;
+		hashval += (unsigned char) *t;
 
 	hashval %= HASHSIZE;
 
@@ -115,7 +115,7 @@ register CHARSTAR s;
  int hashval = 0;
 
  for(t=s; *t != CNULL; ++t)				/* Hash the string - sum of chars */
-	hashval += *t;
+	hashval += (unsigned char) *t;
 
  hashval %= TABLESIZE;					/* Mod tablesize */
 

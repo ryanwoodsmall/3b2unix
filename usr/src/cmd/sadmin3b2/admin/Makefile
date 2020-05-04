@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)sadmin3b2:admin/Makefile	1.4"
+#ident	"@(#)sadmin3b2:admin/Makefile	1.6"
 #	Makefile for admin
 #	Generated Tue Apr 23 19:01:19 EST 1985 from skeleton makefile:
 #ident  "sadmin3b2:admin/SKELMakefile  1.2"
@@ -30,15 +30,16 @@ ALL: \
 install: \
 		$(PARTS) remove
 	: 'Must be run by root or the owner of /usr (sys)'
-	-umask 022;  mkdir $(ADMINHOME);  cd $(ADMINHOME); \
-	  mkdir $(DIRECTORIES)
+	-umask 022;  if test ! -d $(ADMINHOME); then mkdir $(ADMINHOME); fi;  cd $(ADMINHOME)
+	for dir in $(DIRECTORIES); do if test ! -d $$dir; then mkdir $$dir; fi; done
 	umask 022;  ls $(PARTS)  |  cpio -pd $(ADMINHOME)
+	chmod +x $(ADMINHOME)/bupsched
 
 remove:
-	-cd $(ADMINHOME);  rm -f $(PARTS)
-	-cd $(ADMINHOME);  \
-	  rmdir `echo $(DIRECTORIES)  |  tr ' ' '\012'  |  sort -r`
-	-rmdir $(ADMINHOME)
+	if test -d $(ADMINHOME); then cd $(ADMINHOME);  rm -f $(PARTS); \
+	A=`echo $(DIRECTORIES)  |  tr ' ' '\012'  |  sort -r`; \
+	for dir in $$A; do if test -d $$dir; then if test `ls $$dir | wc -l` -eq 0; then rmdir $$dir; fi; fi; done; \
+	cd /; if test `ls $(ADMINHOME) | wc -l` -eq 0; then rmdir $(ADMINHOME); fi; fi
 
 clean clobber:
 

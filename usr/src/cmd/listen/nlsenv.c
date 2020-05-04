@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)listen:nlsenv.c	1.4"
+#ident	"@(#)listen:nlsenv.c	1.5.1.1"
 
 /*
  * nlsenv.c:
@@ -45,13 +45,15 @@
 
 
 static int
-nlsenv(addr, maxlen, envname)
-	char *addr, *envname;
-	int maxlen;
+nlsenv(buf, envname)
+register struct netbuf *buf;
+char *envname;
 {
 	register char *charaddr;
 	extern char *getenv();
+	extern char *calloc();
 	extern nlsc2addr();
+	int length;
 
 	if (!(charaddr = getenv(envname)))
 		return(-11);
@@ -64,10 +66,13 @@ nlsenv(addr, maxlen, envname)
 	if (strlen(charaddr) & 1)
 		return(-12);
 
-	return(nlsc2addr(addr, maxlen, charaddr));
-
+	length = (strlen(charaddr) + 1) / 2;
+	if (!(buf->buf = calloc(1, length)))
+		return(-13);
+	else
+		buf->maxlen = length;
+	return(nlsc2addr(buf->buf, buf->maxlen, charaddr));
 }
-
 
 
 /*
@@ -84,38 +89,41 @@ nlsenv(addr, maxlen, envname)
  *		synopsis:
  *
  *		struct t_call *nlsgetcall(fd);
- *		int fd;		t_sync'ed network fd for t_alloc.
+ *		int fd;		arg now ignored
  *
  *
  *		returns:	Address of an allocated t_call structure
  *				or
- *				NULL for failure. (t_alloc failed)
- *				If t_alloc succeeds, non-existant
+ *				NULL for failure. (calloc failed)
+ *				If calloc succeeds, non-existant
  *				env. variables or data is indicated
  *				by a negative 'len' field in the approp.
  *				netbuf structure.  A length of zero in the
  *				netbuf structure is valid.
  *
- *		If desired, the t_call structure may be t_free'd.
  */
 
 struct t_call *
 nlsgetcall(fd)
-	int fd;
+int fd;
 {
 	register struct t_call *call;
-	char *address;
-	int length;
+	extern char *calloc();
 
-	if (!(call = (struct t_call *)t_alloc(fd, T_CALL, T_ALL)))
-		return (struct t_call *)0;
+	if (!(call = (struct t_call *) calloc(1, sizeof(struct t_call))))
+		return((struct t_call *)0);
 
-	call->addr.len = nlsenv(call->addr.buf, call->addr.maxlen, NLSADDR);
-	call->opt.len = nlsenv(call->opt.buf,  call->opt.maxlen,  NLSOPT);
-	call->udata.len = nlsenv(call->udata.buf,call->udata.maxlen,NLSUDATA);
+/*
+ * Note: space for buffers gets allocated by nlsenv on the fly
+ */
+
+	call->addr.len = nlsenv(&call->addr, NLSADDR);
+	call->opt.len = nlsenv(&call->opt, NLSOPT);
+	call->udata.len = nlsenv(&call->udata, NLSUDATA);
 
 	return (call);
 }
+
 
 /*
  * nlsprovider:	Return the name of the transport provider
@@ -134,6 +142,7 @@ nlsprovider()
 {
 	return(getenv(NLSPROVIDER));
 }
+
 
 /*
  * nlsc2addr:	Convert external address to internal form.
@@ -172,8 +181,8 @@ nlsprovider()
 
 static int
 nlsc2addr(addr, maxlen, charaddr)
-	register char *addr, *charaddr;
-	register maxlen;
+register char *addr, *charaddr;
+register maxlen;
 {
 	register len;
 	register int i;
@@ -200,4 +209,3 @@ nlsc2addr(addr, maxlen, charaddr)
 
 	return(*charaddr ? -2 : len);
 }
-

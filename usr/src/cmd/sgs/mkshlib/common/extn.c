@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mkshlib:common/extn.c	1.4"
+#ident	"@(#)mkshlib:common/extn.c	1.5.1.2"
 
 #include <stdio.h>
 #include "filehdr.h"
@@ -31,9 +31,19 @@ char	*asname=NULL;	/* name of as command (e.g., 3b2as) */
 char    **trgobjects;   /* list of input object files in the proper order
 			 * for the target */
 long    numobjs;	/* number of input object files */
+char	**objnold;	/* list of other shared libraries referenced from specfile */
+long	numnold;	/* number of referenced shared libraries */
+char	**expsyms;	/* Exported symbols from #export directive */
+long	nexpsyms;	/* number of exported symbols */
+char	**hidesyms;	/* Hidden symbols from specfile #hide directive */
+long	nhidesyms;	/* Number of hidden symbols */
 int	maketarg=FALSE,	/* TRUE if the target is to be regenerated */
 	makehost=FALSE,	/* TRUE if the host is to be built */
-	qflag=FALSE;	/* TRUE if reporting of Warnings is quieted */
+	hidef=FALSE,	/* TRUE if symbols are being hidden (#hide) */
+	allexp=FALSE,	/* TRUE if all symbols exported */
+	allhide=FALSE,	/* TRUE if all symbols hidden */
+	qflag=FALSE,	/* TRUE if reporting of Warnings is quieted */
+	usflag=FALSE;	/* TRUE if undefined symbols are found in target */
 
 
 /* global variables used by the target only */
@@ -43,6 +53,10 @@ char    *pltname,       /* name of partially loaded object */
 	*btname,        /* name of object hold branch table */
 	*ifil2name,     /* name of ifile cotaining start addresses of
 			 * all loaded sections */
+	*ifil3name,     /* name of ifile containing export and hide directives */
+	*ifil4name,     /* name of ifile containing name=value; pairs for */
+			/* nested shared library lookup of undefined symbols */
+			/* used only in target processing */
 	*assemnam;	/* holds name of assembly file to hold branch table */
 char	*trgpath;	/* string holds target pathname */
 
@@ -54,6 +68,8 @@ btrec  **btorder;	/* array of ptrs to entries in the branch table; this
 			 * array keeps the order of the branch table (i.e.,
 			 * btorder[0] will point to the 1st entry in the 
 			 * branch table and so on) */
+usdef	*uslst[USSIZ];	/* uslst is undefined symbol hash table */
+			/* symbols will be found in other shared libraries */
 long tabsiz=0;		/* holds the actual number of entries in the branch table */
 
 

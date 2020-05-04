@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/sys3b.h	10.2"
+#ident	"@(#)kern-port:sys/sys3b.h	10.2.2.1"
 
 #ifndef DIRSIZ
 #define	DIRSIZ	14
@@ -111,6 +111,14 @@ struct	s3bboot {
 #define	S3BCACHE	68	/* Turn cache on and off.		*/
 #define	S3BDELMEM	69	/* Delete available memory for testing.	*/
 #define	S3BADDMEM	70	/* Add back deleted memory.		*/
+#define RDUBLK		71	/* Swap in U Block */
+#define S3BFPOVR	72	/* Turn fl. pt. overflow catching on/off*/
+
+/* Floating point enable/disable flag; also defined in *
+ * /usr/include/ieeefp.h .                             */
+
+#define	FP_DISABLE	0	/* exception will be ignored	*/
+#define	FP_ENABLE	1	/* exception will cause SIGFPE	*/
 
 #define TIMER		0x70
 #define ENBTIMER 	0x04

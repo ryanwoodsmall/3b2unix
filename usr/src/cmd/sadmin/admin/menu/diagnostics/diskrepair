@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:admin/menu/diagnostics/diskrepair	2.4"
+#ident	"@(#)sadmin:admin/menu/diagnostics/diskrepair	2.5"
 #menu#	advice on repair of built-in disk errors
 #help#
 #help#	This subcommand advises you on how to go about repairing errors that
@@ -39,11 +39,13 @@ Note that this is not the traditional way to get to "single user" state.
 checklist -f ${flags} 'Press RETURN to continue. [q]' '' '<RETURN>'
 echo '
 When you get the "#" prompt on the console, use "/etc/mount" to be sure that
-only the "/" file system is mounted and "ps" to be sure that the only
+only the "/" file system is mounted and "ps -e" to be sure that the only
 processes are:
 			Process ID 0
 			Process ID 1
-			-su
+			Process ID 2
+			Process ID 3
+			sh
 			ps
 If there is more than the "/" file system or more than these processes,
 something has gone wrong.  Be sure all other processes are killed

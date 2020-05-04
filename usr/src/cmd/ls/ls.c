@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)ls:ls.c	1.33"
+#ident	"@(#)ls:ls.c	1.36"
 /*
 * 	list file or directory;
 * 	define DOTSUP to suppress listing of files beginning with dot
@@ -16,6 +16,7 @@
 #include	<sys/sysmacros.h>
 #include	<sys/stat.h>
 #include	<stdio.h>
+#include	<ctype.h>
 #include	<dirent.h>
 
 #ifndef STANDALONE
@@ -55,6 +56,15 @@
 #define INSHFT	7
 #endif
 
+/*	Date and time	formats   */
+
+#define FORMAT1	 " %b %e  %Y "
+#define FORMAT2  " %b %e %H:%M "        /*
+					 * b --- abbreviated month name
+					   e --- day number
+					   Y --- year in the form ccyy
+					   H --- hour (24 hour version)
+					   M --- minute   */
 
 struct	lbuf	{
 	union	{
@@ -108,7 +118,6 @@ int	statreq;    /* is > 0 if any of sflg, (n)lflg, tflg are on */
 char	*dotp = ".";
 char	*makename();
 char	tbufu[16], tbufg[16];   /* assumed 15 = max. length of user/group name */
-char	*ctime();
 
 long	nblock();
 long	tblocks;  /* total number of blocks of files in a directory */
@@ -120,6 +129,8 @@ int	filewidth;
 int	fixedwidth;
 int	curcol;
 int	compar();
+
+static char	time_buf[50];	/* array to hold day and time */
 
 main(argc, argv)
 int argc;
@@ -476,11 +487,16 @@ struct lbuf *ap;
 			curcol += printf("%3d,%3d", major((int)p->lsize), minor((int)p->lsize));
 		else
 			curcol += printf("%7ld", p->lsize);
-		cp = ctime(&p->lmtime);
 		if((p->lmtime < year) || (p->lmtime > now))
-			curcol += printf(" %-7.7s %-4.4s ", cp+4, cp+20);
+			{
+			cftime(time_buf, FORMAT1, &p->lmtime);
+			curcol += printf("%s", time_buf);
+			}
 		else
-			curcol += printf(" %-12.12s ", cp+4);
+			{
+			cftime(time_buf, FORMAT2, &p->lmtime);
+			curcol += printf("%s", time_buf);
+			}
 	}
 	if ((pflg || Fflg) && p->ltype == 'd')
 		dmark = "/";
@@ -860,7 +876,7 @@ pprintf(s1,s2)
 
 	for (s = s1, i = 0; i < 2; i++, s = s2)
 		while(c = *s++) {
-			if (c < ' ' || c >= 0177) {
+			if ( ! isprint(c) ) {
 				if (qflg)
 					c = '?';
 				else if (bflg) {

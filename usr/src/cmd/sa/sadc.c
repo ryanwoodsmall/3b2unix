@@ -5,8 +5,8 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sa:sadc.c	1.25"
-/*	sadc.c 1.25 of 11/27/85	*/
+#ident	"@(#)sa:sadc.c	1.30.1.2"
+/*	sadc.c 1.30.1.2 of 8/25/86  */
 /*
 	sadc.c - writes system activity binary data from /dev/kmem to a
 		file or stdout.
@@ -40,6 +40,9 @@
 #include <sys/immu.h>
 #include <sys/id.h>
 #include <sys/region.h>
+#include "sys/vtoc.h"
+#include "sys/pdi.h"
+#include "sys/sd00_dep.h"
 #endif
 #include <sys/proc.h>
 #include <sys/sysinfo.h>
@@ -58,17 +61,23 @@ int apstate;
 #endif
 
 #ifdef u3b2
-int idcnt;
+int idcnt, sd00_tc_cnt, sd00_lu_cnt;
+int blksize = 512;
 struct idstatstruct idstatus[IDNDRV];
 struct iotime idstat[IDNDRV];
 struct iotime ifstat;
+struct sd00_ctrl *dsd00;
 #endif /* u3b2 */
 
-#ifdef u3b5
+#ifdef u3b15
 #include <sys/dfdrv.h>
-int dfcnt;
+#include <sys/pdi.h>
+#include <sys/disktd.h>
+#include <sys/disktd.mast.h>
+int dfcnt, Sd01_diskcnt;
 char *dfloc;
-#endif /*u3b5 */
+struct Sd01_d *dsd01;
+#endif /*u3b15 */
 
 #ifdef u370
 #include <sys/times.h>
@@ -102,7 +111,7 @@ static int tblmap[SINFO];
 static int tblmap[10];	/* A kludge for the 370 -not really used */
 #endif
 static int recsz,tmpsz;
-long time();
+extern	time_t	 time();
 int i,j,k;
 long lseek();
 int f;
@@ -176,7 +185,7 @@ creafl:
 #ifndef u370
 /*	open /dev/kmem	*/
 	if((f = open("/dev/kmem", 0)) == -1)
-		perrexit();
+		perrexit("sadc");
 #endif
 #ifdef u370
 /*	open /dev/mem	*/
@@ -192,12 +201,12 @@ creafl:
 	if (setup[RLCNT].n_value != 0){
 		lseek(f,(long)setup[RLCNT].n_value, 0);
 		if (read(f,&rlcnt,sizeof rlcnt) == -1)
-			perrexit();
+			perrexit("sadc");
 	}
 	if (setup[GDCNT].n_value != 0){
 		lseek(f,(long)setup[GDCNT].n_value, 0);
 		if (read(f,&gdcnt,sizeof gdcnt) == -1)
-			perrexit();
+			perrexit("sadc");
 	}
 #endif
 #ifdef u3b
@@ -205,31 +214,39 @@ creafl:
 	if (setup[MTCCNT].n_value !=0){
 		lseek(f,(long)setup[MTCCNT].n_value, 0);
 		if (read(f,&mtccnt,sizeof mtccnt) == -1)
-			perrexit();
+			perrexit("sadc");
 		taploc = malloc(sizeof (struct mtc)*mtccnt*4);
 		if (taploc == NULL)
-			perrexit();
+			perrexit("sadc");
 	}
 	if (setup[DSKCNT].n_value !=0){
 		lseek(f,(long)setup[DSKCNT].n_value, 0);
 		if (read(f,&dskcnt,sizeof dskcnt) == -1)
-			perrexit();
+			perrexit("sadc");
 		dskloc = malloc(sizeof (struct dskinfo)*dskcnt);
 		if (dskloc == NULL)
-			perrexit();
+			perrexit("sadc");
 	}
 #endif
 
-#ifdef u3b5
+#ifdef u3b15
 /*	get numbers of disk drives for 3B5	*/
 	if (setup[DFCNT].n_value !=0){
 		lseek(f,(long)setup[DFCNT].n_value, 0);
 		if (read(f,&dfcnt,sizeof dfcnt) == -1)
-			perrexit();
+			perrexit("sadc");
 		dfloc = malloc(sizeof (struct dfc)*dfcnt);
 		if (dfloc == NULL)
-			perrexit();
+			perrexit("sadc");
 	}
+	  if (setup[SD01].n_value !=0){
+		lseek(f,(long)setup[SD01].n_value, 0);
+		if (read(f, &Sd01_diskcnt, sizeof Sd01_diskcnt) != sizeof Sd01_diskcnt)
+			perrexit("sadc can't read SD01");
+		dsd01 = (struct sd01_d *) malloc(sizeof (struct sd01_d) * Sd01_diskcnt);
+			if (dsd01 == NULL)
+				perrexit("sadc can't malloc");
+	  }
 #endif
 
 #ifdef u3b2
@@ -237,11 +254,25 @@ creafl:
 	  if (setup[IDEQ].n_value !=0){
 		lseek(f,(long)setup[IDEQ].n_value, 0);
 		if (read(f, idstatus,sizeof idstatus) != sizeof idstatus)
-			perrexit();
+			perrexit("sadc");
 		for (i = 0; i < IDNDRV; i++)
 			if (idstatus[i].equipped)
 				idcnt++;
 	  }
+	  if (setup[SD00].n_value !=0){
+		lseek(f,(long)setup[SD00].n_value, 0);
+		if (read(f, &sd00_tc_cnt, sizeof sd00_tc_cnt) != sizeof sd00_tc_cnt)
+			perrexit("sadc can,t read SD00");
+		dsd00 = (struct sd00_ctrl *) malloc(sizeof (struct sd00_ctrl) * sd00_tc_cnt);
+			if (dsd00 == NULL)
+				perrexit("sadc can't malloc");
+	  }
+	  if (setup[SD00LU].n_value != 0){
+		lseek(f,(long)setup[SD00LU].n_value, 0);
+		if (read(f, &sd00_lu_cnt, sizeof sd00_lu_cnt) != sizeof sd00_lu_cnt)
+			perrexit("sadc can't read SD00LU");
+	  }
+
 #endif /* u3b2 */
 
 #ifndef u370
@@ -270,18 +301,22 @@ creafl:
 			}
 #endif
 
-#ifdef u3b5
+#ifdef u3b15
 		if(setup[i].n_value != 0) {
 			if(i == DFDFC)
 				tblmap[i] = dfcnt * NDRV;
+			else if(i == SD01)
+				tblmap[i] = Sd01_diskcnt;
 			else
 				tblmap[i] = iotbsz[i];
-#endif /* u3b5 */
+#endif /* u3b15 */
 
 #ifdef u3b2
 		if(setup[i].n_value != 0) {
 			if(i == ID)
 				tblmap[i] = idcnt;
+			else if(i == SD00)
+				tblmap[i] = sd00_lu_cnt;
 			else
 				tblmap[i] = iotbsz[i];
 #endif /* u3b2 */
@@ -316,7 +351,7 @@ credfl:
 /*			data file does not exist:
 			create one and write the header record.	*/
 			if ((fp = creat(fname,00644)) == -1)
-				perrexit();
+				perrexit("sadc");
 			close(fp);
 			fp = open (fname,2);
 			lseek(fp,0L,0);
@@ -340,9 +375,9 @@ credfl:
 
 /*	get memory for tables	*/
 	if(lseek(f,(long)setup[V].n_value,0) == -1)
-		perrexit();
+		perrexit("sadc");
 	if(read(f,&tbl,sizeof tbl) == -1)
-		perrexit();
+		perrexit("sadc");
 	if (tblloc < sizeof(struct inode)*tbl.v_inode)
 		tblloc =sizeof(struct inode)*tbl.v_inode;
 	if (tblloc < sizeof(struct file)*tbl.v_file)
@@ -351,7 +386,7 @@ credfl:
 		tblloc = sizeof (struct proc)*tbl.v_proc;
 	loc = malloc(tblloc);
 	if (loc == NULL){
-		perrexit();
+		perrexit("sadc");
 	}
 #ifdef u370
 	pxs = (struct pxs *)malloc(sizeof(*pxs));
@@ -364,31 +399,37 @@ credfl:
 /*		read data from /dev/kmem to structure d	*/
 		lseek(f,(long)setup[SINFO].n_value,0);
 		if (read(f, &d.si, sizeof d.si) == -1)
-			perrexit();
+			perrexit("sadc");
 
 /*	Distributed Unix info	*/
 		if (setup[DINFO].n_value != 0)  {
 			lseek( f, (long)setup[DINFO].n_value, 0);
 			if (read( f, &d.di, sizeof d.di) == -1)
-				perrexit();
+				perrexit("sadc");
 		}
 		if (setup[MINSERVE].n_value != 0)	{
 			lseek( f, (long)setup[MINSERVE].n_value, 0);
 			if (read( f, &d.minserve, sizeof d.minserve) == -1)
-				perrexit();
+				perrexit("sadc");
 		}
 		if (setup[MAXSERVE].n_value != 0)	{
 			lseek( f, (long)setup[MAXSERVE].n_value, 0);
 			if (read( f, &d.maxserve, sizeof d.maxserve) == -1)
-				perrexit();
+				perrexit("sadc");
+		}
+/*	Client Caching info	*/
+		if (setup[RCINFO].n_value !=0) {
+			lseek( f, (long)setup[RCINFO].n_value, 0);
+			if (read( f, &d.rc, sizeof d.rc) == -1)
+				perrexit("sadc");
 		}
 
-#if	vax || u3b || u3b5 || u3b2
+#if	vax || u3b || u3b15 || u3b2
 /*	virtual memory	*/
 		if (setup[MINFO].n_value != 0)	{
 			lseek( f, (long)setup[MINFO].n_value, 0);
 			if (read( f, &d.mi, sizeof d.mi) == -1)
-				perrexit();
+				perrexit("sadc");
 		}
 #endif
 
@@ -400,21 +441,21 @@ credfl:
 				lseek(f,(long)setup[i].n_value,0);
 				if (i<RLS){
 				if (read(f,ia[i],sizeof ia[i]) == -1)
-					perrexit();
+					perrexit("sadc");
 				}
 				else{
 				if (i == TSS){
 				if (read(f,id[i-TSS],sizeof id[i-TSS]) == -1)
-					perrexit();
+					perrexit("sadc");
 				}
 				else {
 				if (i == GDS){
 				if (read(f,ic[i-GDS],(sizeof (struct iotime)*gdcnt*8)) == -1)
-					perrexit();
+					perrexit("sadc");
 				}
 				else
 				if (read(f,ib[i-RLS],sizeof ib[i-RLS]) == -1)
-					perrexit();
+					perrexit("sadc");
 				}
 				}
 			}
@@ -426,9 +467,17 @@ credfl:
 		dsktbl(dskloc);
 #endif /* u3b */
 
-#ifdef u3b5
+#ifdef u3b15
 		dftbl(dfloc);
-#endif /* u3b5 */
+
+		if (setup[SD01_D].n_value != 0){
+			lseek(f,(long)setup[SD01_D].n_value, 0);
+			if (read(f, dsd01, sizeof(struct Sd01_d * Sd01_diskcnt))
+				 	!= sizeof(Sd01_d * Sd01_diskcnt)){
+				perrexit("sadc can't read SD01_D");
+			}
+		}
+#endif /* u3b15 */
 
 #ifdef u3b2
 		/* translate from clicks to disk blocks */
@@ -437,15 +486,23 @@ credfl:
 		if ( setup[ID].n_value != 0 ) {
 			lseek( f, (long) setup[ID].n_value, 0 );
 			if ( read( f, idstat, sizeof( struct iotime ) * idcnt) == -1) {
-				perrexit();
+				perrexit("sadc");
 			}
 		}
 		if ( setup[IF].n_value != 0 ) {
 			lseek( f, (long) setup[IF].n_value, 0 );
 			if ( read( f, &ifstat, sizeof( struct iotime ) ) == -1) {
-				perrexit();
+				perrexit("sadc");
 			}
 		}
+		if (setup[SD00TC].n_value != 0){
+			lseek(f,(long)setup[SD00TC].n_value, 0);
+			if (read(f, dsd00, sizeof(struct sd00_ctrl) * sd00_tc_cnt)
+					!= sizeof(struct sd00_ctrl) * sd00_tc_cnt){
+				perrexit("sadc can't read SD00TC");
+			}
+		}
+
 #endif /* u3b2 */
 
 #ifdef u370
@@ -499,11 +556,11 @@ credfl:
 		d.szproc = d.pi.sz;
 #endif
 
-#if vax || u3b || u3b5 || u3b2
+#if vax || u3b || u3b15 || u3b2
 		if ( setup[FLCK].n_value != 0 ) {
 			lseek( f, (long) setup[FLCK].n_value, 0 );
 			if (read(f, &flckinfo, sizeof(struct flckinfo)) == -1) {
-				perrexit();
+				perrexit("sadc");
 			}
 		}
 		/* record system table sizes */
@@ -519,7 +576,7 @@ credfl:
 /*		record system tables overflows	*/
 		lseek(f,(long)setup[SERR].n_value,0);
 		if (read(f,&err,sizeof (struct syserr)) == -1)
-			perrexit();
+			perrexit("sadc");
 		d.inodeovf = err.inodeovf;
 		d.fileovf = err.fileovf;
 		/*	get time stamp	*/
@@ -529,7 +586,7 @@ credfl:
 	if (setup[APSTATE].n_value !=0){
 		lseek(f,(long)setup[APSTATE].n_value, 0);
 		if (read(f,&apstate,sizeof apstate) == -1)
-			perrexit();
+			perrexit("sadc");
 		d.apstate = apstate;
 	}
 #endif
@@ -571,6 +628,7 @@ credfl:
 					i++;
 				}
 		}
+	}
 #endif /* vax || pdp11 */
 #ifdef u3b
 			if (setup[j].n_value != 0)
@@ -578,33 +636,63 @@ credfl:
 						tapemv(taploc);
 					else
 						dskmv(dskloc);
+	}
 #endif /* u3b */
 
-#ifdef u3b5
+#ifdef u3b15
 				dfmv(dfloc);
-#endif /* u3b5 */
+	}
 
-#ifdef u3b2
-		for (j=0; j<SINFO; j++){
-			if (setup[j].n_value != 0){
-				for (k=0;k<tblmap[j];k++){
-					if (j == ID) {
-						d.devio[i][0] = idstat[k].io_cnt;
-						d.devio[i][1] = idstat[k].io_bcnt;
-						d.devio[i][2] = idstat[k].io_act;
-						d.devio[i][3] = idstat[k].io_resp;
-					} else if (j == IF) {
-						d.devio[i][0] = ifstat.io_cnt;
-						d.devio[i][1] = ifstat.io_bcnt;
-						d.devio[i][2] = ifstat.io_act;
-						d.devio[i][3] = ifstat.io_resp;
-					}
-					i++;
+		if (setup[SD01_D].n_value != 0){
+			for (k=0; k < Sd01_diskcnt; k++){
+			if (dsd01[k].dk_state == ONLINE){
+				d.devio[i][0] = dsd01[k].dk_stat.io_cnt;
+				d.devio[i][1] = dsd01[k].dk_stat.io_bcnt;
+				d.devio[i][2] = dsd01[k].dk_stat.io_act;
+				d.devio[i][3] = dsd01[k].dk_stat.io_resp;
+				d.devio[i][4] = k;
+				i++;
 				}
 			}
 		}
-#endif /* u3b2 */
+#endif /* u3b15 */
+
+#ifdef u3b2
 	}
+			if (setup[ID].n_value != 0){
+				for (k=0; k < idcnt; k++){
+					d.devio[i][0] = idstat[k].io_cnt;
+					d.devio[i][1] = idstat[k].io_bcnt;
+					d.devio[i][2] = idstat[k].io_act;
+					d.devio[i][3] = idstat[k].io_resp;
+					i++;
+				}
+			}
+			if (setup[IF].n_value != 0){
+					d.devio[i][0] = ifstat.io_cnt;
+					d.devio[i][1] = ifstat.io_bcnt;
+					d.devio[i][2] = ifstat.io_act;
+					d.devio[i][3] = ifstat.io_resp;
+					i++;
+				}
+		if (setup[SD00TC].n_value != 0){
+			for (j=0; j < sd00_tc_cnt; j++){
+				for (k=0; k < MAX_LUN; k++){
+				if (dsd00[j].lu[k].state == ONLINE){
+					d.devio[i][0] = dsd00[j].lu[k].lustat.io_cnt;
+					d.devio[i][1] = ((dsd00[j].lu[k].lustat.io_bcnt
+							+ blksize -1)/blksize);
+					d.devio[i][2] = dsd00[j].lu[k].lustat.io_act;
+					d.devio[i][3] = dsd00[j].lu[k].lustat.io_resp;
+					d.devio[i][4] = j * 10 + k;
+					i++;
+					}
+				}
+			}	
+		}
+
+				
+#endif /* u3b2 */
 #endif
 
 /*	write data to data file from structure d	*/
@@ -742,7 +830,7 @@ register struct dskinfo *x;
 
 #endif /* u3b */
 
-#ifdef u3b5
+#ifdef u3b15
 dftbl(x)
 register struct dfc *x;
 {
@@ -775,8 +863,9 @@ register struct dfc *x;
 }
 
 #endif /* u3b */
-perrexit()
+perrexit(s)
+char *s;
 {
-	perror("sadc");
+	perror(s);
 	exit(2);
 }

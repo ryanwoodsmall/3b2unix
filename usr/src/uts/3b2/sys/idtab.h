@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/idtab.h	10.4"
+#ident	"@(#)kern-port:sys/idtab.h	10.4.1.1"
 /*
  *
  *    defines for uid/gid translation.
@@ -13,6 +13,7 @@
  */
 #define MAXSNAME	20
 #define OTHERID		MAXUID+1
+#define NO_ACCESS	MAXUID+2
 #define CFREE		0
 #define CINUSE		1
 #define CINTER		2

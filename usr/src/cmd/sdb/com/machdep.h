@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:com/machdep.h	1.19"
+#ident	"@(#)sdb:com/machdep.h	1.20"
 
 #include	<sys/param.h>
 #include	<sys/types.h>
@@ -87,6 +87,7 @@ extern int drval[];
 
 #define APNO	9	/* argument pointer register number */
 #define FPNO	10	/* frame pointer register number */
+#define SAVEDREGS	13	/* max # of registers saved by 'SAVE'  */
 #else
 #define XTOB(x) (ctob(x))
 
@@ -101,6 +102,7 @@ extern int drval[];
 #else
 #if u3b5 || u3b15 || u3b2
 #define BKOFFSET	0	/* offset from start of proc to bkpt */
+#define SAVEDREGS	9	/* max # of registers saved by 'SAVE'  */
 #endif
 #endif
 

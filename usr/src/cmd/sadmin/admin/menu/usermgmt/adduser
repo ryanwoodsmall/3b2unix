@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:admin/menu/usermgmt/adduser	2.4"
+#ident	"@(#)sadmin:admin/menu/usermgmt/adduser	2.9"
 #menu# add a user to the system
 #help# 
 #help#	Adduser installs a new login ID on the machine.  You are asked
@@ -75,20 +75,28 @@ do
 	if [ -z "${defuid}" ]
 	then
 		# Sort 3rd field in /etc/passwd then cut 3rd field
-		# from last line.  Increment this field by 1 to
-		# come up with a unique new user ID number.
+		# from last line.
 
-		defuid=`sort -t: +2n /etc/passwd  |  tail -1  |
-			cut -d: -f3`
-		defuid=`expr ${defuid} + 1`
-
-		# don't allow user ID numbers less than minid
-		if [ ${defuid} -lt ${minid} ]
-		then
-			defuid=${minid}
-		fi
+		defuid=`sort -u -t: +2n /etc/passwd | cut -d: -f3`
+OLD=${minid}
+# eliminate all userid's less than minid, then find first available
+# userid number greater than minid.
+for n in `echo ${defuid} | sed -e 's% \([1-9][0-9][0-9][0-9]*\)%_\1%;s%.*_%%'`
+do
+if [ $OLD -ne $n ]
+then
+	break
+else
+	OLD=`expr $OLD + 1`
+fi
+done
+defuid=$OLD
 	fi
-
+	if [ ${defuid} -gt ${maxid} ]
+	then
+		echo "\tThere are no more userid numbers available."
+		exit 1
+	fi
 	while true
 	do
 		userid=`checkre ${flags} -fe -D ${defuid} -H"
@@ -136,38 +144,45 @@ do
 			-fe "Enter group ID number or group name
 ${defgid:-(default $defgroup)} [?, q]: " \
 			'^[0-9a-z]*$' 'Answer contains an illegal character.'`
-		x=`grep "^${groupid}:" /etc/group  |  cut -d: -f3`
-		if [ -n "${x}" ]
+		ERR=0
+		if num "${groupid}"
 		then
-			if [ "${x}" -lt ${minid}  -a  "${x}" -ne 1 ]
+			x=`cut -d: -f3 /etc/group | grep "${groupid}"`
+			if [ -n "${x}" ]
 			then
-				echo "\\t${groupid} has group ID ${x} which is less than ${minid}.
-	q  for quit"
-				continue
+				groupname=`cut -d: -f1,3 /etc/group | 
+					grep ":${groupid}$" | cut -d: -f1`
 			else
-				groupname="${groupid}"
-				groupid=${x}
-				break
+				echo "\\tUnknown groupid number."
+				ERR=1
+			fi
+		else
+			x=`grep "^${groupid}:" /etc/group`
+			if [ -n "${x}" ]
+			then
+				groupname=${groupid}
+				groupid=`echo "$x" | cut -d: -f3`
+			else
+				echo "\\t${groupid} is not a known group name."
+				ERR=2
 			fi
 		fi
-		if  num "${groupid}"
+		if [ $ERR -ne 0 ]
 		then
-			if [ "${groupid}" -le ${maxid}  -a  \
-			\( "${groupid}" -ge ${minid} -o "${groupid}" -eq 1 \) ]
-			then
-				groupname=`cut -d: -f1,3 /etc/group  |
-					grep ":${groupid}$"  |  cut -d: -f1`
-				break
-			fi
-			echo "\\tGroup ID must be all digits.  Permitted values are
-	1, or at least ${minid} and not larger than ${maxid}.
-	q  for quit"
-		else
-			echo "\\t${groupid} is not a known group name.  Known groups (group ID):" \
+			echo "\\tKnown groups (group ID):" \
 			"\\n`cut -d: -f1,3 /etc/group  |  sort  |
 				sed 's/:\(.*\)/	(\1)/'  |  pr -o4 -t -3`" \
 			'\nq  for quit'
+			continue
+		else
+			if [ "${groupid}" -gt ${maxid} -o \( "${groupid}" -lt ${minid} -a "${groupid}" -ne 1 \) ]
+			then
+				echo "\\tGroupid number out of range."
+				echo "\\tMust be between ${minid} and ${maxid}."
+				continue
+			fi
 		fi
+	break
 	done
 
 	deflogindir=${defparent}/${loginid}

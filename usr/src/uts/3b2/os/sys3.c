@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/sys3.c	10.13"
+#ident	"@(#)kern-port:os/sys3.c	10.13.2.2"
 #include "sys/types.h"
 #include "sys/sysmacros.h"
 #include "sys/param.h"
@@ -37,6 +37,8 @@
 #include "sys/message.h"
 #include "sys/debug.h"
 #include "sys/utsname.h"
+#include "sys/region.h"
+#include "sys/proc.h"
 
 /*
  * the fstat system call.
@@ -210,6 +212,7 @@ fcntl()
 		int	arg;
 	} *uap;
 	register i;
+	register struct inode *ip;
 	off_t offset;
 	int flag;
 	
@@ -253,6 +256,18 @@ fcntl()
 		fp->f_flag |= (uap->arg-FOPEN) & ~(FREAD|FWRITE);
 		break;
 
+	case F_FREESP:
+		if ((flag & FWRITE) == 0)
+			u.u_error = EBADF;
+		else if ((ip = fp->f_inode)->i_ftype != IFREG)
+			u.u_error = EINVAL;
+		else {
+			plock(ip);
+			FREESP(ip, uap->arg, flag, offset);
+			prele(ip);
+		}
+		break;
+
 	default:
 		FS_FCNTL(fp->f_inode, uap->cmd, uap->arg, flag, offset);
 		break;
@@ -292,7 +307,6 @@ stty()
 	uap = (struct a *)u.u_ap;
 	uap->narg = uap->arg;
 	uap->arg = TIOCSETP;
-	u.u_syscall = DUIOCTL;
 	ioctl();
 }
 
@@ -307,7 +321,6 @@ gtty()
 	uap = (struct a *)u.u_ap;
 	uap->narg = uap->arg;
 	uap->arg = TIOCGETP;
-	u.u_syscall = DUIOCTL;
 	ioctl();
 }
 
@@ -319,11 +332,15 @@ smount()
 	register struct inode *bip, *ip = NULL;
 	register struct mount *mp, *tmp;
 	register short fstyp;
+	char *dataptr;
+	int datalen;
 	register struct a {
 		char	*fspec;
 		char	*freg;
 		int	flags;
 		int	fstyp;
+		char	*dataptr;
+		int	datalen;
 	} *uap;
 	register dev_t dev;
 	int special;
@@ -353,9 +370,6 @@ smount()
 
 	mp->m_dev = dev;
 	mp->m_bcount = 0;
-	u.u_mntindx = mp - mount;
-	u.u_syscall = DULBMOUNT;
-
 	u.u_dirp = (caddr_t)uap->freg;
 	prele(bip);	/* unlock in case ip == bip */
 	if ((ip = namei(upath, 0)) == NULL) {
@@ -378,15 +392,20 @@ smount()
 	/*
 	 * Backward compatibility: require the user program to
 	 * supply a flag indicating a new-style mount, otherwise
-	 * assume the fstyp of the root file system.
+	 * assume the fstyp of the root file system and zero values
+	 * for dataptr and datalen.  MS_FSS indicates a 3.0 4-argument
+	 * mount; MS_DATA is the preferred way and indicates a
+	 * 6-argument mount.
 	 */
-	if ((uap->flags & MS_FSS) == 0)
-		fstyp = mount[0].m_fstyp;
-	else if ((fstyp = uap->fstyp) <= 0 || fstyp >= nfstyp) {
+	fstyp = (uap->flags & (MS_DATA|MS_FSS))
+	  ? uap->fstyp : mount[0].m_fstyp;
+	if (fstyp <= 0 || fstyp >= nfstyp) {
 		u.u_error =  EINVAL;
 		goto out;
 	}
-	(*fstypsw[fstyp].fs_mount)(bip, mp, uap->flags);
+	dataptr = (uap->flags & MS_DATA) ? uap->dataptr : NULL;
+	datalen = (uap->flags & MS_DATA) ? uap->datalen : 0;
+	(*fstypsw[fstyp].fs_mount)(bip, mp, uap->flags, dataptr, datalen);
 	if (u.u_error)
 		goto out;
 	mp->m_rflags = 0;

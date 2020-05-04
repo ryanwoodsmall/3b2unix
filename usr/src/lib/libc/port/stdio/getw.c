@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libc-port:stdio/getw.c	1.7"
+#ident	"@(#)libc-port:stdio/getw.c	1.8"
 /*	3.0 SID #	1.2	*/
 /*LINTLIBRARY*/
 /*
@@ -24,7 +24,7 @@ register FILE *stream;
 	register char *s = (char *)&w;
 	register int i = sizeof(int);
 
-	while (--i >= 0)
+	while (--i >= 0 && !feof(stream) && !ferror(stream))
 		*s++ = getc(stream);
 	return (feof(stream) || ferror(stream) ? EOF : w);
 }

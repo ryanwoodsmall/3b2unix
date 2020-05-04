@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libc-port:stdio/fread.c	3.16"
+#ident	"@(#)libc-port:stdio/fread.c	3.17"
 /*LINTLIBRARY*/
 /*
  * This version reads directly from the buffer rather than looping on getc.
@@ -30,11 +30,13 @@ int count;
 size_t size;
 register FILE *iop;
 {
-	register unsigned int nleft;
+	register unsigned long nleft;
 	register int n;
 
-	if (size <= 0 || count <= 0) return 0;
-	nleft = count * size;
+	if (count <= 0) return 0;
+	nleft = (unsigned long) count * size; /* may overflow */
+	if (nleft < count || nleft < size)	/* overflow occured */
+		return (0);
 
 	/* Put characters in the buffer */
 	/* note that the meaning of n when just starting this loop is

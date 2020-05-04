@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mkunix:mkunix.c	1.3"
+#ident	"@(#)mkunix:mkunix.c	1.3.1.1"
 /*
  *		Copyright 1984 AT&T
  */
@@ -38,7 +38,7 @@ struct	s3bs
 #define	TRUE		1
 #define	FALSE		0
 
-#ifdef u3b5
+#ifdef u3b15
 #define PSTARTADR	0x800000
 #endif
 #ifdef u3b2

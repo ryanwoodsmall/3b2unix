@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-	.ident	"@(#)kern-port:ml/misc.s	10.9"
+	.ident	"@(#)kern-port:ml/misc.s	10.9.3.3"
 
 #	The following set's are used in iocde.
 
@@ -332,7 +332,8 @@ bzero:
 	BLH	bzsmall			# just 	zero, loop no helpee
 	ANDW3	%r0,&0x7f,%r1		# how much of the current block
 	ARSW3	&2,%r1,%r1		# bytes to words
-	MULW2	&3,%r1			# words to loop offset
+	LLSW3	&1,%r1,%r3		# words to loop offset
+	ADDW2	%r3,%r1			# --> MULW2  &3,%r1
 	PUSHW	%psw
 	ORW2	&0x1e000,%psw	# block all interrupts whilst in loop
 	NOP
@@ -704,9 +705,16 @@ fbcdon:
 #		return(0);
 #	}
 #
+#	lcopyin() and lcopyout() are local-only versions of the same
+#	routines, i.e. they are guaranteed to refer to virtual addresses
+#	on the local machine and NOT to do the "if (server())" check
+#	done by the regular copyin()/copyout().
+#
 
 	.globl	copyin
 	.globl	copyout
+	.globl	lcopyin
+	.globl	lcopyout
 	.globl	u
 
 #
@@ -731,6 +739,10 @@ copyin:
 	RESTORE	%r5
 	RET
 					# check end-points of copy
+lcopyin:
+	SAVE	%r5
+	MOVW	&0,%r5			# r0 contains the user address
+
 ci_kern:				# kernel mem
 	CMPW	&MINUVTXT,0(%ap)
 	BLUH	copybad
@@ -754,6 +766,10 @@ copyout:
 	call	&3,rcopyout
 	RESTORE	%r5
 	RET
+lcopyout:
+	SAVE	%r5
+	MOVW	&1,%r5			# r1 contains the user address
+
 					# check end-points of copy
 co_kern:				# kernel memory
 	CMPW	&MINUVTXT,4(%ap)
@@ -796,7 +812,7 @@ rcopyfault:
 copycom:
 	MOVW	0(%ap),%r0		# from-address to %r0
 	MOVW	4(%ap),%r1		# to-address to %r1
-	MOVW	8(%ap),%r2		# byte count to %r6
+	MOVW	8(%ap),%r2		# byte count to %r2
  	BEH	copygood
 
 	MOVAW	copyfault,u+u_caddrflt
@@ -902,7 +918,8 @@ copyblk:
 	ANDW3	%r0,&0x7f,%r6		# how much of the current block copied
 	SUBW2	%r6,%r1			# set offset for the loop
 	ARSW3	&2,%r6,%r6		# bytes to words
-	MULW2	&5,%r6			# words to loop offset
+	LLSW3	&2,%r6,%r7		# words to loop offset
+	ADDW2	%r7,%r6			# --> MULW2  &5,%r6
 	PUSHW	&copylast		# where we return to
 	PUSHW	%psw
 	ORW2	&0x1e000,%psw		# block all interrupts in loop
@@ -922,7 +939,8 @@ cpalgr1:
 	ANDW3	%r1,&0x7f,%r6		# how much of the current block copied.
 	SUBW2	%r6,%r0			# set offset for the loop
 	ARSW3	&2,%r6,%r6		# bytes to words
-	MULW2	&5,%r6			# words to loop offset
+	LLSW3	&2,%r6,%r7		# words to loop offset
+	ADDW2	%r7,%r6			# --> MULW2  &5,%r6
 	PUSHW	&copylast		# where we return to
 	PUSHW	%psw
 	ORW2	&0x1e000,%psw		# block all interrupts in loop
@@ -1086,6 +1104,7 @@ copygood:
 
 	.globl	fubyte
 	.globl	fuibyte
+	.globl	lfubyte
 fubyte:
 fuibyte:
 	MOVW	u+u_procp,%r0		# check if the process is a server
@@ -1110,6 +1129,7 @@ cont2:	MOVAW	sf_fault,u+u_caddrflt
 
 	.globl	fuword
 	.globl	fuiword
+	.globl	lfuword
 fuword:
 fuiword:
 	MOVW	u+u_procp,%r0		# check if the process is a server
@@ -1441,3 +1461,57 @@ is32b:
 WE32001:
 	MOVW	&0x0,%r0
 	RET
+
+#ifndef DEBUG
+
+#	NOTE: if DEBUG use plock/prele C code in os/pipe.c .
+#
+#	plock(ip)	/* lock an inode */
+#	register struct inode *ip;
+#	{
+#		while (ip->i_flag & ILOCK) {
+#			ip->i_flag |= IWANT;
+#			sleep((caddr_t)ip, PINOD);
+#		}
+#		ip->i_flag |= ILOCK;
+#	}
+#  
+        .globl  plock
+        .globl  prele
+        .set    i_flag,0x24
+plock:
+        MOVW	0(%ap),%r1		# fetch pointer to inode
+        BITH	i_flag(%r1),&0x1	# is locked?
+	BNEB	plkslp			# yes, go to sleep
+	ORH2	&0x1,i_flag(%r1)	# set locked bit
+	RET
+plkslp:
+	ORH2	&0x10,i_flag(%r1)	# set wanted bit
+	SAVE	%fp			# make plock traceable
+	PUSHW	%r1			# push ip
+	PUSHW	&0xa			# push priority PINOD
+	CALL	-8(%sp),sleep		# zzzzz
+	RESTORE	%fp
+	BRB	plock			# try again
+#
+#	prele(ip)	/* release an inode */
+#	register struct inode *ip;
+#	{
+#		ip->i_flag &= ~ILOCK;
+#		if (ip->i_flag & IWANT) {
+#			ip->i_flag &= ~IWANT;
+#			wakeup((caddr_t)ip);
+#		}
+#	}
+#
+prele:
+        MOVW	0(%ap),%r1		# fetch pointer to inode
+        ANDH2	&0xfffe,i_flag(%r1)	# clear locked bit
+        BITH	i_flag(%r1),&0x10	# check wanted bit
+	BEB	prlret			# not wanted, return
+	ANDH2	&0xffef,i_flag(%r1)	# clear wanted bit
+	PUSHW	%r1			# push ip
+	CALL	-4(%sp),wakeup		# wakeup sleepy heads !
+prlret:
+	RET
+#endif

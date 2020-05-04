@@ -5,21 +5,21 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)tools:vsupport.c	1.36"
+#ident	"@(#)tools:vsupport.c	1.38"
 
 #include "../forms/muse.h"
 #include "vdefs.h"
 
 /*
  * This routine creates a template file, using the %/# convention,
- * from the datastructure.  It is not called when argc==1, i.e.,
- * when no .fs file was read in.
+ * from the datastructure.  It is not called when new==1, i.e.,
+ * when no existing .fs file was read in.
  */
 
 extern char tf_name[];
 
 VOID copy_form_file(tf_n0) /* Assumes 0 or 1 segments per field */
-register char *tf_n0;
+register char *tf_n0;   /* Name of vi screen file */
 {
    register i=0, I=0, i0=0, j, col;
    register struct field *f_pt;
@@ -32,12 +32,14 @@ register char *tf_n0;
       status = 2;
       vdone();
    }
-   /*
+/*
  * Go thru fields 1 by 1; determine whether caption precedes
  * segment, vice versa, or whether one is missing; store
  * string(s) in first and second, to be printed out in that
  * (horizontal) order.
  * Eliminate certain illegal cases along the way.
+ *  cflag=1 iff caption in non-empty
+ *  sflag=1 iff segment in non-empty
  */
    for (f_pt=fields;f_pt<=last_field_pt;f_pt++)
    {
@@ -48,7 +50,7 @@ register char *tf_n0;
       sflag = (s_pt!=NULL && s_pt->word!=NULL && *s_pt->word!=null);
       if (sflag) sl=strlen(s_pt->word);
       else sl=0;
-      if (cl>1022 || sl>1022) {
+      if (cl>1022 || sl>1022) {   /* Caption or segment too long */
          fclose(tf_pt);
          unlink(tf_n0);
          endwin();
@@ -58,13 +60,13 @@ register char *tf_n0;
       for (i=0;i<1023;i++) first[i] = second[i] = null;
 
       if (cflag) {
-         if (sflag) {
-            if (f_pt->col<s_pt->col) {
+         if (sflag) {      /* Caption and sgement */
+            if (f_pt->col<s_pt->col) {  /* caption precedes segment */
                col = f_pt->col;
                sccat(first,f_pt->caption);
                strcat(first,"%");
                i = s_pt->col - col - strlen(f_pt->caption);
-               if (i>1) {
+               if (i>1) { /* Add spaces to get right columns */
                   strcat(second," ");
                   --i;
                   if (i>1) while (--i>0) strcat(second," ");
@@ -73,12 +75,12 @@ register char *tf_n0;
                else
                   sccat(second,s_pt->word);
             }
-            else {
+            else {       /* Segment precedes caption */
                col = s_pt->col;
                sccat(first,s_pt->word);
                strcat(first,"#");
                i = f_pt->col - col - strlen(s_pt->word);
-               if (i>1) {
+               if (i>1) { /* Add spaces to get right columns */
                   strcat(second," ");
                   --i;
                   if (i>1) while (--i>0) strcat(second," ");
@@ -88,24 +90,26 @@ register char *tf_n0;
                   sccat(second,f_pt->caption);
             }
          }
-         else {
+         else {    /* Caption only */
             col = f_pt->col;
             sccat(first,f_pt->caption);
             if (f_pt->type!=0 && f_pt->type!=9) strcat(first,"%");
          }
       }
       else {
-         if (sflag) {
+         if (sflag) {   /* Segment only */
             col = s_pt->col-1;
             strcat(first,"%");
             sccat(first,s_pt->word);
          }
-         else {
+         else {   /* Neither segment nor caption present: should
+                     never happen -- fatal error, exit */
             status=5;
             vdone();
          }
       }
 
+      /* Display first and second in appropriate locations */
       for (i0=I+1; i0<f_pt->row; i0++) putc('\n',tf_pt);
       I = f_pt->row;
       for (j=0; j<col; j++) putc(' ',tf_pt);
@@ -140,22 +144,26 @@ char *s;
  * The next routine reads a template file line for line,
  * and updates the MUSE data structure.
  * It parses any on-blank line using the %/# convention.
- * It stores strings and coordinates in a temporary field, f,
+ * It stores strings and coordinates in a temporary field, f0,
  * and segment, s = *f.first_s_pt.
  * It then tries to match (using the prompt() routine) the
  * field to a field in fields[].
+ * Program moves between states #defined below.  
  */
 
-#define BEGIN     00
-#define EXPSEGM   01
-#define INQ       02
-#define INSEGM    03
-#define EXPCAP    04
-#define INCAP     05
+#define BEGIN     00   /* beginning of line */
+#define EXPSEGM   01   /* Expects caption -- % has been found */
+#define INQ       02   /* First non-blank character found; do not
+                          know yet whether it is a segment or a caption.
+                          If % or \n is found, most be caption;
+                          segment, if # is found. */
+#define INSEGM    03   /* In segment -- % has been found. Terminated by \n */
+#define EXPCAP    04   /* Expects caption -- # has been found */
+#define INCAP     05   /* In caption */
 
 VOID copy_file_form(fp0,flag)
 register FILE *fp0;
-int flag;   /* =argc: if 1, no interactive prompting */
+int flag;   /* =new: if 1, no interactive prompting */
 {  
    register char *c_pt;
    char str[1024], caption[1024], word[1024];
@@ -164,6 +172,9 @@ int flag;   /* =argc: if 1, no interactive prompting */
    int c, state, j=0, i=1, col=0;
    int slflag = 0;
 
+/* 
+ * Initialize temporary field.
+ */
    f0.first_s_pt = NULL;
    f0.first_v_pt = NULL;
    f0.first_i_pt = NULL;
@@ -183,12 +194,18 @@ int flag;   /* =argc: if 1, no interactive prompting */
    *(c_pt = str) = null;
    state = BEGIN;
 
+/* 
+ * Initialize temporary segment.
+ */
    *caption = *word = null;
    f0.caption = caption;
    s.word = word;
    s.next = (struct segment*)0;
    f0.first_s_pt = &s;
 
+/*
+ * Process the vi screen file.
+ */
    while ((c=getc(fp0))!=EOF) {
       if ( c=='\\' && !slflag) slflag = 1; /* set flag; get next char */
       else if (slflag) goto DFLT;       /* every char as default   */
@@ -354,7 +371,7 @@ int flag;   /* =argc: if 1, no interactive prompting */
 
 VOID prompt(f_pt,flag)
 register struct field *f_pt;
-int flag;   /* = argc; if ==1, no interactive prompting 
+int flag;   /* = new; if ==1, no interactive prompting 
                -- all fields new */
 {  
    static int taken[MAXFIELDS];
@@ -368,7 +385,9 @@ int flag;   /* = argc; if ==1, no interactive prompting
    extern int helpnum;
    int test, ci, cj;
 
-   /*
+/*
+ * Reset taken[] -- array that specifies (by field number)
+ * which fields in data structure have been identified in vi screen
  * Called at beginning of layout()
  */
    if (flag==3) {
@@ -376,7 +395,7 @@ int flag;   /* = argc; if ==1, no interactive prompting
       return(1);
    }
 
-   /*
+/*
  * This is a cleanup procedure invoked after all prompting
  * has been finished.  It looks for fields that have been
  * eliminated in vi, and copies the last field into their location.
@@ -386,7 +405,7 @@ int flag;   /* = argc; if ==1, no interactive prompting
    if (f_pt==(struct field*)0) {
 
    /*
-    * First remove references to non-take fields
+    * First remove references to non-taken fields
     */
       for (f0_pt=fields,i_pt=taken; f0_pt<=last_field_pt; 
           f0_pt++,i_pt++)
@@ -394,7 +413,8 @@ int flag;   /* = argc; if ==1, no interactive prompting
             rm_ref(f0_pt,taken); /* Remove references to this field */
 
    /*
-    * Now close gaps in fields[].
+    * Now close gaps in fields[], and remove references to thus
+    * eliminated fields.
     */
       for (f0_pt=fields,i_pt=taken; f0_pt<=last_field_pt; 
           f0_pt++,i_pt++)
@@ -416,7 +436,7 @@ int flag;   /* = argc; if ==1, no interactive prompting
    if (flag==1)   /* No old .fs file  */
       goto new;
 
-   /*
+/*
  * Now get on with the real stuff.
  */
 
@@ -425,7 +445,7 @@ REPROMPT:
    strcpy(second,find_f_s(f_pt)->second);
 
 
-   /*
+/*
  * First try to find an exact match; if found, return and continue
  * with copy_file_form(). i_pt and taken[] keep track of which
  * elements of fields[] already have been assigned to a screen line.
@@ -437,7 +457,9 @@ REPROMPT:
          strcpy(first0,find_f_s(f0_pt)->first);
          strcpy(second0,find_f_s(f0_pt)->second);
 
-         if (fequal(f_pt,f0_pt)==1)  {
+         if (fequal(f_pt,f0_pt)==1)  {  /* Match!  Copy field changes
+                                           into data structure, and
+                                           declare field as "taken" */
             part_fcopy(f0_pt,f_pt);
             *i_pt = 1;
             return(1);
@@ -446,8 +468,9 @@ REPROMPT:
    }
 
 
-   /*
- * If program got here, exact match failed.  FIrst ask whether
+
+/*
+ * If program got here, exact match failed.  First ask whether
  * non-matchable field is entirely new.
  */
 
@@ -466,12 +489,16 @@ XX:
    case 'n':
       addstr("ew"); refresh();
 new:
+      /* Initialize new field */
       if (flag==1 && firstf==0) {
          firstf = 1;
          initfp(last_field_pt);
       }
       else
          initfp(++last_field_pt);
+
+         /* Copy field changes into data structure, and
+            declare field as "taken" */
       part_fcopy(last_field_pt,f_pt);
       i_pt = taken + (int)(last_field_pt-fields);
       *i_pt = 1;
@@ -483,7 +510,7 @@ new:
          i_pt++) {
          if (*i_pt == 0) test = 1;
       }
-      if (test==0) {
+      if (test==0) {   /* No non-taken fields left */
          beep();
          getyx(stdscr,ci,cj);
          mvaddstr(ci+1,2,
@@ -531,7 +558,7 @@ new:
          if (*second0) addstr(second0);
          refresh();
 /*
- * If 'y', copy x/y and caption/word onto old field; keep other
+ * If 'y', copy row/col and caption/word onto old field; keep other
  * info about old field intact -- it may just be a minor
  * rewrite of the caption.
  */
@@ -642,6 +669,9 @@ AA:
 }
 
 
+/*
+ * Initialize field user has declared as "new".
+ */
 initfp(f_pt)
 struct field *f_pt;
 {  
@@ -661,8 +691,11 @@ struct field *f_pt;
    dflt(f_pt);
 }
 
+/*
+ * Specify default mapping and other parameters.
+ */
 dflt(f_pt)
-struct field *f_pt;        /* Specify default mapping */
+struct field *f_pt;        
 {  struct fix *p_pt;
 
    if (mode!=MENU) {
@@ -695,9 +728,14 @@ struct field *f_pt;        /* Specify default mapping */
    }
 }
 
-part_fcopy(of_pt,if_pt) /* Partial field copy: x/y caption/word only */
-                        /* Preserves certain types of information in */
-                        /* output field -- of_pt.                    */
+/*
+ * Partial field copy: row/col caption/word only
+ * Preserves certain types of information in
+ * output field -- of_pt.                   
+ * if_pt is temporary field with info from vi screen, of_pt is
+ * field in data structure.
+ */
+part_fcopy(of_pt,if_pt) 
 register struct field *of_pt, *if_pt;
 {  
    register struct segment *os_pt, *is_pt=if_pt->first_s_pt;
@@ -758,6 +796,11 @@ register struct field *of_pt, *if_pt;
    }
 }
 
+/*
+ * Gemnerates two strings, first[] and second[], that contain
+ * caption and segment, in an order that depends on their column
+ * coordinates.
+ */
 struct first_second *find_f_s(f_pt)
 struct field *f_pt;
 {  
@@ -796,7 +839,10 @@ struct field *f_pt;
 }
 
 
-fcopy(f1_pt,f0_pt)                /* TO f1_pt, FROM f0_pt        */
+/*
+ * Complete field copy, FROM f0_pt TO f1_pt.
+ */
+fcopy(f1_pt,f0_pt)
 register struct field *f0_pt, *f1_pt;
 {
    f1_pt->type = f0_pt->type;
@@ -823,6 +869,11 @@ register struct field *f0_pt, *f1_pt;
    f1_pt->bundle = f0_pt->bundle;
 }
 
+/*
+ * Reorder fields[] in terms of ->row.  Use relable()
+ * function to make corresponding changes in between-field
+ * references.
+ */
 reorder()
 {  
    register struct field *f0_pt, *f1_pt;
@@ -838,6 +889,9 @@ reorder()
 }
 
 
+/*
+ * Decide if two fields have same caption AND segment.
+ */
 int fequal(fa_pt,fb_pt)
 register struct field *fa_pt, *fb_pt;
 {  
@@ -910,8 +964,8 @@ register struct index *in_pt;
 }
 
 /*
- * changes $Fa into $Fb and vv., in shell validation.
- *
+ * changes $Fa into $Fb and vice versa, 
+ * in shell validation.
  */
 shlabel(s,a,b)
 register int a, b;
@@ -947,6 +1001,10 @@ char *s;
 }
 
 
+/*
+ * Routine that checks ALL aspecis of the vi screen file.
+ * Called in layout().
+ */
 
 #define AGAIN  {fclose(fp1);\
                 fprintf(stderr,"\nType e to re-edit or <DEL> to quit:");\
@@ -988,7 +1046,7 @@ char *t_n;
          if (c_pt>s) linecount++;
          while (*--c_pt==SPACE) linelength--;
 
-         if (tabflag) {
+         if (tabflag) {   /* Has TAB */
             fprintf(stderr,"\n\Warning; possible problem in line %d:\n\n",vilc);
             fprintf(stderr,"%s\n\nProblem: ",s);
             fprintf(stderr,"Tabs may cause alignment errors\n ");
@@ -998,7 +1056,7 @@ char *t_n;
             if (dum=='e') return(0);
          }
 
-         if (linecount>MAXFIELDS-1 || 
+         if (linecount>MAXFIELDS-1 ||    /* Some error was found */
              (Yflag!=0 && Yflag!=2) ||
              Y_no_pflag ||
              ampspflag ||
@@ -1015,21 +1073,23 @@ char *t_n;
             fprintf(stderr,"%s\n\nError: ",s);
          }
 
-         if (linecount>MAXFIELDS-1) {
+/* Now display error */
+
+         if (linecount>MAXFIELDS-1) {  /* TOo many fields */
             fprintf(stderr,"Too many fields (more than 99)");
             AGAIN;
          }
 
 
-         if (Yflag!=0 && Yflag!=2) {
+         if (Yflag!=0 && Yflag!=2) {  /* Odd number of ^Y's */
             fprintf(stderr,"a shell script must be preceded and followed by exactly one ^Y\n");
             AGAIN;
          }
-         if (Y_no_pflag) {
+         if (Y_no_pflag) {   /* Shell script in caption */
             fprintf(stderr,"shell scripts are only allowed in user input areas\n");
             AGAIN;
          }
-         if (pound_n_p) {
+         if (pound_n_p) {   
             fprintf(stderr,"pound sign not preceded by printing character\n");
             AGAIN;
          }
@@ -1081,6 +1141,9 @@ char *t_n;
          }
 
          tpoundflag += poundflag;
+/*
+ * Reset flags, accumukate totals.
+ */
          tpercentflag += percentflag;
          poundflag=percentflag=0;
          c_pt=s;
@@ -1172,8 +1235,12 @@ char *s;
    char cmd[256];
    FILE *tf_pt;
 
+/* Store pre-edit cursor location */
    getyx(stdscr,cj,ci);
 
+/* 
+ * Find and open temp file.
+ */
    if ((c_pt=tmpnam(NULL)) == NULL) return(s);
    strcpy(tf_n1,c_pt);
    sprintf(cmd,"%s %s",editor,tf_n1);
@@ -1183,6 +1250,9 @@ char *s;
       vdone();
    }
 
+/*
+ * Put string "s" in temp file.
+ */
    if (s!=NULL && *s!=null) {
       for (c_pt=s; *c_pt; c_pt++) putc(*c_pt,tf_pt);
       if (c_pt==s || *(c_pt-1)!='\n')
@@ -1191,21 +1261,27 @@ char *s;
 
    fclose(tf_pt);
 
+/* Store pre-edit screen */
    store(stdscr,0,LINES,COLS);
 
+/*
+ * Leave "curses" satet, call editor, and ghet back into 
+ * "curses" satet.
+ */
    clear();
    move(0,0);
    refresh();
    saveterm(); 
    resetterm();
    updatetty(&termbuf);
-   if (system(cmd)==256) {
-      fprintf(stderr,"Editor in \"%s\" not found\n",cmd);
-      exit(1);
-   }
+   system(cmd);
    catchtty(&termbuf);
    fixterm();
 
+/*
+ * Allocate enough space to contain temp file contents.
+ * Store temp file contents in string.
+ */
    stat(tf_n1,&buf);
    c_pt = str = (char*)calloc((unsigned)(buf.st_size+2),sizeof(char));
 
@@ -1216,9 +1292,11 @@ char *s;
 
    while ((c=getc(tf_pt))!=EOF) *c_pt++ = c;
    *c_pt = null;
+/* Strip final RETURNS and nulls */
    while (*c_pt==null || *c_pt=='\012' || *c_pt=='\015') *c_pt-- = null;
    fclose(tf_pt);
 
+/* Clean up */
    unlink(tf_n1);
    wclear(curscr);
 
@@ -1232,9 +1310,14 @@ char *s;
 #define RESTORE 1
 
 
-VOID store(w,flag,l,c) /* Last-in first-out screen memory */
+/*
+ * Last-in first-out screen memory.
+ * w: window; l, c: window lines and cols.
+ * flag=0: store; 1: restore
+ */
+VOID store(w,flag,l,c) 
 WINDOW *w;
-int flag;                             /* 0: store; 1: restore */
+int flag;
 int l, c;
 {  
    static chtype *cht_pt;
@@ -1276,6 +1359,9 @@ int l, c;
 }
 
 
+/*
+ * Set parameters describing terminal capabilities.
+ */
 termstuff()
 {  
    char *c_pt;
@@ -1309,6 +1395,9 @@ termstuff()
    }
 }
 
+/*
+ * Draws line in row "row"
+ */
 draw_line(row)
 int row;
 {  
@@ -1320,6 +1409,9 @@ int row;
 }
 
 
+/*
+ * Append char *in to char *out, escaping # and %.
+ */
 sccat(out,in)
 register char *in, *out;
 {
@@ -1332,7 +1424,10 @@ register char *in, *out;
    *out = null;
 }
 
-ampersand(s)  /* Strips & and spaces; tests if string ends on & */
+/*
+ * Strips & and spaces; tests if string ends on &
+ */
+ampersand(s)  
 char *s;
 {
    register char *c_pt;
@@ -1349,6 +1444,9 @@ char *s;
 }
 
 
+/*
+ * Checks if help message has invalid characters.
+ */
 int helpchk(s)
 char *s;
 {  int lines=1, j=0, maxj=0, Yflag=0, Bflag=0;
@@ -1380,6 +1478,9 @@ char *s;
    return(0);	/*help message has too many lines*/
 }
 
+/*
+ * exit function called by signal(,).
+ */
 tdone()
 {  int i;
    for (i=1; i<18; i++) signal(i,SIG_IGN);

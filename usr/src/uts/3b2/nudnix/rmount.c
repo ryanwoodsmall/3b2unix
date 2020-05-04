@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/rmount.c	10.39"
+#ident	"@(#)kern-port:nudnix/rmount.c	10.39.6.2"
 /*
  *	remote mount stuff - provide remote access to a
  *	designated part of a file system structure.
@@ -41,6 +41,10 @@
 #include "sys/rdebug.h"
 #include "sys/inline.h"
 #include "sys/sysinfo.h"
+#include "sys/fs/s5param.h"
+#include "sys/fs/s5macros.h"
+#include "sys/buf.h"
+#include "sys/rbuf.h"
 
 extern	time_t	time;
 extern	int	bootstate;
@@ -51,7 +55,8 @@ extern	struct	advertise *getadv (), *findadv ();
 extern	struct	srmnt	*alocsrm ();
 extern	rcvd_t	cr_rcvd();
 extern 	int	adv_lck;
-extern	struct gdp gdp[];
+extern	struct gdp	gdp[];
+extern	char	Domain[MAXDNAME];
 char	*nameptr();
 char	*h_alloc();
 
@@ -71,6 +76,7 @@ rmount()
 	register struct	inode *ip = NULL;
 	register struct	mount *mp = NULL, *m;	
 	char	name[MAXDNAME+1];
+	char	*rsrc;
 	struct token	token;
 	char	*to, *from;	
 	register struct	request	*request; /*  request message to send out */
@@ -117,14 +123,40 @@ rmount()
 			return;
 		}
 
-		/*  make sure that resource isn't advertised locally  */
-		if ((ap = findadv (name)) != NULL) {
-			/* Remove this test to allow mount of local resource. */
-			if ( !(ap->a_flags & A_MINTER)) {
-				u.u_error = EINVAL;
-				return;
+		/* if DB_LOOPBCK has been set with rdebug, then allow mounts */
+		/* of locally advertised resources.  Otherwise, they fail.   */
+
+		if (!(dudebug & DB_LOOPBCK)) {
+			/*  make sure that resource isn't advertised locally.  */
+			/*  to do this, you separate the resource and the domain */
+			/*  name (if there is one).  If the domain is the current */
+			/*  domain, check to see if the resource is in the local */
+			/*  advertise table.  THIS ALGORITHM WILL CHANGE WHEN MULTI- */
+			/*  LEVEL DOMAIN STRUCTURES ARE INTRODUCED TO RFS */
+
+			for (rsrc = name; *rsrc && *rsrc != '.'; rsrc++)
+				;
+			if (*rsrc == '.') {
+				*rsrc = '\0';
+				rsrc++;		/* move past the . (now a null) */
+				if (strcmp(name, Domain) == 0) 
+					if ((ap = findadv(rsrc)) != NULL) {
+						if ( !(ap->a_flags & A_MINTER)) {
+							u.u_error = EINVAL;
+							return;
+						}
+					}
+				*--rsrc = '.';	/* replace the . in the name */
 			}
+			else 
+				if ((ap = findadv (name)) != NULL) {
+					if ( !(ap->a_flags & A_MINTER)) {
+						u.u_error = EINVAL;
+						return;
+					}
+				}
 		}
+
 		if ((qp = get_circuit (-1, &token)) == NULL) {
 			DUPRINT3(DB_MNT_ADV,"rmount fails: token.t_id=%x, t_uname=%s\n",
 				token.t_id, token.t_uname);
@@ -201,6 +233,8 @@ rmount()
 	tcanon("c0",nameptr(name),request->rq_data,0);
 	request->rq_uid = u.u_uid;
 	request->rq_gid = u.u_gid;
+	if (rcache_enable == 0)
+		uap->rwflag &= ~MS_CACHE;	/* no client caching */
 	request->rq_flag = uap->rwflag;
 	request->rq_mntindx = u.u_mntindx;
 	request->rq_sysid = GDP(qp)->sysid;
@@ -261,6 +295,8 @@ rmount()
 
 	mp->m_rflags = MDOTDOT;
 	mp->m_flags = MINUSE;
+	if (resp->rp_rval & MCACHE)
+		mp->m_rflags |= MCACHE;		/* set client cache flag */
 
 	/* success */
 	if (uap->rwflag & 1)
@@ -328,10 +364,6 @@ struct gdp	*gp;
 		u.u_error = ENODEV;
 		return(NULL);
 	}
-	if (ap->a_flags & A_MINTER) {
-		u.u_error = ENONET;
-		return(NULL);
-	}
 	ip = ap->a_queue->rd_inode;
 	
 	if ((ap->a_flags & A_RDONLY) && !(uap->rwflag & 1)) {
@@ -343,6 +375,10 @@ struct gdp	*gp;
 	/* see if client is authorized	*/
 	if (ap->a_clist && !checkalist(ap->a_clist,gp->token.t_uname)) {
 		u.u_error = EACCES;
+		goto out;
+	}
+	if (ap->a_flags & A_MINTER) {
+		u.u_error = ENONET;
 		goto out;
 	}
 	/*  allocate an entry in the srmount table  */
@@ -363,6 +399,8 @@ struct gdp	*gp;
 	smp->sr_slpcnt = 0;
 	if (uap->rwflag & 1)
 		smp->sr_flags |= MRDONLY;
+	if (uap->rwflag & MS_CACHE && rcache_enable)	/* client cache */
+		smp->sr_flags |= MCACHE;
 	smp->sr_refcnt = 1;
 	ip->i_flag = ip->i_flag | IDOTDOT;
 	ip->i_count++;
@@ -462,6 +500,9 @@ rumount()
 	/*  Success - srmnt entry was removed from remote  */
 	/*  (or link is down, so let unmount succeed anyway) */
 success:
+	/* invalidate cache for this mount device */
+	if (mp->m_rflags & MCACHE)
+		rmntinval(sd);
 	GDP(sd->sd_queue)->mntcnt--;
 	put_circuit (sd->sd_queue);
 	mp->m_inodp->i_flag &=  ~IRMOUNT;
@@ -571,147 +612,6 @@ struct	inode	*ip;
 	}
 	return (smp);
 }
-
-/*  Remote lbin unmount
- */
-rlbumount (sd)
-sndd_t	sd;
-{
-	mblk_t	*in_bp;
-	mblk_t	*out_bp;
-	struct	request	*req;
-	sndd_t	new_gift;		/* IGNORED -- from rsc */
-
-	out_bp = alocbuf (sizeof (struct request) - DATASIZE, BPRI_LO);
-	if (out_bp == NULL) {
-		u.u_error = EINTR;
-		return;
-	}
-	req = (struct request *) PTOMSG(out_bp->b_rptr);
-	req->rq_type = REQ_MSG;
-	req->rq_opcode = DULBUMOUNT;
-	req->rq_mntindx = sd->sd_mntindx;
-	dinfo.osyscall++;		/* outgoing (umount) system calls */
-	if (rsc (sd, out_bp, sizeof (struct request) - DATASIZE,
-		&in_bp, new_gift) != SUCCESS) {
-		if (u.u_error == ENOLINK) {
-			DUPRINT1 (DB_MNT_ADV,
-				"rlbumount succeeds because link is gone\n");
-			u.u_error = 0;	/* all OK at user level */
-			free_sndd (sd);
-		}
-		return;
-	}
-	free_sndd (sd);
-	freemsg (in_bp);
-	return;
-}
-
-/*  Server side of lbin mount
- *
- *  Namei on the other side has detected a remote directory,
- *  so call namei here to complete the pathname evaluation
- *  and set up a new srmount table entry for the mounted-on
- *  directory.
- */
-
-rcvd_t
-slbmount ()
-{
-	struct a  {
-		char	*name;
-		int	newmntindx;
-	}  *uap = (struct a *) u.u_ap;
-	register struct	inode	*ip;
-	register rcvd_t	gift;
-	struct	srmnt	*smp;
-
-	ip = namei (upath, 0);
-	if (ip == NULL)
-		return(NULL);
-
-	u.u_error = EMULTIHOP;
-	iput(ip);
-	return(NULL);
-}
-
-/***** following code comes back if lbin comes back
-
-	if (ip->i_flag & IRMOUNT)  {
-		u.u_error = EBUSY;
-		iput (ip);
-		return (NULL);
-	}
-	if (ip->i_ftype != IFDIR) {
-		u.u_error = ENOTDIR;
-		iput(ip);
-		return(NULL);
-	}
-	smp = alocsrm (ip);
-	if (u.u_error)  {
-		iput (ip);
-		return (NULL);
-	}
-	if ((gift = ip->i_rcvd) == NULL)  {
-		if ((gift = ip->i_rcvd = cr_rcvd (FILE_QSIZE, GENERAL|RDLBIN)) == NULL) {
-			u.u_error = ENOMEM;
-			iput(ip);
-			return (NULL);
-		}
-		gift->rd_inode = ip;
-		gift->rd_max_serv = FILE_QSIZE;
-	}
-
-	smp->sr_sysid = u.u_procp->p_sysid;
-	smp->sr_rootinode = ip;
-	smp->sr_mntindx = uap->newmntindx;
-	smp->sr_dotdot = u.u_mntindx;
-	smp->sr_refcnt = 1;
-	smp->sr_bcount = 0;
-	smp->sr_flags = MINUSE | MLBIN;
-	srmount[u.u_mntindx].sr_refcnt++;
-	u.u_mntindx = smp - srmount;
-	ip->i_flag = ip->i_flag | ILBIN;
-	prele(ip);
-	return (gift);
-
-}
-***** end of old slbmount - comes back if lbin comes back *****/
-
-/*  Server side of lbin unmount.
- *
- *  The other side has checked that there is no activity in the
- *  file system.  This side just has to free the srmount entry.
- *  Inode is locked by routines that call this routine.  This routine
- *  is called by server and by recovery.
- */
-
-slbumount (smp, ip)
-struct	srmnt	*smp;
-struct	inode	*ip;
-{
-}
-
-/***** following code comes back if lbin comes back
-
-{
-	struct	srmnt	*smatch;
-
-	DUPRINT3 (DB_MNT_ADV, "slbumount: entry %x, inode %x \n", smp, ip);
-	ASSERT(smp->sr_refcnt == 1);
-	smp->sr_flags = MFREE;
-	smp->sr_rootinode = NULL;
-	for (smatch = srmount; smatch < &srmount[nsrmount]; smatch++)
- 		if ((smatch->sr_flags != MFREE) &&
- 		    (smatch->sr_rootinode == ip) &&
- 		    (smatch->sr_flags & MLBIN))
-			break;
-	if (smatch == &srmount [nsrmount])  
-		ip->i_flag = ip->i_flag & ~ILBIN;
-	return;
-}
-
-***** end of old slbumount - comes back if lbin comes back *****/
 
 /*
  *	nameptr returns a pointer to the last element of

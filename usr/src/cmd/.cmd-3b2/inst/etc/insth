@@ -1,8 +1,8 @@
-#ident	"@(#)cmd-3b2:inst/etc/insth	1.24"
+#ident	"@(#)cmd-3b2:inst/etc/insth	1.24.1.5"
 #
 # insth
 #
-# Install the remainder of the core UNIX system (while booted from
+# Install the remainder of the Essential Utilities UNIX system (while booted from
 # the hard disk).
 #
 
@@ -46,9 +46,9 @@ do
 	do
 		set +x
 		case `askx -H shell -H trace -m "\
-Please insert the 3B2 Core System floppy number ${seq}." \
+Please insert the Essential Utilities floppy number ${seq}." \
 			-q "Type \"go\" when ready" -h "\
-There are six floppy diskettes labelled \"3B2 Core System\". Please
+There are six floppy diskettes labelled \"Essential Utilities\". Please
 place the one identified as \"#${seq}\" in the floppy drive and close
 the door." \
 			-c go -c quit` in
@@ -81,8 +81,8 @@ Incorrect floppy" >&2
 		fi
 	done
 	echo "
-Installing additional core system files. This should take no more than
-ten minutes." >&2
+Installing additional Essential Utilities system files.
+This should take no more than ten minutes." >&2
 	cd /install
 	FILES="`find . -print`"
 	echo "${FILES}" | cpio -pdmu /
@@ -93,7 +93,7 @@ ten minutes." >&2
 done
 
 echo "
-You may now remove the last 3B2 Core System floppy." >&2
+You may now remove the last Essential Utilities floppy." >&2
 
 cd /inst/final
 FILES="`find . -print`"
@@ -150,11 +150,11 @@ then
 			-e '/:.*:off:/p' \
 				< etc/inittab |
 			sed \
-			-e '/^[1-9][0-9]*[1-5]:.*:off:/s/:.*:off:/:234:off:/' \
+			-e '/^[1-9][0-9]*[1-9]:.*:off:/s/:.*:off:/:234:off:/' \
 			-e '/^ct:.*:off:/s//ct:234:off:/' \
 			-e '/^co:.*:off:/s//co:234:off:/' \
 			-e '/^he:.*:off:/s//he:234:off:/' \
-			-e '/^[1-9][0-9]*[1-5]:.*:respawn:/s/:.*:respawn:/:234:respawn:/' \
+			-e '/^[1-9][0-9]*[1-9]:.*:respawn:/s/:.*:respawn:/:234:respawn:/' \
 			-e '/^ct:.*:respawn:/s//ct:234:respawn:/' \
 			-e '/^co:.*:respawn:/s//co:234:respawn:/' \
 			-e '/^he:.*:respawn:/s//he:234:respawn:/' \
@@ -192,7 +192,29 @@ contty3H# B2400 OPOST ONLCR # B2400 HUPCL SANE IXANY TAB3 #login: #contty4H
 contty4H# B4800 OPOST ONLCR # B4800 HUPCL SANE IXANY TAB3 #login: #contty5H
 
 contty5H# B19200 OPOST ONLCR # B19200 HUPCL SANE IXANY TAB3 #login: #conttyH
+!
+	fi
 
+	###  Add 38400 to /etc/gettydefs if none exists
+if grep '38400#' /etc/gettydefs > /dev/null
+then
+	:
+else
+	ed  /etc/gettydefs > /dev/null <<!
+	/^19200#/s/19200/38400/g
+	s/#9600/#19200/
+	a
+
+19200# B19200 HUPCL # B19200 SANE IXANY TAB3 HUPCL #login: #9600
+.
+	/^300#/s/#19200/#38400/
+	/^19200H#/s/#2400H/#38400H/
+a
+
+38400H# B38400 # B38400 SANE IXANY TAB3 HUPCL #login: #2400H
+.
+	w
+	q
 !
 	fi
 
@@ -235,7 +257,7 @@ contty5H# B19200 OPOST ONLCR # B19200 HUPCL SANE IXANY TAB3 #login: #conttyH
 *
 * The \"Release Upgrade Procedure\" has saved (what it considers to be) 
 * the basic system configuration files.  Most of these files are copied 
-* back to their original  location;  a few are replaced with new (core) 
+* back to their original  location;  a few are replaced with new 
 * distribution copies. A new /etc/system file was provided as part of
 * the new release. It will include only the MAU driver.
 * Optional packages must be reinstalled.

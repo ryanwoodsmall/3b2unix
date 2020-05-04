@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)ed:ed.mk	1.18"
+#ident	"@(#)ed:ed.mk	1.19"
 
 #	Makefile for ed
 
@@ -16,10 +16,10 @@ DIR = $(ROOT)/bin
 INC = $(ROOT)/usr/include
 
 IFLAG = -n
-LDFLAGS = -s -lcrypt -lgen $(IFLAG) $(LDLIBS)
+LDFLAGS = -s -lcrypt -lgen $(IFLAG) $(LDLIBS) 
 
 B10 =
-CFLAGS = -O -I$(INC) -DCRYPT $(B10)
+CFLAGS = -O -I$(INC) $(B10)
 
 STRIP = strip
 

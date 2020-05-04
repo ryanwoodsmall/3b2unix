@@ -1,5 +1,5 @@
 /*	libc.h
-	Declarations of functions in /xe/3b2/3.0/usr/lib/llib-lc
+	Declarations of functions in /xe/3b2/3.1/usr/lib/llib-lc
 */
 /*LINTLIBRARY*/
 #ident	"Based on:	lint:llib-lc	2.19"

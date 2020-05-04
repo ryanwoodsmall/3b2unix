@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:extern.c	1.2"
+#ident	"@(#)mailx:extern.c	1.3"
 
 /*
  * mailx -- a modified version of a University of California at Berkeley
@@ -71,6 +71,8 @@ char	**altnames;			/* List of alternate names for user */
 int	debug;				/* Debug flag set */
 int	rmail;				/* Being called as rmail */
 char	*prompt = NOSTR;		/* prompt string */
+int	space;				/* Current maximum number of messages */
+int	maxfiles;			/* Maximum number of open files */
 
 jmp_buf	srbuf;
 

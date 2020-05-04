@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)sadmin3b2:etc/Makefile	1.6"
+#ident	"@(#)sadmin3b2:etc/Makefile	1.7"
 #	Makefile for etc
 #	Generated Wed May  1 14:03:24 EDT 1985 from skeleton makefile:
 #  sadmin3b2:etc/SKELMakefile  1.1 \
@@ -34,7 +34,6 @@ $(DIR):
 
 remove:
 	cd $(DIR);  rm -f $(PARTS)
-	-cd $(DIR);  rmdir $(DIRS)
 
 partslist:
 	@echo Makefile SKELMakefile $(PARTS)  |  tr ' ' '\012'  |  sort

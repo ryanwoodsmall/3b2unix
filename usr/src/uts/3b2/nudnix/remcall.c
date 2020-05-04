@@ -5,7 +5,8 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/remcall.c	10.27"
+
+#ident	"@(#)kern-port:nudnix/remcall.c	10.27.7.13"
 /*
  *	R E M O T E   C A L L
  *
@@ -56,6 +57,14 @@
 #include "sys/rdebug.h"
 #include "sys/nami.h"
 #include "sys/fstyp.h"
+#include "sys/fs/s5param.h"
+#include "sys/fs/s5macros.h"
+#include "sys/buf.h"
+#include "sys/rbuf.h"
+
+#define MAXRETRY 10
+
+int info_ipretry;
 
 extern	time_t	time;
 extern	struct	inode *rem_inode(); 
@@ -69,12 +78,14 @@ caddr_t arg;
 	mblk_t	*in_bp;
 	register mblk_t	*out_bp;
 	register struct	request	*msg_out;
-	struct	response  *msg_in;
+	struct	response  *resp;
 	sndd_t	ret_gift = NULL;/* gift w/in-bound msg		*/
 	struct	inode *inode_p;	/* return value		 */
 	int	c;		/* c and cp are used to move the */
 	register char	*cp;	/* pathname to the msg_out buffer*/
 	int	jump = 0;	/* whether to longjmp at end  */
+	char 	*nextcp = u.u_nextcp;	/* save nextcp pointer for retrans */
+	int retry = 0;			/*retry count */
 
 	DUPRINT3(DB_SYSCALL, "remote_call: syscall is %d (%s)\n",
 		u.u_syscall, sysname(u.u_syscall));
@@ -84,6 +95,7 @@ caddr_t arg;
 	}
 	sysinfo.remcall++;
 	out_port->sd_refcnt++;	/* rmount will not succeed if cnt > 1 */
+resend:
 	out_bp = alocbuf(sizeof (struct request), BPRI_LO);
 	if (out_bp == NULL) {
 		u.u_error = EINTR;
@@ -93,20 +105,24 @@ caddr_t arg;
 	msg_out->rq_type = REQ_MSG;
 	msg_out->rq_mntindx = out_port->sd_mntindx;
 	cp = msg_out->rq_data;
-	while (c = *u.u_nextcp) {
-		if (cp < &msg_out->rq_data[DATASIZE - 2])
-			*cp++ = c;
-		else {
-			u.u_error = E2BIG;
-			freemsg (out_bp);
-			goto out;
+	if (u.u_syscall != DUCLOSE && u.u_syscall != DUUPDATE 
+	    && u.u_syscall != DUSYNCTIME && u.u_syscall != DUIUPDATE) {  
+		u.u_nextcp = nextcp;
+		while (c = *u.u_nextcp) {
+			if (cp < &msg_out->rq_data[DATASIZE - 2])
+				*cp++ = c;
+			else {
+				u.u_error = E2BIG;
+				freemsg (out_bp);
+				goto out;
+			}
+			u.u_nextcp++;
 		}
-		u.u_nextcp++;
+		*cp++ = '\0';	/*  namei on the other side looks one char past the
+				    end of the string.  Don't take this out!!*/
+				
 	}
-	*cp++ = '\0';	/*  namei on the other side looks one char past the
-			    end of the string.  Don't take this out!!*/
-			
-	rcallmsg (msg_out, out_port, &ret_gift,arg);
+	rcallmsg (msg_out, out_port, &ret_gift,arg,ip);
 	if (u.u_error) {
 		freemsg (out_bp);
 		goto out;
@@ -121,11 +137,24 @@ caddr_t arg;
 			free_sndd(ret_gift);
 		goto out;
 	}
+	resp = (struct response *)PTOMSG(in_bp->b_rptr);
+	if (resp->rp_errno == ENOMEM && resp->rp_type == NACK_MSG) {
+		if(u.u_syscall == DUCLOSE || retry++ < MAXRETRY) {
+			if (ret_gift)
+				free_sndd(ret_gift);
+			freemsg(in_bp);
+			DUPRINT4(DB_SYSCALL,"pid = %d opcode=%d, RETRY = %d \n",u.u_procp->p_pid,u.u_syscall,retry);
+			goto resend;
+		}
+	}
 	out_port->sd_refcnt--;
 	jump = rcallret (in_bp, ret_gift, &inode_p, out_port, ip);
 	/* Ensure u.u_nextcp doesn't point to a slash. */
-	while (*u.u_nextcp == '/')
-		u.u_nextcp++;
+	if (u.u_syscall != DUCLOSE && u.u_syscall != DUUPDATE 
+	    && u.u_syscall != DUSYNCTIME && u.u_syscall != DUIUPDATE) {  
+		while (*u.u_nextcp == '/')
+			u.u_nextcp++;
+	}
 	if (jump) {
 		u.u_rflags |= U_RSYS;
 		longjmp (u.u_qsav, 1);
@@ -143,10 +172,11 @@ out:
  */
 
 static
-rcallmsg (rmp, out_port, gift, arg)
+rcallmsg (rmp, out_port, gift, arg, ip)
 register struct	request	*rmp;
 sndd_t out_port, *gift;
 caddr_t arg;
+register struct inode *ip;
 {
 	extern short dufstyp;
 
@@ -201,7 +231,6 @@ caddr_t arg;
 	case DUIUPDATE:
 	case DUUPDATE:
 		break;
-
 	case DUCLOSE:
 	{
 		register struct a {
@@ -271,13 +300,6 @@ caddr_t arg;
 		rmp->rq_cmask = u.u_cmask;
 		break;
 	}
-	case DULBMOUNT:
-		if ((*gift = cr_sndd()) == NULL) {
-			u.u_error = ENOMEM;
-			return;
-		}
-		rmp->rq_newmntindx = u.u_mntindx;  /*  set in smount()  */
-		break;
 	case DUMKDIR:
 	{
 		register struct a { char *fname; int fmode;  }
@@ -287,8 +309,9 @@ caddr_t arg;
 	}
 	case DUMKNOD:
 	{
-		register struct a { char *fname; int fmode; dev_t pad; 
-		dev_t dev; } *uap = (struct a *) u.u_ap;
+		register struct a { char *fname; int fmode;
+		int dev; } *uap = (struct a *) u.u_ap;
+
 		rmp->rq_fmode = uap->fmode;
 		rmp->rq_dev = uap->dev;
 		rmp->rq_cmask = u.u_cmask;
@@ -332,6 +355,7 @@ caddr_t arg;
 	{
 		register struct a { char *fname; time_t *tptr; }  
 		*uap = (struct a *) u.u_ap;
+
 		if ((*gift = cr_sndd()) == NULL)
 			u.u_error = ENOMEM;
 		rmp->rq_bufptr = (int) uap->tptr;
@@ -368,8 +392,8 @@ sndd_t	out_port;
 register struct inode *ip;
 {
 	int jump;
-	char *data;
 	struct	response *resp;
+	struct	rbuf	*rbp;
 
 	resp = (struct response *) PTOMSG(in_bp->b_rptr);
 	u.u_procp->p_sig |= resp->rp_sig;
@@ -390,14 +414,10 @@ register struct inode *ip;
 	}
 
 	/* Check for crossing machine boundary (ECROSSMNT). */
-	if ((resp->rp_opcode == DUDOTDOT) || (resp->rp_opcode == DULBIN)) {
+	if (resp->rp_opcode == DUDOTDOT)  {
 		u.u_nextcp -= strlen(resp->rp_data);
 		u.u_rflags |= U_DOTDOT;
-		if (resp->rp_opcode == DUDOTDOT)
-			*inop =  mount[resp->rp_mntindx].m_inodp;
-		else {
-			*inop =  mount[resp->rp_mntindx].m_mount;
-		}
+		*inop =  mount[resp->rp_mntindx].m_inodp;
 		plock (*inop);
 		(*inop)->i_count++;
 		if (gift) {
@@ -408,25 +428,74 @@ register struct inode *ip;
 	}
 	jump = JUMP;
 	*inop = NULL;
-	data = resp->rp_data;
 
-	if (gift)  
+	if (gift) {
 		gift->sd_mntindx = resp->rp_mntindx;
-		
+		gift->sd_fhandle = resp->rp_fhandle;
+	}
+
 	switch (u.u_syscall)  {
-	case DUEXEC:
-	case DUEXECE:
-	case DUCHDIR:
-	case DUCHROOT:
-	case DULBMOUNT:
 	case DUOPEN:
 	case DUCREAT:
-	case DUCOREDUMP:
+	{
+		int	cacheflg, stat;
+		jump = 0;
+		cacheflg = resp->rp_cache;
+		stat = ((struct message *) PTOMSG(in_bp->b_rptr))->m_stat;
+		*inop = rem_inode (ip, gift, in_bp);
+		if (*inop == NULL)
+			break;
+		gift = (sndd_t) (*inop)->i_fsptr;
+		if ( (cacheflg & RP_MNDLCK) && (stat & VER1) ) {
+			gift->sd_stat |= SDMNDLCK;
+			if (rcacheinit)
+				rfinval(gift, -1, 0);
+		}
+		if ((*inop)->i_mntdev->m_rflags & MCACHE) {
+			register struct a { char *fname; int mode; int crtmode;}
+			*uap = (struct a *) u.u_ap;
+			if (cacheflg & CACHE_ENABLE)
+				gift->sd_stat |= SDCACHE;
+			if (gift->sd_stat & SDCACHE &&
+			   ((*inop)->i_count == 1 || u.u_syscall == DUCREAT || 
+			   uap->mode & FTRUNC)) {
+				rfchk_vcode(gift, resp->rp_rval);
+			}
+		}
+		break;
+	}
+	case DUEXEC:
+	case DUEXECE:
+	{
+		register char *data;
+		register char *comp;
+
+		data = resp->rp_data;
+		u.u_comp = u.u_nextcp - strlen(data);
+		comp = u.u_comp;
+		while (*comp++ = *data++ );
+	}
+	case DUCOREDUMP: 
+	{
+		register sndd_t sd;
+		*inop = rem_inode (ip, gift, in_bp);
+		sd = (sndd_t)((*inop)->i_fsptr);
+		if (sd->sd_stat & SDCACHE)
+			rfinval(sd, -1, 0);
+		jump = 0;
+		break;
+	}
+	case DUCHDIR:
+	case DUCHROOT:
 	case DULINK:
 		*inop = rem_inode (ip, gift, in_bp);
 		jump = 0;
 		break;
 	case DUCLOSE:
+		if ((((sndd_t)ip->i_fsptr)->sd_stat & SDCACHE) &&
+		    (ip->i_count == 1))
+			rfbufstamp((sndd_t)ip->i_fsptr,
+				(unsigned long)resp->rp_rval);
 	case DUIUPDATE:
 	case DULINK1:
 	case DUUPDATE:
@@ -501,23 +570,19 @@ register struct inode *ip;
  *  In the DOT_DOT case, need to back up u.u_nextcp to point to the '..'.
  */
 
-goback (mntindx, why)
+goback (mntindx)
 int	mntindx;	/*  index into the srmount index	*/
-int	why;		/*  LBIN or DOT_DOT			*/
 {
 	register char c;
 
-	if (why == DOT_DOT) {	/*  point u.u_nextcp to the first '.'  */
-		/*
-		 * Back up over "..".  Note that a terminating slash may have
-		 * been zapped to NUL by namei().
-		 */
-		while ((c = *--u.u_nextcp) == '/' || c == '\0')
-			*u.u_nextcp = '/';
-		u.u_nextcp--;
-		u.u_error |= EDOTDOT;
-	} else		  /*  LBIN */
-		u.u_error |= ELBIN;
+	/*
+	 * Back up over "..".  Note that a terminating slash may have
+	 * been zapped to NUL by namei().
+	 */
+	while ((c = *--u.u_nextcp) == '/' || c == '\0')
+		*u.u_nextcp = '/';
+	u.u_nextcp--;
+	u.u_error |= EDOTDOT;
 	u.u_mntindx = mntindx;
 }
 
@@ -535,10 +600,26 @@ sendrsig()
 	register struct request *req;
 	register mblk_t	*bp;
 	register struct sndd *sd;
+	long sig;
+	int cursig;
 
+	sig = u.u_procp->p_sig;
+	cursig = u.u_procp->p_cursig;
+	u.u_procp->p_sig = 0;
+	u.u_procp->p_cursig = 0;
 	while ((bp = alocbuf(sizeof(struct request)-DATASIZE, BPRI_MED)) == NULL) {
+		sig |= u.u_procp->p_sig;
+		if (u.u_procp->p_cursig) {
+			if (cursig)
+				sig |= (1L << (u.u_procp->p_cursig - 1));
+			else
+				cursig = u.u_procp->p_cursig;
+		}
 		u.u_procp->p_sig = 0;
+		u.u_procp->p_cursig = 0;
 	}
+	u.u_procp->p_sig = sig;
+	u.u_procp->p_cursig = cursig;
 	req = (struct request *) PTOMSG(bp->b_rptr);
 	sd = (struct sndd *)u.u_procp->p_minwd;
 	req->rq_type = REQ_MSG;
@@ -554,23 +635,6 @@ sendrsig()
 	return (SUCCESS);
 }
 
-
-/* server() comes here from iget() when ip->i_flag & ILBIN is true */
-/* return code: 0: server crossing mount point, go back 
-		1: continue on this server machine */
-riget(ip)
-register struct inode *ip;
-{
-	register struct	srmnt	*smp;
-	extern struct srmnt *getsrmount(); 
-
- 	if (smp = getsrmount (ip, u.u_procp->p_sysid))  {
-		goback (smp->sr_mntindx, LBIN);
-		strcpy (u.u_arg[0], u.u_nextcp);
-		return (0);
-	}
-	return (1);
-}
 
 struct inode *
 rem_inode (ip, gift, in_bp)
@@ -627,10 +691,9 @@ register mblk_t *in_bp;
 
 duustat()
 {
-	register struct inode ip;
+	struct inode ip;
 	register struct a { char *cbuf; int dev; int cmd; } 
 	*uap = (struct a *) u.u_ap;
-	register struct mount *mp;
 	extern struct gdp gdp[];
 	short dev;
 	sndd_t sdp;
@@ -648,9 +711,8 @@ duustat()
 		free_sndd(sdp);
 		return(-1);
 	}
-	mp = (struct mount *) lobyte (dev);
 	qp = gdp[index].queue;
-	DUPRINT4 (DB_FSS,"duustat: mp %x qp %x sdp %x\n", mp, qp, sdp);
+	DUPRINT4 (DB_FSS,"duustat: dev %x qp %x sdp %x\n", dev, qp, sdp);
 	set_sndd (sdp, qp, CFRD, 0);
 	remfileop (&ip,NULL,NULL);
 	free_sndd(sdp);
@@ -673,7 +735,7 @@ queue_t *qp;
 {
 	register sndd_t sd;
 	register short tmp;
-	register struct inode ip;
+	struct inode ip;
 
 	if ((sd = cr_sndd ()) == NULL) { 
 		u.u_error = ENOMEM;

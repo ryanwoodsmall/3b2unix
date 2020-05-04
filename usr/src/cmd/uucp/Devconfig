@@ -1,4 +1,4 @@
-#ident	"@(#)uucp:Devconfig	1.1"
+#ident	"@(#)uucp:Devconfig	1.2"
 #
 #	Devconfig provides a means of configuring STREAMS devices
 #	by service.
@@ -22,7 +22,7 @@
 #		service=cu	device=STARLAN	push=ntty:tirdwr:ld0
 #		service=uucico	device=STARLAN	push=ntty:tirdwr:ld0
 #
-#	Note: The tirdwr module is part of the STREAMS package.  Other 
-#	modules needed to provide tty capabilites must be supplied by the
+#	Note: The tirdwr module is part of the NSU package.  Other 
+#	modules needed to provide tty capabilities must be supplied by the
 #	network provider.
 #

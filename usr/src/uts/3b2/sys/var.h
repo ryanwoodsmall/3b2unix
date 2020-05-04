@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/var.h	10.2"
+#ident	"@(#)kern-port:sys/var.h	10.3"
 
 /*
  * System Configuration Information
@@ -56,6 +56,7 @@ struct var {
 	int	v_nblk16;	/* Number of 16 bytes stream buffers.	*/
 	int	v_nblk4;	/* Number of 4 bytes stream buffers.	*/
 	int	v_s5inode;	/* Size of s5inode table */
+	daddr_t	v_ulimit;	/* system default max write address.    */
 };
 
 extern struct var v;

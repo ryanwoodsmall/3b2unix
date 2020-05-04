@@ -5,39 +5,57 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:m32/expand1.c	1.5"
+#ident	"@(#)as:m32/expand1.c	1.6.1.3"
 
 #include <stdio.h>
 #include "systems.h"
 #include "symbols.h"
+#include "codeout.h"
+#include "section.h"
 #include "expand.h"
 #include "gendefs.h"
+#include "scnhdr.h"
+#include <memory.h>
 
 extern rangetag range[];
 extern char idelta[];
 extern char pcincr[];
-
+extern struct scninfo secdat[];
+extern struct scnhdr sectab[];
 
 #ifndef	MAXSS
-#define MAXSS	200	/* maximum number of Selection set entries */
+#define MAXSS	400	/* maximum number of Selection set entries */
 #endif
 #ifndef	MAXSDI
-#define MAXSDI	4000	/* maximum number of SDI's we can handle */
+#define MAXSDI	1000	/* initial maximum number of SDI's we can handle */
 #endif
 #ifndef	MAXLAB
-#define MAXLAB	2000	/* max. number of labels whose address depends on SDI's */
+#define MAXLAB	500	/* init. max. no. labels whose address depends on SDI's */
 #endif
 
-char islongsdi[MAXSDI];
+#define	ABS_MAXSDI 65000	/* absolute maximum value of unsigned short */
+#define	ABS_MAXLAB 32500	/* absolute maximum value of short */
+
+short maxsdi = MAXSDI,		/* dynamic max. for SDI's */
+	maxlab = MAXLAB;	/* dynamic max. for labels */
+
+char firstislongsdi[MAXSDI];	/* initial allocation for islongsdi */
+char *islongsdi = firstislongsdi;
 
 ssentry selset[MAXSS];
-symbol *labset[MAXLAB];
+
+symbol *firstlabset[MAXLAB];	/* initial allocation for labset */
+symbol **labset = firstlabset;
 
 unsigned short sdicnt = 0;
 static short ssentctr = -1,
 		labctr = -1;
 
-static unsigned short PCmax;
+#if STATS
+short maxssentctr, maxlabctr;
+#endif
+
+unsigned short PCmax[NSECTIONS];
 
 extern symbol *dot;
 extern long newdot;
@@ -46,10 +64,9 @@ update(ssptr,sditype)
 	ssentry *ssptr;
 	short sditype;
 {
-	register ssentry *ptr;
 	register short cntr;
 	register symbol *lptr;
-	register symbol **ptr2;
+	register short sssectnum;
 	register unsigned short delta,
 		sdipos;
 	long instaddr;
@@ -57,18 +74,25 @@ update(ssptr,sditype)
 	delta = idelta[ssptr->itype];
 	sdipos = ssptr->sdicnt;
 	instaddr = ssptr->minaddr;
-	PCmax -= delta;
-	dot->maxval -= delta;
-
-	if (sditype) {	/* nonzero if short */
+	sssectnum = ssptr->sectnum;
+	PCmax[sssectnum] -= delta;
+	if (dot->sectnum == sssectnum)
+		dot->maxval -= delta;
+	else
+		secdat[sssectnum].s_maxval -= delta;
+	if (sditype) { /* nonzero is short */
 		instaddr += ssptr->maxaddr;
+		{ register ssentry *ptr;
 		for (cntr = ssentctr, ptr = &selset[0]; cntr-- >= 0; ++ptr) {
-			if (ptr->sdicnt > sdipos)
+			if ((ptr->sdicnt > sdipos) 
+				&& (ptr->sectnum == sssectnum))
 				ptr->maxaddr -= delta;
-		}
+		}}
+		{ register symbol **ptr2;
 		for (cntr = labctr, ptr2 = &labset[0]; cntr-- >= 0; ) {
 			lptr = *ptr2;
-			if (lptr->value + lptr->maxval > instaddr) {
+			if ((lptr->value + lptr->maxval > instaddr) 
+				&& (lptr->sectnum == sssectnum)) {
 				lptr->maxval -= delta;
 				if (lptr->maxval == 0) {
 					*ptr2 = labset[labctr--];
@@ -76,21 +100,29 @@ update(ssptr,sditype)
 				}
 			}
 			ptr2++;
-		}
+		}}
 	}
 	else {	/* long */
-		dot->value += delta;
-		newdot += delta;
+		if (dot->sectnum == sssectnum) {
+			dot->value += delta;
+			newdot += delta;
+		}
+		else
+			sectab[sssectnum].s_size += delta;
 		islongsdi[sdipos] = (char)delta;
+		{ register ssentry *ptr;
 		for (cntr = ssentctr, ptr = &selset[0]; cntr-- >= 0; ++ptr) {
-			if (ptr->sdicnt > sdipos) {
+			if ((ptr->sdicnt > sdipos)
+				&& (ptr->sectnum == sssectnum)) {
 				ptr->minaddr += delta;
 				ptr->maxaddr -= delta;
 			}
-		}
+		}}
+		{ register symbol **ptr2;
 		for (cntr = labctr, ptr2 = &labset[0]; cntr-- >= 0; ) {
 			lptr = *ptr2;
-			if (lptr->value > instaddr) {
+			if ((lptr->value > instaddr)
+				&& (lptr->sectnum == sssectnum)) {
 				lptr->value += delta;
 				lptr->maxval -= delta;
 				if (lptr->maxval == 0) {
@@ -99,7 +131,7 @@ update(ssptr,sditype)
 				}
 			}
 			ptr2++;
-		}
+		}}
 	}
 }
 
@@ -112,7 +144,7 @@ static short notdone = YES;
 
 /*
  *	"overflow" is used to indicate when the maximum number of
- *	SDI's have been received (MAXSDI). When "overflow" becomes
+ *	SDI's have been received (ABS_MAXSDI). When "overflow" becomes
  *	non-zero, then only "expand" is called to optimize the
  *	SDI's that have already been received.
  */
@@ -130,13 +162,18 @@ sdiclass(sdiptr)
 	lptr = sdiptr->labptr;
 	itype = sdiptr->itype;
 	if ((ltype = lptr->styp & TYPE) != UNDEF) {
-		if (ltype != TXT)
+		if ((ltype != TXT) || (lptr->sectnum != sdiptr->sectnum))
+			/* generate long form if label is not of
+			 * type TXT or if label and instruction are
+			 * in different sections */
 			return(L_SDI);
 		span = lptr->value;
 	}
 	else {
 		if (notdone == NO)
 			return(L_SDI);
+		if (dot->sectnum != sdiptr->sectnum)
+			return(U_SDI);
 		span = (dot->value != sdiptr->minaddr) ? dot->value :
 			sdiptr->minaddr + pcincr[itype];
 	}
@@ -203,25 +240,36 @@ newlab(sym)
 {
 	static short labwarn = YES;
 
-	if (++labctr == MAXLAB) {
-		if (labwarn == YES) {
-			werror("Table overflow: some optimizations lost (Labels)");
-			labwarn = NO; /* don't warn again */
+	if (++labctr == maxlab) {
+		if (maxlab == MAXLAB) {
+			if ((labset = (symbol **)calloc((maxlab *= 2),sizeof(symbol *))) == NULL)
+				aerror("Cannot calloc more labels table for span-dependent optimization");
+			memcpy(labset,firstlabset,MAXLAB*(sizeof(symbol *)));
+		} else if (maxlab <= ABS_MAXLAB/2) {
+			if ((labset = (symbol **)realloc(labset,(maxlab *= 2)*sizeof(symbol *))) == NULL)
+				aerror("Cannot realloc more labels table for span-dependent optimization");
+		} else {
+			if (labwarn == YES) {
+				werror("Table overflow: some optimizations lost (Labels)");
+				labwarn = NO; /* don't warn again */
+			}
+			labctr--;	/* gone too far, back up */
+			while (labctr == maxlab - 1) {
+				punt();
+			}	/* continue to punt until we free a label */
+			labctr++;	/* now point to a free area */
 		}
-		labctr--;	/* gone too far, back up */
-		while (labctr == MAXLAB - 1) {
-			punt();
-		}	/* continue to punt until we free a label */
-		labctr++;	/* now point to a free area */
 	}
-
+#if STATS
+	if (labctr > maxlabctr) maxlabctr = labctr;
+#endif
 	labset[labctr] = sym;
 }
 
 deflab(sym)
 	register symbol *sym;
 {
-	sym->maxval = PCmax;
+	sym->maxval = PCmax[sym->sectnum];
 	if (ssentctr >= 0) {
 		newlab(sym);
 		expand();
@@ -251,7 +299,11 @@ sdi(sym,const,itype)
 	if (sym) {
 		if ((sym->styp & TYPE) == UNDEF)
 			return(U_SDI);
-		if ((sym->styp & TYPE) != TXT)
+		if (((sym->styp & TYPE) != TXT) || 
+			(sym->sectnum != dot->sectnum))
+			/* generate long form if label is not of
+			 * type TXT or if label and instruction are
+			 * in different sections */
 			return(L_SDI);
 	}
 	else
@@ -287,23 +339,36 @@ newsdi(sym,const,itype)
 	short itype;
 {
 	register ssentry *nsdi;
-
-	if (++sdicnt == MAXSDI) {
-		overflow = YES;
-		sdicnt--;
+	if ((++sdicnt + 1) >= maxsdi) {
+		if (maxsdi == MAXSDI) {
+			if ((islongsdi = (char *)calloc((maxsdi *= 2),sizeof(char))) == NULL)
+				aerror("Cannot calloc more sdi table for span-dependent optimization");
+			memcpy(islongsdi,firstislongsdi,MAXSDI*(sizeof(char)));
+		} else if (maxsdi <= ABS_MAXSDI/2) {
+			if ((islongsdi = (char *)realloc(islongsdi,maxsdi*2)) == NULL)
+				aerror("Cannot realloc more sdi table for span-dependent optimization");
+			memset(islongsdi+maxsdi,0,maxsdi);
+			maxsdi *= 2;
+		} else {
+			overflow = YES;
+		}
 	}
 	if (++ssentctr == MAXSS) {
 		ssentctr--;	/* gone too far, back up */
 		punt();
 		ssentctr++;	/* one sdi was removed, now point to free area */
 	}
+#if STATS
+	if (ssentctr > maxssentctr) maxssentctr = ssentctr;
+#endif
 	nsdi = &selset[ssentctr];
 	nsdi->sdicnt = sdicnt;
 	nsdi->itype = itype;
 	nsdi->minaddr = dot->value;
-	nsdi->maxaddr = PCmax;
+	nsdi->maxaddr = PCmax[dot->sectnum];
 	nsdi->constant = const;
 	nsdi->labptr = sym;
+	nsdi->sectnum = dot->sectnum;
 }
 
 shortsdi(sym,const,itype)
@@ -311,7 +376,7 @@ shortsdi(sym,const,itype)
 	long const;
 	register short itype;
 {
-	register int sditype;
+	register int sditype=L_SDI;
 
 	if (!overflow) {
 		if (sym && ((sym->styp & TYPE) == UNDEF)) {
@@ -319,9 +384,8 @@ shortsdi(sym,const,itype)
 				return(L_SDI);
 			sditype = U_SDI;
 			newsdi(sym,const,itype);
-			PCmax += idelta[itype];
-			dot->maxval = PCmax;
-			/* here we have a forward reference.	*/
+			dot->maxval = PCmax[dot->sectnum] += idelta[itype];
+				/* here we have a forward reference.	*/
 			/* shortsdi() used to call expand() in 	*/
 			/* all cases, now we exempt the forward */
 			/* references since they will stay in	*/
@@ -335,8 +399,8 @@ shortsdi(sym,const,itype)
 					return(S_SDI);
 				}
 				newsdi(sym,const,itype);
-				PCmax += idelta[itype];
-				dot->maxval = PCmax;
+				dot->maxval =
+					(PCmax[dot->sectnum] += idelta[itype]);
 				if (ssentctr > 0) expand();
 			}
 		}

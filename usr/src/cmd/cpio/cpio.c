@@ -5,15 +5,15 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)cpio:cpio.c	1.30.1.11"
+#ident	"@(#)cpio:cpio.c	1.30.3.22"
 /*	/sccs/src/cmd/s.cpio.c
-	cpio.c	1.30.1.11	1/11/86 13:46:48
+	cpio.c	1.30.3.22	12/5/86 14:03:55
 	Reworked cpio which uses getopt(3) to interpret flag arguments and
 	changes reels to the save file name.
 	Performance and size improvements.
 */
 
-/*	cpio	COMPILE:	cc -O cpio.c -s -i -o cpio -lgen -lerr
+/*	cpio	COMPILE:	cc -O cpio.c -s -i -o cpio -lgen
 	cpio -- copy file collections
 
 */
@@ -27,6 +27,7 @@
 #include <varargs.h>
 #include <sys/stat.h>
 
+#define TRUE 1
 #define EQ(x,y)	(strcmp(x,y)==0)
 
 				/* MKSHORT:  for VAX, Interdata, ...	*/
@@ -34,7 +35,13 @@
 				/* into an array of two 2-byte shorts, v*/
 #define MKSHORT(v,lv) {U.l=1L;if(U.c[0]) U.l=lv,v[0]=U.s[1],v[1]=U.s[0]; else U.l=lv,v[0]=U.s[0],v[1]=U.s[1];}
 
-#define MAGIC	070707		/* cpio magic number */
+#define BINARY	0		/* Cflag setting */
+#define ASCII	1		/* Cflag setting */
+#define NONE	2		/* Cflag setting not verified */
+#define M_ASCII "070707"	/* ASCII  magic number */
+#define M_BINARY 070707		/* Binary magic number */
+#define M_STRLEN 6		/* number bytes in ASCII magic number */
+#define PATHSIZE 256		/* maximum PATH length */
 #define IN	'i'		/* copy in */
 #define OUT	'o'		/* copy out */
 #define PASS	'p'		/* direct copy */
@@ -50,7 +57,15 @@
 						/* in 8 rather than 6 octal char in   */
 						/* the header.			      */
 
-static struct	stat	Statb, Xstatb;
+#define	FORMAT	"%b %e %H:%M:%S %Y"     /* Date time formats */
+					/* b - abbreviated month name */
+					/* e - day of month ( 1 - 31) */
+					/* H - hour (00 -23) */
+					/* M - minute (00 - 59) */
+					/* S - seconds (00 -59) */
+					/* Y - year as ccyy */
+
+static struct	stat	Statb, Xstatb, Astatb;
 
 	/* Cpio header format */
 static struct header {
@@ -69,7 +84,7 @@ static struct header {
 } Hdr;
 
 static unsigned	Bufsize = BUFSIZE;		/* default record size */
-static char	Buf[CPIOBSZ], *Cbuf;
+static char	*Buf, *Cbuf;
 static char	*Cp;
 
 
@@ -85,6 +100,7 @@ short	Option,
 	Acc_time,
 	Cflag,
 	fflag,
+	kflag,
 	Swap,
 	byteswap,
 	bothswap,
@@ -134,7 +150,11 @@ ushort	Uid,
 
 extern	errno;
 extern	void exit();
+extern	ushort getuid();
+extern	void perror();
 extern	char *sys_errlist[];
+extern	long lseek();
+extern	long ulimit();
 char	*malloc();
 FILE 	*popen();
 
@@ -144,6 +164,8 @@ union {
 	short s[2];
 	char c[4];
 } U;
+
+static	char	time_buf[50]; 		/* array to hold date and time */
 
 /* for VAX, Interdata, ... */
 static
@@ -161,11 +183,12 @@ short v[];
 main(argc, argv)
 char **argv;
 {
+	void pwd();
 	register ct;
-	long	filesz;
 	register char *fullp;
 	register i;
-	int ans;
+	long	filesz, maxsz;
+	int ans,  rc, first;
 	short select;			/* set when files are selected */
 	extern char	*optarg;
 	extern int	optind;
@@ -179,7 +202,7 @@ char **argv;
 	Uid = getuid();
 	umask(0);
 
-	while( (ans = getopt( argc, argv, "aBC:ifopcdlmrSsbtuvVM:6eI:O:")) != EOF ) {
+	while( (ans = getopt( argc, argv, "aBC:ifopcdklmrSsbtuvVM:6eI:O:")) != EOF ) {
 
 		switch( ans ) {
 		case 'a':		/* reset access time */
@@ -188,8 +211,7 @@ char **argv;
 		case 'B':		/* change record size to 5120 bytes */
 			Bufsize = 5120;
 			break;
-		case 'C':		/* reset buffer size to arbitrary valu
-					*/
+		case 'C':		/* reset buffer size to arbitrary value */
 			Bufsize = atoi( optarg );
 			if( Bufsize == 0 )
 				errmsg( EERROR,
@@ -209,7 +231,7 @@ char **argv;
 			Option = PASS;
 			break;
 		case 'c':		/* ASCII header */
-			Cflag++;
+			Cflag = ASCII;
 			break;
 		case 'd':		/* create directories when needed */
 			Dir++;
@@ -274,26 +296,39 @@ char **argv;
 				cannotopen( optarg, "output" );
 			swfile = optarg;
 			break;
+		case 'k':
+			kflag++;
+			break;
 		default:
 			usage();
 		}
 	}
-	if(!Option) {
-		errmsg( EERROR, "Options must include one: -o, -i, -p.");
+	switch(Option) {
+		case IN:
+			Cp = Cbuf = (char *)zmalloc(EERROR, Bufsize + CHARS + PATHSIZE) + CHARS + PATHSIZE;
+			break;
+		case OUT:
+			Cp = Cbuf = (char *)zmalloc( EERROR, Bufsize);
+			(void)fstat(Output, &Astatb);
+			if (kflag)
+				fperr("`k' option is irrelevant with the `-o' option\n");
+			break;
+		case PASS:
+			if(Rename)
+				errmsg( EERROR, "Pass and Rename cannot be used together.");
+			if(kflag)
+				fperr("`k' option is irrelevant with the `-p' option\n");
+			if( Bufsize != BUFSIZE ) {
+				fperr("`B' or `C' option is irrelevant with the '-p' option\n");
+				Bufsize = BUFSIZE;
+			}
+			break;
+		default:
+			errmsg( EERROR, "Options must include one: -o, -i, -p.");
 	}
 
-	if(Option == PASS) {
-		if(Rename) {
-			errmsg( EERROR, "Pass and Rename cannot be used together.");
-		}
-		if( Bufsize != BUFSIZE ) {
-			fprintf( stderr, "`B' or `C' option is irrelevant with the '-p' option\n");
-			Bufsize = BUFSIZE;
-		}
+	Buf = (char *)zmalloc(EERROR, CPIOBSZ);
 
-	}else  {
-		Cp = Cbuf = (char *)zmalloc( EERROR, Bufsize);
-	}
 	argc -= optind;
 	argv += optind;
 
@@ -303,6 +338,8 @@ char **argv;
 			usage();
 		/* get filename, copy header and file out */
 		while(getname()) {
+			if(!A_special && ident(&Statb, &Astatb))
+				continue;
 			if( mklong(Hdr.h_filesize) == 0L) {
 				if( Cflag )
 					bwrite(Chdr,CHARS+Hdr.h_namesize);
@@ -312,7 +349,7 @@ char **argv;
 					verbdot( stderr, Hdr.h_name);
 				continue;
 			}
-			if((Ifile = open(Hdr.h_name, 0)) < 0) {
+			if((Ifile = open(Hdr.h_name, O_RDONLY)) < 0) {
 				fperr("<%s> ?\n", Hdr.h_name);
 				continue;
 			}
@@ -322,7 +359,8 @@ char **argv;
 				bwrite(&Hdr, HDRSIZE+Hdr.h_namesize);
 			for(filesz=mklong(Hdr.h_filesize); filesz>0; filesz-= CPIOBSZ){
 				ct = filesz>CPIOBSZ? CPIOBSZ: filesz;
-				if(read(Ifile, Buf, ct) < 0) {
+				errno = 0;
+				if(read(Ifile, Buf, (unsigned)ct) < 0) {
 					fperr("Cannot read %s\n", Hdr.h_name);
 					continue;
 				}
@@ -337,7 +375,7 @@ char **argv;
 
 	/* copy trailer, after all files have been copied */
 		strcpy(Hdr.h_name, "TRAILER!!!");
-		Hdr.h_magic = MAGIC;
+		Hdr.h_magic = M_BINARY;
 		MKSHORT(Hdr.h_filesize, 0L);
 		Hdr.h_namesize = strlen("TRAILER!!!") + 1;
 		if ( Cflag )  {
@@ -353,22 +391,55 @@ char **argv;
 		if(argc > 0 ) {	/* save patterns, if any */
 			Pattern = argv;
 		}
+		Cflag = NONE;
 		pwd();
-		chkhdr();
+		maxsz = 512 * ulimit(1);
 		while(gethdr()) {
 			if( (select = ckname(Hdr.h_name))  &&  !Toc )
 				Ofile = openout(Hdr.h_name);
 			else
 				Ofile = 0;
-			for(filesz=mklong(Hdr.h_filesize); filesz>0; filesz-= CPIOBSZ){
+			filesz=mklong(Hdr.h_filesize);
+			if(select && maxsz < filesz) {
+				select = Ofile = 0;
+				fperr("%s skipped: exceeds ulimit by %d bytes\n",
+					Hdr.h_name, filesz - maxsz);
+			}
+			first = 1;
+			if (Cflag == BINARY && (filesz % 2) == 1)
+				i = 1;
+			else
+				i = 0;
+			for(; filesz>0; filesz-= CPIOBSZ){
 				ct = filesz>CPIOBSZ? CPIOBSZ: filesz;
-				bread(Buf, ct);
+				errno = 0;
+				if(bread(Buf, ct, filesz + i) == -1) {
+					fperr("cpio: i/o error, %s is corrupt\n",
+						Hdr.h_name);
+					break;
+				}
+						/* skip to next file */
 				if(Ofile) {
 					if(Swap)
 						swap(Buf,ct);
-					if(write(Ofile, Buf, ct) < 0) {
-					 fperr("Cannot write %s\n", Hdr.h_name);
-					 continue;
+					errno = 0;
+					if((rc = write(Ofile, Buf, ct)) < ct) {
+						if(rc < 0) {
+							if(first++ == 1) {
+					 			fperrno(
+								"Cannot write %s\n",
+								Hdr.h_name);
+							}
+							if (errno == EFBIG || errno == ENOSPC)
+								continue;
+							else
+								exit(2);
+						}
+						else {
+					 		fperr("%s truncated\n",
+								Hdr.h_name);
+							continue;
+						}
 					}
 				}
 			}
@@ -420,7 +491,7 @@ char **argv;
 					switch(errno) {
 						case ENOENT:
 							if(missdir(Fullname) != 0) {
-								fprintf(stderr,
+								fperr(
 									"cpio: cannot create directory for <%s>: %s\n",
 									Fullname, sys_errlist[errno]);
 								continue;
@@ -428,20 +499,20 @@ char **argv;
 							break;
 						case EEXIST:
 							if(unlink(Fullname) < 0) {
-								fprintf(stderr,
+								fperr(
 									"cpio: cannot unlink <%s>: %s\n",
 									Fullname, sys_errlist[errno]);
 								continue;
 							}
 							break;
 						default:
-							fprintf(stderr,
+							fperr(
 								"Cpio: cannot link <%s> to <%s>: %s\n",
 								Hdr.h_name, Fullname, sys_errlist[errno]);
 							continue;
 						}
 					if(link(Hdr.h_name, Fullname) < 0) {
-						fprintf(stderr,
+						fperr(
 							"cpio: cannot link <%s> to <%s>: %s\n",
 							Hdr.h_name, Fullname, sys_errlist[errno]);
 						continue;
@@ -459,15 +530,18 @@ char **argv;
 			filesz = Statb.st_size;
 			for(; filesz > 0; filesz -= CPIOBSZ) {
 				ct = filesz>CPIOBSZ? CPIOBSZ: filesz;
-				if(read(Ifile, Buf, ct) < 0) {
+				errno = 0;
+				if(read(Ifile, Buf, (unsigned)ct) < 0) {
 					fperr("Cannot read %s\n", Hdr.h_name);
 					break;
 				}
-				if(Ofile)
-					if(write(Ofile, Buf, ct) < 0) {
-					 fperr("Cannot write %s\n", Hdr.h_name);
-					 break;
+				if (Ofile) {
+					errno = 0;
+					if (write(Ofile, Buf, ct) < 0) {
+						fperr("Cannot write %s\n", Hdr.h_name);
+						break;
 					}
+				}
 					/* Removed u370 ifdef which caused cpio */
 					/* to report blocks in terms of 4096 bytes. */
 
@@ -496,11 +570,11 @@ static
 usage()
 {
 	errusage("%s\n\t%s %s\n\t%s %s\n\t%s %s\n\t%s %s\n",
-		    "-o[acvB] <name-list >collection",
-	Err.source, "-o[acvB] -Ocollection <name-list",
-	Err.source, "-i[cdmrstuvfB6] [pattern ...] <collection",
-	Err.source, "-i[cdmrstuvfB6] -Icollection [pattern ...]",
-	Err.source, "-p[adlmruv] directory <name-list");
+		    "-o[acvVB] [-Cbufsize] [-Mmessage] <name-list >collection",
+	Err.source, "-o[acvVB] -Ocollection [-Cbufsize] [-Mmessage] <name-list",
+	Err.source, "-i[bcdkmrsStuvVfB6] [-Cbufsize] [-Mmessage] [pattern ...] <collection",
+	Err.source, "-i[bcdkmrsStuvVfB6] -Icollection [-Cbufsize] [-Mmessage] [pattern ...]",
+	Err.source, "-p[adlmruvV] directory <name-list");
 }
 
 static
@@ -550,7 +624,7 @@ getname()		/* get file name, get info for header */
 		A_special = (ftype == S_IFBLK)
 			|| (ftype == S_IFCHR)
 			|| (ftype == S_IFIFO);
-		Hdr.h_magic = MAGIC;
+		Hdr.h_magic = M_BINARY;
 		Hdr.h_namesize = strlen(Hdr.h_name) + 1;
 		Hdr.h_uid = Statb.st_uid;
 		Hdr.h_gid = Statb.st_gid;
@@ -573,7 +647,7 @@ bintochar(t)		/* ASCII header write */
 long t;
 {
 	sprintf(Chdr,"%.6o%.6ho%.6ho%.6ho%.6ho%.6ho%.6ho%.6ho%.11lo%.6ho%.11lo%s",
-		MAGIC, MK_USHORT(Statb.st_dev), MK_USHORT(Statb.st_ino), Statb.st_mode, Statb.st_uid,
+		M_BINARY, MK_USHORT(Statb.st_dev), MK_USHORT(Statb.st_ino), Statb.st_mode, Statb.st_uid,
 		Statb.st_gid, Statb.st_nlink, MK_USHORT(Statb.st_rdev),
 		Statb.st_mtime, (short)strlen(Hdr.h_name)+1, t, Hdr.h_name);
 }
@@ -590,44 +664,13 @@ chartobin()		/* ASCII header read */
 }
 
 
-/*	Check the header for the magic number.  Switch modes automatically to
-	match the type of header found.
-*/
-static
-chkhdr()
-{
-	bread(Chdr, CHARS);
-	chartobin();
-	if( Hdr.h_magic == MAGIC )
-		Cflag = 1;
-	else {
-		breread(&Hdr.h_magic, sizeof Hdr.h_magic);
-		if( Hdr.h_magic == MAGIC )
-			Cflag = 0;
-		else
-			errmsg( EERROR,
-				"This is not a cpio file.  Bad magic number.");
-	}
-	breread(Chdr, 0);
-}
-
-
 static
 gethdr()		/* get file headers */
 {
+	void synch();
 	register ushort ftype;
 
-	if (Cflag)  {
-		bread(Chdr, CHARS);
-		chartobin();
-	}
-	else
-		bread(&Hdr, HDRSIZE);
-
-	if( Hdr.h_magic != MAGIC ) {
-		errmsg( EERROR, "Out of phase--get help.");
-	}
-	bread(Hdr.h_name, Hdr.h_namesize);
+	synch();
 	if(EQ(Hdr.h_name, "TRAILER!!!"))
 		return 0;
 	ftype = Hdr.h_mode & Filetype;
@@ -780,83 +823,269 @@ ret:
 }
 
 
-/*	Shared by bread() and breread()
+/*	Shared by bread(), synch() and rstbuf()
 */
-static int	nleft = 0;	/* unread chars left in Cbuf */
-static char	*ip;		/* pointer to next char to be read from Cbuf */
+static int	nleft = 0;	/* unread chars left in Cbuf and expansion buffer*/
+static char	*ip;		/* pointer to next char to be read from Cbuf and */
+				/* expansion buffer*/
+static int	filbuf = 0;	/* flag to bread() to fill buffer but transfer	*/
+				/* no characters				*/
 
-/*	Reread the current buffer Cbuf.
-	A character count, c, of 0 simply resets the pointer so next bread gets
-	the same data again.
-*/
-static
-breread(b, c)
-char	*b;
-int	c;
-{
-	ip = Cbuf;
-	if( nleft )
-		nleft = Bufsize;
-	if( !c )
-		return;
-	bread(b, c);
-}
+	/* bread() is called by rstbuf() in order to read the next block	*/
+	/* from the input archive into Cbuf.  bread() is called by main(),	*/
+	/* case: IN, in order to read in file content to then be written out.	*/
+	/* In case of I/O error bread() exits with return code 2 unless kflag	*/
+	/* is set.  If kflag is set then bread attempts a max of 10 times to	*/
+	/* successfully lseek then read good data.  If 10 consecutive reads	*/
+	/* fail bread() exits with return code 2.  Upon a successful read()	*/
+	/* bread() leaves nleft and the pointers ip and p set correctly but no	*/
+	/* characters are copied and bread() returns -1.  In the case of no I/O	*/
+	/* errors bread() reads from the input archive to Cbuf and then copies	*/
+	/* chars to a target buffer unless filbuf is set by rstbuf().		*/
 
+	/* d, distance to lseek if I/O error encountered with -k option.*/
+	/* Converted to a multiple of Bufsize				*/
 static
-bread(b, c)
+bread(b, c, d)
 register char	*b;
 register int	c;
+long d;
 {
-	register int	rv;
 	register char	*p = ip;
+	register int	dcr;
+	register int	rv;
+	int rc = 0, delta = 0, i = 0;
 
+	if (filbuf == 1) {	/* fill buffer, memcpy no chars */
+		nleft = 0;
+		c = 0;
+	}
 	if( !Cflag ) {
 		/* round c up to an even number */
 		c = (c+1)/2;
 		c *= 2;
 	}
-	while( c )  {
-		if( nleft == 0 ) {
-			while( (rv = read(Input, Cbuf, Bufsize)) == 0 ) {
-				Input = chgreel(0, Input, rv);
+	while ( c || filbuf )  {
+		while (nleft == 0 ) {
+			while (TRUE) {
+				errno = 0;
+				rv = read(Input, Cbuf, Bufsize);
+				if ((rv == 0) || ((rv == -1) && (errno == ENOSPC || errno == ENXIO)))
+					Input = chgreel(0, Input, rv);
+				else
+					break;
 			}
-			if( rv == Bufsize ) {
-				nleft = Bufsize;
-				p = Cbuf;
-				++Blocks;
+			if( rv == -1 ) {
+				int s, rvl;
+				if( kflag ) {
+					if (i++ > 10) {
+						fperr("cpio: cannot recover from I/O error, %s\n",
+							sys_errlist[errno]);
+						exit(2);
+					}
+					rvl = lseek(Input,
+						(s = d / Bufsize) == 0 ? Bufsize : s * Bufsize, 1); 
+					if(i == 1) {
+						if (rvl != -1 && (d % Bufsize)
+						   && d > Bufsize)
+							delta = (d % Bufsize);
+						d = 0;
+						rc = -1;
+					}
+					else
+						delta = 0;
+				}
+				else
+					errmsg( EERROR,
+						"Read() in bread() failed\n");
 			}
-			else if( rv == -1 )
-				errmsg( EERROR,
-					"Read() in bread() failed\n");
-			else if( rv < Bufsize ) {	/* short read */
-				smemcpy( &Cbuf[ Bufsize - rv ], Cbuf, rv );
-				nleft = rv;
-				p = &Cbuf[ Bufsize - rv ];
-				sBlocks += rv;
+			else {
+				if (rv == Bufsize)
+					++Blocks;
+				else 				/* short read */
+					sBlocks += rv;
+				if (rv > delta) {
+					nleft = rv - delta;
+					p = Cbuf + delta;
+				}
+				else {
+					nleft = 0;
+					delta -= rv;
+				}
 			}
-			else
-				errmsg( EHALT,
-					"Impossible return from read(), %d\n",
-					rv );
 		}
-		if( nleft <= c ) {
-			memcpy( b, p, nleft );
-			c -= nleft;
-			b += nleft;
-			p += nleft;
-			nleft = 0;
+		if (filbuf || i > 0) {
+			filbuf = 0;
+			break;
 		}
-		else {
-			memcpy( b, p, c );
-			nleft -= c;
-			b += c;
-			p += c;
-			c = 0;
-		}
+		if (nleft <= c)
+			dcr = nleft;
+		else
+			dcr = c;
+		memcpy( b, p, dcr );
+		c -= dcr;
+		d -= dcr;
+		b += dcr;
+		p += dcr;
+		nleft -= dcr;
 	}
 	ip = p;
+	return(rc);
+}
+		/* synch() searches for headers.  Any Cflag specification by the */
+		/* user is ignored.  Cflag is set appropriately after a good    */
+		/* header is found.  It searches for and verifies all headers.  */
+		/* Unless kflag is set only one failure of the header causes an */
+		/* exit(2).  I/O errors during examination of any part of the   */
+		/* header causes synch() to throw away current data and begin	*/
+		/* again.  Other errors during examination of any part of the   */
+		/* header causes synch() to advance a single byte and continue   */
+		/* the examination.						*/
+static
+void
+synch()
+{
+	register char	*magic;
+	register int	hit = NONE, cnt = 0;
+	int hsize, offset, align = 0;
+	static int min = CHARS;
+	union {
+		char bite[2];
+		ushort temp;
+	} mag;
+
+	if (Cflag == NONE) {
+		filbuf = 1;
+		if (bread(Chdr, 0, 0) == -1)
+			fperr("cpio: I/O error, searching to next header\n");
+	}
+	magic = ip;
+	do {
+		while (nleft < min) {
+			if (rstbuf(magic) == -1) ;
+			magic = ip;
+		}
+		if (Cflag == ASCII || Cflag == NONE) {
+			if (strncmp(magic, M_ASCII, M_STRLEN) == 0) {
+				memcpy(Chdr, magic, CHARS);
+				chartobin();
+				hit = ASCII;
+				hsize = CHARS + Hdr.h_namesize;
+			}
+		}
+		if (Cflag == BINARY || Cflag == NONE) {
+			mag.bite[0] = magic[0];
+			mag.bite[1] = magic[1];
+			if (mag.temp == M_BINARY) {
+				memcpy(&Hdr, magic, HDRSIZE);
+				hit = BINARY;
+				hsize = HDRSIZE + Hdr.h_namesize;
+				align =	((Hdr.h_namesize % 2) == 0 ? 0 : 1);
+			}
+		}
+		if (hit == NONE) {
+			magic++;
+			nleft--;
+		}
+		else {
+			if (hdck() == -1) {
+				magic++;
+				nleft--;
+				hit = NONE;
+				if (kflag)
+				    fperr(
+				    "cpio: header corrupted.  File(s) may be lost\n");
+			}
+			else {			/* consider possible alignment byte */
+				while (nleft < hsize + align) {
+					if (rstbuf(magic) == -1) {
+						magic = ip;
+						hit = NONE;
+						break;
+					}
+					else 
+						magic = ip;
+				}
+				if (hit == NONE)
+					continue;
+				if (*(magic + hsize - 1) != '\0') {
+					magic++;
+					nleft--;
+					hit = NONE;
+					continue;
+				}
+			}
+		}
+		if (cnt++ == 2)
+			fperr(
+			"cpio: out of sync.  searching for magic number/header\n");
+	}
+	while (hit == NONE && kflag);
+
+	if (cnt > 2)
+		fperr("cpio: re-synchronized on magic number/header\n");
+	if (hit == NONE) {
+		if (Cflag == NONE)
+			errmsg( EERROR,
+				"This is not a cpio file.  Bad header.");
+		else
+			errmsg( EERROR,
+				"Out of sync.  bad magic number/header.");
+	}	
+	if (hit == ASCII) {
+		memcpy(Hdr.h_name, magic + CHARS, Hdr.h_namesize);
+		Cflag = ASCII;
+	}
+	else {
+		memcpy(Hdr.h_name, magic + HDRSIZE, Hdr.h_namesize + align);
+		Cflag = BINARY;
+		min = HDRSIZE;
+	}
+	offset = min + Hdr.h_namesize + align;
+	ip = magic + offset;
+	nleft -= offset;
 }
 
+		/* rstbuf(), reset bread() buffer,  moves incomplete potential	*/
+		/* headers from Cbuf to an expansion buffer to the left of Cbuf.*/
+		/* It then forces bread() to replenish Cbuf.  Rstbuf() returns	*/
+		/* the value returned by bread() to warn synch() of I/O errors.	*/
+		/* nleft and ip are updated to reflect the new data available.	*/
+static
+int
+rstbuf(ptr)
+char *ptr;
+{
+	int rc = 0, eleft;			/* eleft: amt in expansion buffer */
+
+	smemcpy(Cbuf - nleft, ptr, nleft);	/* mv leftover bytes to expansion */
+	eleft = nleft;				/*			   buffer */
+	filbuf = 1;				/* force fill of Cbuf		  */
+
+	if ((rc = bread(Chdr, 0, 0)) == -1)
+		;				/* ip & nleft are ok */
+	else {
+		nleft += eleft;
+		ip -= eleft;
+	}
+	return(rc);
+}
+
+			
+	/* hdck() sanity checks the fixed length portion of the cpio header	*/
+	/* -1 indicates a bad header and 0 indicates a good header		*/
+static
+int
+hdck()
+{
+	if (Hdr.h_nlink < 1 ||
+		mklong(Hdr.h_filesize) < 0 ||
+		Hdr.h_namesize <= 0 ||
+		Hdr.h_namesize >= PATHSIZE)
+		return(-1);
+	else
+		return(0);
+}
 
 static
 bwrite(rp, c)
@@ -876,26 +1105,25 @@ register c;
 	while( c )  {
 		if( (Cleft = Bufsize - Ccnt) <= c ) {
 			memcpy( cp, rp, Cleft );
+			errno = 0;
 			rv = write(Output, Cbuf, Bufsize);
-			if( rv == 0  ||  ( rv == -1  &&  errno == ENXIO ) ) {
-				rv = eomchgreel();
-			}
-			if( rv == Bufsize ) {
+			if( rv <= 0 )
+				rv = eomchgreel(rv);
+			if( rv == Bufsize )
+				{
 				Ccnt = 0;
 				cp = Cbuf;
-			}
-			else if( rv == -1 )
-				errmsg( EERROR,
-					"Write() in bwrite() failed\n");
-			else if( rv < Bufsize ) {
+				}
+			else if( rv < Bufsize )
+				{
 				Output = chgreel(1, Output, 0);
 				smemcpy( Cbuf, &Cbuf[ Bufsize - rv ], rv );
 				Ccnt = Bufsize - rv;
 				cp = &Cbuf[ rv ];
-			}
+				}
 			else
 				errmsg( EHALT,
-					"Impossible return from read(), %d\n",
+					"Impossible return from write(), %d\n",
 					rv );
 			++Blocks;
 			rp += Cleft;
@@ -921,12 +1149,12 @@ static int	reelcount = 1;	/* used below and in chgreel() */
 */
 static
 int
-eomchgreel()
+eomchgreel(rv)
+int rv;
 {
-	int	rv;
-
 	while( 1 ) {
-		Output = chgreel(1, Output, 0);
+		Output = chgreel(1, Output, rv);
+		errno = 0;
 		rv = write(Output, Cbuf, Bufsize);
 		if( rv == Bufsize )
 			return  rv;
@@ -938,7 +1166,7 @@ eomchgreel()
 
 
 static
-postml(namep, np)		/* linking funtion:  Postml() is called after */
+postml(namep, np)		/* linking function:  Postml() is called after*/
 register char *namep, *np;	/* namep is created.  Postml() checks to see  */
 {				/* if namep should be linked to np.  If so,   */
 				/* postml() removes the independent instance  */
@@ -966,8 +1194,8 @@ register char *namep, *np;	/* namep is created.  Postml() checks to see  */
 		mlp = ml[i];
 		if(mlp->m_ino==Hdr.h_ino  &&  mlp->m_dev==Hdr.h_dev) {
 			if(Verbose == 1)
-				fprintf(stderr, "%s linked to %s\n", mlp->m_name, np);
-			if(Verbose)
+				fperr("%s linked to %s\n", mlp->m_name, np);
+			if(Verbose && Option == PASS)
 				verbdot(stdout, np);
 			unlink(namep);
 			if(Option == IN && *(mlp->m_name) != '/') {
@@ -1023,8 +1251,6 @@ register char *namep;
 #include <pwd.h>
 	static struct passwd *pw;
 	struct passwd *getpwuid();
-	static char tbuf[32];
-	char *ctime();
 
 	printf("%-7o", MK_USHORT(Hdr.h_mode));
 	if(lastid == Hdr.h_uid)
@@ -1041,10 +1267,10 @@ register char *namep;
 	}
 	printf("%7ld ", mklong(Hdr.h_filesize));
 	U.l = mklong(Hdr.h_mtime);
-	strcpy(tbuf, ctime((long *)&U.l));
-	tbuf[24] = '\0';
-	printf(" %s  %s\n", &tbuf[4], namep);
+	cftime(time_buf, FORMAT, (long *)&U.l);
+	printf(" %s  %s\n", time_buf, namep);
 }
+
 
 		/* pattern matching functions */
 static
@@ -1063,61 +1289,6 @@ char *s, **pat;
 }
 
 
-static
-gmatch(s, p)
-register char *s, *p;
-{
-	register int c;
-	register cc, ok, lc, scc;
-
-	scc = *s;
-	lc = 077777;
-	switch (c = *p) {
-
-	case '[':
-		ok = 0;
-		while (cc = *++p) {
-			switch (cc) {
-
-			case ']':
-				if (ok)
-					return(gmatch(++s, ++p));
-				else
-					return(0);
-
-			case '-':
-				ok |= ((lc <= scc) && (scc <= (cc=p[1])));
-			}
-			if (scc==(lc=cc)) ok++;
-		}
-		return(0);
-
-	case '?':
-	caseq:
-		if(scc) return(gmatch(++s, ++p));
-		return(0);
-	case '*':
-		return(umatch(s, ++p));
-	case 0:
-		return(!scc);
-	}
-	if (c==scc) goto caseq;
-	return(0);
-}
-
-
-
-static
-umatch(s, p)
-register char *s, *p;
-{
-	if(*p==0) return(1);
-	while(*s)
-		if (gmatch(s++,p)) return(1);
-	return(0);
-}
-
-
 
 static
 makdir(namep)		/* make needed directories */
@@ -1133,7 +1304,7 @@ register char *namep;
 		exit(2);
 	}
 	if (pid == -1) {		/* pid != 0 implies parent process */
-		fprintf(stderr,"Cannot fork, try again\n");
+		fperr("Cannot fork, try again\n");
 		exit(2);
 	}
 	while(wait(&status) != pid);
@@ -1219,21 +1390,34 @@ chgreel(x, fl, rv)
 	register f;
 	char str[BUFSIZ];
 	struct stat statb;
+	int tmperrno;
 
+	tmperrno = errno;
 	fstat(fl, &statb);
-	if((statb.st_mode&S_IFMT) != S_IFCHR) {
-		fperrno("Can't %s: ", x? "write output": "read input");
+	if ((statb.st_mode&S_IFMT) != S_IFCHR)
+		{
+		if (x && rv == -1)
+			switch (tmperrno)
+				{
+				case EFBIG:	fperr("cpio: ulimit reached for output file\n");
+						break;
+				case ENOSPC:	fperr("cpio: no space left for output file\n");
+						break;
+				default:	errmsg( EERROR,
+							"write() in bwrite() failed\n");
+				}
+		else
+			fperr( "Can't read input:  end of file encountered \
+prior to expected end of archive.\n");
 		exit(2);
-	}
-	if( rv == 0  ||
-		( rv == -1  &&  ( errno == ENOSPC  ||  errno == ENXIO ) ) )
-		fperr( "\007Reached end of medium on %s.\n",
-			x? "output":"input" );
-	else {
-		fperrno( "\007Encountered an error on %s",
-			x? "output":"input" );
+		}
+	if ((rv == 0) || ((rv == -1) && (tmperrno == ENOSPC  ||  tmperrno == ENXIO)))
+		fperr( "\007Reached end of medium on %s.\n", x? "output":"input" );
+	else
+		{
+		fperrno( "\007Encountered an error on %s", x? "output":"input" );
 		exit(2);
-	}
+		}
 	if( Rtty == NULL )
 		Rtty = zfopen( EERROR, ttyname, "r");
 	close(fl);
@@ -1302,11 +1486,15 @@ register char *namep;
 
 
 static
+void
 pwd()		/* get working directory */
 {
 	FILE *dir;
 
-	dir = popen("pwd", "r");
+	if((dir = popen("pwd", "r")) == NULL) {
+		fperr("cpio: popen() failed, cannot determine working directory\n");
+		exit(2);
+	}
 	fgets(Fullname, sizeof Fullname, dir);
 	if(pclose(dir))
 		exit(2);
@@ -1388,10 +1576,19 @@ resetverbcount()
 		verbcount = 0;
 	}
 }
-
-
-void
-errbefore()
+			/* ident() accepts pointers to two stat structures and	  */
+			/* determines if they correspond to identical files.	  */
+			/* ident() assumes that if the device and inode are the	  */
+			/* same then files are identical.  ident()'s purpose is to*/
+			/* prevent putting the archive name in the output archive.*/
+static
+int
+ident(in, ot)
+struct stat *in, *ot;
 {
-	resetverbcount();
+	if (in->st_ino == ot->st_ino &&
+	    in->st_dev == ot->st_dev)
+		return(1);
+	else
+		return(0);
 }

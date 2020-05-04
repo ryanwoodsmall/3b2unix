@@ -1,5 +1,5 @@
 
-#ident "@(#)vi:README	1.5"
+#ident "@(#)vi:README	1.6"
   This directory and its subdirectories contain the files necessary
 for making ex/vi in the AT&T UNIX environment: 
 
@@ -9,11 +9,7 @@ for making ex/vi in the AT&T UNIX environment:
 	misc - contains files used in the "make" of ex/vi
 	      { mkstr.c, xstr.c ...}
 	
-	vax - ex/vi source directory for the vax, 3B, C70, 370, &
-	      pdp 11/70 (UNIX type=ov --  with overlays)
-
-	pdp11  - ex/vi source directory for the pdp11/70 (UNIX type=od
-	      without overlays)
+	port - ex/vi source directory.
 
 	local - contains "uparm.h" which must be edited to
 		reflect your system setup!
@@ -33,15 +29,12 @@ for making ex/vi in the AT&T UNIX environment:
 
 	PATHs to look at (and possibly change) include: 
 
-	  vax/makefile.u3   ---|
-	  pdp11/makefile.u3 ---|  the editor's string file,
+	  port/makefile.usg   ---|
 	  preserve and recover commands all are installed in
-	  ${DESTDIR}${LIBDIR}....make sure this is where you
+	  ${LIBDIR}....make sure this is where you
 	  want them to go.  This path must be the same as
 	  the path defined in local/uparm.h ...c variable
 	  name is usrpath.
 
 	     In the event of a hangup, the editor will place a
-	  copy of the temporary file in the place defined as
-	  ${DESTDIR}/usr/preserve.
-					
+	  copy of the temporary file in /usr/preserve.

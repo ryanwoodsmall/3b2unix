@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/ppc.h	10.2"
+#ident	"@(#)kern-port:sys/ppc.h	10.2.2.1"
 /*
  * b_state (board state) flags
  *
@@ -37,6 +37,22 @@
 #define CLDRAIN		0x0020
 #define OPDRAIN		0x0040
 #define WBREAK          0x0080
+
+
+/*
+ * Constants needed for determining the version
+ * of the PORTS board, e. g. PORTS or HIPORTS
+ *
+ *	PPC_VERS	request version number of a ppc board (ioctl)
+ *	O_VERS		oflag value for opening a board to read version number
+ *	DEFAULTVER	default version number for boards without one
+ *	HIPORTS		rom version number of the HIPORT board
+ */
+
+#define PPC_VERS (('v'<<8)|1)   
+#define O_VERS  0200	       
+#define DEFAULTVER 1           
+#define HIPORTS  2              
 
 
 

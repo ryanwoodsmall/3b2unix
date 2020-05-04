@@ -5,13 +5,14 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)cat:cat.c	1.12"
+#ident	"@(#)cat:cat.c	1.14"
 /*
 **	Concatenate files.
 */
 
 
 #include	<stdio.h>
+#include	<ctype.h>
 #include	<sys/types.h>
 #include	<sys/stat.h>
 
@@ -90,8 +91,8 @@ char **argv;
 			 *
 			 * Control characters are printed as "^x".
 			 * DEL characters are printed as "^?".
-			 * Non-ASCII characters with the 8th bit set
-			 * are printed as "M-x".
+			 * Non-printable  and non-contrlol characters with the
+			 * 8th bit set are printed as "M-x".
 			 */
 
 			visi_mode++;
@@ -285,93 +286,70 @@ cat(fi)
 }
 
 
-/* character type table */
-
-#define PLAIN	0
-#define CONTRL	1
-#define TAB	2
-#define BACKSP	3
-#define NEWLIN	4
-
-char ctype[128] = {
-	CONTRL,	CONTRL,	CONTRL,	CONTRL,	CONTRL,	CONTRL,	CONTRL,	CONTRL,
-	CONTRL, TAB,	NEWLIN,	CONTRL,	TAB,	CONTRL,	CONTRL,	CONTRL,
-	CONTRL,	CONTRL,	CONTRL,	CONTRL,	CONTRL,	CONTRL,	CONTRL,	CONTRL,
-	CONTRL,	CONTRL,	CONTRL,	CONTRL,	CONTRL,	CONTRL,	CONTRL,	CONTRL,
-	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,
-	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,
-	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,
-	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,
-	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,
-	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,
-	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,
-	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,
-	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,
-	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,
-	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,
-	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	PLAIN,	CONTRL,
-};
-
-int
 vcat(fi)
 	FILE *fi;
 {
 	register int c;
 
-	while ((c = getc(fi)) != EOF) {
-	
+	while ((c = getc(fi)) != EOF) 
+	{
 		/*
-		 * If the 8th bit is set, use the "M-x" notation.
+		 * For non-printable and non-cntrl  chars, use the "M-x" notation.
 		 */
-
-		if (c & 0200) {
+		if ( ! isprint(c) && ! iscntrl(c) ) 
+			{
 			putchar('M');
 			putchar('-');
 			c-= 0200;
-		}
+			}
+		/*
+		 * Display plain characters
+		 */
+		 if (  isprint(c) )
+			{
+			putchar(c);
+			continue;
+			}
+		/*
+		 * Display tab as "^I" if visi_tab set
+		 */
 
-		switch(ctype[c]) {
-			case PLAIN:
-
-				/*
-				 * Display plain characters.
-				 */
-
+		if ( (c == '\t') || (c == '\f') )
+			{
+			if (! visi_tab)
 				putchar(c);
-				break;
-			case TAB:
-
-				/*
-				 * Display tab as "^I" if visi_tab set.
-				 */
-
-				if (!visi_tab)
-					putchar(c);
-				else {
-					putchar('^');
-					putchar (c^0100);
-				}
-				break;
-			case CONTRL:
-
-				/*
-				 * Display control characters as "^x".
-				 */
-
+			else
+				{
 				putchar('^');
 				putchar(c^0100);
-				break;
-			case NEWLIN:
-
-				/*
-				 * Display newlines as "$<newline>" 
-				 * if visi_newline set.
-				 */
-				if (visi_newline)
-					putchar('$');
-				putchar(c);
-				break;
+				}
+			continue;
 			}
-		}
+		/*
+		 * Display newlines as "$<newline>"
+		 * if visi_newline set
+		 */
+		if ( c == '\n')
+			{
+			if (visi_newline) 
+				putchar('$');
+			putchar(c);
+			continue;
+			}
+		/*
+		 * Display control characters
+		 */
+		if ( c <  0200 )
+			{
+			putchar('^');
+			putchar(c^0100);
+			}
+		else
+			{
+			putchar('M');
+			putchar('-');
+			putchar('x');
+			}
+	}
 	return(0);
 }

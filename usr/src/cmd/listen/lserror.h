@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)listen:lserror.h	1.2"
+#ident	"@(#)listen:lserror.h	1.4"
 
 /*
  * lserror.h:	Network listener error exit codes.
@@ -118,6 +118,13 @@
 
 #define E_DBF_ALLOC	34		/* calloc's for dbf failed	*/
 #define E_POLL		35		/* poll call failed		*/
+#define E_MALLOC	36		/* generic failed malloc	*/
+#define E_T_RCVDIS	37		/* t_rcvdis (should be above but
+					   renumbering is bad) */
+#define E_T_LOOK	38		/* t_look (should be above but
+					   renumbering is bad) */
+#define E_DBF_CORRUPT	39		/* data base file corrupt */
+#define E_BADVER	40		/* data base file at wrong version */
 
 typedef struct {
 	char	*err_msg;
@@ -130,4 +137,3 @@ extern errlist err_list[];
 #endif
 
 #endif	/* lserror_h */
-

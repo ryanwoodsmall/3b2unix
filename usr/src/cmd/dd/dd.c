@@ -5,22 +5,16 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)dd:dd.c	1.11"
+#ident	"@(#)dd:dd.c	1.13"
 /*
 **	convert and copy
 */
 
 #include	<stdio.h>
 #include	<signal.h>
-#ifndef	BSD
 #include	<sys/param.h>
 #include	<sys/types.h>
 #include	<sys/sysmacros.h>
-#endif	BSD
-
-#ifdef	BSD
-#define	BSIZE	512
-#endif	BSD
 
 /* The BIG parameter is machine dependent.  It should be a long integer	*/
 /* constant that can be used by the number parser to check the validity	*/
@@ -689,7 +683,8 @@ char **argv;
 
 	while (skip)
 	{
-		if (read(ibf, (char *)ibuf, ibs) == -1)
+		ibc = read(ibf, (char *)ibuf, ibs);
+		if (ibc == (unsigned)-1)
 		{
 			if (++nbad > BADLIMIT)
 			{
@@ -703,7 +698,15 @@ char **argv;
 		}
 		else
 		{
-			nbad = 0;
+			if (ibc == 0)
+			{
+				perror("dd: cannot skip past end-of-file");
+				exit(3);
+			}
+			else
+			{
+				nbad = 0;
+			}
 		}
 		skip--;
 	}
@@ -1475,12 +1478,10 @@ long big;
 				exit(2);
 			}
 			return(n);
-			break;
 
 		default:
 			fprintf(stderr, "dd: bad numeric arg: \"%s\"\n", string);
 			exit(2);
-			break;
 		}
 	} /* never gets here */
 }

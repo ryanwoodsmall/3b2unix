@@ -5,14 +5,18 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)pcc2:common/dope.h	10.1"
+#ident	"@(#)pcc2:common/dope.h	10.2"
 int dope[ DSIZE ];
 char *opst[DSIZE];
 
 struct dopest 
 {
 	int dopeop; 
+#if uts				/* work around initialization bug */
+	char opst[9];
+#else
 	char opst[8]; 
+#endif
 #ifdef	STY
 	char * opst2;		/* string corresponding to op's #define value */
 #endif
@@ -163,9 +167,12 @@ struct dopest
 	dopedef(NPRETURN, "NPRETURN", LTYPE ),
 	dopedef(VLRETURN, "VLRETURN", BITYPE ),
 	dopedef(FCONV, "FCONV", UTYPE ),
-	dopedef(BCMP, "BCMP", BITYPE ),
+	dopedef(BCMP, "BCMP", BITYPE|LOGFLG),
 	dopedef(SEMI, ";", BITYPE ),
-	dopedef(UNARY MUL, "*", UTYPE ),
+	dopedef(CAPCALL, "CAPCALL", UTYPE|CALLFLG),
+	dopedef(CAPRET, "CAPRET", LTYPE),
+	dopedef(RSAVE, "RSAVE", LTYPE),
+	dopedef(RREST, "RREST", LTYPE),
 #endif	/* def CG */
 
 	-1,	0,	0

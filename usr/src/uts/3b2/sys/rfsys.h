@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/rfsys.h	10.4"
+#ident	"@(#)kern-port:sys/rfsys.h	10.4.1.1"
 
 #ifdef INKERNEL
 extern	char	Domain[];
@@ -24,6 +24,7 @@ extern	char	Domain[];
 #define RF_VFLAG	9
 #define RF_DISCONN	10	/* return value for link down */
 #define RF_VERSION	11
+#define RF_RUNSTATE	12	/* see if RFS is running */
 
 
 /* defines for VFLAG option	*/

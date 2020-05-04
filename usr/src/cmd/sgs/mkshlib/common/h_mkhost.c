@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mkshlib:common/h_mkhost.c	1.2"
+#ident	"@(#)mkshlib:common/h_mkhost.c	1.4"
 
 #include <stdio.h>
 #include "filehdr.h"
@@ -31,7 +31,8 @@ mkhost()
 
 	init_trgsymtab();	/* initialize the target symbol hash table */
 
-	defsuffix= getdsuf();	/* get the suffix for the file definition symbols */
+	defname = getdefname();
+	defsuffix = getdpre();	/* get the suffix for the file definition symbols */
 	libdefsym= mkdefsym(defname, defsuffix);  /* create libdefsym */
 	mklibdef();	/* make the library definition file */
 

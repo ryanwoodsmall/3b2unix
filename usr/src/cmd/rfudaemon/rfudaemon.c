@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)rfudaemon:rfudaemon.c	1.4"
+#ident	"@(#)rfudaemon:rfudaemon.c	1.4.1.1"
 /*
  *	User-level daemon for file sharing.
  *	Do syscall to wait for messages.
@@ -39,7 +39,7 @@ char **argv;
 		for (tp = buf, i = 0; i < DATASIZE; i++)
 			*tp++ = '\0';
 
-		strcpy(cmd, "rfuadmin ");
+		strcpy(cmd, "/usr/nserve/rfuadmin ");
 
 		switch (rfsys(RF_GETUMSG, buf, DATASIZE)) {
 		case RF_GETUMSG:

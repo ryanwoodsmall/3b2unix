@@ -1,4 +1,4 @@
-#ident	"@(#)cmd-3b2:inst/bin/optpart	1.4"
+#ident	"@(#)cmd-3b2:inst/bin/optpart	1.6"
 #
 # optparttn
 #
@@ -188,7 +188,7 @@ be mounted?" \
 			    -h "\
 Enter the absolute directory name upon which this ${use_size}-block file system
 should be mounted. If you just hit <RETURN>, the file system will be mounted
-as \"${dir}${seq}\". See the \"3B2 System Owner/Operator Manual\" for more
+as \"${dir}${seq}\". See the \"3B2 System Administrator's Guide\" for more
 information about directory and file names.
 
 You may also enter \"again\" to reallocate the optional partitions
@@ -212,8 +212,14 @@ ${drive:+on disk ${drive} }or \"quit\" to quit." \
 					break
 				fi
 			fi
-			echo "
-${use_dir} already exists; please choose a new directory name." >&2
+			case `askx -m " \
+${use_dir} already exists; should ${drive:+ disk ${drive}} partition ${use_partno} be mounted as ${use_dir}? " \
+			-c y -c n` in
+		y)
+			break;;
+		n)
+			continue;;
+		esac
 		done
 		fmthard -d ${use_partno}:0:0:${FREE_START}:${use_size} ${devraw}${use_part} > /dev/null
 		FREE_START=`ignore expr ${FREE_START} + ${use_size}`

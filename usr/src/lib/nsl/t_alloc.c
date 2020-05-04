@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/t_alloc.c	1.4.1.1"
+#ident	"@(#)libnsl:nsl/t_alloc.c	1.4.2.1"
 #include "sys/types.h"
 #include "sys/stream.h"
 #include "sys/stropts.h"
@@ -21,7 +21,7 @@ extern struct _ti_user *_t_checkfd();
 extern char *calloc();
 extern void free();
 extern int errno, t_errno;
-extern (*sigset())();
+extern void (*sigset())();
 extern int ioctl();
 
 char *
@@ -32,7 +32,7 @@ int fields;
 {
 	struct strioctl strioc;
 	struct T_info_ack info;
-	int (*sigsave)();
+	void (*sigsave)();
 	union structptrs {
 		char	*caddr;
 		struct t_bind *bind;

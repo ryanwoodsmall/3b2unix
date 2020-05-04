@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)as:m32/oneproc.mk	1.27"
+#ident	"@(#)as:m32/oneproc.mk	1.27.2.4"
 #
 #	WE32000 AS MAKEFILE
 #
@@ -110,8 +110,7 @@ ops.out	:
 parse.h :
 	  echo >parse.h
 #
-operand.o: operand.c $(3BAS)/as_ctype.h program.h $(COMAS)/symbols.h instab.h\
-	   systems.h
+operand.o: operand.c $(3BAS)/as_ctype.h program.h $(COMAS)/symbols.h instab.h
 		$(CC_CMD) operand.c
 
 #
@@ -144,7 +143,9 @@ maugen.o	: maugen.c maugen.h $(COMAS)/symbols.h instab.h systems.h \
 		  $(COMINC)/scnhdr.h
 		$(CC_CMD) maugen.c
 #
-expand1.o	: expand1.c $(COMAS)/expand.h $(COMAS)/symbols.h gendefs.h systems.h
+expand1.o	: expand1.c $(COMAS)/expand.h $(COMAS)/symbols.h \
+		  gendefs.h systems.h $(COMAS)/codeout.h \
+		  $(COMAS)/section.h $(COMINC)/scnhdr.h
 		$(CC_CMD) expand1.c
 #
 expand2.o	: expand2.c $(COMAS)/expand.h expand2.h $(COMAS)/symbols.h systems.h
@@ -154,7 +155,7 @@ float.o		: float.c instab.h $(COMAS)/symbols.h systems.h program.h
 		$(CC_CMD) float.c
 #
 addr1.o		: $(COMAS)/addr1.c $(COMINC)/reloc.h $(COMINC)/syms.h \
-		  $(COMINC)/storclass.h $(COMINC)/linenum.h $(COMINC)/filehdr.h \
+		  $(COMINC)/linenum.h $(COMINC)/filehdr.h \
 		  gendefs.h $(COMAS)/symbols.h $(COMAS)/codeout.h systems.h
 		$(CC_CMD) $(COMAS)/addr1.c
 #
@@ -181,7 +182,7 @@ obj.o		: $(COMAS)/obj.c $(COMINC)/filehdr.h $(COMINC)/linenum.h instab.h \
 		$(CC_CMD) $(COMAS)/obj.c
 #
 symlist.o	: $(COMAS)/symlist.c $(COMAS)/symbols.h $(COMINC)/syms.h \
-		  $(COMINC)/storclass.h gendefs.h systems.h
+		  gendefs.h
 		$(CC_CMD) $(COMAS)/symlist.c
 #
 symbols.o	: $(COMAS)/symbols.c $(COMAS)/symbols.h symbols2.h \
@@ -190,7 +191,7 @@ symbols.o	: $(COMAS)/symbols.c $(COMAS)/symbols.h symbols2.h \
 #
 unused.o	: $(COMAS)/unused.c symbols2.h $(COMINC)/filehdr.h \
 		  $(COMINC)/linenum.h $(COMINC)/reloc.h $(COMINC)/scnhdr.h \
-		  $(COMINC)/syms.h $(COMINC)/storclass.h
+		  $(COMINC)/syms.h
 		$(CC_CMD) $(COMAS)/unused.c
 #
 lint.out	: $(CFILES) $(HFILES) 
@@ -205,9 +206,9 @@ $(BINDIR)/$(SGS)as:	as
 		sh $(BASE)/sgs.install 755 $(OWN) $(GRP) $(BINDIR)/$(SGS)as as
 		mv as.bak as
 $(LIBDIR)/cm4defs:	cm4defs
-		sh $(BASE)/sgs.install 444 $(OWN) $(GRP) $(LIBDIR)/cm4defs cm4defs
+		sh $(BASE)/sgs.install 664 $(OWN) $(GRP) $(LIBDIR)/cm4defs cm4defs
 $(LIBDIR)/cm4tvdefs:	cm4tvdefs
-		sh $(BASE)/sgs.install 444 $(OWN) $(GRP) $(LIBDIR)/cm4tvdefs cm4tvdefs
+		sh $(BASE)/sgs.install 664 $(OWN) $(GRP) $(LIBDIR)/cm4tvdefs cm4tvdefs
 #
 save		: $(BINDIR)/$(SGS)as $(LIBDIR)/cm4defs $(LIBDIR)/cm4tvdefs
 		-rm -f $(BINDIR)/$(SGS)as.back

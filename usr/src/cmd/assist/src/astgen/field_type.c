@@ -5,9 +5,31 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)tools:field_type.c	1.30"
+#ident	"@(#)tools:field_type.c	1.31"
 
 /*
+ * field_type() handles the Command Line Mapping screen.
+ * It prompts the user for information that allow
+ * defining parameters for the command line generator,
+ * in particular, first_cpr_pt and first_cpo_pt.
+ * Until the final user confirmation, these
+ * parameters are stored in temporary structures (linked lists
+ * originating at struct fix *first_cpr_pt and.
+ * at struct fix *first_cpr_pt).  The temporary field f0
+ * merely serves as a vehicle to tie these structures together
+ * to display parameter settings for confirmation.
+ * Some labels used for these parameters (see ASSIST
+   Development Tools Guide for more information).
+     first_cpr_pt takes values 'aaaa', where 'a' is 0 or 1.
+        First three a's are spacing flags (for spaces before/
+        between/after strings from current field), and
+        4th 'a' is 'muse-match' flag.
+     A (=first_cpr_pt->next): pre-fix for concatenation.
+     B (=first_cpr_pt->next->next): suffix for concatenation.
+     cpox0_pt, cpox1_pt, cpox2_pt, ... : user input values for table lookup.
+        Stored as: first_cpo_pt, first_cpo_pt->next->next, ...
+     cpoy0_pt, cpoy1_pt, cpoy2_pt, ... : transformed values for table lookup.
+        Stored as: first_cpo_pt->next, first_cpo_pt->next->next->next, ...
  */
 
 #include "../forms/muse.h"
@@ -38,10 +60,11 @@ struct field *f_pt;
 
    strcpy(fthelp,"ftype.help");
 
-RESTART:
+RESTART:    /* Point where user returns after typing ^V/f2 */
    bundle = -1;
    show_caption(f_pt,"Command Line Mapping");
 
+/* Show current mapping, and ask whether user wants to change mapping */
    show_cmd("",7);
    helpnum = 0;
    switch(show_map(f_pt,"Do you want to change this mapping (y/n):")) {
@@ -60,10 +83,14 @@ RESTART:
         break;
    }
 
-   frow = 5;
-   maxfsegms = 1;
+/* Initialize some local variables */
+   frow = 5;       /* Cursor row on screen */
+   maxfsegms = 1;  /* field.maxfsegms */
    helpnum = 1;
-   yesnoflag=0;
+   yesnoflag=0;    /* 1 iff mapping type is "yesno" */
+
+/* Initialize structure for temporary storage of command line
+   generation parameters */
    first_cpr_pt = (struct fix *)malloc(sizeof(struct fix));
    first_cpr_pt->name = (char*)calloc(6,sizeof(char));
    cprA_pt = first_cpr_pt->next 
@@ -79,7 +106,7 @@ RESTART:
    cprA_pt->name = cprB_pt->name = cpox0_pt->name 
                  = cpoy0_pt->name =  &nullchar;
    
-/* Initialize f0 */
+/* Now initialize f0 */
    f0.first_cpr_pt = f0.first_cpo_pt = (struct fix *)0;
    f0.caption = f_pt->caption;
    f0.first_s_pt = f_pt->first_s_pt;
@@ -89,6 +116,13 @@ RESTART:
    show_cmd("",7);
 
 
+/*
+ * Display main menu of mapping module.  From here, there is
+ * complete branching.  If "identical", the user is asked only
+ * about spacing (goto SPACES). If "yes/no", spacing is default in the user is
+ * asked just a few -- other -- questions.  If "Other", more
+ * complicated things happen.
+ */
    mvaddstr(5,1,
 "Identical -- Command line strings ALWAYS same as input strings.");
    mvaddstr(6,1,
@@ -155,11 +189,17 @@ ZZZ:
    }
 
 
+/*
+ * BEGIN OF "YESNO" SECTION.
+ */
    if (yesnoflag) {
       c_pt = &nullchar;
       helpnum = 2;
       show_cmd("",8);
       frow = 5;
+/*
+ * Ask option name and delimiter.
+ */
 KKK:
       c_pt = (chstr=askstring(
          "Type delimiter and option name:",5,1,COLS,helpnum,fthelp,1))->str;
@@ -186,6 +226,7 @@ KKK:
       }
       clrlns(LINES-1,LINES-1);
       show_cmd("",7);
+      /* Store option name and delimiter in temporary data structure. */
       cpox0_pt->name = (char*)calloc(2,sizeof(char));
       cpoy0_pt->name = (char*)calloc((unsigned)(strlen(c_pt)+2),sizeof(char));
  
@@ -210,6 +251,9 @@ KKK:
       strcpy(cpoy1_pt->name,c_pt);
 
 
+/*
+ * Ask if "yes" question or "no" question.
+ */
       helpnum = 3;
 LLL:
       switch(ask(
@@ -246,12 +290,18 @@ LLL:
          break;
       }
 
-/* Check if 1-letter option; if not, finalize */
+/* 
+ * Check if 1-letter option; if not, finalize.  Otherwise,
+ * ask for bundling.
+ */
       if (strlen(cpoy0_pt->name)!=2) {
          strcpy(first_cpr_pt->name,"1011");
-         bundle = 0;
+         bundle = 0;   /* No bundling */
          helpnum = 5;
          finalize(1,&f0,bundle,first_cpr_pt,first_cpo_pt);
+/*
+ * Give opportunity for complete restart.
+ */
 zzz:
          switch(show_map(&f0,"Is this how you want it (y/n):")) {
             case 0:
@@ -277,6 +327,9 @@ zzz:
       }
 
       helpnum = 4;
+/*
+ * Yes/no option with single-letter name.
+ */
 MMM:
       switch(ask(
 "Is option bundled with other 1-letter options (y/n):",
@@ -382,15 +435,29 @@ ccc:
            break;
       }
    }
+/*
+ * END OF "YES/NO" SECTION
+ *
+ * BEGIN OF "OTHER" SECTION.
+ */
 
+
+/*
+ * If user answers "no" to next question, this means that mapping is
+ * pure table lookup.  If "yes", mapping is either pure
+ * concatenation or hybrid.
+ */
    show_cmd("",7);
    helpnum = 8;
 NNN:
    switch(ask( 
 "Does A itself EVER appear on the command line (y/n):", 7,1,"yn",helpnum,fthelp)) {
    case 'n':
-      *(first_cpr_pt->name+3) = '1';
+      *(first_cpr_pt->name+3) = '1';  /* Table lookup flag */
       addstr("o"); refresh();
+/*
+ * Call getlist() to define lookup table.
+ */
       if ((first_cpo_pt = getlist(f_pt,fthelp,6))==NULL)
          return(0);
       frow = 9;
@@ -413,7 +480,10 @@ NNN:
       clrlns(LINES-4,LINES-4);
       goto NNN;
       break;
-   case 'y':
+   case 'y':   
+/*
+ * Mapping involves concatenation.  Ask relevant questions.
+ */
       *(first_cpr_pt->name+3) = '0';
       addstr("es"); refresh();
       show_cmd("",8);
@@ -448,6 +518,9 @@ OOO:
          default:
             break;
          }
+/*
+ * Analyze what user typed in: find non-escaped "A" (user string).
+ */
          for (c0_pt=c_pt; *c0_pt; c0_pt++)
             if (*c0_pt=='A' && (c0_pt==c_pt || *(c0_pt-1)!='\\')) 
                test++;
@@ -475,7 +548,9 @@ OOO:
       clrlns(LINES-1,LINES-1);
       show_cmd("",7);
 
-      /* Find first non-escaped occurrence of A */
+/* Find first non-escaped occurrence of A. Parse string
+ * into prefix, user string, and suffix -- all for concatenation
+ */
       for (c0_pt=c_pt; *c0_pt!='A' || (c0_pt>c_pt && *(c0_pt-1)=='\\'); 
            c0_pt++);
       *c0_pt = null;   /* Terminate c_pt at location of A           */
@@ -485,12 +560,19 @@ OOO:
       cprA_pt->name = c_pt;     /* Start B at c_pt */
       rmslash(cprA_pt->name);
 
+/*
+ * Done with conatenation part.  Now check whether mapping is
+ * hybrid: ALSO involves table looup.
+ */
       helpnum = 10;
 PPP:
       switch(ask(
 "Are there exceptions to the mapping rule you just specified (y/n):",11,1,"yn",helpnum,fthelp)) {
       case 'y':
          addstr("es"); refresh();
+/*
+ * Call getlist() to define lookup table.
+ */
          if ((first_cpo_pt = getlist(f_pt,fthelp,6))==NULL)
            return(0);
          *(first_cpr_pt->name+3) = '0';
@@ -498,6 +580,9 @@ PPP:
          goto SPACES;
          break;
       case 'n':
+/*
+ * Pure concatenation mapping. Define spacing pattern.
+ */
          addstr("o"); refresh();
          *(first_cpr_pt->name+3) = '0';
          frow = 13;
@@ -525,6 +610,9 @@ PPP:
    }
 
 
+/*
+ * Define spacing patterns.
+ */
 SPACES:
 
       clrlns(3,3);
@@ -534,6 +622,9 @@ SPACES:
 "          B = Corresponding command line string(s)");
       draw_line(5);
 
+/*
+ * Spaces to the left of strings from current field.
+ */
 QQQ:
    strcpy(typelabel,
 "Put space to the left of B on the command line (y/n):");
@@ -565,6 +656,9 @@ QQQ:
       break;
    }
 
+/*
+ * Spaces between strings from current field.
+ */
    helpnum = 12;
 RRR:
    switch(ask( 
@@ -596,6 +690,9 @@ RRR:
       break;
    }
 
+/*
+ * Spaces after strings from current field.
+ */
    helpnum = 13;
    strcpy(typelabel,
 "Put space after B (y/n):");
@@ -627,6 +724,9 @@ SSS:
       break;
    }
 
+/*
+ * Show spacing pattern; ask for confirmation.
+ */
    helpnum = 14;
    move(frow+6,1);
    addstr("<strings>");
@@ -668,6 +768,10 @@ TTT:
       break;
    }
    finalize(maxfsegms,&f0,bundle,first_cpr_pt,first_cpo_pt);
+
+/*
+ * Show mapping and ask for confirmation.
+ */
    helpnum = 5;
 ddd:
    switch(show_map(&f0,"Is this how you want it (y/n):")) {
@@ -693,10 +797,25 @@ ddd:
    }
 }
 
+/*
+ * getlist() loads linked list of fixes originating at
+ * f_pt->first_cpo_pt into two temporary arrays of segments (ss0, ss1).
+ * These arrays are passed to fedit() for user editing.
+ * The changed arrays are then stored in a linked
+ * list originating at the global fix pointer, first_cpo_pt.  Note
+ * that first_cpo_pt != f_pt->first_cpo_pt. In other words, the
+ * initial values appearing in the fedit() screen are from the
+ * real, non-updated current field, but the result is stored in
+ * temporary structures, later to be copied to the current
+ * field. Also note that ss0 stores
+ * first_cpo_pt, first_cpo_pt->next->next, ..., and ss1
+ * stores first_cpo_pt->next, first_cpo_pt->next->next->next.
+ * This corresponds to the definitions of x0, x1, ... and y0, y1, ...
+ */
 struct fix *getlist(f_pt,hfile,hnum)
-struct field *f_pt;
-char *hfile;
-int hnum;
+struct field *f_pt;   /* Current field pointer */
+char *hfile;          /* Help file */
+int hnum;             /* help message number */
 {  struct fix *fi0_pt, *fi1_pt, *first_cpo_pt;
    static struct segment *ss0=(struct segment *)0, *ss1=(struct segment *)0;
    struct segment *s0_pt, *s1_pt;
@@ -704,6 +823,9 @@ int hnum;
    int ask();
    int i, flag;
 
+/*
+ * Allocate ss0 and ss1.
+ */
    if (ss0!=(struct segment*)0) {
       free(ss0);
       ss0 = (struct segment*)0;
@@ -719,9 +841,15 @@ int hnum;
    for (s0_pt = ss0+LINES-1; s0_pt >= ss0; s0_pt--) s0_pt->word = NULL;
    for (s1_pt = ss1+LINES-1; s1_pt >= ss1; s1_pt--) s1_pt->word = NULL;
 
+/*
+ * Store current curses screen.
+ */
    store(stdscr,0,LINES,COLS);
    clear();
 
+/*
+ * Load cpo_pt's in segment arrays.
+ */
    prompt0 = "A:";
    prompt1 = "B:";
 
@@ -751,6 +879,9 @@ int hnum;
       s1_pt++;
    }
 
+/*
+ * Run fedit() -- table editor.  Process return code.
+ */
 CC:
    flag = fedit(f_pt,ss0,ss1,prompt0,prompt1,
     "A = user input string, B = what A is mapped onto in the command line",0,
@@ -775,9 +906,14 @@ DD:
       }
    }
    clear();
+
+   /* Restore pre-fedit() screen */
    store(stdscr,1,LINES,COLS);
    refresh();
 
+/*
+ * Store ss0 and ss1 in first_cpo_pt list.
+ */
    fi0_pt = first_cpo_pt = (struct fix*)malloc(sizeof(struct fix));
    fi0_pt->next = (struct fix *)0;
    fi0_pt->name = NULL;
@@ -805,6 +941,15 @@ DD:
 
 
 
+/*
+ * Display prompt for single-character user input; process input, and
+ * return user response.
+ * s -- prompt string.
+ * i, j -- coordinates of prompt string.
+ * ok -- string of acceptable characters (e.g., "yn" for yes/no questions).
+ * hn -- help message number.
+ * h -- help file name.
+ */
 int ask(s,i,j,ok,hn,h)
 char *s, *ok;
 char *h;  /* help file */
@@ -821,14 +966,15 @@ int hn;  /* help number */
       oc = c;
       c=getch();
       switch(c) {
-      case '\015':
+      case '\015':       /* CR terminates input and returns "ok" character */
          if (test==1) {
             move(i,j+1);
             return(oc);
          }
          else beep();
          break;
-      case CTRL(V):
+      case CTRL(V):    /* Aborts input; returns abort character 
+                          for further processing */
       case CTRL(T):
       case CTRL(R):
       case KEY_F(2):
@@ -836,25 +982,24 @@ int hn;  /* help number */
       case KEY_F(5):
          return(c);
          break;
-      case KEY_F(3):
+      case KEY_F(3):   /* Redraw screen */
       case CTRL(L):
          clearok(curscr,TRUE);
          wrefresh(curscr);
          break;
-      case '\010':
+      case '\010':     /* 1-character input only */
          beep();
          break;
-      case KEY_F(6):
+      case KEY_F(6):   /* Help */
       case CTRL(Y):
+         c = oc;  /* To deal with case where user types ok character
+                     followed by ^Y followed by 2 CR's */
          store(stdscr,0,LINES,COLS);
-         if (i<LINES-12)
-            fhelp(h,hn,2,i+1);
-         else
-            fhelp(h,hn,2,3);
+         fhelp(h,hn,2,i+1);
          store(stdscr,1,LINES,COLS);
          refresh();
          break;
-      default:
+      default:         /* Test if "ok" character; display character */
          test = 0;
          if (!isprint(c)) beep();
          else {
@@ -870,6 +1015,18 @@ int hn;  /* help number */
    }
 }
 
+/*
+ * Prompt user for string input.  Returns a struct charstr* --
+ * pointer to a paired string/character.  Character is used
+ * primarily as return code, string as actual user string.
+ *
+ * s -- prompt string.
+ * i, j -- coordinates of prompt string.
+ * maxj -- largest screen column for user input characters
+ * hn -- help message number.
+ * h -- help file name.
+ * edflag -- if =0 no ^E editing allowed
+ */
 struct charstr *askstring(s,i,j,maxj,hn,h,edflag)
 char *s, *h;  /* Prompt and help file name */
 int i, j, maxj, hn, edflag;  /* y/x coord; maxcol; helpnum, edit permiss */
@@ -879,6 +1036,9 @@ int i, j, maxj, hn, edflag;  /* y/x coord; maxcol; helpnum, edit permiss */
    int c, jj, errnum, j0, c0;
    int literal=0, out=0;
 
+/*
+ * Allocate memory for return charstring pinter.
+ */
    cs_pt = (struct charstr*)malloc(sizeof(struct charstr));
 
    cs_pt->str = (char*)calloc((unsigned)(maxj-j+3),sizeof(char));
@@ -888,22 +1048,16 @@ int i, j, maxj, hn, edflag;  /* y/x coord; maxcol; helpnum, edit permiss */
    getyx(stdscr,i,j);
    refresh();
 
-   while (!out) {
+   while (!out) {     /* Terminate user input loop */
       c = getch();
       show_cmd("",8);
-      err_rpt(0,0); /* XXX */
+      err_rpt(0,0); 
       if (literal) goto insert;
       switch(c) {
-      case '\015':
+      case '\015':   /* Terminate user input loop */
       case CTRL(E):
       case KEY_F(7):
       case KEY_DOWN:
-      /* case CTRL(V): */
-      /* case KEY_F(2): */
-      /* case CTRL(R): */
-      /* case KEY_F(4): */
-      /* case CTRL(T): */
-      /* case KEY_F(5): */
          if (!literal) {
             if ((errnum=chckstr(cs_pt->str,0))==0) 
                out = 1;
@@ -913,36 +1067,36 @@ int i, j, maxj, hn, edflag;  /* y/x coord; maxcol; helpnum, edit permiss */
             }
          }
          break;
-      case KEY_F(3):
+      case KEY_F(3):  /* redraw screen */
       case CTRL(L):
          clearok(curscr,TRUE);
          wrefresh(curscr);
          break;
-      case CTRL(C):
+      case CTRL(C):   /* Character quote state */
          if (!literal) literal = 1;
          else {
             literal = 0;
             goto insert;
          }
          break;
-      case '\010':
+      case '\010':    /* Backspace */
          if (c_pt>cs_pt->str)  {
             *c_pt-- = null; 
             *c_pt = null;
          }
          else beep();
          break;
-      case CTRL(Y):
+      case CTRL(Y):   /* Help */
       case KEY_F(6):
          store(stdscr,0,LINES,COLS);
-         if (i<LINES-12)
-            fhelp(h,hn,4,i+2);
-         else
-            fhelp(h,hn,4,3);
+         fhelp(h,hn,4,i+1);
          store(stdscr,1,LINES,COLS);
          refresh();
          break;
-      default:
+      default:    /* Character processing */
+/*
+ * First, store in cs_pt->str.
+ */
 insert:
          if (literal) literal = 0;
          if (errnum=chckchar((char)c)) err_rpt(errnum,TRUE);
@@ -952,24 +1106,34 @@ insert:
          }
          break;
       }
+ /*
+  * Now take care of display.
+  */
+      /* Blank out current string */
       for (jj=j;jj<maxj;jj++) mvaddch(i,jj,' ');
       jj = j;
       move(i,j);
+      /* Put (decontrolled) characters on screen; if they do not
+         fit, call editstr() */
       for (c0_pt=cs_pt->str; *c0_pt && jj<maxj ; c0_pt++) {
          c1_pt = dctrlch(*c0_pt);
          jj += strlen(c1_pt); 
-         if (jj<maxj)
+         if (jj<maxj)      /* Fits on screen */
             addstr(c1_pt);
-         else  {
+         else  {           /* Does not fit on screen -- call editor */
             show_cmd("",27);
             refresh();
+                 /* Type RETURN to continue */
             while ((c0=getch()) != CTRL(M) && c0!=CTRL(J))  beep();
+                 /* Call editor -- editstr(). Stay in edit/check loop
+                    until string is valid */
             while ((errnum=chckstr(cs_pt->str=editstr(cs_pt->str),0))>0) {
                err_rpt(errnum,TRUE);
                show_cmd("",16);
                for (j0=j;j0<maxj;j0++) mvaddch(i,j0,' ');
                j0 = j;
                move(i,j);
+               /* Display (invalid) user string */
                for (c0_pt=cs_pt->str; *c0_pt && j0<maxj ; c0_pt++) {
                   c1_pt = dctrlch(*c0_pt);
                   j0 += strlen(c1_pt); 
@@ -978,7 +1142,7 @@ insert:
                }
                refresh();
                getch();
-            }
+            }  /* End of edit/check loop.  Display user string*/
             for (j0=j;j0<maxj;j0++) mvaddch(i,j0,' ');
             j0 = j;
             move(i,j);
@@ -988,34 +1152,37 @@ insert:
                if (j0<maxj)
                   addstr(c1_pt);
             }
-            err_rpt(0,0); /* XXX */
+            err_rpt(0,0);
             return(cs_pt);
          }
-      }
-/*    err_rpt(0,0);  XXX */
+      }  /* End of switch */
       refresh();
-   }
+   }  /* End of character input loop */
 
    if (*cs_pt->str == null) mvaddstr(i,j,"<empty>");
    refresh();
 
+/*
+ * Process exit character
+ */
    cs_pt->ch = (char)c;
 
    switch(c) {
-   case CTRL(E):
+   case CTRL(E):   /* Call editor */
    case KEY_F(7):
       if (!edflag) beep();
       else {
          dctrlblank(i,j,maxj-j,cs_pt->str);
+         /* Edit/check loop */
          while ((errnum=chckstr(cs_pt->str=editstr(cs_pt->str),0))>0) {
             err_rpt(errnum,TRUE);
             show_cmd("",16);
             dctrlshow(i,j,78-j,cs_pt->str);
             refresh();
             getch();
-         }
+         } /* End of edit/check loop */
+         /* Display user string */
          err_rpt(0,0);
-   /*    refresh();   XXX */
          move(i,j);
          jj = j;
          for (c_pt=cs_pt->str, jj=j; *c_pt && jj<maxj; c_pt++) {
@@ -1034,11 +1201,14 @@ insert:
 
 
 
+/*
+ * Put temporarily stored parameters in f_pt.
+ */
 VOID finalize(maxs,f_pt,b,f_cpr_pt,f_cpo_pt)
-struct field *f_pt;
-int maxs;
-int b;
-struct fix *f_cpr_pt, *f_cpo_pt;
+struct field *f_pt;  /* Field pointer */
+int maxs;   /*maxfsegms */
+int b;      /* bundle */
+struct fix *f_cpr_pt, *f_cpo_pt;   /* command line generation strings */
 {
    if (f_pt==(struct field*)0) return(0);
 
@@ -1051,6 +1221,13 @@ struct fix *f_cpr_pt, *f_cpo_pt;
 
 
 
+/*
+ * Used by show_map().  Returns description of mapping.
+ * Flag: 0: short. 1-line description. 1: long description.
+ *
+ * Each time a param,eter is a very long string, it is replaced in the
+ * description by <long string>.
+ */
 
 char *view_type(f_pt,flag)   /* Returns fieldtype label */
 struct field *f_pt;
@@ -1069,6 +1246,9 @@ struct field *f_pt;
    if (freeflag) free(OUT);
    freeflag=0;
 
+/*
+ * Find A, B, and x0.
+ */
    cpr_pt = f_pt->first_cpr_pt;
 
    if (cpr_pt==NULL || cpr_pt->name==NULL || strlen(cpr_pt->name)!=4) 
@@ -1080,10 +1260,12 @@ struct field *f_pt;
    cpox0_pt = f_pt->first_cpo_pt;
    x0 = (cpox0_pt==NULL || cpox0_pt->name==NULL) ? &nullchar : cpox0_pt->name;
 
-   /* A, B, and x0 are now guaranteed not to be NULL.
-      cpr_pt->name has length 4. */
+   /* A, B, and x0 are now guaranteed not to be NULL; they may be null,
+      however.  cpr_pt->name has length 4. */
 
-   /* Catch special case #1 */
+/*    "IDENTICAL" case: mustmatch flag off, no table lookup strings.
+ *    Construct "<user string> onto A<user string>B" in char *out.
+ */
    if (*(cpr_pt->name+3) == '0' && *x0 == null) {
       OUT = (char*)calloc((unsigned)(dctrll(A)+dctrll(B)+200),sizeof(char));
       freeflag = 1;
@@ -1097,18 +1279,20 @@ struct field *f_pt;
       else b="";
       if (strlen(b)>(COLS-10)/2) b="<long string>";
       strcat(OUT,b);
-      if (flag==1) {
+      if (flag==1) {    /* Long descrsiption */
          strcat(OUT,"\n");
          set_spaces(f_pt->maxfsegms,cpr_pt->name,OUT);
          return(OUT);
       }
-      else {
+      else {     /* Short description */
          if (strlen(OUT)<COLS) return(OUT);
          else return("A onto <long string>A");
       }
    }
 
-   /* Catch special case #2  AND the "never" case */
+/*    YES/NO case AND the OTHER/pure table lookup case.
+ *    Built xi onto yi" table in char *out.
+ */
    if (*(cpr_pt->name+3) == '1' && *A==null && *B==null) {
       len=0;
       for (p_pt=cpox0_pt; p_pt!=NULL && p_pt->name!=NULL; p_pt=p_pt->next)
@@ -1140,7 +1324,11 @@ struct field *f_pt;
       return(OUT);
    }
 
-   /* General case */
+/*
+ * OTHER case -- not pure table lookup.
+ *
+ * First built concatenation part.
+ */
    OUT0 = (char*)calloc((unsigned)(dctrll(A)+dctrll(B)+20),sizeof(char));
    if (*A!=null) a = dctrlstr(A);
    else a="";
@@ -1150,6 +1338,9 @@ struct field *f_pt;
    else b="";
    if (strlen(b)>(COLS-10)/2) b="<long string>";
    strcat(OUT0,b);
+/*
+ * Now built table lookup part.
+ */
    if (x0==null) {
       OUT = (char*)calloc((unsigned)(strlen(OUT0)+200),sizeof(char));
       freeflag = 1;
@@ -1193,9 +1384,12 @@ struct field *f_pt;
    return(OUT);
 }
 
+/*
+ * Display spacing pattern in char *out.
+ */
 VOID set_spaces(m,name,out)
-char *name, *out;
-int m;
+char *name, *out;  /* first_cpr_pt->name, output */
+int m;             /* Max number of user strings */
 {
    strcat(out,"<strings>");
    if (*name == '1') strcat(out,"<SPACE>");
@@ -1209,11 +1403,14 @@ int m;
    strcat(out,"<strings>");
 }
 
-clrlns(i,j)
+clrlns(i,j)   /* Clear lines i - j */
 int i,j;
 { for (;i<=j;i++) { move(i,0); clrtoeol(); } }
 
-int show_map(f_pt,s)
+/*
+ * Displays output from view_type. Prompts user ("s" is prompt).
+ */
+int show_map(f_pt,s) 
 struct field *f_pt;
 char *s;
 {  int ci, cj;
@@ -1277,6 +1474,9 @@ char *s;
    }  while (*++s);
 }
 
+/*
+ * Adds/deletes "mustmatch" validation routine for pure table-lookup fields.
+ */
 set_valstrs(f_pt)
 struct field *f_pt;
 {  struct fix *f0_pt, *f1_pt, *v0_pt;
@@ -1287,11 +1487,17 @@ struct field *f_pt;
         f0_pt->name==NULL || strlen(f0_pt->name)!=4)
       return(0);
        
+/*
+ * Field used to have mustmatch rountie, but doe not need it anymore.
+ */
    if (*(f_pt->first_cpr_pt->name+3) !='1')  {
       rmvaln(f_pt,4);
       return(0);
    }
 
+/*
+ * Add valfunc.
+ */
    for (f0_pt = f_pt->first_cpo_pt;
         f0_pt != (struct fix *)0  && 
         f0_pt->name != NULL && 
@@ -1313,6 +1519,9 @@ struct field *f_pt;
    return(1);
 }
 
+/*
+ * Prompting routine used when user requests abort (^T, ^R).
+ */
 int restart()
 {   int ask();
 

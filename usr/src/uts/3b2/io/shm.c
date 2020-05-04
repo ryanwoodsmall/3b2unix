@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/shm.c	10.10"
+#ident	"@(#)kern-port:io/shm.c	10.11"
 #include "sys/types.h"
 #include "sys/param.h"
 #include "sys/dir.h"
@@ -280,7 +280,7 @@ shmdt()
 	detachreg(prp,&u);
 	u.u_nshmseg--;
 
-	flushmmu(secnum(regva), sz);
+	flushmmu(regva, sz);
 
 	/*
 	 * Find shmem region in system wide table.  Update detach time

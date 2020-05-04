@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)ld:common/structs.h	1.17"
+#ident	"@(#)ld:common/structs.h	1.17.1.3"
 /*
  */
 
@@ -285,6 +285,11 @@ struct outsect {
 
 
 
+enum scope {
+	__undefined = -1,
+	__exported  = 1,
+	__hidden    = 2
+};
 
 /*
  * Symbol Table Entry structure for global symbols and auxiliary
@@ -313,6 +318,10 @@ struct gsym {
 		char smundmsg;		/* flag for undefined symbols to
 					   indicate that error msg was printed
 					   (see plocsyms in output.c)	*/
+		char sm_seen;	/* flag indicating that we've seen this
+						isn't "undefined" as far as "scope hiding" is
+						concerned. */
+		enum scope sm_how;	/* Should symbol be hidden or not? */
 		};
 
 

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)clri:clri.c	1.9"
+#ident	"@(#)clri:clri.c	1.10"
 /*
  * clri filsys inumber ...
  */
@@ -15,8 +15,8 @@
 #include <sys/filsys.h>
 
 /* file system block size */
-#if (vax || u3b || u3b5 || u3b2) && (FsTYPE == 3)
-#if u3b5
+#if (vax || u3b || u3b15 || u3b2) && (FsTYPE == 3)
+#if u3b15
 #define FSBSIZE (BSIZE*4)
 #else
 #define FSBSIZE	(BSIZE*2)

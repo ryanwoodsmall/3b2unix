@@ -6,8 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident "@(#)vi:port/ex_voper.c	1.9"
-
+#ident	"@(#)vi:port/ex_voper.c	1.13"
 #include "ex.h"
 #include "ex_tty.h"
 #include "ex_vis.h"
@@ -39,6 +38,12 @@ operate(c, cnt)
 	line *odot;
 	static char lastFKND, lastFCHR;
 	short d;
+#ifdef PTR_ADDRESSES
+	int mouse_x;
+	int mouse_y;
+	int oline;
+	static int get_addr ();
+#endif /* PTR_ADDRESSES */
 
 	moveop = vmove, deleteop = vdelete;
 	wcursor = cursor;
@@ -134,7 +139,7 @@ operate(c, cnt)
 	 * Get next character, mapping it and saving as
 	 * part of command for repeat.
 	 */
-	c = map(getesc(),arrows,0);
+	c = map(getesc(), arrows, 0);
 	if (c == 0)
 		return;
 	if (!subop)
@@ -142,6 +147,83 @@ operate(c, cnt)
 nocount:
 	opf = moveop;
 	switch (c) {
+
+#ifdef PTR_ADDRESSES
+	/*
+	 * ^X^_		Netty Mouse positioning hack
+	 * ^X^]
+	 */
+	case CTRL(X):
+/*
+ *	Read in mouse stuff
+ */
+		c = getkey ();			/* ^_ or ^] */
+		if ((c != CTRL(_)) && (c != (CTRL(]))))
+			break;
+		getkey ();			/* mouse button */
+		mouse_x = get_addr () + 1;
+		mouse_y = get_addr () + 1;
+		if (mouse_y < WTOP)
+			break;
+		if (Pline == numbline)
+			mouse_x -= 8;
+		if (mouse_x < 0)
+			mouse_x = 0;
+		if (mouse_x > WCOLS)
+			break;
+/*
+ *	Find the line on the screen
+ */
+		for (i = 0; i <= WECHO; i++)
+		{
+			if (vlinfo[i].vliny >= mouse_y)
+				break;
+		}
+		if (i > WECHO)
+			break;
+/*
+ *	Look for lines longer than one line - note  odd case at zero
+ */
+		if (i)
+		{
+			if (vlinfo[i - 1].vdepth > 1)
+			{
+				mouse_x += WCOLS * (mouse_y -
+					(vlinfo[i].vliny -
+					(vlinfo[i - 1].vdepth - 1)));
+			}
+		}
+		else
+		{
+			mouse_x += WCOLS * (mouse_y - 1);
+		}
+/*
+ *	Set the line
+ */
+		vsave();
+		ocurs = cursor;
+		odot = dot;
+		oline = vcline;
+		operate('H', i);
+/*
+ *	Set the column
+ */
+		getDOT ();
+		if (Pline == numbline)
+			mouse_x += 8;
+		vmovcol = mouse_x;
+		vmoving = 1;
+		wcursor = vfindcol(mouse_x);
+/*
+ *	Reset everything so that stuff like delete and change work
+ */
+		wdot = (odot - oline) + i - 1;
+		cursor = ocurs;
+		vcline = oline;
+		dot = odot;
+		getDOT ();
+		break;
+#endif /* PTR_ADDRESSES */
 
 	/*
 	 * b		Back up a word.
@@ -223,10 +305,6 @@ ein:
 		ocurs = cursor;
 		odot = wdot = dot;
 		oglobp = globp;
-#ifdef TRACE
-		if (trace)
-			fprintf(trace, "after lmatchp in %, dot=%d, wdot=%d, dol=%d\n", lineno(dot), lineno(wdot), lineno(dol));
-#endif
 		CATCH
 			i = lmatchp((line *) 0);
 		ONERR
@@ -238,6 +316,10 @@ ein:
 			vjumpto(dot, ocurs, 0);
 			return;
 		ENDCATCH
+#ifdef TRACE
+		if (trace)
+			fprintf(trace, "after lmatchp in %, dot=%d, wdot=%d, dol=%d\n", lineno(dot), lineno(wdot), lineno(dol));
+#endif
 		getDOT();
 		forbid(!i);
 		if (opf != vmove)
@@ -729,6 +811,37 @@ slerr:
 	wdot = NOLINE;
 }
 
+#ifdef PTR_ADDRESSES
+/*
+ *	read in a row or column address
+ *
+ */
+static int
+get_addr ()
+{
+    register short  c;
+    register short  next;
+
+    c = getkey ();
+    next = 0;
+    switch (c)
+    {
+	case CTRL (A): 
+	    next = 96;
+	    c = getkey ();
+	    break;
+
+	case CTRL (B): 
+	    next = 192;
+	    c = getkey ();
+	    break;
+    }
+    if (c < ' ')
+	return (-1);
+    return (next + c - ' ');
+}
+#endif /* PTR_ADDRESSES */
+
 /*
  * Find single character c, in direction dir from cursor.
  */
@@ -772,9 +885,10 @@ word(op, cnt)
 		}
 		/* Unless last segment of a change skip blanks */
 		if (op != vchange || cnt > 1)
-			while (!margin() && blank())
-				if (!lnext())
-				  return(0);
+			while (!margin() && blank()) {
+				if(!lnext())
+					return(0);
+			}
 		else
 			if (wcursor == iwc && iwdot == wdot && *iwc)
 				wcursor++;

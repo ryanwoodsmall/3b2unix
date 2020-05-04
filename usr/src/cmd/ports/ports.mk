@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)ports:ports.mk	1.5"
+#ident	"@(#)ports:ports.mk	1.5.1.1"
 ########
 #
 #	Copyright 1984 AT&T
@@ -79,12 +79,18 @@ PRODUCTS=ports
 ports:	ports.c
 ports:	$(UINC)/fcntl.h
 ports:	$(UINC)/stdio.h
+ports:	$(UINC)/string.h
 ports:	$(UINC)/sys/dir.h
 ports:	$(UINC)/sys/edt.h
 ports:	$(UINC)/sys/stat.h
 ports:	$(UINC)/sys/sys3b.h
 ports:	$(UINC)/sys/sysmacros.h
 ports:	$(UINC)/sys/types.h
+ports:	$(UINC)/sys/pump.h
+ports:	$(UINC)/sys/cio_defs.h
+ports:	$(UINC)/sys/ppc.h
+ports:	$(UINC)/sys/pp_dep.h
+ports:	$(UINC)/sys/queue.h
 	$(CCLD1_CMD) -o ports ports.c $(LIB_LIST) $(LDLIBS)
 	install -f ${ROOT}/etc ports
 

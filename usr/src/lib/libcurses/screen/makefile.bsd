@@ -1,4 +1,4 @@
-#ident	"@(#)curses:screen/makefile.bsd	1.9.1.2"
+#ident	"@(#)curses:screen/makefile.bsd	1.9.1.4"
 #
 # cursor package maker
 # V7 and Berkeley UNIX makefile
@@ -27,40 +27,34 @@ LDFLAGS=-n
 LIBS= 
 .SUFFIXES: .p .d .t
 
-HEADERS=curses.h unctrl.h curses.ext curshdr.h term.h uparm.h
-CFILES=	box.c clear.c initscr.c endwin.c mvprintw.c mvscanw.c mvwin.c \
-	overlay.c overwrite.c copywin.c printw.c vsprintf.c doprnt.c \
-	scanw.c doscan.c vsscanf.c refresh.c \
-	touchwin.c erase.c clrtobot.c clrtoeol.c \
-	longname.c delwin.c insertln.c deleteln.c scroll.c getstr.c \
-	getch.c addstr.c addch.c move.c curses.c unctrl.c standout.c \
-	wechochar.c pechochar.c ll_echo.c pnoutref.c wnoutref.c doupdate.c \
-	delay.c tstp.c insch.c delch.c \
-	pos.c beep.c ll_trm.c flushinp.c restart.c \
-	ll_init.c insdelchar.c ll_refresh.c ll_sub.c insdelline.c \
-	ll_newtty.c cio.c trm.c mvcur.c chkinput.c \
-	setupterm.c capnames.c \
-	baudrate.c cbreak.c halfdelay.c clearok.c crmode.c \
-	curs_set.c def_prog.c \
-	delay_out.c draino.c ec_quit.c echo.c erasechar.c fixdelay.c \
-	fixterm.c flash.c garbaged.c getsyx.c gettmode.c has_ic.c \
-	has_il.c idlok.c initkeypad.c intrflush.c keyname.c \
-	keypad.c killchar.c \
-	leaveok.c ll_scrdown.c m_addch.c m_addstr.c m_clear.c m_erase.c \
-	m_initscr.c m_move.c m_newterm.c m_refresh.c makenew.c memSset.c \
-	meta.c mvwprintw.c mvwscanw.c napms.c newpad.c newterm.c nl.c \
-	nocbreak.c nocrmode.c nodelay.c noecho.c nonl.c noraw.c \
-	notimeout.c prefresh.c reset_sh.c resetterm.c resetty.c \
-	ripoffline.c saveterm.c savetty.c scr_dump.c scr_init.c scr_rest.c \
-	scrollok.c set_term.c setsyx.c setterm.c slk_clear.c slk_init.c \
-	slk_label.c slk_nout.c slk_ref.c slk_rest.c slk_set.c slk_touch.c \
-	vwprintw.c vwscanw.c subpad.c subwin.c touchline.c trace.c \
-	typeahead.c ungetch.c vidputs.c wattroff.c wattron.c wattrset.c \
-	wprintw.c wscanw.c \
-	tgoto.c tputs.c tparm.c putp.c termcap.c tiget.c \
-	tic_main.c tic_hash.c tic_captab.c tic_scan.c tic_error.c \
-	tic_parse.c tic_read.c V2.makenew.c V2._sprintw.c V2.__sscans.c \
-	set_TERM.c del_TERM.c
+HEADERS=curses.h unctrl.h curses_inc.h curshdr.h term.h uparm.h
+CFILES= baudrate.c capnames.c cbreak.c chkinput.c cio.c compat.c \
+	copywin.c curs_set.c curses.c def_prog.c delay.c delay_out.c \
+	delkey.c delkeymap.c delscreen.c delterm.c delwin.c derwin.c \
+	doprnt.c doscan.c doupdate.c draino.c dupwin.c endwin.c \
+	erasechar.c flushinp.c garbaged.c getsyx.c getwin.c has_ic.c \
+	has_il.c idlok.c immedok.c init_acs.c init_costs.c initscr.c \
+	keypad.c killchar.c ll_echo.c longname.c makenew.c memSset.c \
+	meta.c mvcur.c mvderwin.c mvprintw.c mvscanw.c mvwin.c \
+	mvwprintw.c mvwscanw.c napms.c newkey.c newscreen.c newwin.c \
+	nocbreak.c nodelay.c nomacros.c noraw.c overlap.c pechochar.c \
+	pnoutref.c prefresh.c printw.c putchar.c putp.c putwin.c \
+	raw.c reset_sh.c resetty.c restart.c ring.c ripoffline.c \
+	savetty.c scanw.c scr_dump.c scr_init.c scr_ll_dump.c \
+	scr_reset.c scr_restore.c scr_set.c setcurscreen.c \
+	setcurterm.c setecho.c setkeymap.c setnonl.c setqiflush.c \
+	setscrreg.c setsyx.c setupterm.c slk_clear.c slk_label.c \
+	slk_noutref.c slk_refresh.c slk_restore.c slk_set.c \
+	slk_start.c slk_touch.c termcap.c tgetch.c tgoto.c \
+	tic_captab.c tic_error.c tic_hash.c tic_main.c tic_parse.c \
+	tic_read.c tic_scan.c tiget.c tinputfd.c tparm.c tputs.c \
+	trace.c tstp.c ttimeout.c typeahead.c unctrl.c vidupdate.c \
+	vsprintf.c vsscanf.c vwprintw.c vwscanw.c waddch.c \
+	waddchnstr.c waddnstr.c wbkgd.c wborder.c wclrtobot.c \
+	wclrtoeol.c wdelch.c wechochar.c wgetch.c wgetstr.c \
+	whline.c winchnstr.c winnstr.c winsch.c winsdelln.c \
+	winsnstr.c wmove.c wnoutref.c wprintw.c wrefresh.c \
+	wscanw.c wscrl.c wsyncdown.c wsyncup.c wtouchln.c wvline.c
 
 TICHDRS= compiler.h object.h
 TICSRC= tic_main.c tic_hash.c tic_captab.c tic_scan.c tic_error.c \
@@ -78,140 +72,120 @@ ISRC= infocmp.c cexpand.c infotocap.c $(BSRC)
 IOBJ= infocmp.o cexpand.o infotocap.o $(BOBJ)
 
 # Regular, optimized objects
-OBJS=	box.o clear.o initscr.o endwin.o mvprintw.o mvscanw.o mvwin.o \
-	overlay.o overwrite.o copywin.o printw.o vsprintf.o doprnt.o \
-	scanw.o vsscanf.o doscan.o refresh.o \
-	touchwin.o erase.o clrtobot.o clrtoeol.o \
-	longname.o delwin.o insertln.o deleteln.o scroll.o getstr.o \
-	getch.o addstr.o addch.o move.o curses.o unctrl.o standout.o \
-	wechochar.o pechochar.o ll_echo.o pnoutref.o wnoutref.o doupdate.o \
-	delay.o tstp.o insch.o delch.o \
-	pos.o beep.o ll_trm.o flushinp.o restart.o \
-	ll_init.o insdelchar.o ll_refresh.o ll_sub.o insdelline.o \
-	ll_newtty.o cio.o trm.o mvcur.o chkinput.o \
-	setupterm.o capnames.o \
-	tgoto.o tputs.o tparm.o putp.o termcap.o tiget.o \
-	baudrate.o cbreak.o halfdelay.o clearok.o crmode.o \
-	curs_set.o def_prog.o \
-	delay_out.o draino.o ec_quit.o echo.o erasechar.o fixdelay.o \
-	fixterm.o flash.o garbaged.o getsyx.o gettmode.o has_ic.o \
-	has_il.o idlok.o initkeypad.o intrflush.o keyname.o \
-	keypad.o killchar.o \
-	leaveok.o ll_scrdown.o m_addch.o m_addstr.o m_clear.o m_erase.o \
-	m_initscr.o m_move.o m_newterm.o m_refresh.o makenew.o memSset.o \
-	meta.o mvwprintw.o mvwscanw.o napms.o newpad.o newterm.o nl.o \
-	nocbreak.o nocrmode.o nodelay.o noecho.o nonl.o noraw.o \
-	notimeout.o prefresh.o raw.o reset_sh.o resetterm.o resetty.o \
-	ripoffline.o saveterm.o savetty.o scr_dump.o scr_init.o \
-	scr_rest.o scrollok.o set_term.o setsyx.o setterm.o slk_clear.o \
-	slk_init.o slk_label.o slk_nout.o slk_ref.o slk_rest.o slk_set.o \
-	slk_touch.o vwprintw.o vwscanw.o subpad.o subwin.o touchline.o \
-	trace.o typeahead.o ungetch.o vidputs.o wattroff.o wattron.o \
-	wattrset.o wprintw.o wscanw.o V2.makenew.o V2._sprintw.o \
-	V2.__sscans.o \
-	set_TERM.o del_TERM.o
+OBJS= baudrate.o capnames.o cbreak.o chkinput.o cio.o compat.o \
+	copywin.o curs_set.o curses.o def_prog.o delay.o delay_out.o \
+	delkey.o delkeymap.o delscreen.o delterm.o delwin.o derwin.o \
+	doprnt.o doscan.o doupdate.o draino.o dupwin.o endwin.o \
+	erasechar.o flushinp.o garbaged.o getsyx.o getwin.o has_ic.o \
+	has_il.o idlok.o immedok.o init_acs.o init_costs.o initscr.o \
+	keypad.o killchar.o ll_echo.o longname.o makenew.o memSset.o \
+	meta.o mvcur.o mvderwin.o mvprintw.o mvscanw.o mvwin.o \
+	mvwprintw.o mvwscanw.o napms.o newkey.o newscreen.o newwin.o \
+	nocbreak.o nodelay.o nomacros.o noraw.o overlap.o pechochar.o \
+	pnoutref.o prefresh.o printw.o putchar.o putp.o putwin.o \
+	raw.o reset_sh.o resetty.o restart.o ring.o ripoffline.o \
+	savetty.o scanw.o scr_dump.o scr_init.o scr_ll_dump.o \
+	scr_reset.o scr_restore.o scr_set.o setcurscreen.o \
+	setcurterm.o setecho.o setkeymap.o setnonl.o setqiflush.o \
+	setscrreg.o setsyx.o setupterm.o slk_clear.o slk_label.o \
+	slk_noutref.o slk_refresh.o slk_restore.o slk_set.o \
+	slk_start.o slk_touch.o termcap.o tgetch.o tgoto.o \
+	tic_captab.o tic_error.o tic_hash.o tic_main.o tic_parse.o \
+	tic_read.o tic_scan.o tiget.o tinputfd.o tparm.o tputs.o \
+	trace.o tstp.o ttimeout.o typeahead.o unctrl.o vidupdate.o \
+	vsprintf.o vsscanf.o vwprintw.o vwscanw.o waddch.o \
+	waddchnstr.o waddnstr.o wbkgd.o wborder.o wclrtobot.o \
+	wclrtoeol.o wdelch.o wechochar.o wgetch.o wgetstr.o \
+	whline.o winchnstr.o winnstr.o winsch.o winsdelln.o \
+	winsnstr.o wmove.o wnoutref.o wprintw.o wrefresh.o \
+	wscanw.o wscrl.o wsyncdown.o wsyncup.o wtouchln.o wvline.o
 
 # Profiled, optimized objects
-POBJS=	box.p clear.p initscr.p endwin.p mvprintw.p mvscanw.p mvwin.p \
-	overlay.p overwrite.p copywin.p printw.p vsprintf.p doprnt.p \
-	scanw.p vsscanf.p doscan.p refresh.p \
-	touchwin.p erase.p clrtobot.p clrtoeol.p \
-	longname.p delwin.p insertln.p deleteln.p scroll.p getstr.p \
-	getch.p addstr.p addch.p move.p curses.p unctrl.p standout.p \
-	wechochar.p pechochar.p ll_echo.p pnoutref.p wnoutref.p doupdate.p \
-	delay.p tstp.p insch.p delch.p \
-	pos.p beep.p ll_trm.p flushinp.p restart.p \
-	ll_init.p insdelchar.p ll_refresh.p ll_sub.p insdelline.p \
-	ll_newtty.p cio.p trm.p mvcur.p chkinput.p \
-	setupterm.p capnames.p \
-	tgoto.p tputs.p tparm.p putp.p termcap.p tiget.p \
- 	baudrate.p cbreak.p halfdelay.p clearok.p crmode.p \
-	curs_set.p def_prog.p \
-	delay_out.p draino.p ec_quit.p echo.p erasechar.p fixdelay.p \
-	fixterm.p flash.p garbaged.p getsyx.p gettmode.p has_ic.p \
-	has_il.p idlok.p initkeypad.p intrflush.p keyname.p \
-	keypad.p killchar.p \
-	leaveok.p ll_scrdown.p m_addch.p m_addstr.p m_clear.p m_erase.p \
-	m_initscr.p m_move.p m_newterm.p m_refresh.p makenew.p memSset.p \
-	meta.p mvwprintw.p mvwscanw.p napms.p newpad.p newterm.p nl.p \
-	nocbreak.p nocrmode.p nodelay.p noecho.p nonl.p noraw.p \
-	notimeout.p prefresh.p raw.p reset_sh.p resetterm.p resetty.p \
-	ripoffline.p saveterm.p savetty.p scr_dump.p scr_init.p \
-	scr_rest.p scrollok.p set_term.p setsyx.p setterm.p slk_clear.p \
-	slk_init.p slk_label.p slk_nout.p slk_ref.p slk_rest.p slk_set.p \
-	slk_touch.p vwprintw.p vwscanw.p subpad.p subwin.p touchline.p \
-	trace.p typeahead.p ungetch.p vidputs.p wattroff.p wattron.p \
-	wattrset.p wprintw.p wscanw.p V2.makenew.p V2._sprintw.p \
-	V2.__sscans.p \
-	set_TERM.p del_TERM.p
+POBJS= baudrate.p capnames.p cbreak.p chkinput.p cio.p compat.p \
+	copywin.p curs_set.p curses.p def_prog.p delay.p delay_out.p \
+	delkey.p delkeymap.p delscreen.p delterm.p delwin.p derwin.p \
+	doprnt.p doscan.p doupdate.p draino.p dupwin.p endwin.p \
+	erasechar.p flushinp.p garbaged.p getsyx.p getwin.p has_ic.p \
+	has_il.p idlok.p immedok.p init_acs.p init_costs.p initscr.p \
+	keypad.p killchar.p ll_echo.p longname.p makenew.p memSset.p \
+	meta.p mvcur.p mvderwin.p mvprintw.p mvscanw.p mvwin.p \
+	mvwprintw.p mvwscanw.p napms.p newkey.p newscreen.p newwin.p \
+	nocbreak.p nodelay.p nomacros.p noraw.p overlap.p pechochar.p \
+	pnoutref.p prefresh.p printw.p putchar.p putp.p putwin.p \
+	raw.p reset_sh.p resetty.p restart.p ring.p ripoffline.p \
+	savetty.p scanw.p scr_dump.p scr_init.p scr_ll_dump.p \
+	scr_reset.p scr_restore.p scr_set.p setcurscreen.p \
+	setcurterm.p setecho.p setkeymap.p setnonl.p setqiflush.p \
+	setscrreg.p setsyx.p setupterm.p slk_clear.p slk_label.p \
+	slk_noutref.p slk_refresh.p slk_restore.p slk_set.p \
+	slk_start.p slk_touch.p termcap.p tgetch.p tgoto.p \
+	tic_captab.p tic_error.p tic_hash.p tic_main.p tic_parse.p \
+	tic_read.p tic_scan.p tiget.p tinputfd.p tparm.p tputs.p \
+	trace.p tstp.p ttimeout.p typeahead.p unctrl.p vidupdate.p \
+	vsprintf.p vsscanf.p vwprintw.p vwscanw.p waddch.p \
+	waddchnstr.p waddnstr.p wbkgd.p wborder.p wclrtobot.p \
+	wclrtoeol.p wdelch.p wechochar.p wgetch.p wgetstr.p \
+	whline.p winchnstr.p winnstr.p winsch.p winsdelln.p \
+	winsnstr.p wmove.p wnoutref.p wprintw.p wrefresh.p \
+	wscanw.p wscrl.p wsyncdown.p wsyncup.p wtouchln.p wvline.p
 
 # Debugging objects
-DOBJS=	box.d clear.d initscr.d endwin.d mvprintw.d mvscanw.d mvwin.d \
-	overlay.d overwrite.d copywin.d printw.d vsprintf.d doprnt.d \
-	scanw.d vsscanf.d doscan.d refresh.d \
-	touchwin.d erase.d clrtobot.d clrtoeol.d \
-	longname.d delwin.d insertln.d deleteln.d scroll.d getstr.d \
-	getch.d addstr.d addch.d move.d curses.d unctrl.d standout.d \
-	wechochar.d pechochar.d ll_echo.d pnoutref.d wnoutref.d doupdate.d \
-	delay.d tstp.d insch.d delch.d \
-	pos.d beep.d ll_trm.d flushinp.d restart.d \
-	ll_init.d insdelchar.d ll_refresh.d ll_sub.d insdelline.d \
-	ll_newtty.d cio.d trm.d mvcur.d chkinput.d \
-	setupterm.d capnames.d \
-	tgoto.d tputs.d tparm.d putp.d termcap.d tiget.d \
-	baudrate.d cbreak.d halfdelay.d clearok.d crmode.d \
-	curs_set.d def_prog.d \
-	delay_out.d draino.d ec_quit.d echo.d erasechar.d fixdelay.d \
-	fixterm.d flash.d garbaged.d getsyx.d gettmode.d has_ic.d \
-	has_il.d idlok.d initkeypad.d intrflush.d keyname.d \
-	keypad.d killchar.d \
-	leaveok.d ll_scrdown.d m_addch.d m_addstr.d m_clear.d m_erase.d \
-	m_initscr.d m_move.d m_newterm.d m_refresh.d makenew.d memSset.d \
-	meta.d mvwprintw.d mvwscanw.d napms.d newpad.d newterm.d nl.d \
-	nocbreak.d nocrmode.d nodelay.d noecho.d nonl.d noraw.d \
-	notimeout.d prefresh.d raw.d reset_sh.d resetterm.d resetty.d \
-	ripoffline.d saveterm.d savetty.d scr_dump.d scr_init.d \
-	scr_rest.d scrollok.d set_term.d setsyx.d setterm.d slk_clear.d \
-	slk_init.d slk_label.d slk_nout.d slk_ref.d slk_rest.d slk_set.d \
-	slk_touch.d vwprintw.d vwscanw.d subpad.d subwin.d touchline.d \
-	trace.d typeahead.d ungetch.d vidputs.d wattroff.d wattron.d \
-	wattrset.d wprintw.d wscanw.d V2.makenew.d V2._sprintw.d \
-	V2.__sscans.d \
-	set_TERM.d del_TERM.d
+DOBJS= baudrate.d capnames.d cbreak.d chkinput.d cio.d compat.d \
+	copywin.d curs_set.d curses.d def_prog.d delay.d delay_out.d \
+	delkey.d delkeymap.d delscreen.d delterm.d delwin.d derwin.d \
+	doprnt.d doscan.d doupdate.d draino.d dupwin.d endwin.d \
+	erasechar.d flushinp.d garbaged.d getsyx.d getwin.d has_ic.d \
+	has_il.d idlok.d immedok.d init_acs.d init_costs.d initscr.d \
+	keypad.d killchar.d ll_echo.d longname.d makenew.d memSset.d \
+	meta.d mvcur.d mvderwin.d mvprintw.d mvscanw.d mvwin.d \
+	mvwprintw.d mvwscanw.d napms.d newkey.d newscreen.d newwin.d \
+	nocbreak.d nodelay.d nomacros.d noraw.d overlap.d pechochar.d \
+	pnoutref.d prefresh.d printw.d putchar.d putp.d putwin.d \
+	raw.d reset_sh.d resetty.d restart.d ring.d ripoffline.d \
+	savetty.d scanw.d scr_dump.d scr_init.d scr_ll_dump.d \
+	scr_reset.d scr_restore.d scr_set.d setcurscreen.d \
+	setcurterm.d setecho.d setkeymap.d setnonl.d setqiflush.d \
+	setscrreg.d setsyx.d setupterm.d slk_clear.d slk_label.d \
+	slk_noutref.d slk_refresh.d slk_restore.d slk_set.d \
+	slk_start.d slk_touch.d termcap.d tgetch.d tgoto.d \
+	tic_captab.d tic_error.d tic_hash.d tic_main.d tic_parse.d \
+	tic_read.d tic_scan.d tiget.d tinputfd.d tparm.d tputs.d \
+	trace.d tstp.d ttimeout.d typeahead.d unctrl.d vidupdate.d \
+	vsprintf.d vsscanf.d vwprintw.d vwscanw.d waddch.d \
+	waddchnstr.d waddnstr.d wbkgd.d wborder.d wclrtobot.d \
+	wclrtoeol.d wdelch.d wechochar.d wgetch.d wgetstr.d \
+	whline.d winchnstr.d winnstr.d winsch.d winsdelln.d \
+	winsnstr.d wmove.d wnoutref.d wprintw.d wrefresh.d \
+	wscanw.d wscrl.d wsyncdown.d wsyncup.d wtouchln.d wvline.d
 
 # Trace objects - partial debugging
-TOBJS=	box.t clear.t initscr.t endwin.t mvprintw.t mvscanw.t mvwin.t \
-	overlay.t overwrite.t copywin.t printw.t vsprintf.t doprnt.t \
-	scanw.t vsscanf.t doscan.t refresh.t \
-	touchwin.t erase.t clrtobot.t clrtoeol.t \
-	longname.t delwin.t insertln.t deleteln.t scroll.t getstr.t \
-	getch.t addstr.t addch.t move.t curses.t unctrl.t standout.t \
-	wechochar.t pechochar.t ll_echo.t pnoutref.t wnoutref.t doupdate.t \
-	delay.t tstp.t insch.t delch.t \
-	pos.t beep.t ll_trm.t flushinp.t restart.t \
-	ll_init.t insdelchar.t ll_refresh.t ll_sub.t insdelline.t \
-	ll_newtty.t cio.t trm.t mvcur.t chkinput.t \
-	setupterm.t capnames.t \
-	tgoto.t tputs.t tparm.t putp.t termcap.t tiget.t \
-	baudrate.t cbreak.t halfdelay.t clearok.t crmode.t \
-	curs_set.t def_prog.t \
-	delay_out.t draino.t ec_quit.t echo.t erasechar.t fixdelay.t \
-	fixterm.t flash.t garbaged.t getsyx.t gettmode.t has_ic.t \
-	has_il.t idlok.t initkeypad.t intrflush.t keyname.t \
-	keypad.t killchar.t \
-	leaveok.t ll_scrdown.t m_addch.t m_addstr.t m_clear.t m_erase.t \
-	m_initscr.t m_move.t m_newterm.t m_refresh.t makenew.t memSset.t \
-	meta.t mvwprintw.t mvwscanw.t napms.t newpad.t newterm.t nl.t \
-	nocbreak.t nocrmode.t nodelay.t noecho.t nonl.t noraw.t \
-	notimeout.t prefresh.t raw.t reset_sh.t resetterm.t resetty.t \
-	ripoffline.t saveterm.t savetty.t scr_dump.t scr_init.t \
-	scr_rest.t scrollok.t set_term.t setsyx.t setterm.t slk_clear.t \
-	slk_init.t slk_label.t slk_nout.t slk_ref.t slk_rest.t slk_set.t \
-	slk_touch.t vwprintw.t vwscanw.t subpad.t subwin.t touchline.t \
-	trace.t typeahead.t ungetch.t vidputs.t wattroff.t wattron.t \
-	wattrset.t wprintw.t wscanw.t V2.makenew.t V2._sprintw.t \
-	V2.__sscans.t \
-	set_TERM.t del_TERM.t
+TOBJS= baudrate.t capnames.t cbreak.t chkinput.t cio.t compat.t \
+	copywin.t curs_set.t curses.t def_prog.t delay.t delay_out.t \
+	delkey.t delkeymap.t delscreen.t delterm.t delwin.t derwin.t \
+	doprnt.t doscan.t doupdate.t draino.t dupwin.t endwin.t \
+	erasechar.t flushinp.t garbaged.t getsyx.t getwin.t has_ic.t \
+	has_il.t idlok.t immedok.t init_acs.t init_costs.t initscr.t \
+	keypad.t killchar.t ll_echo.t longname.t makenew.t memSset.t \
+	meta.t mvcur.t mvderwin.t mvprintw.t mvscanw.t mvwin.t \
+	mvwprintw.t mvwscanw.t napms.t newkey.t newscreen.t newwin.t \
+	nocbreak.t nodelay.t nomacros.t noraw.t overlap.t pechochar.t \
+	pnoutref.t prefresh.t printw.t putchar.t putp.t putwin.t \
+	raw.t reset_sh.t resetty.t restart.t ring.t ripoffline.t \
+	savetty.t scanw.t scr_dump.t scr_init.t scr_ll_dump.t \
+	scr_reset.t scr_restore.t scr_set.t setcurscreen.t \
+	setcurterm.t setecho.t setkeymap.t setnonl.t setqiflush.t \
+	setscrreg.t setsyx.t setupterm.t slk_clear.t slk_label.t \
+	slk_noutref.t slk_refresh.t slk_restore.t slk_set.t \
+	slk_start.t slk_touch.t termcap.t tgetch.t tgoto.t \
+	tic_captab.t tic_error.t tic_hash.t tic_main.t tic_parse.t \
+	tic_read.t tic_scan.t tiget.t tinputfd.t tparm.t tputs.t \
+	trace.t tstp.t ttimeout.t typeahead.t unctrl.t vidupdate.t \
+	vsprintf.t vsscanf.t vwprintw.t vwscanw.t waddch.t \
+	waddchnstr.t waddnstr.t wbkgd.t wborder.t wclrtobot.t \
+	wclrtoeol.t wdelch.t wechochar.t wgetch.t wgetstr.t \
+	whline.t winchnstr.t winnstr.t winsch.t winsdelln.t \
+	winsnstr.t wmove.t wnoutref.t wprintw.t wrefresh.t \
+	wscanw.t wscrl.t wsyncdown.t wsyncup.t wtouchln.t wvline.t
 
 .c.o:
 	sed '/^#[ 	]*ident/d' $*.c > $(TMP)/$*.c

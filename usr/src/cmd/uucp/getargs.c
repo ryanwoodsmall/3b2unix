@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:getargs.c	2.2"
+#ident	"@(#)uucp:getargs.c	2.3"
 
 #include "uucp.h"
 
@@ -23,6 +23,7 @@
 
 getargs(s, arps, count)
 register char *s, *arps[];
+register int count;
 {
 	register int i;
 

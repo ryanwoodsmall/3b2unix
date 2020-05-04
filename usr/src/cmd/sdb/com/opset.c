@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sdb:com/opset.c	1.12"
+#ident	"@(#)sdb:com/opset.c	1.13"
 
 /*
  *	UNIX debugger
@@ -48,8 +48,6 @@ char fmt;
 {
 	struct proct *procp;
 	long value;
-	unsigned short ins;
-	union word word;
 	long dis_dot();
 
 #if DEBUG
@@ -68,9 +66,9 @@ char fmt;
 		closeparen();
 	}
 #endif
-	procp = adrtoprocp(dot);
 /* On VAX, the first two bytes of a proc are reserved for use with return */
 #if vax
+	procp = adrtoprocp(dot);
 	if (procp->paddress == dot) {
 		value = chkget(dot,idsp);
 		printf("0x%4.4x", value & 0xffff);
@@ -98,6 +96,7 @@ char fmt;
 	if(fmt == 'i')
 		prassym();
 #if DEBUG
+
 	if (debugflag == 1)
 	{
 		exit1();

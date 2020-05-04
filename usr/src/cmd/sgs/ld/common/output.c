@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)ld:common/output.c	1.58"
+#ident	"@(#)ld:common/output.c	1.58.1.7"
 #include <stdio.h>
 
 #if PORTAR
@@ -60,6 +60,68 @@ extern unsigned svhighslt;
 extern unsigned short macflags; 	/* defined in ld1.c */
 extern unsigned short swapb2();
 
+extern int scope_changes;
+extern int hideornot();
+
+#define	isextern(x)	(x == C_EXT || x == C_EXTDEF)
+
+void
+print_undefines()
+{
+	int indx;
+	SYMTAB *symp;
+
+	indx = 1;
+	while (indx <= numldsyms)
+	{
+		symp = getsym(indx++);
+		symp->sment.n_value = symp->smnewval;
+		/*
+		 * If we haven't seen a real definition of
+		 * "p" from an input file, meaning that "p"
+		 * was mentioned ONLY on a hide/export directive,
+		 * [and this is an absolute run], omit "p" from
+		 * the output symbol table.
+		 */
+		if (!aflag && scope_changes &&
+		   symp->sm_seen == 0 && symp->sm_how != __undefined)
+		   continue;
+		if(symp->smlocflg == 0) {
+
+			/*
+			 * Symbol is not defined.  Put out an error message
+			 * if we're doing an absolute run and there hasn't
+			 * been an "undefined message" already output on
+			 * this symbol before, AND if there isn't a transfer
+			 * vector assigned to this symbol (which, in subsystem
+			 * loading, is quite possible).
+			 */
+                        if ((symp->sment.n_scnum == 0) && aflag &&
+                                (symp->smundmsg == 0) 
+#if TRVEC
+				&& (!tvflag || 
+				    tvslot(symp, NULL, NULL, -1) == -1)
+#endif
+				)
+			{
+				if ( !undefmsg )
+				{
+					fprintf( stderr, "undefined symbol\n" );
+					undefmsg = 1;
+					errlev = rflag ? 1 : 2;
+				}
+#if FLEXNAMES
+				if (symp->sment.n_zeroes == 0L)
+					fprintf( stderr, "%s\n", symp->sment.n_nptr);
+				else
+#endif
+					fprintf( stderr, "%.8s\n", symp->sment.n_name );
+				symp->smundmsg = 1;
+			} /* if symp->sment.n_scnum = 0 */
+		} /* if symp->smlocflg = 0 */
+	} /* while */
+} /* routine */
+
 /*eject*/
 output()
 {
@@ -95,9 +157,11 @@ output()
  * NOTE: there is no return from these two lderror calls
  */
 
-	if( (errlev > 1) || (errlev && (!rflag || !aflag)) )
+	if( (errlev > 1) || (errlev && (!rflag || !aflag)) ) {
+		print_undefines();
 		lderror(2,0,NULL, "Error(s). No output written to %s",
 			outfilnm);
+		}
 
 	buf = (unsigned *) mycalloc(BUFSIZ);
 
@@ -266,9 +330,11 @@ output()
 	wrtinfl(fdes, sdes, rdes, buf);
 #endif
 
-	if ( errlev > 1 )	/* unresolved refs in absolute load */
+	if ( errlev > 1 ) {	/* unresolved refs in absolute load */
+		print_undefines();
 		lderror(2,0,NULL, "Symbol referencing errors. No output written to %s",
 				outfilnm);
+		}
 
 	if ( aflag && errlev )
 		lderror(0,0,NULL, "Output file %s not executable", outfilnm);
@@ -346,6 +412,16 @@ output()
 	while ( indx <= numldsyms )
 	{
 		symp = getsym(indx++);
+		/*
+		 * If we haven't seen a real definition of
+		 * "p" from an input file, meaning that "p"
+		 * was mentioned ONLY on a hide/export directive,
+		 * [and this is an absolute run], omit "p" from
+		 * the output symbol table.
+		 */
+		if (!aflag && scope_changes &&
+		   symp->sm_seen == 0 && symp->sm_how != __undefined)
+		   continue;
 		symp->sment.n_value = symp->smnewval;
 		if( (symp->smlocflg == 0)  &&  ! sflag ) {
 			AUXTAB *auxp;
@@ -390,6 +466,14 @@ output()
 				symp->smundmsg = 1;
 			}
 
+#ifdef UNIX
+			if (scope_changes && 
+			    isextern(symp->sment.n_sclass) &&
+			    hideornot(symp))
+			{
+				hide_sym(&symp->sment, symp->sm_how);
+			}
+#endif
 			if( Hflag  &&  (symp->sment.n_sclass == C_EXT) )
 				symp->sment.n_sclass = C_STAT;
 #if FLEXNAMES
@@ -697,7 +781,7 @@ while ( infl != NULL ) {
 
 		fseek(fdes, offset, 0);
 		if ((isp->ishdr.s_nreloc == 0) || (osp->oshdr.s_flags &
-			(STYP_INFO | STYP_COPY | STYP_LIB)))
+			(STYP_INFO | STYP_COPY)))
 			numshlibs += copy_section( ifd, infl, isp, osp, fdes,
 				sect_buffer, buffer_size );
 		else
@@ -708,7 +792,7 @@ while ( infl != NULL ) {
 				fseek(rdes, offset, 0);
 			}
 
-			relocate( ifd, infl, isp, fdes, rdes, sect_buffer,
+			numshlibs += relocate( ifd, infl, isp, fdes, rdes, sect_buffer,
 				buffer_size );
 		}
 
@@ -949,6 +1033,14 @@ FILE *infd;	/* input file I/O descriptor */
 
 					sltval1 = gsp->sment.n_value;
 					gsp->sment.n_value = gsp->smnewval;
+#ifdef UNIX
+					if (scope_changes && 
+			    		isextern(gsp->sment.n_sclass) &&
+			    		hideornot(gsp))
+					{
+						hide_sym(&gsp->sment, gsp->sm_how);
+					}
+#endif
 					if( Hflag ) {
 						gsp->sment.n_sclass = C_STAT;
 						}
@@ -1148,6 +1240,14 @@ FILE *infd;	/* input file I/O descriptor */
 #if FLEXNAMES
 				if (sm->n_zeroes == 0L)
 					strwrite(strdes,sm, strlen( sm->n_nptr ) + 1);
+#endif
+#ifdef UNIX
+				if (scope_changes && 
+			    	isextern(sm->n_sclass) &&
+			    	hideornots(symname))
+				{
+					hide_sym(sm, __undefined);
+				}
 #endif
 				fwrite(sm, SYMESZ, 1, sdes);
 				ndx++;

@@ -5,43 +5,39 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/noraw.c	1.4"
-/*
- * Routines to deal with setting and resetting modes in the tty driver.
- * See also setupterm.c in the termlib part.
- */
-#include "curses.ext"
+#ident	"@(#)curses:screen/noraw.c	1.9"
+
+#include	"curses_inc.h"
 
 noraw()
 {
-	_noraw();
-	if (SP)
-		SP->fl_rawmode=FALSE;
-	reset_prog_mode();
-#ifdef FIONREAD
-	cur_term->timeout = 0;
-#endif /* FIONREAD */
-}
+#ifdef	SYSV
+    /* Enable interrupt characters */
+    PROGTTY.c_lflag |= (ISIG|ICANON);
+    PROGTTY.c_cc[VEOF] = _CTRL('D');
+    PROGTTY.c_cc[VEOL] = 0;
+    PROGTTY.c_iflag |= IXON;
+#else	/* SYSV */
+    PROGTTY.sg_flags &= ~(RAW|CBREAK);
+#endif	/* SYSV */
 
-_noraw()
-{
-#ifdef SYSV
-	/* Enable interrupt characters */
-	PROGTTY.c_lflag |= ISIG;
-	/* PROGTTY.c_cc[VINTR] = SHELLTTY.c_cc[VINTR]; */
-	/* PROGTTY.c_cc[VQUIT] = SHELLTTY.c_cc[VQUIT]; */
+#ifdef	DEBUG
+#ifdef	SYSV
+    if (outf)
+	fprintf(outf, "noraw(), file %x, flags %x\n",
+	    cur_term->Filedes, PROGTTY.c_lflag);
+#else	/* SYSV */
+    if (outf)
+	fprintf(outf, "noraw(), file %x, flags %x\n",
+	    cur_term->Filedes, PROGTTY.sg_flags);
+#endif	/* SYSV */
+#endif	/* DEBUG */
 
-	/* Disallow 8 bit input/output */
-	PROGTTY.c_iflag |= ISTRIP;
-	PROGTTY.c_iflag |= IXON;
-	PROGTTY.c_cflag &= ~CSIZE;
-	PROGTTY.c_cflag |= CS7;
-	PROGTTY.c_cflag |= PARENB;
-	_nocbreak();
-#else
-	PROGTTY.sg_flags &= ~RAW;
-# ifdef DEBUG
-	if(outf) fprintf(outf, "_noraw(), file %x, SP %x, flags %x\n", SP->term_file, SP, PROGTTY.sg_flags);
-# endif
-#endif
+    cur_term->_fl_rawmode = FALSE;
+    cur_term->_delay = -1;
+    reset_prog_mode();
+#ifdef	FIONREAD
+    cur_term->timeout = 0;
+#endif	/* FIONREAD */
+    return (OK);
 }

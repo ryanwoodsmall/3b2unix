@@ -5,12 +5,15 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)tools:err_mess.c	1.20"
+#ident	"@(#)tools:err_mess.c	1.21"
 
 #include "../forms/muse.h"
 #include "tools.h"
 
 #define	ST_PAGE	64	/*where [page 1 of 2] appears on select*/
+/*this routine is used by most routines in astgen to display error
+messages.  The first argument to err_rpt() specifies which of the
+following errors to display*/
 
 char *errors[] =  {
 /* 00 */  "",
@@ -79,10 +82,12 @@ int bell; /*0 if no bell, 1 if bell should be sounded*/
 	getyx(stdscr,y,x);
 	switch(code)
 	{
-	case 0:
-		draw_line(messg_loc);
+	case 0:	/*used to erase a previous error message*/
+		draw_line(messg_loc); /*put the horizontal line back*/
 		break;
 	default:
+		/*the error message is drawn in reverse video over the
+		horizontal line near the bottom of the screen*/
 		REV;
 		mvaddstr(messg_loc,40-(strlen(errors[code]) / 2),errors[code]);
 		NREV;
@@ -91,30 +96,4 @@ int bell; /*0 if no bell, 1 if bell should be sounded*/
 	move(y,x);
 	if (bell != 0)
 		beep();
-}
-
-storeline(flag,row)
-int flag, row;
-{
-	static chtype stline[80];
-	chtype *c_pt;
-	int j;
-
-	if (row<0 || row>LINES-1) return(0);
-
-
-	if (flag==0)	/* Store line */
-	{
-		c_pt = stline;
-		for (j=0; j<80 && j<COLS; j++)
-			*c_pt++ = mvinch(row,j);
-		*c_pt = null;
-	}
-
-	else		/* Store line */
-	{
-		move(row,0);
-		clrtoeol();
-		mvaddstr(row,0,stline);
-	}
 }

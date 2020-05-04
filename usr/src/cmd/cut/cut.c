@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)cut:cut.c	1.10"
+#ident	"@(#)cut:cut.c	1.11"
 #
 /* cut : cut and paste columns of a table (projection of a relation) */
 /* Release 1.5; handles single backspaces as produced by nroff    */
@@ -32,7 +32,7 @@ char	**argv;
 	int	del = '\t';
 	int	num, j, count, poscnt, r, s;
 	int	endflag, supflag, cflag, fflag, backflag, filenr;
-	int	sel[NFIELDS];
+	static  int	sel[NFIELDS];
 	char 	buf[NFIELDS];
 	char	*p2, outbuf[NFIELDS];
 	FILE	*inptr;

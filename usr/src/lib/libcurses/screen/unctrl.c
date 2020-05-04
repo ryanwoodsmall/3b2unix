@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/unctrl.c	1.3"
+#ident	"@(#)curses:screen/unctrl.c	1.6"
 /*
  * define unctrl codes for each character
  *

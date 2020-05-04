@@ -5,15 +5,15 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/sysmacros.h	10.5"
+#ident	"@(#)kern-port:sys/sysmacros.h	10.5.4.3"
 /*
  * Some macros for units conversion
  */
 
 /* Core clicks to segments and vice versa */
 
-#define ctos(x)		(((x) + (NCPS-1)) / NCPS)
-#define	ctost(x)	((x) / NCPS)
+#define ctos(x)		(((x) + (NCPS-1)) >> CPSSHIFT)
+#define	ctost(x)	((x) >> CPSSHIFT)
 #define	stoc(x)		((x) * NCPS)
 
 /* byte address to segment and vice versa  */
@@ -101,3 +101,75 @@ extern char MINOR[128];
  *  Evaluate to true if the process is a server - Distributed UNIX
  */
 #define	server()	(u.u_procp->p_sysid != 0)
+
+/*
+ * Defined for RFS client caching
+ */
+
+extern int rcacheinit;			/* RFS client caching flag */
+extern unsigned long rfs_vcode;		/* version code for RFS caching */
+
+#define CLOSEI(ip, flag, count, offset) \
+{ \
+	if (rcacheinit && (ip)->i_ftype == IFREG && (count) == 1 \
+		&& !server() && (flag) & FWRITE) { \
+		(ip)->i_wcnt--; \
+		if ((ip)->i_flag & IWROTE && (ip)->i_wcnt == 0) { \
+			(ip)->i_flag &= ~IWROTE; \
+			if ((ip)->i_rcvd) \
+				enable_cache((ip)->i_rcvd); \
+		} \
+	} \
+	FS_CLOSEI(ip, flag, count, offset); \
+}
+
+#define OPENI(ip, mode) \
+{ \
+	if (rcacheinit && (ip)->i_ftype == IFREG && !server() && (mode) & FWRITE) \
+		(ip)->i_wcnt++; \
+	FS_OPENI(ip, mode); \
+}
+
+#define WRITEI(ip) \
+{ \
+	if (rcacheinit && (ip)->i_ftype == IFREG) { \
+		if (!server()) \
+			(ip)->i_flag |= IWROTE; \
+		(ip)->i_vcode = ++rfs_vcode; \
+		if ((ip)->i_rcvd) \
+			disable_cache(ip); \
+	} \
+	FS_WRITEI(ip); \
+}
+
+#define ITRUNC(ip) \
+{ \
+	if (rcacheinit && (ip)->i_ftype == IFREG) { \
+		if (!server()) \
+			(ip)->i_flag |= IWROTE; \
+		(ip)->i_vcode = ++rfs_vcode; \
+		if ((ip)->i_rcvd) \
+			disable_cache(ip); \
+	} \
+	FS_ITRUNC(ip); \
+}
+
+#define IPUT(ip) \
+{ \
+	if (rcacheinit && (ip)->i_nlink <= 0 && (ip)->i_count == 1) { \
+		(ip)->i_vcode = ++rfs_vcode; \
+	} \
+	FS_IPUT(ip); \
+}
+
+#define FREESP(ip, arg, flag, offset) \
+{ \
+	if (rcacheinit && (ip)->i_ftype == IFREG) { \
+		if (!server()) \
+			(ip)->i_flag |= IWROTE; \
+		(ip)->i_vcode = ++rfs_vcode; \
+		if ((ip)->i_rcvd) \
+			disable_cache(ip); \
+	} \
+	FS_FCNTL(ip, F_FREESP, arg, flag, offset); \
+}

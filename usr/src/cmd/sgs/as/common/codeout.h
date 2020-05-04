@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)as:common/codeout.h	1.9"
+#ident	"@(#)as:common/codeout.h	1.9.1.1"
 /*
  */
 
@@ -23,8 +23,8 @@ typedef struct {
 	int cindex;
 #else
 	unsigned short caction;
-	unsigned short cindex;
 	unsigned short cnbits;
+	unsigned long  cindex;
 #endif
 } codebuf;
 

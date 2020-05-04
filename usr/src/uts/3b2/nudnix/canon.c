@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/canon.c	10.4"
+#ident	"@(#)kern-port:nudnix/canon.c	10.5"
 
 #include "sys/types.h"
 #include "sys/param.h"
@@ -108,6 +108,8 @@ register char *fmt, *from, *to;
 	return(to - tptr);
 }
 
+static char rfs_tbuf[2048];
+
 /*
  *This routine converts from local to cononical representation
  */
@@ -118,12 +120,11 @@ register char *fmt, *from, *to;
 	long ltmp;
 	char *lfmt, *tptr;
 	register char *cptr = 0;
-	char cbuf[1400];
 
 	tptr = to;
 	if(flag && from == to){
 		cptr = to;
-		to = cbuf;
+		to = rfs_tbuf;
 	}
 	while(*fmt){
 		switch(*fmt++){
@@ -182,8 +183,8 @@ register char *fmt, *from, *to;
 		}
 	}
 	if(cptr){
-		bcopy(cbuf,cptr,(to - cbuf));
-		return(to - cbuf);
+		bcopy(rfs_tbuf,cptr,(to - rfs_tbuf));
+		return(to - rfs_tbuf);
 	}
 	return(to - tptr);
 }

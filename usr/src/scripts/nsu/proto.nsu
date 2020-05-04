@@ -50,8 +50,9 @@ new	d--775 0 3
 			libnls.a	---444 0 2	../usr/lib/libnls.a
 		$
 		net	d--775 0 3
-			nls	d--775 37 4
-				listen	---750 0 4	../usr/net/nls/listen
+			nls	d--775 0 3
+				listen	---750 0 3	../usr/net/nls/listen
+				dbfconv	---755 0 3	../usr/net/nls/dbfconv
 			$
 		$
 		options	d--775 0 3

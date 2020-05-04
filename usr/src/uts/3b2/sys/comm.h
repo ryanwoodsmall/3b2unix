@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/comm.h	10.15"
+#ident	"@(#)kern-port:sys/comm.h	10.15.9.9"
 
 #undef NOFILE
 #define NOFILE 	v.v_nofiles
@@ -93,6 +93,7 @@ typedef struct rcvd  {
 	struct	rd_user *rd_user_list;	/* one for each time RD is a gift */
 	struct	sndd *rd_sdnack;	/* send desc list for NACK */
 	sema_t	rd_qslp;		/*  recv desc queue sleep sema	*/
+	time_t	rd_mtime;		/*  last write time - for cache	*/
 }	*rcvd_t;
 
 #define rd_inode	r1.rd_inodep
@@ -102,11 +103,11 @@ typedef struct rcvd  {
 #define	RDUSED		0x1
 #define	RDUNUSED	0x2
 #define	RDLINKDOWN	0x4
+#define RDWANT		0x10
 
 /* rd_qtype */
 #define	GENERAL		0x1
 #define SPECIFIC	0x2
-#define RDLBIN		0x8
 #define RDTEXT		0x40
 
 
@@ -135,12 +136,21 @@ typedef struct sndd  {
 	struct	sndd *sd_next;
 	int	sd_temp;		/* used for temp sd related oper */
 	ushort	sd_mode;
+	long	sd_fhandle;	/* file handle for client caching */
+	off_t	sd_offset;	/* for client caching */
+	uint	sd_count;	/* for client caching */
 }	*sndd_t;
 
 #define	SDUSED		0x1
 #define	SDUNUSED	0x2
 #define	SDLINKDOWN	0x4
 #define SDSERVE		0x8
+#define SDWANT		0x10
+#define SDCACHE		0x20	/* remote file is cacheable */
+#define SDMNDLCK	0x40	/* remote file mandatory lock set 
+				 * (not updated if someone turns off mandatory
+				 * locked with chmod on remote file before
+				 * last file close) */
 
 extern	struct	sndd	sndd[];
 
@@ -170,9 +180,24 @@ struct rd_user {
 	ushort ru_icount;
 	ushort ru_frcnt;
 	ushort ru_fwcnt;
+	ushort ru_stat;			/* rd_user struct status */
+	ushort ru_cflag;		/* cache flag */
+	ushort ru_cwcnt;		/* cache writer count */
 };
 
 extern struct rd_user rd_user[];
+
+/*  status flags 	*/
+#define	RU_FREE		0x1		/* rd_user structure is on free list */
+#define	RU_USED		0x2		/* structure is in use */
+
+/*	cache flags 	*/
+#define CACHE_OFF	0x1		/* no remote cache */
+#define CACHE_ENABLE	0x2		/* remote cache is on */
+#define CACHE_DISABLE	0x4		/* cache is disabled */
+#define CACHE_REENABLE	0x8		/* cache can be re-enabled */
+#define CACHE_WRITE	0x10		/* remote machine has done a write */
+
 
 
 /*  
@@ -195,6 +220,7 @@ struct	message  {
 /*  status values  */
 #define GIFT	0x8		/*  are address & index real?	*/
 #define SIGNAL	0x10		/*set for signal messages*/
+#define VER1	0x20		/*set for NACKABLE messages*/
 
 /*  parameters of the implementation  */
 

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/gentty.c	10.5"
+#ident	"@(#)kern-port:io/gentty.c	10.6"
 /*
  *	indirect driver for controlling tty.
  */
@@ -25,7 +25,7 @@
 #include "sys/conf.h"
 #include "sys/tty.h"
 #include "sys/stream.h"
-#if !defined(u3b5) && !defined(u3b2)
+#if !defined(u3b15) && !defined(u3b2)
 #include "sys/seg.h"
 #endif
 

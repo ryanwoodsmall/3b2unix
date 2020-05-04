@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/prf.c	10.3"
+#ident	"@(#)kern-port:io/prf.c	10.3.1.1"
 /*
  *	UNIX Operating System Profiler
  *
@@ -27,16 +27,16 @@
 #include "sys/user.h"
 #include "sys/buf.h"
 
-# define PRFMAX  2048		/* maximum number of text addresses */
 # define PRF_ON    1		/* profiler collecting samples */
 # define PRF_VAL   2		/* profiler contains valid text symbols */
 # define BPW	   4		/* bytes per word */
 # define L2BPW	   2		/* log2(BPW) */
 
+extern int maxprf;
+extern unsigned prfctr[];	/* counters for symbols; last used for User */
+extern unsigned prfsym[];	/* text symbols */
 extern unsigned  prfstat;	/* state of profiler */
 unsigned  prfmax;		/* number of loaded text symbols */
-unsigned  prfctr[PRFMAX + 1];	/* counters for symbols; last used for User */
-unsigned  prfsym[PRFMAX];	/* text symbols */
 
 prfread()
 {
@@ -54,7 +54,7 @@ prfwrite()
 {
 	register  unsigned  *ip;
 
-	if (u.u_count > sizeof prfsym)
+	if (u.u_count > (maxprf * sizeof (int)))
 		u.u_error = ENOSPC;
 	else if (u.u_count & (BPW - 1) || u.u_count < 3 * BPW)
 		u.u_error = E2BIG;
@@ -62,7 +62,7 @@ prfwrite()
 		u.u_error = EBUSY;
 	if (u.u_error)
 		return;
-	for (ip = prfctr; ip != &prfctr[PRFMAX + 1];)
+	for (ip = prfctr; ip != &prfctr[maxprf + 1];)
 		*ip++ = 0;
 	prfmax = u.u_count >> L2BPW;
 	iomove((caddr_t) prfsym, u.u_count, B_WRITE);

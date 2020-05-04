@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sh:service.c	1.20"
+#ident	"@(#)sh:service.c	1.22.2.1"
 /*
  * UNIX shell
  */
@@ -373,7 +373,8 @@ int	i, bckg;
 					*pw = 0;
 					pwc--;
 				}
-			}
+			} else if(errno == ECHILD) 
+				break;
 			continue;
 		}
 		w_hi = (w >> 8) & LOBYTE;

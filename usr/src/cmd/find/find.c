@@ -5,17 +5,17 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident "@(#)find:find.c	4.19"
+#ident	"@(#)find:find.c	4.22"
 
 /*	find	COMPILE:	cc -o find -s -O -i find.c -lS	*/
 
 #include <stdio.h>
 #include <pwd.h>
 #include <grp.h>
-#include "sys/types.h"
-#include "sys/dir.h"
-#include "sys/stat.h"
-#include "ctype.h"
+#include <sys/types.h>
+#include <sys/dir.h>
+#include <sys/stat.h>
+#include <ctype.h>
 
 #define	UID	1
 #define	GID	2
@@ -764,89 +764,6 @@ char *name, *fname;
 	}
 /*	*c1 = '/';	*/
 	return;
-}
-
-gmatch(s, p)
-register char	*s, *p;
-{
-	register int	scc;
-	char		c;
-
-	if(scc = *s++) {
-		if((scc &= 0177) == 0) {
-			scc = 0200;
-		}
-	}
-	switch(c = *p++) {
-
-	case '[':
-		{
-			int okay; 
-			int lc; 
-			int notflag = 0;
-
-			okay = 0; 
-			lc = 077777;
-			if( *p == '!' ) {
-				notflag = 1; 
-				p++; 
-			}
-			while( c = *p++ ) {
-				if(c == ']') {
-					return(okay?gmatch(s,p):0);
-				} else if (c == '-') {
-					if(notflag) {
-						if(lc > scc || scc > *(p++)) {
-							okay++;
-						} else { 
-							return(0);
-						}
-					} else { 
-						if( lc <= scc && scc <= (*p++)) {
-							okay++;
-						}
-					}
-				} else {
-					if(notflag) {
-						if(scc != (lc = (c&0177))) {
-							okay++;
-						} else {
-							return(0);
-						}
-					} else { 
-						if(scc == (lc = (c&0177))) { 
-							okay++;
-						}
-					}
-				}
-			}
-			return(0);
-		}
-	case '?':
-		return(scc?gmatch(s,p):0);
-
-	case '*':
-		if(*p == 0) {
-			return(1);
-		}
-		--s;
-		while(*s) {
-			if(gmatch(s++,p)) {
-				return(1);
-			} 
-		}
-		return(0);
-
-	case 0:
-		return(scc == 0);
-
-	default:
-		if((c&0177) != scc) {
-			return(0);
-		}
-
-	}
-	return(gmatch(s,p)?1:0);
 }
 
 bwrite(rp, c)

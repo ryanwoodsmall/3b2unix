@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libns:rfs_up.c	1.1"
+#ident	"@(#)libns:rfs_up.c	1.1.1.1"
 #include <sys/rfsys.h>
 #include <errno.h>
 #include <nserve.h>
@@ -22,6 +22,7 @@ rfs_up()
 	 */
 
 	if (rfsys(RF_GETDNAME, dname, MAXDNAME) < 0) {
+		errno=ENONET;
 		return(-1);
 	}
 	if (rfsys(RF_SETDNAME, dname, strlen(dname)+1) >= 0) {

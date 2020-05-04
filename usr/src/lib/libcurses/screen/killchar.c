@@ -5,19 +5,19 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/killchar.c	1.1.1.1"
+#ident	"@(#)curses:screen/killchar.c	1.1.1.4"
 /*
  * Routines to deal with setting and resetting modes in the tty driver.
  * See also setupterm.c in the termlib part.
  */
-#include "curses.ext"
+#include "curses_inc.h"
 
 char
 killchar()
 {
 #ifdef SYSV
-	return SHELLTTY.c_cc[VKILL];
+    return (SHELLTTY.c_cc[VKILL]);
 #else
-	return SHELLTTY.sg_kill;
+    return (SHELLTTY.sg_kill);
 #endif
 }

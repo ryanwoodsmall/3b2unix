@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/t_rcv.c	1.6"
+#ident	"@(#)libnsl:nsl/t_rcv.c	1.6.1.1"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/errno.h"
@@ -108,7 +108,11 @@ int *flags;
 
 			case T_EXDATA_IND:
 				*flags |= T_EXPEDITED;
+				if (retval)
+					tiptr->ti_flags |= EXPEDITED;
+
 				/* flow thru */
+
 			case T_DATA_IND:
 				if ((ctlbuf.len < sizeof(struct T_data_ind)) ||
 				    (tiptr->ti_lookflg)) {
@@ -121,6 +125,8 @@ int *flags;
 					*flags |= T_MORE;
 				if ((pptr->data_ind.MORE_flag) && retval)
 					tiptr->ti_flags |= MORE;
+
+				tiptr->ti_state = TLI_NEXTSTATE(T_RCV, tiptr->ti_state);
 				return(rcvbuf.len);
 	
 			case T_ORDREL_IND:
@@ -173,6 +179,18 @@ int *flags;
 		}
 		if (retval)
 			*flags |= T_MORE;
+
+		/*
+		 * If inside an ETSDU, set expedited flag and turn
+		 * of internal version when reach end of "ETIDU".
+		 */
+		if (tiptr->ti_flags & EXPEDITED) {
+			*flags |= T_EXPEDITED;
+			if (!retval)
+				tiptr->ti_flags &= ~EXPEDITED;
+		}
+
+		tiptr->ti_state = TLI_NEXTSTATE(T_RCV, tiptr->ti_state);
 		return(rcvbuf.len);
 	}
 }

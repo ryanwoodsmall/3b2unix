@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)crash-3b2:util.c	1.11"
+#ident	"@(#)crash-3b2:util.c	1.11.2.1"
 /*
  * This file contains code for utilities used by more than one crash function.
  */
@@ -16,8 +16,8 @@
 #include "stdio.h"
 #include "setjmp.h"
 #include "ctype.h"
-#include "sys/var.h"
 #include "sys/types.h"
+#include "sys/var.h"
 #include "sys/sbd.h"
 #include "sys/immu.h"
 #include "sys/region.h"
@@ -167,12 +167,15 @@ char format;
 		if(strlen(s) == 1)
 			return(0); 
 		switch(*++s) {
+			case 'X' :
 			case 'x' :	format = 'h';
 					s++;
 					break;
+			case 'B' :
 			case 'b' :	format = 'b';
 					s++;
 					break;
+			case 'D' :
 			case 'd' :	format = 'd';
 					s++;
 					break;
@@ -320,11 +323,7 @@ char *string;
 		return(-1);
 	switch(*op) {
 		case '+' : return(addr1 + addr2);
-		case '-' : if((addr1 - addr2) < 0) {
-				prerrmes("%x is not an valid address\n",addr1-addr2);
-				return(-1);
-			   }
-			   return(addr1 - addr2);
+		case '-' : return(addr1 - addr2);
 		case '&' : return(addr1 & addr2);
 		case '|' : return(addr1 | addr2);
 		case '*' : return(addr1 * addr2);
@@ -422,19 +421,23 @@ long *arg1,*arg2;
 
 /* get slot number in table from address */
 int
-getslot(addr,base,size,phys)
-long addr,base;
+getslot(addr,base,size,phys,max)
+long addr,base,max;
 int size,phys;
 {
 	long pbase;
+	int slot;
 	
 	if(phys || !Virtmode) {
 		pbase = vtop(base,-1);
 		if(pbase == -1)
 			error("%x is an invalid address\n",base);
-		return(((addr&~MAINSTORE) - pbase) / size);
+		slot = ((addr&~MAINSTORE) - pbase) / size;
 	}
-	else return((addr - base) / size);
+	else slot = (addr - base) / size;
+	if((slot >= 0) && (slot < max))
+		return(slot);
+	else return(-1);
 }
 
 
