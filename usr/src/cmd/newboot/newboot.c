@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)newboot:newboot.c	1.2.1.1"
+#ident	"@(#)newboot:newboot.c	1.4"
 /*
  * Write the two boot programs (mboot and lboot) to the disk:
  *
@@ -13,7 +13,7 @@
  *	Block 1    ==> updated VTOC
  *	Block 2... ==> lboot program
  *
- * Usage: newboot lboot mboot filsys
+ * Usage: newboot olboot mboot filsys
  *
  * Before writing the filesys, a confirmation message is issued if the -y
  * flag was not present.  The response must be "y" or "Y", or the program
@@ -27,6 +27,8 @@
 #include <fcntl.h>
 #include <a.out.h>
 
+# define USAGE "Usage: %s [-y] olboot mboot partition\n"
+
 /*
  * external routines
  */
@@ -39,7 +41,7 @@ extern char *strtok();
  * VTOC contains pointers which determine where lboot is to be loaded;
  * it is updated as one entire block (BSIZE long)
  *
- * Any changes here must be coordinated with /usr/src/uts/3b15/boot/mboot/mboot.c
+ * Any changes here must be coordinated with /usr/src/uts/3b5/boot/mboot/mboot.c
  */
 union	{
 	struct vtoc	vtoc_buffer;
@@ -63,6 +65,7 @@ char *argv[];
 	int	fso = -1;
 	int	yes = 0;			/* -y option */
 	int	error = 0;			/* argument error */
+
 	long	lboot_size, lboot_origin;
 
 	register FILHDR *header;
@@ -81,7 +84,7 @@ char *argv[];
 
 	if ( error || argc-optind < 3 )
 		{
-		fprintf( stderr, "Usage: %s [-y] lboot mboot partition\n", argv[0] );
+		fprintf( stderr, USAGE, argv[0] );
 		exit(1);
 		}
 
@@ -311,6 +314,7 @@ error_exit:
 		close( fso );
 
 	fprintf( stderr, "%s: %s\n", argv[0], error_message );
+	fprintf( stderr, USAGE, argv[0] );
 
 	exit( 1 );
 	}

@@ -1,4 +1,4 @@
-#ident	"@(#)core:setup.core1	1.7"
+#ident	"@(#)core:setup.core1	1.11"
 #
 #	Sets up "3B2 Core UNIX Part 1" file system on floppy 
 #
@@ -19,6 +19,7 @@ before this one may be done." >&2
 fi
 
 ln ${ROOT}/etc/init ${ROOT}/etc/telinit
+ln ${ROOT}/etc/fsck1K ${ROOT}/etc/fsck
 ln ${ROOT}/bin/ln ${ROOT}/bin/mv
 ln ${ROOT}/bin/ln ${ROOT}/bin/cp
 ln ${ROOT}/bin/sh ${ROOT}/bin/rsh
@@ -49,8 +50,6 @@ ln ${ROOT}/dev/dsk/c0d0s6 ${ROOT}/dev/SA/diskette1
 ln ${ROOT}/dev/rdsk/c0d0s6 ${ROOT}/dev/rSA/diskette1
 ln ${ROOT}/dev/dsk/c1d0s6 ${ROOT}/dev/SA/disk1
 ln ${ROOT}/dev/rdsk/c1d0s6 ${ROOT}/dev/rSA/disk1
-ln ${ROOT}/dev/dsk/c1d1s6 ${ROOT}/dev/SA/disk2
-ln ${ROOT}/dev/rdsk/c1d1s6 ${ROOT}/dev/rSA/disk2
 ln ${ROOT}/dev/mem ${ROOT}/dev/mainstore
 ln ${ROOT}/bin/false ${ROOT}/bin/u3b
 ln ${ROOT}/bin/false ${ROOT}/bin/pdp11
@@ -60,7 +59,8 @@ ln ${ROOT}/bin/false ${ROOT}/bin/u3b5
 ln ${ROOT}/bin/false ${ROOT}/bin/u3b15
 ln ${ROOT}/bin/true ${ROOT}/bin/u3b2
 
-${ROOT}/inst/bin/pnewboot ${ROOT}/lib/olboot ${ROOT}/lib/mboot /dev/dsk/c0d0s7
+/etc/newboot -y ${ROOT}/lib/olboot ${ROOT}/lib/mboot /dev/dsk/c0d0s7
+rm ${ROOT}/lib/olboot ${ROOT}/lib/mboot
 
 cp /COREunix ${ROOT}/unix
 TZ=GMT0 touch -am 0101000070 ${ROOT}/unix

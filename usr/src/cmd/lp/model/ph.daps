@@ -1,4 +1,4 @@
-#ident "@(#)lp:model/ph.daps	1.2"
+#ident	"@(#)nlp:model/ph.daps	1.5"
 
 # lp interface to Autologic APS-5 phototypesetter.
 #	output is passed through filter daps, which is also a

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/buf.h	10.2.3.2"
+#ident	"@(#)kern-port:sys/buf.h	10.2.3.3"
 
 /*
  *	Each buffer in the pool is usually doubly linked into 2 lists:
@@ -71,6 +71,12 @@ extern	int		pfreecnt;
 extern	struct	buf	pbuf[];
 extern	char		*buffers[];
 
+extern  int	s52khash;		/* 2k buffer structures */
+extern struct buf s52kbuf[];
+extern struct buf s52kflist;
+extern char	*s52kbuffers[];
+extern struct	hbuf	s52khbuf[];
+
 
 /*
  *	These flags are kept in b_flags.
@@ -91,6 +97,7 @@ extern	char		*buffers[];
 #define B_VERIFY  0x1000
 #define B_FORMAT  0x2000
 #define B_REMOTE  0x4000	/* buffer contains remote (RFS) data */
+#define B_S52K	  0x8000	/* 2k buffer flag */
 
 /*
  *	Fast access to buffers in cache by hashing.

@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)kern-port:os/os.mk	10.19.8.3"
+#ident	"@(#)kern-port:os/os.mk	10.19.8.5"
 #
 #		Copyright 1984 AT&T
 #
@@ -16,10 +16,9 @@ INC = $(ROOT)/usr/include
 MKBOOT = mkboot
 MASTERD = ../master.d
 LIBNAME = ../lib.os
-DASHG = 
 DASHO = -O
-CFLAGS= -I$(INC) -DINKERNEL $(MORECPP) $(DASHG) $(DASHO)
-PFLAGS= -I$(INC) -DINKERNEL $(MORECPP) $(DASHG)
+CFLAGS= -I$(INC) -DINKERNEL $(MORECPP) $(DASHO)
+PFLAGS= -I$(INC) -DINKERNEL $(MORECPP)
 FRC =
 
 FILES =\
@@ -158,11 +157,10 @@ $(LIBNAME)(acct.o): acct.c \
 	$(INC)/sys/pcb.h \
 	$(INC)/sys/user.h \
 	$(INC)/sys/errno.h \
-	$(INC)/sys/fstyp.h \
 	$(INC)/sys/inode.h \
+	$(INC)/sys/fstyp.h \
 	$(INC)/sys/file.h \
 	$(INC)/sys/debug.h \
-	$(INC)/sys/message.h \
 	$(INC)/sys/conf.h \
 	$(INC)/sys/region.h \
 	$(INC)/sys/proc.h \
@@ -170,6 +168,7 @@ $(LIBNAME)(acct.o): acct.c \
 
 $(LIBNAME)(bio.o): bio.c \
 	$(INC)/sys/types.h \
+	$(INC)/sys/sema.h \
 	$(INC)/sys/sysmacros.h \
 	$(INC)/sys/sbd.h \
 	$(INC)/sys/param.h \
@@ -192,7 +191,6 @@ $(LIBNAME)(bio.o): bio.c \
 	$(INC)/sys/var.h \
 	$(INC)/sys/cmn_err.h \
 	$(INC)/sys/inline.h \
-	$(INC)/sys/fs/s5param.h \
 	$(INC)/sys/rbuf.h \
 	$(FRC)
 
@@ -223,7 +221,6 @@ $(LIBNAME)(clock.o): clock.c \
 	$(INC)/sys/map.h \
 	$(INC)/sys/swap.h \
 	$(INC)/sys/inline.h \
-	$(INC)/sys/conf.h \
 	$(FRC)
 
 DISP:	../disp.o $(MASTERD)/disp
@@ -245,13 +242,14 @@ DISP:	../disp.o $(MASTERD)/disp
 	$(INC)/sys/var.h \
 	$(INC)/sys/errno.h \
 	$(INC)/sys/region.h \
+	$(INC)/sys/cmn_err.h \
 	$(INC)/sys/proc.h \
 	$(INC)/sys/debug.h \
 	$(INC)/sys/inline.h \
 	$(FRC)
 	$(CC) $(CFLAGS) -c disp.c
 	mv disp.o ../disp.o	# save this, but not here
-	
+
 $(LIBNAME)(exec.o): exec.c \
 	$(INC)/sys/types.h \
 	$(INC)/sys/param.h \
@@ -269,8 +267,8 @@ $(LIBNAME)(exec.o): exec.c \
 	$(INC)/sys/errno.h \
 	$(INC)/sys/file.h \
 	$(INC)/sys/buf.h \
-	$(INC)/sys/fstyp.h \
 	$(INC)/sys/inode.h \
+	$(INC)/sys/fstyp.h \
 	$(INC)/sys/acct.h \
 	$(INC)/sys/sysinfo.h \
 	$(INC)/sys/reg.h \
@@ -363,8 +361,11 @@ $(LIBNAME)(fio.o): fio.c \
 	$(INC)/sys/user.h \
 	$(INC)/sys/file.h \
 	$(INC)/sys/conf.h \
-	$(INC)/sys/fstyp.h \
+	$(INC)/sys/nami.h \
 	$(INC)/sys/inode.h \
+	$(INC)/sys/fstyp.h \
+	$(INC)/sys/region.h \
+	$(INC)/sys/proc.h \
 	$(INC)/sys/mount.h \
 	$(INC)/sys/buf.h \
 	$(INC)/sys/var.h \
@@ -381,7 +382,6 @@ $(LIBNAME)(flock.o): flock.c \
 	$(INC)/sys/sbd.h \
 	$(INC)/sys/immu.h \
 	$(INC)/sys/region.h \
-	$(INC)/sys/debug.h \
 	$(INC)/sys/psw.h \
 	$(INC)/sys/pcb.h \
 	$(INC)/sys/errno.h \
@@ -391,8 +391,8 @@ $(LIBNAME)(flock.o): flock.c \
 	$(INC)/sys/signal.h \
 	$(INC)/sys/proc.h \
 	$(INC)/sys/user.h \
+	$(INC)/sys/fcntl.h \
 	$(INC)/sys/flock.h \
-	$(INC)/sys/sysmacros.h \
 	$(FRC)
 
 $(LIBNAME)(fork.o): fork.c \
@@ -430,7 +430,9 @@ $(LIBNAME)(fstyp.o): fstyp.c \
 	$(INC)/sys/fs/s5param.h \
 	$(INC)/sys/fstyp.h \
 	$(INC)/sys/inode.h \
+	$(INC)/sys/nami.h \
 	$(INC)/sys/fs/s5dir.h \
+	$(INC)/sys/fs/s5macros.h \
 	$(INC)/sys/signal.h \
 	$(INC)/sys/errno.h \
 	$(INC)/sys/psw.h \
@@ -477,12 +479,12 @@ $(LIBNAME)(getsizes.o): getsizes.c \
 	$(INC)/sys/tty.h \
 	$(INC)/sys/file.h \
 	$(INC)/sys/inode.h \
-	$(INC)/sys/fs/s5inode.h \
 	$(INC)/sys/region.h \
 	$(INC)/sys/proc.h \
 	$(INC)/sys/map.h \
 	$(INC)/sys/callo.h \
 	$(INC)/sys/mount.h \
+	$(INC)/sys/fcntl.h \
 	$(INC)/sys/flock.h \
 	$(INC)/sys/pcb.h \
 	$(INC)/sys/fs/s5dir.h \
@@ -498,6 +500,19 @@ $(LIBNAME)(getsizes.o): getsizes.c \
 	$(INC)/sys/shm.h \
 	$(INC)/sys/swap.h \
 	$(INC)/sys/iobuf.h \
+	$(INC)/sys/fs/s5fblk.h \
+	$(INC)/sys/fs/s5filsys.h \
+	$(INC)/sys/fs/s5inode.h \
+	$(INC)/sys/fs/s5macros.h \
+	$(INC)/sys/adv.h \
+	$(INC)/sys/nserve.h \
+	$(INC)/sys/sema.h \
+	$(INC)/sys/comm.h \
+	$(INC)/sys/dirent.h \
+	$(INC)/sys/ino.h \
+	$(INC)/sys/message.h \
+	$(INC)/sys/nami.h \
+	$(INC)/sys/stream.h \
 	$(FRC)
 
 $(LIBNAME)(grow.o): grow.c \
@@ -539,19 +554,18 @@ $(LIBNAME)(iget.o): iget.c \
 	$(INC)/sys/psw.h \
 	$(INC)/sys/pcb.h \
 	$(INC)/sys/user.h \
-	$(INC)/sys/fstyp.h \
 	$(INC)/sys/inode.h \
+	$(INC)/sys/fstyp.h \
 	$(INC)/sys/file.h \
 	$(INC)/sys/ino.h \
 	$(INC)/sys/stat.h \
 	$(INC)/sys/var.h \
 	$(INC)/sys/conf.h \
 	$(INC)/sys/region.h \
-	$(INC)/sys/debug.h \
-	$(INC)/sys/cmn_err.h \
 	$(INC)/sys/proc.h \
 	$(INC)/sys/open.h \
-	$(INC)/sys/conf.h \
+	$(INC)/sys/debug.h \
+	$(INC)/sys/cmn_err.h \
 	$(INC)/sys/fs/s5macros.h \
 	$(INC)/sys/buf.h \
 	$(INC)/sys/rbuf.h \
@@ -600,8 +614,8 @@ $(LIBNAME)(machdep.o): machdep.c \
 	$(INC)/sys/utsname.h \
 	$(INC)/sys/acct.h \
 	$(INC)/sys/file.h \
-	$(INC)/sys/fstyp.h \
 	$(INC)/sys/inode.h \
+	$(INC)/sys/fstyp.h \
 	$(INC)/sys/user.h \
 	$(INC)/sys/debug.h \
 	$(INC)/sys/edt.h \
@@ -697,9 +711,10 @@ $(LIBNAME)(nami.o): nami.c \
 	$(INC)/sys/types.h \
 	$(INC)/sys/systm.h \
 	$(INC)/sys/sysinfo.h \
+	$(INC)/sys/sysmacros.h \
 	$(INC)/sys/nami.h \
-	$(INC)/sys/fstyp.h \
 	$(INC)/sys/inode.h \
+	$(INC)/sys/fstyp.h \
 	$(INC)/sys/mount.h \
 	$(INC)/sys/fs/s5dir.h \
 	$(INC)/sys/signal.h \
@@ -711,6 +726,10 @@ $(LIBNAME)(nami.o): nami.c \
 	$(INC)/sys/errno.h \
 	$(INC)/sys/buf.h \
 	$(INC)/sys/var.h \
+	$(INC)/sys/region.h \
+	$(INC)/sys/proc.h \
+	$(INC)/sys/debug.h \
+	$(INC)/sys/cmn_err.h \
 	$(INC)/sys/conf.h \
 	$(FRC)
 
@@ -727,6 +746,7 @@ $(LIBNAME)(page.o): page.c \
 	$(INC)/sys/pcb.h \
 	$(INC)/sys/user.h \
 	$(INC)/sys/inode.h \
+	$(INC)/sys/fstyp.h \
 	$(INC)/sys/var.h \
 	$(INC)/sys/mount.h \
 	$(INC)/sys/buf.h \
@@ -737,6 +757,7 @@ $(LIBNAME)(page.o): page.c \
 	$(INC)/sys/swap.h \
 	$(INC)/sys/debug.h \
 	$(INC)/sys/cmn_err.h \
+	$(INC)/sys/conf.h \
 	$(FRC)
 
 $(LIBNAME)(physio.o): physio.c \
@@ -852,8 +873,8 @@ $(LIBNAME)(region.o): region.c \
 	$(INC)/sys/user.h \
 	$(INC)/sys/errno.h \
 	$(INC)/sys/mount.h \
-	$(INC)/sys/fstyp.h \
 	$(INC)/sys/inode.h \
+	$(INC)/sys/fstyp.h \
 	$(INC)/sys/var.h \
 	$(INC)/sys/buf.h \
 	$(INC)/sys/debug.h \
@@ -864,6 +885,7 @@ $(LIBNAME)(region.o): region.c \
 	$(INC)/sys/cmn_err.h \
 	$(INC)/sys/tuneable.h \
 	$(INC)/sys/message.h \
+	$(INC)/sys/sysinfo.h \
 	$(INC)/sys/conf.h \
 	$(FRC)
 
@@ -882,10 +904,10 @@ $(LIBNAME)(sched.o): sched.c \
 	$(INC)/sys/var.h \
 	$(INC)/sys/tuneable.h \
 	$(INC)/sys/getpages.h \
-	$(INC)/sys/cmn_err.h \
-	$(INC)/sys/buf.h \
 	$(INC)/sys/debug.h \
 	$(INC)/sys/inline.h \
+	$(INC)/sys/cmn_err.h \
+	$(INC)/sys/buf.h \
 	$(FRC)
 
 $(LIBNAME)(sdt.o): sdt.c \
@@ -928,8 +950,8 @@ $(LIBNAME)(sig.o): sig.c \
 	$(INC)/sys/user.h \
 	$(INC)/sys/errno.h \
 	$(INC)/sys/proc.h \
-	$(INC)/sys/fstyp.h \
 	$(INC)/sys/inode.h \
+	$(INC)/sys/fstyp.h \
 	$(INC)/sys/nami.h \
 	$(INC)/sys/file.h \
 	$(INC)/sys/reg.h \
@@ -970,10 +992,9 @@ $(LIBNAME)(space.o): space.c \
 	$(INC)/sys/param.h \
 	$(INC)/sys/fs/s5param.h \
 	$(INC)/sys/immu.h \
+	$(INC)/sys/sema.h \
 	$(INC)/sys/acct.h \
 	$(INC)/sys/buf.h \
-	$(INC)/sys/fs/s5macros.h \
-	$(INC)/sys/rbuf.h \
 	$(INC)/sys/inode.h \
 	$(INC)/sys/region.h \
 	$(INC)/sys/proc.h \
@@ -981,9 +1002,8 @@ $(LIBNAME)(space.o): space.c \
 	$(INC)/sys/sysinfo.h \
 	$(INC)/sys/swap.h \
 	$(INC)/sys/mount.h \
-	$(INC)/sys/adv.h \
-	$(INC)/sys/nserve.h \
-	$(INC)/sys/comm.h \
+	$(INC)/sys/fs/s5macros.h \
+	$(INC)/sys/rbuf.h \
 	$(FRC)
 
 $(LIBNAME)(startup.o): startup.c \
@@ -1026,17 +1046,25 @@ $(LIBNAME)(streamio.o): streamio.c \
 	$(INC)/sys/buf.h \
 	$(INC)/sys/errno.h \
 	$(INC)/sys/signal.h \
+	$(INC)/sys/immu.h \
+	$(INC)/sys/region.h \
+	$(INC)/sys/proc.h \
 	$(INC)/sys/psw.h \
 	$(INC)/sys/pcb.h \
 	$(INC)/sys/user.h \
 	$(INC)/sys/conf.h \
-	$(INC)/sys/stropts.h \
+	$(INC)/sys/debug.h \
 	$(INC)/sys/stream.h \
+	$(INC)/sys/stropts.h \
+	$(INC)/sys/strstat.h \
 	$(INC)/sys/inode.h \
 	$(INC)/sys/var.h \
-	$(INC)/sys/ttold.h \
+	$(INC)/sys/poll.h \
 	$(INC)/sys/termio.h \
+	$(INC)/sys/ttold.h \
 	$(INC)/sys/inline.h \
+	$(INC)/sys/systm.h \
+	$(INC)/sys/cmn_err.h \
 	$(FRC)
 
 $(LIBNAME)(subr.o): subr.c \
@@ -1046,8 +1074,8 @@ $(LIBNAME)(subr.o): subr.c \
 	$(INC)/sys/fs/s5param.h \
 	$(INC)/sys/systm.h \
 	$(INC)/sys/file.h \
-	$(INC)/sys/fstyp.h \
 	$(INC)/sys/inode.h \
+	$(INC)/sys/fstyp.h \
 	$(INC)/sys/fs/s5dir.h \
 	$(INC)/sys/errno.h \
 	$(INC)/sys/signal.h \
@@ -1092,9 +1120,9 @@ $(LIBNAME)(swapalloc.o): swapalloc.c \
 	$(INC)/sys/debug.h \
 	$(INC)/sys/map.h \
 	$(INC)/sys/open.h \
-	$(INC)/sys/file.h \
 	$(INC)/sys/cmn_err.h \
 	$(INC)/sys/tuneable.h \
+	$(INC)/sys/file.h \
 	$(FRC)
 
 $(LIBNAME)(swtch.o): swtch.c \
@@ -1148,7 +1176,6 @@ $(LIBNAME)(sys2.o): sys2.c \
 	$(INC)/sys/stream.h \
 	$(INC)/sys/poll.h \
 	$(INC)/sys/inline.h \
-	$(INC)/sys/var.h \
 	$(INC)/sys/cmn_err.h \
 	$(INC)/sys/conf.h \
 	$(FRC)
@@ -1174,6 +1201,7 @@ $(LIBNAME)(sys3.o): sys3.c \
 	$(INC)/sys/inode.h \
 	$(INC)/sys/fstyp.h \
 	$(INC)/sys/file.h \
+	$(INC)/sys/fcntl.h \
 	$(INC)/sys/flock.h \
 	$(INC)/sys/conf.h \
 	$(INC)/sys/stat.h \
@@ -1184,6 +1212,7 @@ $(LIBNAME)(sys3.o): sys3.c \
 	$(INC)/sys/open.h \
 	$(INC)/sys/message.h \
 	$(INC)/sys/debug.h \
+	$(INC)/sys/utsname.h \
 	$(INC)/sys/region.h \
 	$(INC)/sys/proc.h \
 	$(FRC)
@@ -1223,6 +1252,8 @@ $(LIBNAME)(sys3b.o): sys3b.c \
 	$(INC)/sys/cmn_err.h \
 	$(INC)/sys/inline.h \
 	$(INC)/sys/buf.h \
+	$(INC)/sys/conf.h \
+	$(INC)/sys/fstyp.h \
 	$(FRC)
 
 $(LIBNAME)(sys4.o): sys4.c \
@@ -1243,8 +1274,8 @@ $(LIBNAME)(sys4.o): sys4.c \
 	$(INC)/sys/errno.h \
 	$(INC)/sys/file.h \
 	$(INC)/sys/nami.h \
-	$(INC)/sys/fstyp.h \
 	$(INC)/sys/inode.h \
+	$(INC)/sys/fstyp.h \
 	$(INC)/sys/region.h \
 	$(INC)/sys/proc.h \
 	$(INC)/sys/var.h \
@@ -1346,6 +1377,8 @@ $(LIBNAME)(utssys.o): utssys.c \
 	$(INC)/sys/user.h \
 	$(INC)/sys/inode.h \
 	$(INC)/sys/fstyp.h \
+	$(INC)/sys/ustat.h \
+	$(INC)/sys/statfs.h \
 	$(INC)/sys/file.h \
 	$(INC)/sys/var.h \
 	$(INC)/sys/utsname.h \
@@ -1353,20 +1386,7 @@ $(LIBNAME)(utssys.o): utssys.c \
 	$(INC)/sys/region.h \
 	$(INC)/sys/proc.h \
 	$(INC)/sys/systm.h \
-	$(INC)/sys/ustat.h \
-	$(INC)/sys/statfs.h \
 	$(INC)/sys/sysmacros.h \
+	$(INC)/sys/debug.h \
 	$(INC)/sys/conf.h \
-	$(FRC)
-
-$(LIBNAME)(v8nami.o): v8nami.c \
-	$(INC)/../h/param.h \
-	$(INC)/sys/fs/s5param.h \
-	$(INC)/../h/systm.h \
-	$(INC)/../h/inode.h \
-	$(INC)/../h/mount.h \
-	$(INC)/../h/dir.h \
-	$(INC)/../h/user.h \
-	$(INC)/../h/buf.h \
-	$(INC)/../h/conf.h \
 	$(FRC)

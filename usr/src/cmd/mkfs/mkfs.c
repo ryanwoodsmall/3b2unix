@@ -5,11 +5,12 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mkfs:mkfs.c	1.26"
+#ident	"@(#)mkfs:mkfs.c	1.29"
 /*	mkfs	COMPILE:	cc -O mkfs.c -s -i -o mkfs
+ * mkfs - with support for 512, 1KB and 2KB logical block sizes
  * Make a file system prototype.
- * usage: mkfs filsys size[:inodes] [gap blocks/cyl]
- *        mkfs filsys proto [gap blocks/cyl]
+ * usage: mkfs filsys size[:inodes] [gap blocks/cyl] [-b blocksize]
+ *        mkfs filsys proto [gap blocks/cyl] [-b blocksize]
  */
 
 #include <stdio.h>
@@ -32,9 +33,9 @@
 #include <sys/ino.h>
 #include <sys/fs/s5inode.h>
 #include <sys/inode.h>
-#include <sys/filsys.h>
-#include <sys/fblk.h>
-#include <sys/dir.h>
+#include <sys/fs/s5filsys.h>
+#include <sys/fs/s5fblk.h>
+#include <sys/fs/s5dir.h>
 #include <sys/stat.h>
 
 #else
@@ -52,11 +53,18 @@
 
 /* file system block size */
 
-#if u3b15  && (FsTYPE == 2)	/* BSIZE=2048 (see param.h) */
+#if u3b15  && (FsTYPE == 2) || u3b2 && (FsTYPE == 4)  /* BSIZE=2048 (see param.h) */
 #undef itod
 #define	itod(x)	(daddr_t)(((x+63)>>5)&017777)
 #undef itoo
 #define	itoo(x)	(int)((x+63)&037)
+#endif
+
+#if u3b15  && (FsTYPE == 4) || u3b2 && (FsTYPE == 2)  /* BSIZE=1024 (see param.h) */
+#undef itod
+#define	itod(x)	(daddr_t)(((x+31)>>4)&037777)
+#undef itoo
+#define	itoo(x)	(int)((x+31)&017)
 #endif
 
 #define	FSBSIZE BSIZE
@@ -73,8 +81,13 @@
 #define	NDIRECT	(FSBSIZE/sizeof(struct direct))
 #define	NBINODE	(FSBSIZE/sizeof(struct dinode))
 #define	LADDR	10
+#ifdef u3b15
+#define STEPSIZE	24
+#define CYLSIZE		32
+#else
 #define	STEPSIZE	7
 #define	CYLSIZE		400
+#endif
 #define	MAXFN	1500
 
 time_t	utime;
@@ -105,6 +118,7 @@ ino_t	ino;
 long	getnum();
 daddr_t	alloc();
 
+
 #ifdef RT			/*  RT - only declarations  */
 
 daddr_t	bitmap();
@@ -125,12 +139,17 @@ struct fblk *fptr;
 
 #endif
 
+char *arg0 ;	 /* program name */
 main(argc, argv)
 int argc;
 char *argv[];
 {
-	int f, c;
+	int f, c, i;
+	int errflag = 0;
+	int bflag = 0;
+	int bpos = 0;
 	long n, nb;
+	int blocksize;		/* logical block size */
 	struct stat statarea;
 	struct {
 		daddr_t tfree;
@@ -138,40 +157,148 @@ char *argv[];
 		char fname[6];
 		char fpack[6];
 	} ustatarea;
+	arg0 = argv[0] ;	 /* program name, i.e. mkfs */
 
-	/*
-	 * open relevent files
-	 */
 
 	time(&utime);
-	if(argc < 3) {
-		printf("usage: %s filsys proto [gap blocks/cyl]\n       %s filsys blocks[:inodes] [gap blocks/cyl]\n", argv[0], argv[0]);
+	if( argc < 3 || argc > 7 )
+		errusage();
+	/* find block size argument if it exists */
+	for  (i = 1; i  < argc; i++) {
+		if (strncmp(argv[i], "-b", 2) == 0) {
+			bpos = i;
+			bflag++;
+		}
+	}
+	if (bflag > 1)
+		errusage();
+	if (bflag) {
+		if (bpos != 3 && bpos != 5)
+			errusage();
+		if (bpos == 3 && argc > 5)
+			errusage();
+		if (strlen(argv[bpos]) == 2)
+			blocksize = atoi(argv[bpos + 1]);
+		else
+			blocksize = atoi(&argv[bpos][2]);
+	}
+	else  {
+		if (argc > 5)
+			errusage();
+	}
+			
+	if (bflag) {
+/* If this program was invoked as mkfs (FsTYPE == 2), and if the -b
+ *   option was used to specify  a block size which is not the default for
+ *   this type of machine, then we must exec the appropriate executable
+ *   to build file system with desired logical block size.
+ * If user invoked program as mkfs512, mkfs1K, or mkfs2K and specified a
+ *   block size that is inconsistent with the executable he used (e.g.
+ *   he used mkfs512 to try to build a 2K) we fail and tell him to use
+ *   mkfs with -b option.
+ */
+#if FsTYPE == 2	/* we are in mkfs */
+	if (blocksize == 512) {
+		if (execvp("/etc/mkfs512", argv) == -1) {
+			fprintf(stderr, "%s: can't exec /etc/mkfs512\n", arg0);
+			exit(1);
+		}
+	}
+#if u3b2
+	if (blocksize == 2048) {
+		if (execvp("/etc/mkfs2K", argv) == -1) {
+			fprintf(stderr, "%s: can't exec /etc/mkfs2K\n", arg0);
+			exit(1);
+		}
+	}
+	if (blocksize != 1024) {
+		fprintf(stderr, "%s: %d is invalid logical block size\n", arg0, blocksize);
 		exit(1);
 	}
+
+#endif
+#if u3b15
+	if (blocksize == 1024) {
+		if (execvp("/etc/mkfs1K", argv) == -1) {
+			fprintf(stderr, "%s: can't exec /etc/mkfs1K\n", arg0);
+			exit(1);
+		}
+	}
+	if (blocksize != 2048) {
+		fprintf(stderr, "%s: %d is invalid logical block size\n", arg0, blocksize);
+		exit(1);
+	}
+#endif
+#endif	/* end FsTYPE == 2 */
+
+#if FsTYPE == 1	/* we are in mkfs512 */
+	if (blocksize != 512) {
+	    if (blocksize == 1024 || blocksize == 2048)
+		fprintf(stderr, "%d is invalid block size for %s, use mkfs with -b option\n", blocksize, arg0);
+	    else
+		fprintf(stderr, "%s: %d is invalid logical block size\n", arg0, blocksize);
+	    exit(1);
+	}
+#endif	/* end FsTYPE == 1 */
+
+#if FsTYPE == 4	/* we are in mkfs2K on 3b2 or mkfs1K on 3b15 */
+#if u3b2
+	if (blocksize != 2048) {
+	    if (blocksize == 512 || blocksize == 1024)
+		fprintf(stderr, "%d is invalid block size for %s, use mkfs with -b option\n", blocksize, arg0);
+	    else
+		fprintf(stderr, "%s: %d is invalid logical block size\n", arg0, blocksize);
+	    exit(1);
+	}
+#endif
+#if u3b15
+	if (blocksize != 1024) {
+	    if (blocksize == 512 || blocksize == 2048)
+		fprintf(stderr, "%d is invalid block size for %s, use mkfs with -b option\n", blocksize, arg0);
+	    else
+		fprintf(stderr, "%s: %d is invalid logical block size\n", arg0, blocksize);
+	    exit(1);
+	}
+#endif
+#endif	/* end FsTYPE == 4 */
+	}	/* end of if(bflag) */
+
+	/* get the other arguments */
 	fsys = argv[1];
+	proto = argv[2];
+	if ((bflag && argc >= 6) || (!bflag && argc >= 5)) {
+		f_m = atoi(argv[3]);
+		f_n = atoi(argv[4]);
+		if (f_n <= 0 || f_n >= MAXFN)
+			f_n = CYLSIZE;
+		if (f_m <= 0 || f_m > f_n)
+			f_m = STEPSIZE;
+	}
+	
 	if(stat(fsys, &statarea) < 0) {
-		printf("%s: cannot stat\n",fsys);
+		fprintf(stderr, "%s: %s: cannot stat\n", arg0, fsys);
 		exit(1);
 	}
-	proto = argv[2];
 #ifdef RT
 	setio (-1, 1);
 #endif
 	fsi = open(fsys, 0);
 	if(fsi < 0) {
-		printf("%s: cannot open\n", fsys);
+		fprintf(stderr, "%s: %s: cannot open\n", arg0, fsys);
 		exit(1);
 	}
 	if((statarea.st_mode & S_IFMT) == S_IFBLK)
 		if(ustat(statarea.st_rdev,&ustatarea) >= 0) {
-			printf("*** MOUNTED FILE SYSTEM\n");
+			fprintf(stderr, "%s: %s: *** MOUNTED FILE SYSTEM\n", arg0, fsys);
 			exit(1);
 		}
+
+	
 	printf("Mkfs: %s? \n(DEL if wrong)\n", fsys);
 	sleep(10);	/* 10 seconds to DEL */
 	fso = creat(fsys, 0666);
 	if(fso < 0) {
-		printf("%s: cannot create\n", fsys);
+		fprintf(stderr, "%s: %s: cannot create\n", arg0, fsys);
 		exit(1);
 	}
 	fin = fopen(proto, "r");
@@ -184,7 +311,7 @@ char *argv[];
 					n = 0;
 					continue;
 				}
-				printf("Mkfs: cannot open proto file '%s'\n", proto);
+				fprintf(stderr, "%s: cannot open proto file '%s'\n", arg0, proto);
 				exit(1);
 			}
 			n = n*10 + (c-'0');
@@ -212,7 +339,7 @@ char *argv[];
 		getstr();
 		f = open(string, 0);
 		if(f < 0) 
-			printf("Mkfs: cannot  open boot program '%s'\n", string);
+			fprintf(stderr, "%s: cannot  open boot program '%s'\n", arg0, string);
 		else {
 			read(f, (char *)&head, sizeof head);
 
@@ -222,14 +349,14 @@ char *argv[];
 			c = head.a_text + head.a_data;
 #endif
 			if(c > BBSIZE) 
-				printf("Mkfs: '%s' too big\n", string);
+				fprintf(stderr, "%s: '%s' too big\n", arg0, string);
 			else {
 				read(f, buf, c);
 
 				/* write boot-block to file system */
 				lseek(fso, 0L, 0);
 				if(write(fso, buf, BBSIZE) != BBSIZE) {
-					printf("Mkfs: error writing boot-block\n");
+					fprintf(stderr, "%s: error writing boot-block\n", arg0);
 					exit(1);
 				}
 			}
@@ -256,14 +383,15 @@ char *argv[];
 
 	/* set magic number for file system type */
 	filsys->s_magic = FsMAGIC;
-	filsys->s_type = (FSBSIZE == 512) ? Fs1b : Fs2b;
-	if(argc >= 5) {
-		f_m = atoi(argv[3]);
-		f_n = atoi(argv[4]);
-		if(f_n <= 0 || f_n >= MAXFN)
-			f_n = CYLSIZE;
-		if(f_m <= 0 || f_m > f_n)
-			f_m = STEPSIZE;
+	if (FSBSIZE == 512)
+		filsys->s_type = Fs1b;
+	else if (FSBSIZE == 1024)
+		filsys->s_type = Fs2b;
+	else if (FSBSIZE == 2048)
+		filsys->s_type = Fs4b;
+	else {
+		fprintf(stderr, "%s: unknown block size\n", arg0);
+		exit(1);
 	}
 	filsys->s_dinfo[0] = f_m;
 	filsys->s_dinfo[1] = f_n;
@@ -277,7 +405,7 @@ char *argv[];
 	printf("cylinder size (physical blocks) = %d \n", filsys->s_dinfo[1]);
 
 	if(filsys->s_isize >= filsys->s_fsize) {
-		printf("%ld/%ld: bad ratio\n", filsys->s_fsize, filsys->s_isize-2);
+		fprintf(stderr, "%s: %ld/%ld: bad ratio\n", arg0, filsys->s_fsize, filsys->s_isize-2);
 		exit(1);
 	}
 	filsys->s_tinode = 0;
@@ -303,7 +431,7 @@ char *argv[];
 	cfile((struct inode *)0);
 
 	filsys->s_time = utime;
-#ifdef u3b2
+#if u3b2 || u3b15
 	filsys->s_state = FsOKAY - (long)filsys->s_time;
 #endif
 #ifdef RT
@@ -314,7 +442,7 @@ char *argv[];
 /* write super-block onto file system */
 	lseek(fso, (long)SUPERBOFF, 0);
 	if(write(fso, (char *)filsys, SBSIZE) != SBSIZE) {
-		printf("write error: super-block\n");
+		fprintf(stderr, "%s: write error: super-block\n", arg0);
 		exit(1);
 	}
 
@@ -356,7 +484,7 @@ struct inode *par;
 	for(i=3; i<6; i++) {
 		c = string[i];
 		if(c<'0' || c>'7') {
-			printf("%c/%s: bad octal mode digit\n", c, string);
+			fprintf(stderr, "%s: %c/%s: bad octal mode digit\n", arg0, c, string);
 			error = 1;
 			c = 0;
 		}
@@ -400,7 +528,7 @@ struct inode *par;
 		sp = string;
 #endif
 		if(f < 0) {
-			printf("%s: cannot open\n", string);
+			fprintf(stderr, "%s: %s: cannot open\n", arg0, string);
 			error = 1;
 			break;
 		}
@@ -477,7 +605,7 @@ struct inode *par;
 		f = open(string, 0);
 		sp = string;
 		if(f < 0) {
-			fprintf(stderr,"%d:%s: cannot open\n", string);
+			fprintf(stderr,"%s: %s: cannot open\n", arg0, string);
 			error = 1;
 			break;
 		}
@@ -507,7 +635,7 @@ char c, *s;
 	for(i=0; s[i]; i++)
 		if(c == s[i])
 			return((&m0)[i]);
-	printf("%c/%s: bad mode\n", c, string);
+	fprintf(stderr, "%s: %c/%s: bad mode\n", arg0, c, string);
 	error = 1;
 	return(0);
 }
@@ -522,7 +650,7 @@ getnum()
 	n = 0;
 	for(i=0; c=string[i]; i++) {
 		if(c<'0' || c>'9') {
-			printf("%s: bad number\n", string);
+			fprintf(stderr, "%s: %s: bad number\n", arg0, string);
 			error = 1;
 			return((long)0);
 		}
@@ -544,7 +672,7 @@ loop:
 		goto loop;
 
 	case '\0':
-		printf("EOF\n");
+		fprintf(stderr, "%s: EOF\n", arg0);
 		exit(1);
 
 	case ':':
@@ -571,7 +699,7 @@ char *bf;
 	lseek(fsi, (long)(bno*FSBSIZE), 0);
 	n = read(fsi, bf, FSBSIZE);
 	if(n != FSBSIZE) {
-		printf("read error: %ld\n", bno);
+		fprintf(stderr, "%s: read error: %ld\n", arg0, bno);
 		exit(1);
 	}
 }
@@ -585,7 +713,7 @@ char *bf;
 	lseek(fso, (long)(bno*FSBSIZE), 0);
 	n = write(fso, bf, FSBSIZE);
 	if(n != FSBSIZE) {
-		printf("write error: %ld\n", bno);
+		fprintf(stderr, "%s: write error: %ld\n", arg0, bno);
 		exit(1);
 	}
 }
@@ -600,7 +728,7 @@ alloc()
 	filsys->s_tfree--;
 	bno = filsys->s_free[--filsys->s_nfree];
 	if(bno == 0) {
-		printf("out of free space\n");
+		fprintf(stderr, "%s: out of free space\n", arg0);
 		exit(1);
 	}
 	if(filsys->s_nfree <= 0) {
@@ -625,7 +753,7 @@ alloc()
 addfr:
 		addfree();
 		if(filsys->s_cfree <= 1) {
-			fprintf(stderr,"out of free space %s\n",sp);
+			fprintf(stderr,"%s: out of free space %s\n", arg0, sp);
 			exit(1);
 			exit(1);
 		}
@@ -706,7 +834,7 @@ daddr_t *ib;
 	ib[*aibc] = bno;
 	(*aibc)++;
 	if(*aibc >= NFB) {
-		printf("file too large\n");
+		fprintf(stderr, "%s: file too large\n", arg0);
 		error = 1;
 		*aibc = 0;
 	}
@@ -760,11 +888,7 @@ bflist()
 	ibc = 0;
 	bfree((daddr_t)0);
 	filsys->s_tfree = 0;
-#if u3b2 || u3b15
 	d = filsys->s_fsize;
-#else
-	d = filsys->s_fsize-1;
-#endif
 	while(d%f_n)
 		d++;
 	for(; d > 0; d -= f_n)
@@ -773,7 +897,7 @@ bflist()
 			if(f < filsys->s_fsize && f >= filsys->s_isize)
 				if(badblk(f)) {
 					if(ibc >= NIDIR) {
-						printf("too many bad blocks\n");
+						fprintf(stderr, "%s: too many bad blocks\n", arg0);
 						error = 1;
 						ibc = 0;
 					}
@@ -803,7 +927,7 @@ daddr_t *ib;
 	d = itod(ip->i_number);
 	if(d >= filsys->s_isize) {
 		if(error == 0)
-			printf("ilist too small\n");
+			fprintf(stderr, "%s: ilist too small\n", arg0);
 		error = 1;
 		return;
 	}
@@ -859,7 +983,7 @@ daddr_t *ib;
 		/* handle triple indirect block */
 		if(i < *aibc)
 		{
-			printf("triple indirect blocks not handled\n");
+			fprintf(stderr, "%s: triple indirect blocks not handled\n", arg0);
 		}
 		break;
 
@@ -879,7 +1003,7 @@ daddr_t *ib;
 #endif
 
 	default:
-		printf("bad ftype %o\n", ip->i_ftype);
+		fprintf(stderr, "%s: bad ftype %o\n", arg0, ip->i_ftype);
 		exit(1);
 	}
 
@@ -892,6 +1016,11 @@ daddr_t bno;
 {
 
 	return(0);
+}
+errusage()
+{
+	fprintf(stderr, "usage: mkfs filsys proto [gap blocks/cyl] [-b blocksize]\n       mkfs filsys blocks[:inodes] [gap blocks/cyl] [-b blocksize]\n");
+		exit(1);
 }
 #ifdef RT		/*  the following functions are all RT-only  */
 duped(bno)
@@ -1020,7 +1149,7 @@ daddr_t *nblkp;
 	*nblkp = nblk;
 	if(nblk == 0) {
 errxt:
-		fprintf(stderr,"out of free extents %s\n",sp);
+		fprintf(stderr,"%s: out of free extents %s\n", arg0, sp);
 		exit(1);
 	}
 	sblk =+ filsys->s_isize;

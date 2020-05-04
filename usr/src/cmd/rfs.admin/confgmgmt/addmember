@@ -1,4 +1,4 @@
-#ident	"@(#)rfs.admin:confgmgmt/addmember	1.10"
+#ident	"@(#)rfs.admin:confgmgmt/addmember	1.11"
 #menu# add member machines to your domain (primary only)
 
 #help# 
@@ -121,7 +121,7 @@ do
 	-H "$HELP1" \
 	"$QUEST1"						\
 	'^.\{1,8\}$' 'The machine name must be 1 to 8 printable characters.' \
-	'^[^ \/\.:]*$'  'The machine name must not contain a space, ":", "/", or ".".'`
+	'^[^ \\\.:]*$'  'The machine name must not contain a space, ":", "\", or ".".'`
 
 	/bin/grep "^$machname:" /usr/nserve/auth.info/${domname}/passwd >/dev/null 2>&1
 	if [ $? -eq 0 ]

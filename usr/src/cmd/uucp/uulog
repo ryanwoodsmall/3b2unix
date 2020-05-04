@@ -1,5 +1,5 @@
 #!/bin/sh
-#ident	"@(#)uucp:uulog	2.6"
+#ident	"@(#)uucp:uulog	2.7"
 
 #
 # usage:
@@ -99,6 +99,7 @@ if [ x$fflag = x ]; then
 			fi
 		else
 			echo "uulog: no log file available for system $i"
+			exit 1
 		fi
 	done
 else
@@ -111,5 +112,6 @@ else
 		exec tail -${n}f $type/$1
 	else
 		echo "uulog: no log file available for system $1"
+		exit 1
 	fi
 fi

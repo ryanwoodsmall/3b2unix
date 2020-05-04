@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libns:nsports.c	1.11.4.1"
+#ident	"@(#)libns:nsports.c	1.11.6.1"
 #include <stdio.h>
 #include "fcntl.h"
 #include "sys/types.h"
@@ -142,6 +142,7 @@ int	size;	/* size of block	*/
 				Logstamp,errno);
 			return(-1);
 		}
+		fcanon(HDR_FMT, &(pk->pk_hd), &(pk->pk_hd));
 	}
 	return(size);
 }
@@ -189,7 +190,7 @@ int	size;
 	pk = pptr->p_rpkt;
 	pkdata = (((char *) pk) + PK_MAXSIZ) - pk->pk_data;
 
-	if (read(fd,pk,PK_MAXSIZ) != PK_MAXSIZ) {
+	if (nspread(fd,pk,PK_MAXSIZ) != PK_MAXSIZ) {
 		LOG3(L_ALL,"(%5d) nsread: first read failed, errno = %d\n",
 			Logstamp,errno);
 		return(-1);
@@ -226,7 +227,7 @@ int	size;
 	for (i=0; i < pk->pk_size && bptr < bend; i++)
 		*bptr++ = *ptr++;
 
-	for (j=2; j <= total && read(fd,pk,PK_MAXSIZ) != -1; j++) {
+	for (j=2; j <= total && nspread(fd,pk,PK_MAXSIZ) != -1; j++) {
 		fcanon(HDR_FMT, &(pk->pk_hd), &(pk->pk_hd));
 		LOG3(L_COMM,"(%d) nsread: reading pkt # %d\n",Logstamp,j);
 		if (j != pk->pk_index) {
@@ -253,6 +254,34 @@ int	size;
 	}
 	return(size);
 }
+
+/*
+ * nspread -- read an exact amount of data
+ * (because protocols such as TCP/IP do not preserve record boundaries)
+ */
+int
+nspread(fd, b, size)
+int fd;
+char *b;
+unsigned size;
+{
+	register n;
+	unsigned rsize;
+
+	rsize = size;
+	while (rsize) {
+		if ((n = read(fd, b, rsize)) == -1)
+			return -1;
+		else if (n == 0)	/* quit on a read of 0 */
+			return size - rsize;
+		else {
+			rsize -= n;
+			b += n;
+		}
+	}
+	return size;
+}
+
 /*
  * nsclose closes port pd.
  */

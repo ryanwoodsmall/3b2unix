@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident	"@(#)vi:port/ex.c	1.19"
+#ident	"@(#)vi:port/ex.c	1.22"
 #include "ex.h"
 #include "ex_argv.h"
 #include "ex_temp.h"
@@ -580,12 +580,14 @@ main(ac, av)
 				source(strcat(strcpy(genbuf, cp), "/.exrc"), 1);
 		}
 		/*
-		 * Allow local .exrc too.  This loses if . is $HOME,
-		 * but nobody should notice unless they do stupid things
-		 * like putting a version command in .exrc.  Besides,
-		 * they should be using EXINIT, not .exrc, right?
+		 * Allow local .exrc if the "exrc" option was set. This
+		 * loses if . is $HOME, but nobody should notice unless
+		 * they do stupid things like putting a version command
+		 * in .exrc.
+		 * Besides, they should be using EXINIT, not .exrc, right?
 		 */
-		source(".exrc", 1);
+		if (value(vi_EXRC))
+			source(".exrc", 1);
 	}
 	init();	/* moved after prev 2 chunks to fix directory option */
 
@@ -651,7 +653,7 @@ main(ac, av)
 init()
 {
 	register int i;
-
+	void (*pstat)();
 	fileinit();
 	dot = zero = truedol = unddol = dol = fendcore;
 	one = zero+1;
@@ -663,10 +665,13 @@ init()
 	anymarks = 0;
         if(xflag) {
                 xtflag = 1;
-                if (makekey(tperm) != 0) {
+                /* ignore SIGINT before crypt process */
+		pstat = signal(SIGINT, SIG_IGN);
+		if (makekey(tperm) != 0) {
 			xtflag = 0;
 			smerror("Warning--Cannot encrypt temporary buffer\n");
         	}
+		signal(SIGINT, pstat);
 	}
 }
 

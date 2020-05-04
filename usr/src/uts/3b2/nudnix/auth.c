@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/auth.c	10.8.1.2"
+#ident	"@(#)kern-port:nudnix/auth.c	10.8.1.3"
 #include "sys/types.h"
 #include "sys/sema.h"
 #include "sys/sysmacros.h"
@@ -276,7 +276,7 @@ char	**list;
 	size++;
 	size = bump(size);
 	if ((ref = h_alloc(size)) == NULL) {
-		u.u_error == ENOMEM;
+		u.u_error = ENOMEM;
 		return(NULL);
 	}
 	lptr = ref;

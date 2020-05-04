@@ -1,4 +1,4 @@
-#ident "@(#)lp:model/hp	1.2"
+#ident	"@(#)nlp:model/hp	1.6"
 # lp interface for hp2631a line printer
 #
 #	All output is passed through the /usr/lib/hp2631a filter
@@ -89,7 +89,7 @@ case $ret in
 	reason="can't read from device"
 	;;
 *)
-	reason=
+	reason="unknown printer/filter error"
 	;;
 esac
 disable -r"$reason" $printer

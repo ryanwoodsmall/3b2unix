@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)chgrp:chgrp.c	1.3"
+#ident	"@(#)chgrp:chgrp.c	1.4"
 /*
  * chgrp gid file ...
  */
@@ -25,6 +25,7 @@ main(argc, argv)
 char *argv[];
 {
 	register c;
+	ushort atoushort() ;
 
 	if(argc < 3) {
 		fprintf(stderr,"chgrp: usage: chgrp gid file ...\n");
@@ -60,19 +61,20 @@ char *s;
 	return(1);
 }
 
+ushort
 atoushort(s)
 register char *s;
 {
 	register char c;
-	ushort register i, previ;
-	i = previ = 0;
+	register int i = 0 ;
+	register ushort maxushort = ((ushort) ~0) ;
+
 	while(c = *s++) {
 		i = c - '0' + 10 * i;
-		if(i < previ) {
+		if(i > maxushort) {
 			fprintf(stderr,"chgrp: numeric group id too large\n");
 			exit(4);
-    		}
-		previ = i;
+   		}
 	}
-	return(i);
+	return (ushort) i ;
 }

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mv:mv_dir.c	1.7"
+#ident	"@(#)mv:mv_dir.c	1.8"
 /*
  * mv_dir command:  move a directory within its parent directory
  *    mv_dir dir1 dir2
@@ -53,6 +53,7 @@ char	*argv[];
 	register char *source, *target;
 	register char *q, *p;
 	int last;
+	int uid, srcuid;/* for sticky bit checks : uid of user, uid on source dir */
 
 	/*
 	 * Determine command name.
@@ -92,6 +93,7 @@ char	*argv[];
 	
 	
 	stat(source, &s1);
+	srcuid = s1.st_uid;	/* save the uid of source's owner */
 	
 	if (!ISDIR(s1)) {
 		fprintf(stderr,"Source (%s) is not a directory.\n",source);
@@ -180,6 +182,16 @@ char	*argv[];
 
 	if (access(p, 2) < 0) {
 		fprintf(stderr, "%s: no write access to %s\n", cmd, p);
+		exit(2);
+	}
+	/*
+	 * If sticky bit set on source's parent, then move only when:
+	 * superuser, source's owner, parent's owner, or source is writable to us.
+	 * Otherwise, we are not permitted to unlink source.
+	 */
+	if (s1.st_mode&S_ISVTX && (uid=getuid()) != 0 &&
+	    srcuid != uid && s1.st_uid != uid && access(source, 2)<0) {
+		fprintf(stderr,"%s: no write access to %s\n",cmd,p);
 		exit(2);
 	}
 

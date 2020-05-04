@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/fs/s5inode.h	10.2"
+#ident	"@(#)kern-port:sys/fs/s5inode.h	10.3"
 #define	NADDR	13
 #define	NSADDR	(NADDR*sizeof(daddr_t)/sizeof(short))
 
@@ -23,6 +23,7 @@ struct s5inode {
 					/* for directory caching */
 	} s5i_u2;
 	daddr_t	s5i_l;		/* last logical block read (for read-ahead) */
+	char s5i_gen ;	 /* generation number */
 };
 
 /* Flags */

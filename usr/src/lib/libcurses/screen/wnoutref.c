@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/wnoutref.c	1.11"
+#ident	"@(#)curses:screen/wnoutref.c	1.12"
 #include	"curses_inc.h"
 
 /* Like refresh but does not output */
@@ -34,7 +34,9 @@ register	WINDOW	*win;
     xorg = win->_begx;
 
     /* save flags, cursor positions */
-    if (!win->_leave && ((y = win->_cury + yorg) >= 0) && (y < scrli) &&
+    SP->virt_scr->_leave = win->_leave;
+    if ((!win->_leave || (win->_flags & (_WINCHANGED | _WINMOVED))) &&
+	((y = win->_cury + yorg) >= 0) && (y < scrli) &&
 	((x = win->_curx + xorg) >= 0) && (x < scrco))
     {
 	_virtscr->_cury = y;

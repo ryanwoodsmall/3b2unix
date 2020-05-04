@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mail:mail.c	1.91"
+#ident	"@(#)mail:mail.c	1.98"
 /*
  	Mail to a remote machine will normally use the uux command.
  	If available, it may be better to send mail via 3bsend, nusend,
@@ -636,6 +636,7 @@ char	**argv;
 					if ((malf == NULL) || (aret == 0)) {
 						fprintf(stderr, "%s: Cannot append to %s\n",program,lfil);
 						flg++;
+						break;
 					}
 					else if (aret == 2) chown(lfil, geteuid(), getgid());
 					if (!flg && copylet(j, malf, resp[0] == 'w'? ZAP: ORDINARY) == FALSE) {
@@ -1209,10 +1210,16 @@ register char *name;
 
 	char dir[64], pfx[64], *tmpremote, *tempnam();
 
+	if (p = strpbrk(name, "`;&|^<>()\n"))
+	{
+		fprintf(stderr,"Invalid Address\n");
+		return(FALSE);
+	}
 	/*
 		assume mail is for remote, look for bang to confirm that
 		assumption
 	*/
+
 	local = 0;
 	while (*name=='!') name++;
 

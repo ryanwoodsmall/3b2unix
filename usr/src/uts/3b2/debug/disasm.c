@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:debug/disasm.c	10.8"
+#ident	"@(#)kern-port:debug/disasm.c	10.9"
 /*
  */
 
@@ -40,39 +40,41 @@ char	dis_relopnd;		/* Count of the number of operands for	*/
 
 char	blanks[] = "                                                    ";
 
-int	disaddr;
-int	discnt;
-int	disabsflg;
 long	disasmi();
 
-disasm()
+
+disasm(arg)
+int arg;
 {
-	asm("	PUSHW  %r0");
-	asm("	PUSHW  %r1");
-	asm("	PUSHW  %r2");
-
-	ndisasm(disaddr, discnt, disabsflg);
-
-	asm("	POPW  %r2");
-	asm("	POPW  %r1");
-	asm("	POPW  %r0");
-}
-
-ndisasm(addr, count, absflg)
-register uint	addr;
-register uint	count;
-uint		absflg;
-{
+	register uint addr, count, absflg;
 	register int	ii;
 	register uint	nxtaddr;
 	register char	*s3bsp;
 	int		delay;
-	int		oldpri;
 	char		addrbuf[NLINE];
 	char		*s3blookup();
 	extern int	dmd_delay;
+	int		argc;
+	int		*argp;
 
-	oldpri = splhi();
+	argc = argcount();
+	argp = &arg;
+
+	if (argc == 0) {
+		cmn_err(CE_CONT, "^Usage: call disasm start-addr [ #instr [ flag ] ]\n		where flag is 0 to print symbolic addresses\n		              1 to print absolute addresses and machine language\n");
+		return;
+	}
+
+	addr = *argp++;
+	count = 1;
+	absflg = 0;
+
+	if (argc > 1)
+		count = *argp++;
+
+	if (argc > 2)
+		absflg = *argp;
+
 	while (count--) {
 		nxtaddr = disasmi(addr);
 		if (absflg) {
@@ -134,7 +136,6 @@ uint		absflg;
 			while (delay--) ;
 		}
 	}
-	splx(oldpri);
 }
 
 /*

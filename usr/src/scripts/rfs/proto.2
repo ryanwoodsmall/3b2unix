@@ -6,6 +6,8 @@ d--755 0 3
     ORDER		---555 2 2 	./install/rfs/ORDER2
     UNINSTALL		---555 2 2	./install/rfs/UNINSTALL 
     Rlist		---555 2 2	./install/rfs/Rlist.rfs
+    setup		---555 2 2	./install/rfs/setup
+    unsetup             ---555 2 2      ./install/rfs/unsetup
 $ 
 new d--755 0 0 
     usr d--755 0 0 
@@ -60,6 +62,11 @@ new d--755 0 0
 		    $
 		$
             $
+        $
+        nserve  d--775 0 3
+            rumount         ---555 0 3      ../usr/nserve/rumount
+            rmount          ---555 0 3      ../usr/nserve/rmount
+            rmnttry         ---550 0 3      ../usr/nserve/rmnttry
         $
     $
 $

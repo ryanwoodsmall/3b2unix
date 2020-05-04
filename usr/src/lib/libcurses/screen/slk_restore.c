@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/slk_restore.c	1.3"
+#ident	"@(#)curses:screen/slk_restore.c	1.4"
 #include	"curses_inc.h"
 
 /* Restore screen labels. */
@@ -16,7 +16,7 @@ slk_restore()
     {
 	SP->slk->_changed = TRUE;
 	(void) slk_touch();
-	(void) slk_noutrefresh();
+	(void) slk_refresh();
     }
     return (OK);
 }

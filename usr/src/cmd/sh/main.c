@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sh:main.c	1.14"
+#ident	"@(#)sh:main.c	1.14.2.1"
 /*
  * UNIX shell
  */
@@ -53,7 +53,6 @@ char	*e[];
 	register int	rflag = ttyflg;
 	int		rsflag = 1;	/* local restricted flag */
 	struct namnod	*n;
-
 	stdsigs();
 
 	/*
@@ -101,6 +100,36 @@ char	*e[];
 	 * dolc is $#
 	 */
 	dolc = options(c, v);
+
+#ifdef NOPASSIDS
+
+	{
+	register int euid;
+	register int egid;
+	register int ruid;
+	register int rgid;
+
+	/*
+	 Determine all of the user's id #'s for this process and
+	 then decide if this shell is being entered as a result
+	 of a fork/exec.
+	 If the effective uid/gid do NOT match and the euid/egid
+	 is < 100 and the egid is NOT 1, reset the uid and gid to
+	 the user originally calling this process.
+	 */
+	euid = geteuid();
+	ruid = getuid();
+	egid = getegid();
+	rgid = getgid();
+
+	if ((euid != ruid) && (euid < 100))
+		setuid(ruid);	/* reset the uid to the orig user */
+
+	if ((egid != rgid) && ((egid < 100) && (egid != 1)))
+		setgid(rgid);	/* reset the gid to the orig user */
+	}
+
+#endif
 
 	if (dolc < 2)
 	{

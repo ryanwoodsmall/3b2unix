@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/def_prog.c	1.1.1.5"
+#ident	"@(#)curses:screen/def_prog.c	1.3"
 #include "curses_inc.h"
 
 def_prog_mode()

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/t_rcvdis.c	1.9.1.2"
+#ident	"@(#)libnsl:nsl/t_rcvdis.c	1.9.1.3"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/errno.h"
@@ -129,7 +129,7 @@ struct t_discon *discon;
 	}
 
 	if (discon != NULL) {
-		if (databuf.len > (int)discon->udata.maxlen) {
+		if (databuf.len > discon->udata.maxlen) {
 			t_errno = TBUFOVFLW;
 			return(-1);
 		}
@@ -137,7 +137,7 @@ struct t_discon *discon;
 		discon->reason = pptr->discon_ind.DISCON_reason;
 		memcpy(discon->udata.buf, databuf.buf, (int)databuf.len);
 		discon->udata.len = databuf.len;
-		discon->sequence = pptr->discon_ind.SEQ_number;
+		discon->sequence = (long) pptr->discon_ind.SEQ_number;
 	}
 
 	return(0);

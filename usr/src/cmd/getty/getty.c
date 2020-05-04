@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)getty:getty.c	1.7.1.2"
+#ident	"@(#)getty:getty.c	1.7.1.3"
 
 /*	getty - sets up speed, various terminal flags, line discipline,	*/
 /*	and waits for new prospective user to enter name, before	*/
@@ -46,6 +46,7 @@
 #include	<sys/crtctl.h>
 #include	<sys/utsname.h>
 #include	<ctype.h>
+#include	<unistd.h>  	/* For locking utmp file */
 
 #define		TRUE		1
 #define		FALSE		0
@@ -553,6 +554,8 @@ char *line;
 	register struct utmp *u;
 	extern struct utmp *getutent(), *pututline();
 	register FILE *fp;
+	extern int lockf() ;
+	int i;
 
 /* Look in "utmp" file for our own entry and change it to LOGIN. */
 	ownpid = getpid();
@@ -574,8 +577,19 @@ char *line;
 /* If we were successful in finding an entry for ourself in the */
 /* utmp file, then attempt to append to the end of the wtmp file. */
 	if (u != NULL && (fp = fopen(WTMP_FILE,"r+")) != NULL) {
-		fseek(fp,0L,2);	/* Seek to end of file */
-		fwrite(u,sizeof(*u),1,fp);
+		for ( i=0 ; i<10 ; i++ ) {
+			if ( lockf(fileno(fp), F_TLOCK, 0) == -1 ) {
+				if ( i < 9 ) sleep (1) ;
+				else error("getty: unable to lock accounting file.\n") ;
+			}
+			else {
+				fseek(fp,0L,2) ; /* Seek to end */
+				fwrite(u,sizeof(*u),1,fp) ;
+				rewind(fp) ;
+				(void) lockf(fileno(fp), F_ULOCK, 0) ;
+				i = 10 ;
+			}
+		}
 		fclose(fp);
 	}
 

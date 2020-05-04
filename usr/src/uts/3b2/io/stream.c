@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/stream.c	10.14.1.1"
+#ident	"@(#)kern-port:io/stream.c	10.14.1.6"
 #include "sys/types.h"
 #include "sys/param.h"
 #include "sys/sysmacros.h"
@@ -19,6 +19,7 @@
 #include "sys/immu.h"
 #include "sys/tuneable.h"
 #include "sys/map.h"
+#include "sys/cmn_err.h"
 
 /*
  * queue scheduling control variables 
@@ -69,7 +70,8 @@ uint pri;
 	register s;
 	register class;
 
-	if ((class = getclass(size)) >= NCLASS) return(NULL);
+	if ((class = getclass(size)) >= NCLASS)
+		return(NULL);
 
 	s = splstr();
 
@@ -77,7 +79,8 @@ uint pri;
 	 * get buffer - if can't in class then try one class higher
 	 */
 	if ((dballoc[class].dba_cnt < bcmax(class,pri)) && 
-	    (databp = dbfreelist[class]))  goto gotdp;
+	    (databp = dbfreelist[class]))
+		goto gotdp;
 
 	strst.dblk[class].fail++;
 	strst.dblock.fail++;
@@ -86,7 +89,8 @@ uint pri;
 		return(NULL);
 	}
 	if ((dballoc[class].dba_cnt < bcmax(class,pri) ) &&
-	    (databp = dbfreelist[class])) goto gotdp;
+	    (databp = dbfreelist[class]))
+		goto gotdp;
 
 	splx(s);
 	strst.dblk[class].fail++;
@@ -142,11 +146,13 @@ uint pri;
 {
 	register class;
 
-	if ((class = getclass(size)) >= NCLASS) return(0);
+	if ((class = getclass(size)) >= NCLASS)
+		return(0);
 	if ((dballoc[class].dba_cnt < bcmax(class,pri)) && dbfreelist[class]) 
 		return(1);
 
-	if (class++ == NCLASS-1) return(0);
+	if (class++ == NCLASS-1)
+		return(0);
 	if ((dballoc[class].dba_cnt < bcmax(class,pri) ) && dbfreelist[class]) 
 		return(1);
 	return(0);
@@ -163,7 +169,8 @@ register size;
 {
 	register class;
 
-	for (class = 0; (class < NCLASS) && (size > rbsize[class]) ; class++);
+	for (class = 0; (class < NCLASS) && (size > rbsize[class]) ; class++)
+		;
 	return(class);
 }
 
@@ -193,19 +200,21 @@ long arg;
 	 * fail bufcall if not enough configured buffers for given
 	 * priority allocation to ever succeed.
 	 */
-	if (bcmax(class, pri) == 0) return(0);	/* if not BPRI_HI */
+	if (bcmax(class, pri) == 0)
+		return(0);	/* if not BPRI_HI */
 	if ((pri == BPRI_HI) && (*(&v.v_nblk4096 + (NCLASS - 1 - class)) == 0)) 
 		return(0);
 
 	if (!(sep = sealloc(SE_NOSLP))) {
-		printf("WARNING: bufcall: could not allocate stream event\n");
+		cmn_err(CE_WARN, "bufcall: could not allocate stream event\n");
 		return(0);
 	}
 	dbp = &dballoc[class];
 	s = splstr();
 	tmp = ( (pri == BPRI_HI) ? &dbp->dba_hip : 
 		((pri == BPRI_LO) ? &dbp->dba_lop : &dbp->dba_medp) );
-	while (*tmp) tmp = &(*tmp)->se_next;
+	while (*tmp)
+		tmp = &(*tmp)->se_next;
 	*tmp = sep;
 	sep->se_next = NULL;
 	sep->se_func = func;
@@ -266,12 +275,15 @@ freemsg(bp)
 register mblk_t *bp;
 {
 	register mblk_t *tp;
+	register int s;
 
+	s = splstr();
 	while (bp) {
 		tp = bp->b_cont;
 		freeb(bp);
 		bp = tp;
 	}
+	splx(s);
 }
 
 
@@ -300,6 +312,7 @@ register mblk_t *bp;
 		return(NULL);
 	}
 	mbfreelist = nbp->b_next;
+	(nbp->b_datap = bp->b_datap)->db_ref++;
 	splx(s);
 	BUMPUP(strst.mblock);
 
@@ -308,7 +321,6 @@ register mblk_t *bp;
 	nbp->b_cont = NULL;
 	nbp->b_rptr = bp->b_rptr;
 	nbp->b_wptr = bp->b_wptr;
-	(nbp->b_datap = bp->b_datap)->db_ref++;
 	return(nbp);
 }
 
@@ -325,17 +337,22 @@ dupmsg(bp)
 register mblk_t *bp;
 {
 	register mblk_t *head, *nbp;
+	register int s;
 
-	if (!bp || !(nbp = head = dupb(bp))) return(NULL);
+	if (!bp || !(nbp = head = dupb(bp)))
+		return(NULL);
 
+	s = splstr();
 	while (bp->b_cont) {
 		if (!(nbp->b_cont = dupb(bp->b_cont))) {
 			freemsg(head);
+			splx(s);
 			return(NULL);
 		}
 		nbp = nbp->b_cont;
 		bp = bp->b_cont;
 	}
+	splx(s);
 	return(head);
 }
 
@@ -384,17 +401,22 @@ copymsg(bp)
 register mblk_t *bp;
 {
 	register mblk_t *head, *nbp;
+	register int s;
 
-	if (!bp || !(nbp = head = copyb(bp))) return(NULL);
+	if (!bp || !(nbp = head = copyb(bp)))
+		return(NULL);
 
+	s = splstr();
 	while (bp->b_cont) {
 		if (!(nbp->b_cont = copyb(bp->b_cont))) {
 			freemsg(head);
+			splx(s);
 			return(NULL);
 		}
 		nbp = nbp->b_cont;
 		bp = bp->b_cont;
 	}
+	splx(s);
 	return(head);
 }
 
@@ -409,10 +431,15 @@ linkb(mp, bp)
 register mblk_t *mp;
 register mblk_t *bp;
 {
+	register int s;
+
 	ASSERT(mp && bp);
 
-	for (; mp->b_cont; mp = mp->b_cont);
+	s = splstr();
+	for (; mp->b_cont; mp = mp->b_cont)
+		;
 	mp->b_cont = bp;
+	splx(s);
 }
 
 
@@ -427,11 +454,14 @@ unlinkb(bp)
 register mblk_t *bp;
 {
 	register mblk_t *bp1;
+	register int s;
 
 	ASSERT(bp);
 
+	s = splstr();
 	bp1 = bp->b_cont;
 	bp->b_cont = NULL;
+	splx(s);
 	return(bp1);
 }
 
@@ -450,17 +480,23 @@ register mblk_t *bp;
 {
 	register mblk_t *tmp;
 	register mblk_t *lastp = NULL;
+	register int s;
 
 
+	s = splstr();
 	for (tmp = mp; tmp; tmp = tmp->b_cont) {
 		if (tmp == bp) {
-			if (lastp) lastp->b_cont = tmp->b_cont;
-			else mp = tmp->b_cont;
+			if (lastp)
+				lastp->b_cont = tmp->b_cont;
+			else
+				mp = tmp->b_cont;
 			tmp->b_cont = NULL;
+			splx(s);
 			return(mp);
 		}
 		lastp = tmp;
 	}
+	splx(s);
 	return((mblk_t *)-1);
 }
 
@@ -546,7 +582,7 @@ register len;
 	 * bp points to an mblk that still has data in it.
 	 */ 
 	bp = mp;
-	while (len) {
+	while (len && bp) {
 		mblk_t *b_cont;
 
 		ASSERT(bp->b_wptr >= bp->b_rptr);
@@ -627,7 +663,7 @@ register int len;
 
 	if (fromhead) {
 		bp = mp;
-		while (len) {
+		while (len && bp) {
 			ASSERT(bp->b_wptr >= bp->b_rptr);
 			n = min(bp->b_wptr - bp->b_rptr, len);
 			bp->b_rptr += n;
@@ -639,14 +675,18 @@ register int len;
 		register unsigned char type;
 
 		type = mp->b_datap->db_type;
-		while (len) {
+		bp = mp;
+		while (len && bp) {
 			bp = mp;
+			save_bp = NULL;
 			while (bp && bp->b_datap->db_type == type) {
 				ASSERT(bp->b_wptr >= bp->b_rptr);
 				if (bp->b_wptr - bp->b_rptr > 0)
 					save_bp = bp;
 				bp = bp->b_cont;
 			}
+			if (!save_bp)
+				break;
 			n = min(save_bp->b_wptr - save_bp->b_rptr, len);
 			save_bp->b_wptr -= n;
 			len -= n;
@@ -664,15 +704,18 @@ register mblk_t *bp;
 {
 	register unsigned char type;
 	register count = 0;
+	register int s;
 	
 	type = bp->b_datap->db_type;
 
+	s = splstr();
 	for (; bp; bp = bp->b_cont) {
 		if (type != bp->b_datap->db_type)
 			break;
 		ASSERT(bp->b_wptr >= bp->b_rptr);
 		count += bp->b_wptr - bp->b_rptr;
 	}
+	splx(s);
 	return(count);
 }
 
@@ -685,12 +728,15 @@ msgdsize(bp)
 register mblk_t *bp;
 {
 	register int count = 0;
+	register int s;
 
+	s = splstr();
 	for (; bp; bp = bp->b_cont)
 		if (bp->b_datap->db_type == M_DATA) {
 			ASSERT(bp->b_wptr >= bp->b_rptr);
 			count += bp->b_wptr - bp->b_rptr;
 		}
+	splx(s);
 	return(count);
 }
 
@@ -723,10 +769,13 @@ register queue_t *q;
 	ASSERT(q);
 
 	s = splstr();
-	if (!(bp = q->q_first)) q->q_flag |= QWANTR;
+	if (!(bp = q->q_first))
+		q->q_flag |= QWANTR;
 	else {
-		if (!(q->q_first = bp->b_next))	q->q_last = NULL;
-		else q->q_first->b_prev = NULL;
+		if (!(q->q_first = bp->b_next))
+			q->q_last = NULL;
+		else
+			q->q_first->b_prev = NULL;
 		for (tmp = bp; tmp; tmp = tmp->b_cont)
 			q->q_count -= bsize[tmp->b_datap->db_class];
 		if (q->q_count < q->q_hiwat)
@@ -738,8 +787,10 @@ register queue_t *q;
 	if (q->q_count<=q->q_lowat && q->q_flag&QWANTW) {
 		q->q_flag &= ~QWANTW;
 		/* find nearest back queue with service proc */
-		for (q = backq(q); q && !q->q_qinfo->qi_srvp; q = backq(q));
-		if (q) qenable(q);
+		for (q = backq(q); q && !q->q_qinfo->qi_srvp; q = backq(q))
+			;
+		if (q)
+			qenable(q);
 	}
 	splx(s);
 	return(bp);
@@ -764,24 +815,31 @@ register mblk_t *mp;
 
 	s = splstr();
 
-	if (mp->b_prev) mp->b_prev->b_next = mp->b_next;
-	else q->q_first = mp->b_next;
+	if (mp->b_prev)
+		mp->b_prev->b_next = mp->b_next;
+	else
+		q->q_first = mp->b_next;
 
-	if (mp->b_next) mp->b_next->b_prev = mp->b_prev;
-	else q->q_last = mp->b_prev;
+	if (mp->b_next)
+		mp->b_next->b_prev = mp->b_prev;
+	else
+		q->q_last = mp->b_prev;
 
 	mp->b_next = mp->b_prev = NULL;
 
 	for (tmp = mp; tmp; tmp = tmp->b_cont)
 		q->q_count -= bsize[tmp->b_datap->db_class];
 
-	if (q->q_count < q->q_hiwat) q->q_flag &= ~QFULL;
+	if (q->q_count < q->q_hiwat)
+		q->q_flag &= ~QFULL;
 
 	if (q->q_count<=q->q_lowat && q->q_flag&QWANTW) {
 		q->q_flag &= ~QWANTW;
 		/* find nearest back queue with service proc */
-		for (q = backq(q); q && !q->q_qinfo->qi_srvp; q = backq(q));
-		if (q) qenable(q);
+		for (q = backq(q); q && !q->q_qinfo->qi_srvp; q = backq(q))
+			;
+		if (q)
+			qenable(q);
 	}
 	splx(s);
 }
@@ -804,15 +862,12 @@ register queue_t *q;
 	ASSERT(q);
 
 	s = splstr();
-
 	wantw = q->q_flag & QWANTW;
-
 	bp = q->q_first;
 	q->q_first = NULL;
 	q->q_last = NULL;
 	q->q_count = 0;
 	q->q_flag &= ~(QFULL|QWANTW);
-	splx(s);
 	while (bp) {
 		nbp = bp->b_next;
 		if (!flag && !datamsg(bp->b_datap->db_type))
@@ -821,13 +876,14 @@ register queue_t *q;
 			freemsg(bp);
 		bp = nbp;
 	}
-
-	s = splstr();
 	if ((q->q_count <= q->q_lowat) && wantw) {
 		/* find nearest back queue with service proc */
-		for (q = backq(q); q && !q->q_qinfo->qi_srvp; q = backq(q));
-		if (q) qenable(q);
-	}
+		for (q = backq(q); q && !q->q_qinfo->qi_srvp; q = backq(q))
+			;
+		if (q)
+			qenable(q);
+	} else
+		q->q_flag |= wantw;
 	splx(s);
 }
 
@@ -841,12 +897,19 @@ int
 canput(q)
 queue_t *q;
 {
-	if (!q) return(0);
-	while (q->q_next && !q->q_qinfo->qi_srvp) q = q->q_next;
+	register int s;
+
+	if (!q)
+		return(0);
+	s = splstr();
+	while (q->q_next && !q->q_qinfo->qi_srvp)
+		q = q->q_next;
 	if (q->q_flag & QFULL) {
 		q->q_flag |= QWANTW;
+		splx(s);
 		return(0);
 	}
+	splx(s);
 	return(1);
 }
 
@@ -902,20 +965,24 @@ register mblk_t *bp;
 	} else {
 		register mblk_t *nbp = q->q_first;
 
-		while (queclass(nbp) >= mcls) nbp = nbp->b_next;
+		while (queclass(nbp) >= mcls)
+			nbp = nbp->b_next;
 		bp->b_next = nbp;
 		bp->b_prev = nbp->b_prev;
-		if (nbp->b_prev) nbp->b_prev->b_next = bp;
-		else q->q_first = bp;
+		if (nbp->b_prev)
+			nbp->b_prev->b_next = bp;
+		else
+			q->q_first = bp;
 		nbp->b_prev = bp;
 	}
 
 	for (tmp = bp; tmp; tmp = tmp->b_cont)
 		q->q_count += bsize[tmp->b_datap->db_class];
-	if (q->q_count >= q->q_hiwat) q->q_flag |= QFULL;
+	if (q->q_count >= q->q_hiwat)
+		q->q_flag |= QFULL;
 
-	if ( (mcls > QNORM) ||
-	     (canenable(q) && (q->q_flag & QWANTR)) )
+	if ((mcls > QNORM) ||
+	     (canenable(q) && (q->q_flag & QWANTR)))
 		qenable(q);
 
 	splx(s);
@@ -945,18 +1012,19 @@ register mblk_t *bp;
 	 * If queue is empty of queue class of message >= that of the
 	 * first message, place on the front of the queue.
 	 */
-	if ( !q->q_first || (mcls >= queclass(q->q_first))) {
+	if (!q->q_first || (mcls >= queclass(q->q_first))) {
 		bp->b_next = q->q_first;
 		bp->b_prev = NULL;
-		if (q->q_first) q->q_first->b_prev = bp;
-		else q->q_last = bp;
+		if (q->q_first)
+			q->q_first->b_prev = bp;
+		else
+			q->q_last = bp;
 		q->q_first = bp;
-	}
-	else {
+	} else {
 		register mblk_t *nbp = q->q_first;
 
 		while ((nbp->b_next) && (queclass(nbp->b_next) > mcls))
-				nbp = nbp->b_next;
+			nbp = nbp->b_next;
 
 		if (bp->b_next = nbp->b_next) 
 			nbp->b_next->b_prev = bp;
@@ -968,10 +1036,10 @@ register mblk_t *bp;
 
 	for (tmp = bp; tmp; tmp = tmp->b_cont)
 		q->q_count += bsize[tmp->b_datap->db_class];
-	if (q->q_count >= q->q_hiwat) q->q_flag |= QFULL;
+	if (q->q_count >= q->q_hiwat)
+		q->q_flag |= QFULL;
 
-	if ( (mcls > QNORM) ||
-	     (canenable(q) && q->q_flag & QWANTR) )
+	if ((mcls > QNORM) || (canenable(q) && q->q_flag & QWANTR))
 		qenable(q);
 
 	splx(s);
@@ -990,7 +1058,9 @@ register queue_t *q;
 register mblk_t *emp, *mp;
 {
 	register mblk_t *tmp;
+	register int s;
 
+	s = splstr();
 	if (mp->b_next = emp) {
 		if (mp->b_prev = emp->b_prev) 
 			emp->b_prev->b_next = mp;
@@ -1008,9 +1078,12 @@ register mblk_t *emp, *mp;
 	for (tmp = mp; tmp; tmp = tmp->b_cont)
 		q->q_count += bsize[tmp->b_datap->db_class];
 
-	if (q->q_count >= q->q_hiwat) q->q_flag |= QFULL;
-	
-	if (canenable(q) && (q->q_flag & QWANTR)) qenable(q);
+	if (q->q_count >= q->q_hiwat)
+		q->q_flag |= QFULL;
+
+	if (canenable(q) && (q->q_flag & QWANTR))
+		qenable(q);
+	splx(s);
 }
 
 
@@ -1053,7 +1126,8 @@ queue_t *q;
 
 /*
  * Init routine run from main at boot time.  This contains some 
- * machine dependent code.
+ * machine dependent code.  spl's probably are not necessary, but
+ * they don't cost anything here and they can't hurt.
  */
 
 strinit()
@@ -1063,7 +1137,21 @@ strinit()
 	register i;
 	register size;
 	register unsigned char *base;
+	register int s;
 	int class, *vnp;
+	struct stdata *stp;
+
+	s = splstr();
+
+	/*
+	 * initialize stream head
+	 */
+
+	for (stp = streams; stp < &streams[v.v_nstream]; stp++) {
+		stp->sd_rdev = -1;
+		stp->sd_icnt = 0;
+		stp->sd_wrq = (queue_t *)NULL;
+	}
 
 	/*
 	 * Set up initial stream event cell free list.  sealloc()
@@ -1081,8 +1169,8 @@ strinit()
 	 * ensure even number of queues allocated (necessary for allocq)
 	 */
 	if (v.v_nqueue % 2) {
-		printf("KERNEL: strinit: odd value configured for v.v_nqueue\n");
-		printf("KERNEL: strinit: was %d, set to %d", v.v_nqueue, v.v_nqueue-1);
+		cmn_err(CE_CONT, "KERNEL: strinit: odd value configured for v.v_nqueue\n");
+		cmn_err(CE_CONT, "KERNEL: strinit: was %d, set to %d", v.v_nqueue, v.v_nqueue-1);
 		v.v_nqueue--;
 	}
 
@@ -1102,6 +1190,7 @@ strinit()
 	if (size == 0) {
 		for (i=0; i<NCLASS; i++) dbfreelist[i] = NULL;
 		mbfreelist = NULL;		
+		splx(s);
 		return;
 	}
 
@@ -1158,14 +1247,17 @@ strinit()
 		msgbp->b_next = mbfreelist;
 		mbfreelist = msgbp;
 	}
+	splx(s);
 	return;
 
 alcfail:
-	printf("strinit: can not allocate stream data blocks\n");
-	for (i=0; i<NCLASS; i++) dbfreelist[i] = NULL;
+	cmn_err(CE_CONT, "strinit: can not allocate stream data blocks\n");
+	for (i=0; i<NCLASS; i++)
+		dbfreelist[i] = NULL;
 	mbfreelist = NULL;		
 	v.v_nblk4096 = v.v_nblk2048 = v.v_nblk1024 = v.v_nblk512 = v.v_nblk256
 		= v.v_nblk128 = v.v_nblk64 = v.v_nblk16 = v.v_nblk4 = 0;
+	splx(s);
 }
 
 
@@ -1199,7 +1291,7 @@ allocq()
 	}
 	strst.queue.fail++;
 	splx(s);
-	printf("KERNEL: allocq: out of queues\n");
+	cmn_err(CE_CONT, "KERNEL: allocq: out of queues\n");
 	return(NULL);
 }
 
@@ -1271,7 +1363,8 @@ register queue_t *q;
 
 	ASSERT(q);
 
-	if (!q->q_qinfo->qi_srvp) return;
+	if (!q->q_qinfo->qi_srvp)
+		return;
 
 	s = splstr();
 	/*
@@ -1287,8 +1380,10 @@ register queue_t *q;
 	 */
 	q->q_flag |= QENAB;
 
-	if (!qhead) qhead = q;
-	else qtail->q_link = q;
+	if (!qhead)
+		qhead = q;
+	else
+		qtail->q_link = q;
 	qtail = q;
 	q->q_link = NULL;
 
@@ -1356,7 +1451,8 @@ queuerun()
 		}
 
 		while (q = qhead) {
-			if (!(qhead = q->q_link)) qtail = NULL;
+			if (!(qhead = q->q_link))
+				qtail = NULL;
 			q->q_flag &= ~QENAB;
 			if (q->q_qinfo->qi_srvp) {
 				spl1();
@@ -1425,12 +1521,14 @@ register queue_t *qp;
 {
 	register count = 0;
 	register mblk_t *mp;
+	register int s;
 
 	ASSERT(qp);
 
+	s = splstr();
 	for (mp = qp->q_first; mp; mp = mp->b_next)
 		count++;
-
+	splx(s);
 	return(count);
 }
 
@@ -1448,8 +1546,8 @@ int slpflag;
 	int i;
 	static sepgcnt = 0;
 
-retry:
 	s = splstr();
+retry:
 	if (sefreelist) {
 		sep = sefreelist;
 		sefreelist = sep->se_next;
@@ -1475,7 +1573,7 @@ retry:
 	 * it and add it to the linked list of free cells.
 	 */
 	if (((availrmem -1) < tune.t_minarmem)||((availsmem -1) < tune.t_minasmem)) {
-		printf("KERNEL:sealloc: not enough memory for page allocation\n");
+		cmn_err(CE_CONT, "KERNEL: sealloc: not enough memory for page allocation\n");
 		sepgcnt--;
 		splx(s);
 		return(NULL);
@@ -1495,12 +1593,9 @@ retry:
 		mapwant(sptmap)++;
 		sleep(sptmap, PMEM);
 	}
-	splx(s);
 	for (i=0; i < (NBPP/sizeof(struct strevent)); i++, sep++) {
-		s = splstr();
 		sep->se_next = sefreelist;
 		sefreelist = sep;
-		splx(s);
 	}
 	goto retry;
 }
@@ -1519,5 +1614,84 @@ struct strevent *sep;
 	sep->se_next = sefreelist;
 	sefreelist = sep;
 	splx(s);
+}
+
+
+/*
+ * noenable - set queue so that putq() will not enable it.
+ * enableok - set queue so that putq() can enable it.
+ */
+
+
+noenable(q)
+queue_t *q;
+{ 
+	register int s;
+
+	s = splstr();
+	q->q_flag |= QNOENB;
+	splx(s);
+}
+
+enableok(q)
+queue_t *q;
+{
+	register int s;
+
+	s = splstr();
+	q->q_flag &= ~QNOENB;
+	splx(s);
+}
+
+
+ushort
+getmid(name)
+char *name;
+{
+	register struct cdevsw *cdp;
+	register struct fmodsw *fmp;
+	register struct module_info *mip;
+
+	if (!name || *name == (char)0)
+		return((ushort)0);
+	for (cdp = cdevsw; cdp < &cdevsw[cdevcnt]; cdp++) {
+		if (cdp->d_str) {
+			mip = cdp->d_str->st_rdinit->qi_minfo;
+			if (strcmp(name, mip->mi_idname) == 0)
+				return(mip->mi_idnum);
+		}
+	}
+	for (fmp = fmodsw; fmp < &fmodsw[fmodcnt]; fmp++) {
+		if (strcmp(name, fmp->f_name) == 0) {
+			mip = fmp->f_str->st_rdinit->qi_minfo;
+			return(mip->mi_idnum);
+		}
+	}
+	return((ushort)0);
+}
+
+int
+(*getadmin(mid))()
+ushort mid;
+{
+	register struct cdevsw *cdp;
+	register struct fmodsw *fmp;
+	register struct qinit *qip;
+
+	if (mid == 0)
+		return(NULL);
+	for (cdp = cdevsw; cdp < &cdevsw[cdevcnt]; cdp++) {
+		if (cdp->d_str) {
+			qip = cdp->d_str->st_rdinit;
+			if (mid == qip->qi_minfo->mi_idnum)
+				return(qip->qi_qadmin);
+		}
+	}
+	for (fmp = fmodsw; fmp < &fmodsw[fmodcnt]; fmp++) {
+		qip = fmp->f_str->st_rdinit;
+		if (mid == qip->qi_minfo->mi_idnum)
+			return(qip->qi_qadmin);
+	}
+	return(NULL);
 }
 

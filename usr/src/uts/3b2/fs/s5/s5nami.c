@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:fs/s5/s5nami.c	10.19.1.5"
+#ident	"@(#)kern-port:fs/s5/s5nami.c	10.19.2.2"
 #include "sys/types.h"
 #include "sys/param.h"
 #include "sys/fstyp.h"
@@ -43,6 +43,7 @@ register struct argnamei *flagp;
 	register char *comp;
 	register struct inode *dp;
 	register struct inode *dip;
+	register struct s5inode *s5dp;	/* for sticky bit checks */
 	register int i;
 	register char *ccp;
 	struct buf *bp;
@@ -335,6 +336,18 @@ skip:
 			iput(dip);
 			goto fail;
 		}
+		/*
+		 * if sticky bit set on parent dir, then delete only when : superuser,
+		 * or owner of dir, or owner of parent dir, or dir is writable
+		 */
+		s5dp = (struct s5inode *)dp->i_fsptr;
+		if (s5dp->s5i_mode&ISVTX && u.u_uid != 0 &&
+			dip->i_uid != u.u_uid && dp->i_uid != u.u_uid &&
+			s5access(dip, IWRITE)) {
+			u.u_error = EACCES;
+			iput(dip);
+			goto fail;
+		}
 		/* the following checks if the directory is empty */
 		u.u_count = dip->i_size;
 		saveoff = u.u_offset;
@@ -407,6 +420,18 @@ skip:
 			dip = iget(dp->i_mntdev, dir.d_ino);
 		if (dip == NULL)
 			goto fail;
+		/*
+		 * if sticky bit set on parent dir, then delete only when : superuser,
+		 * or owner of file, or owner of parent dir, or file is writable
+		 */
+		s5dp = (struct s5inode *)dp->i_fsptr;
+		if (s5dp->s5i_mode&ISVTX && u.u_uid != 0 &&
+			dip->i_uid != u.u_uid && dp->i_uid != u.u_uid &&
+			s5access(dip, IWRITE)) {
+			u.u_error = EACCES;
+			iput(dip);
+			goto fail;
+		}
 		if (dip->i_dev != dp->i_dev) {	/* mounted FS? */
 			u.u_error = EBUSY;
 			goto delfail;
@@ -488,7 +513,9 @@ register struct argnamei *flagp;
 	case NI_CHMOD:
 		s5ip->s5i_mode &= ~MODEMSK;
 		if (u.u_uid) {
-			flagp->mode &= ~ISVTX;
+			/* if not root, allow chmod +t on directories only */
+			if ((s5ip->s5i_mode&IFMT) != IFDIR)
+				flagp->mode &= ~ISVTX;
 			if (u.u_gid != ip->i_gid)
 				flagp->mode &= ~ISGID;
 		}

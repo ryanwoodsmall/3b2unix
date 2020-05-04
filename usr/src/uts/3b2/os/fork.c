@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/fork.c	10.14.2.5"
+#ident	"@(#)kern-port:os/fork.c	10.14.2.9"
 #include "sys/types.h"
 #include "sys/param.h"
 #include "sys/sysmacros.h"
@@ -353,7 +353,7 @@ struct proc	*pp;
 					detachreg(c_prp, uservad);
 				} while (c_prp > cp->p_region);
 			winubunlock();
-			ubfree(cp);
+			ubfree(cp,0);
 			if (u.u_dmm)
 				dmmatt(&u);
 			return(-1);
@@ -387,7 +387,7 @@ struct proc	*pp;
 					detachreg(c_prp, uservad);
 				} while (c_prp > cp->p_region);
 			winubunlock();
-			ubfree(cp);
+			ubfree(cp,0);
 			if (u.u_dmm)
 				dmmatt(&u);
 			return(-1);
@@ -547,12 +547,14 @@ int n2seg, n3seg;
 }
 
 /*
- *	ubfree(P) frees up proc p's SDT tables and ublock
+ *	ubfree(P,ispswtch) frees up proc p's SDT tables and ublock
  */
 
-ubfree(p)
+ubfree(p,ispswtch)
 register struct proc *p;
 {
+	register int s;
+
 	/* free up u_block */
 
 	reglock(&sysreg);
@@ -566,7 +568,11 @@ register struct proc *p;
 
 	/* free SDT tables */
 
+	s = splhi();
 	growsdt(p, 2, 0, 0);	/* SDT[2] */
 	growsdt(p, 3, 0, 0);	/* SDT[3] */
+	if (ispswtch)			/* don't leave uarea unmapped */
+		loadmmu(&proc[0], SCN3);/*   while in pswtch().       */
+	splx(s);
 }
 

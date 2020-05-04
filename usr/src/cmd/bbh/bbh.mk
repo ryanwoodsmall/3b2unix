@@ -5,9 +5,10 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)bbh:bbh.mk	1.7.1.1"
-INCRT = $(ROOT)/usr/include
-CFLAGS = -O -I$(INCRT) -Uu3b -Uvax -Updp11 -Uu3b15 -Du3b2
+#ident	"@(#)bbh:bbh.mk	1.7.1.2"
+ROOT =
+INC = $(ROOT)/usr/include
+CFLAGS = -O -I$(INC)
 LDFLAGS = -s
 MAKE = make "AS=$(AS)" "CC=$(CC)" "LD=$(LD)"
 INS = install
@@ -24,8 +25,8 @@ hdelogger: edio.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -o hdelogger hdelogger.c edio.o $(LDLIBS)
 
 install: all
-	$(INS) -n $(ROOT)/etc hdeadd
-	$(INS) -n $(ROOT)/etc hdefix
+	$(INS) -f $(ROOT)/etc hdeadd
+	$(INS) -f $(ROOT)/etc hdefix
 	$(INS) -o -f $(ROOT)/etc hdelogger
 
 clean:
@@ -41,65 +42,65 @@ FRC:
 #
 
 hdeadd: hdeadd.c \
-	$(INCRT)/fcntl.h \
-	$(INCRT)/stdio.h \
-	$(INCRT)/sys/hdeioctl.h \
-	$(INCRT)/sys/hdelog.h \
-	$(INCRT)/sys/stat.h \
-	$(INCRT)/sys/sysmacros.h \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/vtoc.h \
+	$(INC)/fcntl.h \
+	$(INC)/stdio.h \
+	$(INC)/sys/hdeioctl.h \
+	$(INC)/sys/hdelog.h \
+	$(INC)/sys/stat.h \
+	$(INC)/sys/sysmacros.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/vtoc.h \
 	dconv.h \
 	edio.h \
 	hdecmds.h \
 	$(FRC)
 
 hdefix: hdefix.c \
-	$(INCRT)/fcntl.h \
-	$(INCRT)/stdio.h \
-	$(INCRT)/sys/filsys.h \
-	$(INCRT)/sys/hdeioctl.h \
-	$(INCRT)/sys/hdelog.h \
-	$(INCRT)/sys/param.h \
-	$(INCRT)/sys/signal.h \
-	$(INCRT)/sys/stat.h \
-	$(INCRT)/sys/sysmacros.h \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/uadmin.h \
-	$(INCRT)/sys/vtoc.h \
-	$(INCRT)/utmp.h \
+	$(INC)/fcntl.h \
+	$(INC)/stdio.h \
+	$(INC)/sys/filsys.h \
+	$(INC)/sys/hdeioctl.h \
+	$(INC)/sys/hdelog.h \
+	$(INC)/sys/param.h \
+	$(INC)/sys/signal.h \
+	$(INC)/sys/stat.h \
+	$(INC)/sys/sysmacros.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/uadmin.h \
+	$(INC)/sys/vtoc.h \
+	$(INC)/utmp.h \
 	edio.h \
 	hdecmds.h \
 	$(FRC)
 
 hdelogger: hdelogger.c \
-	$(INCRT)/stdio.h \
-	$(INCRT)/sys/hdeioctl.h \
-	$(INCRT)/sys/hdelog.h \
-	$(INCRT)/sys/signal.h \
-	$(INCRT)/sys/stat.h \
-	$(INCRT)/sys/sysmacros.h \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/vtoc.h \
-	$(INCRT)/time.h \
+	$(INC)/stdio.h \
+	$(INC)/sys/hdeioctl.h \
+	$(INC)/sys/hdelog.h \
+	$(INC)/sys/signal.h \
+	$(INC)/sys/stat.h \
+	$(INC)/sys/sysmacros.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/vtoc.h \
+	$(INC)/time.h \
 	edio.h \
 	hdecmds.h \
 	$(FRC)
 
 edio.o: edio.c \
-	$(INCRT)/errno.h \
-	$(INCRT)/fcntl.h \
-	$(INCRT)/stdio.h \
-	$(INCRT)/sys/errno.h \
-	$(INCRT)/sys/hdeioctl.h \
-	$(INCRT)/sys/hdelog.h \
-	$(INCRT)/sys/sysmacros.h \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/vtoc.h \
+	$(INC)/errno.h \
+	$(INC)/fcntl.h \
+	$(INC)/stdio.h \
+	$(INC)/sys/errno.h \
+	$(INC)/sys/hdeioctl.h \
+	$(INC)/sys/hdelog.h \
+	$(INC)/sys/sysmacros.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/vtoc.h \
 	edio.h \
 	hdecmds.h \
 	$(FRC)
 
 dconv.o: dconv.c \
-	$(INCRT)/time.h \
+	$(INC)/time.h \
 	$(FRC)

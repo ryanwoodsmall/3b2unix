@@ -177,14 +177,11 @@ d--775 0 3
 			getopt		---555 2 2	../usr/bin/getopt
 			id		---555 2 2	../usr/bin/id
 			mailx		--g555 2 6	../usr/bin/mailx
-			makefsys	---555 0 3	../usr/bin/makefsys
-			mountfsys	---555 0 3	../usr/bin/mountfsys
 			news		---555 2 2	../usr/bin/news
-			powerdown	---555 0 3	../usr/bin/powerdown
-			setup		---555 0 3	../usr/bin/setup
-			sysadm		---555 0 3	../usr/bin/sysadm
+			passmgmt	---500 0 3	../usr/bin/passmgmt
+			pwconv		---500 0 3	../usr/bin/pwconv
+			pwunconv	---500 0 3	../usr/bin/pwunconv
 			tr		---555 2 2	../usr/bin/tr
-			umountfsys	---555 0 3	../usr/bin/umountfsys
 			xargs		---555 2 2	../usr/bin/xargs
 		$
 		lbin		d--775	2 2
@@ -222,15 +219,9 @@ d--775 0 3
 		$
 		tmp	d--777 0 3
 		$
-		adm	d--775 4 4
-			passwd	d--775 4 4
-			$
-			sa	d--775 4 3
-			$
-		$
 		3bnet	d--775 0 3
 		$
-		lib	d--755 2 2
+		lib	d--755 0 3
 			config	d--775 2 2
 			$
 			cron	d--755 0 3
@@ -239,6 +230,7 @@ d--775 0 3
 				cron.allow	---644 2 2	../usr/lib/cron/cron.allow
 				queuedefs	---644 2 2	../usr/lib/cron/queuedefs
 				.proto		---644 2 2	../usr/lib/cron/.proto
+				logchecker	---544 0 3      ../usr/lib/cron/logchecker
 			$
 			diffh		---775 2 2	../usr/lib/diffh
 			font	d--775 2 2
@@ -268,7 +260,7 @@ d--775 0 3
 		options		d--775 0 3
 		$
 		spool	d--775 0 2
-			cron	d--755 0 3
+			cron	d--700 0 3
 				atjobs		d--755 0 3
 				$
 				crontabs	d--755 0 3
@@ -281,4 +273,4 @@ d--775 0 3
 		$
 	$
 $
-:#ident	"@(#)core:proto.core5	1.13"
+:#ident	"@(#)core:proto.core5	1.21"

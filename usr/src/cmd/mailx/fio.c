@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:fio.c	1.13"
+#ident	"@(#)mailx:fio.c	1.13.1.1"
 #
 
 #include "rcv.h"
@@ -469,6 +469,7 @@ expand(name)
 		dup(pivec[1]);
 		close(pivec[1]);
 		close(2);
+		setgid(getgid());
 		execlp(Shell, Shell, "-c", cmdbuf, 0);
 		_exit(1);
 	}

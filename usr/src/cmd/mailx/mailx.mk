@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)mailx:mailx.mk	1.17"
+#ident	"@(#)mailx:mailx.mk	1.17.1.1"
 #
 # mailx -- a modified version of a University of California at Berkeley
 #	mail program
@@ -23,7 +23,7 @@ DESTLIB= $(ROOT)/usr/lib/mailx
 DEFINES= -DUSG -DUSG_TTY 
 CFLAGS=	-O -I$(HDR) $(DEFINES) 
 LDFLAGS= -n -i -s
-LIBES=
+LIBES= -lPW
 MAILDIR = $(ROOT)/usr/mail
 
 

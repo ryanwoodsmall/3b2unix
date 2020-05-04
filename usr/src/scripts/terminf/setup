@@ -1,11 +1,11 @@
-#ident	"@(#)pkg.terminf:terminf/setup	1.9"
+#ident	"@(#)pkg.terminf:terminf/setup	1.10"
 #
 #	Script for installation of terminfo entries
 #
 cd /install/install
 
 rm -rf /usr/tmp/all.ti
-COMPILE="tic -v "
+COMPILE="TERMINFO= tic -v "
 PERMLOC=/usr/lib/terminfo
 TIFILES=`ls -aFx *.ti`;
 TMPLOC=/usr/tmp/terminf.wrk
@@ -221,7 +221,7 @@ tic_file()
 					#
 					elif [ -f "${FILE}" ] 
 						then if valid_file
-							then ${COMPILE} ${FILE}
+							then eval "${COMPILE} ${FILE}"
 							else echo Error: ${FILE} is not in the list!
 						fi
 		

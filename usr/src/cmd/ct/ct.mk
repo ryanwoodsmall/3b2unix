@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)ct:ct.mk	2.8"
+#ident	"@(#)ct:ct.mk	2.12"
 #
 #	ct make file
 #
@@ -32,9 +32,15 @@ INS=cpset
 # INS=../uucp/Cpset
 
 CTDIR = .
-#CFLAGS = -O -DSTANDALONE -DSMALL -I$(UUDIR)	# for smaller a.outs
-CFLAGS = -O -DSTANDALONE -I$(UUDIR)
-LIBS= -lc_s -lnsl_s
+CFLAGS = -O -DSTANDALONE -DSMALL -I$(UUDIR)	# for smaller a.outs
+#CFLAGS = -O -DSTANDALONE -I$(UUDIR)
+
+TLILIB = -lnsl_s
+# DKLIB = -ldk
+# DKLIB no longer used, datakit files are included in uucp
+#LIBS= -lc_s $(TLILIB) $(DKLIB)
+
+LIBS= -lc_s $(TLILIB) 
 
 CTOBJS =  ct.o callers.o getargs.o line.o uucpdefs.o ulockf.o\
 	 conn.o interface.o sysfiles.o strsave.o strecpy.o stoa.o
@@ -44,8 +50,12 @@ CTSRC =  ct.c $(UUDIR)/callers.c $(UUDIR)/getargs.c \
 	 $(UUDIR)/conn.c $(UUDIR)/interface.c $(UUDIR)/sysfiles.c \
 	 $(UUDIR)/strsave.c $(UUDIR)/strecpy.c $(UUDIR)/stoa.c
 
-ct:	copyright $(CTOBJS)
-	$(CC) $(CFLAGS) $(CTOBJS) $(LIBS) $(LDFLAGS) -o ct
+ODK=dkbreak.o dkdial.o dkminor.o dtnamer.o dkerr.o 
+LDK=$(UUDIR)/dkbreak.c $(UUDIR)/dkdial.c $(UUDIR)/dkminor.c \
+	$(UUDIR)/dtnamer.c $(UUDIR)/dkerr.c
+
+ct:	copyright $(CTOBJS) $(ODK)
+	$(CC) $(CFLAGS) $(CTOBJS) $(ODK) $(LIBS) $(LDFLAGS) -o ct
 
 all:	install clobber
 
@@ -61,7 +71,7 @@ copyright:
 	@echo "**********************************************\n\n"
 
 install:	copyright ct
-	$(INS) $(OLD) ct $(INSDIR)/ct 4111 root sys
+	$(INS) $(OLD) ct $(INSDIR)/ct 4111 root uucp
 
 clean:
 	-rm -f *.o
@@ -69,7 +79,8 @@ clean:
 clobber: clean
 	rm -f ct
 
-callers.o:	$(UUDIR)/callers.c   $(UUDIR)/uucp.h $(UUDIR)/parms.h
+callers.o:	$(UUDIR)/callers.c   $(UUDIR)/uucp.h $(UUDIR)/parms.h \
+		$(UUDIR)/dk.h
 	$(CC) -c $(CFLAGS) $(UUDIR)/callers.c
 
 getargs.o:	$(UUDIR)/getargs.c   $(UUDIR)/uucp.h $(UUDIR)/parms.h
@@ -87,7 +98,7 @@ ulockf.o:	$(UUDIR)/ulockf.c  $(UUDIR)/uucp.h $(UUDIR)/parms.h
 conn.o:		$(UUDIR)/conn.c
 	$(CC) -c $(CFLAGS) $(UUDIR)/conn.c
  
-interface.o:	$(UUDIR)/interface.c  $(UUDIR)/uucp.h
+interface.o:	$(UUDIR)/interface.c  $(UUDIR)/uucp.h $(UUDIR)/parms.h
 	$(CC) -c $(CFLAGS) $(UUDIR)/interface.c
  
 sysfiles.o:	$(UUDIR)/sysfiles.c  $(UUDIR)/sysfiles.h
@@ -101,3 +112,18 @@ strecpy.o:	$(UUDIR)/strecpy.c
  
 stoa.o:	$(UUDIR)/stoa.c
 	$(CC) -c $(CFLAGS) $(UUDIR)/stoa.c
+
+dkbreak.o: $(UUDIR)/dkbreak.c $(UUDIR)/dk.h $(UUDIR)/sysexits.h
+	$(CC) -c $(CFLAGS) $(UUDIR)/dkbreak.c
+	
+dkdial.o: $(UUDIR)/dkdial.c $(UUDIR)/dk.h $(UUDIR)/sysexits.h
+	$(CC) -c $(CFLAGS) $(UUDIR)/dkdial.c
+	
+dkminor.o: $(UUDIR)/dkminor.c  $(UUDIR)/dk.h $(UUDIR)/sysexits.h
+	$(CC) -c $(CFLAGS) $(UUDIR)/dkminor.c
+	
+dtnamer.o: $(UUDIR)/dtnamer.c $(UUDIR)/dk.h $(UUDIR)/sysexits.h
+	$(CC) -c $(CFLAGS) $(UUDIR)/dtnamer.c
+	
+dkerr.o: $(UUDIR)/dkerr.c $(UUDIR)/dk.h $(UUDIR)/sysexits.h 
+	$(CC) -c $(CFLAGS) $(UUDIR)/dkerr.c

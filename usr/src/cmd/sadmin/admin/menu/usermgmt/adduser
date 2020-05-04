@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:admin/menu/usermgmt/adduser	2.9"
+#ident	"@(#)sadmin:admin/menu/usermgmt/adduser	2.10"
 #menu# add a user to the system
 #help# 
 #help#	Adduser installs a new login ID on the machine.  You are asked
@@ -257,7 +257,8 @@ ${defgid:-(default $defgroup)} [?, q]: " \
 		/bin/sh -c '
 			trap "" 1 2 3 15
 			set -e
-			echo "${loginid}::${userid}:${groupid}:${username}:${logdir}:" >>/etc/passwd
+			passmgmt -a -u ${userid} -g ${groupid} -h ${logdir} -c "${username}" ${loginid}
+			/bin/passwd -d ${loginid}
 			umask 002
 			mkdir ${logdir}
 			chgrp ${groupid} ${logdir}

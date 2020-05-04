@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/mvcur.c	1.4.1.17"
+#ident	"@(#)curses:screen/mvcur.c	1.6"
 #include	"curses_inc.h"
 
 /*
@@ -56,11 +56,11 @@ int	cury, curx, newy, newx;
 
     /* obvious case */
     if (cury == newy && curx == newx)
-	goto good;
+	return (OK);
 
     /* not in the right mode for cursor movement */
     if (SP->fl_endwin)
-	goto bad;
+	return (ERR);
 
     if (!move_standout_mode && curscr->_attrs && !SP->_mks)
 	_VIDS(A_NORMAL, curscr->_attrs);
@@ -68,23 +68,17 @@ int	cury, curx, newy, newx;
     if (!move_insert_mode && SP->phys_irm)
    	_OFFINSERT();
 
-    /* absolute movement only */
-    if (cury < 0)
-	if (cursor_address)
-	{
-	    _PUTS(tparm(cursor_address, newy, newx), 1);
-	    goto good;
-	}
-	else
-	    goto bad;
-
     Newy = newy;
 
     /* cost of using cm */
     cm = _COST(Cursor_address);
 
+    rl = hd = hu = LARGECOST;
+
     /* baudrate optimization */
-    if (cm < LARGECOST && SP->baud >= 2400)
+    if (cm < LARGECOST && SP->baud >= 2400 &&
+	cury >= 0 && cury < curscr->_maxy &&
+	curx >= 0 && curx < curscr->_maxx)
     {
 	if (cursor_down && (newy == (cury + 1)) &&
 	    ((newx == curx) || (newx == 0 && carriage_return)))
@@ -95,10 +89,8 @@ int	cury, curx, newy, newx;
 	    goto done;
 	}
 
-	if (cury != newy || newx < curx-4 || newx > curx+4)
-	    rl = hu = hd = LARGECOST;
-	    /* fast horizontal move */
-	else
+	/* fast horizontal move */
+	if (cury == newy && newx < curx-4 && newx > curx+4)
 	{
 	    if (newx < curx)
 		rl = _mvleft(curx, newx, FALSE);
@@ -114,24 +106,23 @@ int	cury, curx, newy, newx;
 	    }
 	}
     }
-    else
-    {
-	/* cost using relative movements */
-	if (cury < 0 || cury >= curscr->_maxy || curx < 0 || curx >= curscr->_maxx)
-	    rl = LARGECOST;
-	else
+
+    /* cost using relative movements */
+    if (rl >= LARGECOST &&
+	cury >= 0 && cury < curscr->_maxy &&
+	curx >= 0 && curx < curscr->_maxx)
 	    rl = _mvrel(cury, curx, newy, newx, FALSE);
 
-	/* cost of homing to upper-left corner first */
-	hu = cursor_home ? _homefirst(newy, newx, H_UP, FALSE) : LARGECOST;
+    /* cost of homing to upper-left corner first */
+    if (cursor_home)
+	hu = _homefirst(newy, newx, H_UP, FALSE);
 
-	/* cost of homing to lower-left corner first */
-	hd = cursor_to_ll ? _homefirst(newy, newx, H_DO, FALSE) : LARGECOST;
-    }
+    /* cost of homing to lower-left corner first */
+    if (cursor_to_ll)
+	hd = _homefirst(newy, newx, H_DO, FALSE);
 
     /* can't do any one of them */
     if (cm >= LARGECOST && rl >= LARGECOST && hu >= LARGECOST && hd >= LARGECOST)
-bad:
 	return (ERR);
 
     /* do the best one */
@@ -148,7 +139,6 @@ done:
     curscr->_curx = newx;
     curscr->_cury = newy;
 
-good:
     return (OK);
 }
 

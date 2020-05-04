@@ -42,11 +42,15 @@ d--775 0 3
 		coredirs	---644 0 3	../etc/coredirs
 		disks		---755 0 3	../etc/disks
 		disketteparm	---444 0 3	../etc/disketteparm
-		fsck1b		---555 2 2	../etc/fsck1b
+		fsck2K		---555 2 2	../etc/fsck2K
+		fsck512		---555 2 2	../etc/fsck512
+		mkfs512		---555 2 2	../etc/mkfs512
+		fsba		---555 2 2	../etc/fsba
 		fsstat		---555 0 3	../etc/fsstat
 		fstyp		---555 0 3	../etc/fstyp
 		fstyp.d		d--775 0 3
-			s5fstyp		---555 0 3	../etc/fstyp.d/s5fstyp
+		S51Kfstyp	---555 0 3	../etc/fstyp.d/S51Kfstyp
+		S52Kfstyp	---555 0 3	../etc/fstyp.d/S52Kfstyp
 		$
 		gettydefs	---664 0 2	../etc/gettydefs
 		ioctl.syscon	---644 0 0	../etc/ioctl.syscon
@@ -87,7 +91,7 @@ d--775 0 3
 		$
 		savecpio	---555 0 3	../etc/savecpio
 		setclk		---550 2 2	../etc/setclk
-		shutdown	---775 0 3	../etc/shutdown
+		shutdown	---755 0 3	../etc/shutdown
 		shutdown.d	d--775 0 3
 		$
 		stdprofile	---444 0 3	../etc/stdprofile
@@ -117,4 +121,4 @@ d--775 0 3
 	mnt	d--775 0 3
 	$
 $
-:#ident	"@(#)core:proto.core2	1.16.1.6"
+:#ident	"@(#)core:proto.core2	1.16.1.8"

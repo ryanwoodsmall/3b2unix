@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/pechochar.c	1.6"
+#ident	"@(#)curses:screen/pechochar.c	1.7"
 /*
  *  These routines short-circuit much of the innards of curses in order to get
  *  a single character output to the screen quickly!
@@ -21,13 +21,24 @@ pechochar(pad, ch)
 register	WINDOW	*pad;
 chtype			ch;
 {
+    register WINDOW *padwin;
+    int	     rv;
+
     /*
      * If pad->_padwin exists (meaning that p*refresh have been
      * previously called), call wechochar on it.  Otherwise, call
      * wechochar on the pad itself
      */
 
-    if (pad->_padwin)
-	pad = pad->_padwin;
-    return (wechochar (pad, ch));
+    if ((padwin = pad->_padwin) != NULL)
+    {
+	padwin->_cury = pad->_cury - padwin->_pary;
+	padwin->_curx = pad->_curx - padwin->_parx;
+	rv = wechochar (padwin, ch);
+	pad->_cury = padwin->_cury + padwin->_pary;
+	pad->_curx = padwin->_curx + padwin->_parx;
+	return (rv);
+    }
+    else
+        return (wechochar (pad, ch));
 }

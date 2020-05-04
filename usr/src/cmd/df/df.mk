@@ -5,31 +5,32 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)df:df.mk	1.11"
+#ident	"@(#)df:df.mk	1.12"
 
-#	df make file
+#	df $(MAKE) file
 
 #	since df requires the devnm function, they have been combined.
 #	during installation, devnm is linked to df
 
 ROOT=
-INCRT = $(ROOT)/usr/include
+INC = $(ROOT)/usr/include
 INSDIR = $(ROOT)/bin
 DVDIR = $(ROOT)/etc
 CFLAGS = -O
 LDFLAGS = -s 
 INS=install
+MAKE = make
 
 all:	install clobber
 
 df: df.c
-	$(CC) -I$(INCRT) $(CFLAGS) $(LDFLAGS) -o df df.c $(LDLIBS)
+	$(CC) -I$(INC) $(CFLAGS) $(LDFLAGS) -o df df.c $(LDLIBS)
 
 devnm:	df
 
 install: df
 	$(INS) -f $(INSDIR) -m 4755 -u root -g bin df
-	make -i -f df.mk dvins
+	$(MAKE) -i -f df.mk dvins
 
 dvins:	devnm
 	ln $(INSDIR)/df $(DVDIR)/devnm

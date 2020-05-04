@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/streamio.c	10.17.3.4"
+#ident	"@(#)kern-port:os/streamio.c	10.17.4.12"
 
 #include "sys/types.h"
 #include "sys/file.h"
@@ -33,6 +33,7 @@
 #include "sys/ttold.h"
 #include "sys/inline.h"
 #include "sys/systm.h"
+#include "sys/cmn_err.h"
 
 
 /*
@@ -46,11 +47,13 @@ static long ioc_id;
  *        for stream head read and write queues
  */
 int	strrput(), strwsrv();
-struct 	module_info strm_info = { 0, "strrhead", 0, INFPSZ, STRHIGH, STRLOW};
+struct 	module_info strm_info = { 0, "strrhead", 0, INFPSZ, STRHIGH, STRLOW };
 struct  module_info stwm_info = { 0, "strwhead", 0, 0, 0, 0 };
-struct	qinit strdata = { strrput, NULL, NULL, NULL, NULL, &strm_info, NULL};
-struct	qinit stwdata = { NULL, strwsrv, NULL, NULL, NULL, &stwm_info, NULL};
+struct	qinit strdata = { strrput, NULL, NULL, NULL, NULL, &strm_info, NULL };
+struct	qinit stwdata = { NULL, strwsrv, NULL, NULL, NULL, &stwm_info, NULL };
 
+#define ncopyin(A, B, C, D)	copyin(A, B, C)		/* temporary */
+#define ncopyout(A, B, C, D)	copyout(A, B, C)	/* temporary */
 
 /*
  * open a stream device
@@ -60,28 +63,39 @@ stropen(ip, flag)
 struct inode *ip;
 {
 	register struct stdata *stp;
-	register struct file *fp;
 	register queue_t *qp;
 	register ok;
+	register int s;
+	struct stdata *savestp = NULL;
 
 	if (!(ip->i_sptr)) {
 		/*
 		 * This inode isn't streaming, but another inode
-		 * may refer to same device, so look for it in file
+		 * may refer to same device, so look for it in stream
 		 * table to avoid building 2 streams to 1 device.
 		 */
-		for (fp = file; fp < (struct file *)v.ve_file; fp++) {
-			register struct inode *tip;
-
-			if (fp->f_count) {
-				tip = fp->f_inode;
-				if ( (tip->i_ftype&IFMT) == IFCHR &&
-				     tip->i_rdev == ip->i_rdev   && 
-				     tip != ip) {
-					ip->i_sptr = tip->i_sptr;
-					break;
-				}
+		s = v.v_nstream - 1;
+		for (stp = &streams[s]; s >= 0; stp--, s--) {
+			if (!(stp->sd_wrq)) {
+				savestp = stp;
+				continue;
 			}
+			if (stp->sd_rdev == ip->i_rdev)
+				break;
+		}
+		if (s >= 0) {	/* found inode already streaming */
+			ip->i_sptr = &streams[s];
+			ip->i_sptr->sd_icnt++;
+			if (savestp)
+				savestp->sd_wrq = (queue_t *)RESERVED;
+		} else {	/* reserve stream */
+			if (!savestp) {
+				strst.stream.fail++;
+				cmn_err(CE_CONT, "stropen: out of streams\n");
+				u.u_error = ENOSR;
+				return;
+			}
+			savestp->sd_wrq = (queue_t *)RESERVED;
 		}
 	}
 
@@ -97,25 +111,28 @@ retry:
 		 * Waiting for stream to be created to device
 		 * due to another open
 		 */
-		if (stp->sd_flag&STWOPEN) {
+		if (stp->sd_flag&(STWOPEN|STRCLOSE)) {
 			if (sleep((caddr_t)stp, STOPRI|PCATCH)) {
 				u.u_error = EINTR;
-				return;
+				goto ckreturn;
 			}
 			goto retry;  /* could be clone! */
 		}
 
 		if (stp->sd_flag&(STRHUP|STRERR)) {
 			u.u_error = EIO;
-			return;
+			goto ckreturn;
 		}
 
+		s = splstr();
 		stp->sd_flag |= STWOPEN;
 
 		/*
 		 * Set up to test if opens create a controlling tty.
 		 */
-		if (!u.u_ttyp) stp->sd_flag |= CTTYFLG;
+		if (!u.u_ttyp)
+			stp->sd_flag |= CTTYFLG;
+		splx(s);
 
 		/*
 		 * Open all modules and devices down stream to notify
@@ -135,9 +152,16 @@ retry:
 		}
 		if (u.u_ttyp  &&  (stp->sd_flag&CTTYFLG)  &&  !u.u_error) {
 			stp->sd_pgrp = *u.u_ttyp;
-			u.u_ttyip = stp->sd_inode;
+			u.u_ttyip = ip;
 		}
+		s = splstr();
 		stp->sd_flag &= ~(CTTYFLG | STWOPEN);
+		splx(s);
+ckreturn:
+		if (u.u_error && stp->sd_icnt == 1 && ip->i_sptr && ip->i_count == 1)
+			strclose(ip, flag);
+		if (savestp)
+			savestp->sd_wrq = NULL;
 		wakeup((caddr_t)stp);
 		return;
 	} 
@@ -147,51 +171,61 @@ retry:
 	 */
 
 	if (!(qp = allocq())) {
-		printf("stropen:out of queues\n");
+		if (savestp)
+			savestp->sd_wrq = NULL;
+		cmn_err(CE_CONT, "stropen: out of queues\n");
 		u.u_error = ENOSR;
 		return;
 	}
 
-	for (stp = streams; stp < &streams[v.v_nstream]; stp++)
-		if (!(stp->sd_wrq)) {
-			stp->sd_wrq = WR(qp);	/* allocates stream head */
-			break;
-		}
+	if (savestp) {
+		stp = savestp;
+		stp->sd_wrq = WR(qp);
+	} else {				/* could be clone */
+		for (stp = streams; stp < &streams[v.v_nstream]; stp++)
+			if (!(stp->sd_wrq)) {
+				stp->sd_wrq = WR(qp);	/* allocates stream head */
+				break;
+			}
 
-	if (stp >= &streams[v.v_nstream]) {
-		strst.stream.fail++;
-		printf("stropen: out of streams\n");
-		freeq(qp);
-		u.u_error = ENOSR;
-		return;
+		if (stp >= &streams[v.v_nstream]) {
+			strst.stream.fail++;
+			cmn_err(CE_CONT, "stropen: out of streams\n");
+			freeq(qp);
+			u.u_error = ENOSR;
+			return;
+		}
 	}
 
 	/* 
 	 * Initialize stream head
 	 */
 	BUMPUP(strst.stream);
+	s = splstr();
+	stp->sd_flag = STWOPEN;
+	stp->sd_siglist = NULL;
+	stp->sd_pollist = NULL;
+	stp->sd_pollflags = 0;
+	stp->sd_sigflags = 0;
+	splx(s);
+	stp->sd_icnt = 1;
+	stp->sd_rdev = ip->i_rdev;
 	stp->sd_pgrp = 0;
-	stp->sd_inode = ip;
-	stp->sd_flag = 0;
 	stp->sd_error = 0;
 	stp->sd_wroff = 0;
 	stp->sd_iocwait = 0;
 	stp->sd_iocblk = NULL;
 	stp->sd_pushcnt = 0;
-	stp->sd_siglist = NULL;
-	stp->sd_pollist = NULL;
-	stp->sd_sigflags = 0;
-	stp->sd_pollflags = 0;
 	setq(qp, &strdata, &stwdata);
 	qp->q_ptr = WR(qp)->q_ptr = (caddr_t)stp;
-	stp->sd_flag |= STWOPEN;
 	stp->sd_strtab = cdevsw[major(ip->i_rdev)].d_str;
 	ip->i_sptr = stp;
 
 	/*
 	 * Used to find controlling tty
 	 */
-	if (!u.u_ttyp) stp->sd_flag |= CTTYFLG;
+	if (!u.u_ttyp)
+		stp->sd_flag |= CTTYFLG;
 
 
 	/*
@@ -205,11 +239,17 @@ retry:
 	/*
 	 * Wake up others that are waiting for stream to be created.
 	 */
+	s = splstr();
 	stp->sd_flag &= ~STWOPEN;
+	splx(s);
 	wakeup((caddr_t)stp);
 	if (!ok) {
+		s = splstr();
 		stp->sd_flag |= STRHUP;
+		splx(s);
 		stp->sd_wrq = NULL; 		/* free stream */
+		stp->sd_icnt = 0;
+		stp->sd_rdev = -1;
 		strst.stream.use--;
 		freeq(qp);
 
@@ -224,9 +264,11 @@ retry:
 	 */
 	if (u.u_ttyp && (stp->sd_flag&CTTYFLG)) {
 		stp->sd_pgrp = *u.u_ttyp;
-		u.u_ttyip = stp->sd_inode;
+		u.u_ttyip = ip;
 	}
+	s = splstr();
 	stp->sd_flag &= ~CTTYFLG;
+	splx(s);
 }
 
 
@@ -254,7 +296,9 @@ struct inode *ip;
 	ASSERT(ip->i_sptr);
 
 	stp = ip->i_sptr;
-	ip->i_sptr = NULL;
+	s = splstr();
+	stp->sd_flag |= STRCLOSE;
+	splx(s);
 
 	munlinkall(stp, 1);
 
@@ -267,8 +311,13 @@ struct inode *ip;
 			/*
 			 * sleep until awakened by strwsrv() or strtime() 
 			 */
-			while((stp->sd_flag &STRTIME) && qp->q_next->q_count) 
-				if (sleep((caddr_t)qp, STIPRI|PCATCH)) break;
+			while ((stp->sd_flag & STRTIME) && qp->q_next->q_count) {
+				stp->sd_flag |= WSLEEP;
+				/* ensure strwsrv gets enabled */
+				qp->q_next->q_flag |= QWANTW;
+				if (sleep((caddr_t)qp, STIPRI|PCATCH))
+					break;
+			}
 			untimeout(id);
 			stp->sd_flag &= ~(STRTIME | WSLEEP);
 			splx(s);
@@ -287,6 +336,8 @@ struct inode *ip;
 		stp->sd_iocblk = NULL;
 	}
 	stp->sd_wrq = NULL;
+	stp->sd_rdev = -1;
+	stp->sd_icnt = 0;
 	strst.stream.use--;
 
 	/* free stream head queue pair */
@@ -300,8 +351,13 @@ struct inode *ip;
 		freemsg(mp);
 		mp = tmp;
 	}
-}
 
+	s = splstr();
+	ip->i_sptr = NULL;
+	stp->sd_flag &= ~STRCLOSE;
+	splx(s);
+	wakeup((caddr_t)stp);
+}
 
 
 /*
@@ -311,20 +367,25 @@ struct inode *ip;
  * for the current process, and these are removed.
  */
 
-strclean(ip)
+strclean(ip, count)
 struct inode *ip;
+int count;
 {
 	register struct strevent *sep, *psep, *tsep;
+	register int s;
 	struct stdata *stp;
 
 	stp = ip->i_sptr;
 	psep = NULL;
+	s = splstr();
 	sep = stp->sd_siglist;
 	while (sep) {
 		if (sep->se_procp == u.u_procp) {
 			tsep = sep->se_next;
-			if (psep) psep->se_next = tsep;
-			else stp->sd_siglist = tsep;
+			if (psep)
+				psep->se_next = tsep;
+			else
+				stp->sd_siglist = tsep;
 			sefree(sep);
 			sep = tsep;
 		}
@@ -339,8 +400,10 @@ struct inode *ip;
 	while (sep) {
 		if (sep->se_procp == u.u_procp) {
 			tsep = sep->se_next;
-			if (psep) psep->se_next = tsep;
-			else stp->sd_pollist = tsep;
+			if (psep)
+				psep->se_next = tsep;
+			else
+				stp->sd_pollist = tsep;
 			sefree(sep);
 			sep = tsep;
 		}
@@ -349,6 +412,9 @@ struct inode *ip;
 			sep = sep->se_next;
 		}
 	}
+	splx(s);
+	if ((ip->i_count == 1) && (count == 1))
+		stp->sd_icnt--;
 }
 
 
@@ -398,14 +464,21 @@ struct inode *ip;
 	for (;;) {
 		s = splstr();
 		while (!(bp = getq(RD(stp->sd_wrq)))) {
-			if (rflg || (stp->sd_flag&STRHUP) || strwaitq(stp, READWAIT, u.u_fmode)) {
+			if (rflg || (stp->sd_flag&STRHUP)) {
+				splx(s);
+				return;
+			}
+			if (strwaitq(stp, READWAIT, u.u_fmode)) {
+				if ((u.u_fmode & FNDELAY) && (stp->sd_flag & OLDNDELAY) && (u.u_error == EAGAIN))
+					u.u_error = 0;
 				splx(s);
 				return;
 			}
 		}
 		splx(s);
 
-		if (qready()) runqueues();
+		if (qready())
+			runqueues();
 
 		switch (bp->b_datap->db_type) {
 
@@ -454,12 +527,17 @@ struct inode *ip;
 				 */
 				if (stp->sd_flag & RMSGDIS) {
 					freemsg(bp);
+					s = splstr();
 					stp->sd_flag &= ~STRPRI;
+					splx(s);
 				} else 
 					putbq(RD(stp->sd_wrq),bp);
 
-			} else 
+			} else {
+				s = splstr();
 				stp->sd_flag &= ~STRPRI;
+				splx(s);
+			}
 	
 			/*
 			 * Check for signal messages at the front of the read
@@ -472,8 +550,10 @@ struct inode *ip;
 				bp = getq(RD(stp->sd_wrq));
 				switch (*bp->b_rptr) {
 				case SIGPOLL:				
+					s = splstr();
 					if (stp->sd_sigflags & S_MSG) 
 						strsendsig(stp->sd_siglist, S_MSG);
+					splx(s);
 					break;
 
 				default:
@@ -482,7 +562,8 @@ struct inode *ip;
 					break;
 				}
 				freemsg(bp);
-				if (qready()) runqueues();
+				if (qready())
+					runqueues();
 			}
 
 			if ((u.u_count == 0) || (stp->sd_flag&(RMSGDIS|RMSGNODIS)))
@@ -525,7 +606,10 @@ register mblk_t *bp;
 {
 	register struct stdata *stp;
 	register struct iocblk *iocbp;
+	register int s;
 	struct stroptions *sop;
+	struct copyreq *reqp;
+	struct copyresp *resp;
 
 
 	stp = (struct stdata *)q->q_ptr;
@@ -538,6 +622,7 @@ register mblk_t *bp;
 	case M_PROTO:
 	case M_PCPROTO:
 	case M_PASSFP:
+		s = splstr();
 		if (bp->b_datap->db_type == M_PCPROTO) {
 			/*
 			 * Only one priority protocol message is allowed at the
@@ -545,6 +630,7 @@ register mblk_t *bp;
 			 */
 			if (stp->sd_flag & STRPRI) {
 				freemsg(bp);
+				splx(s);
 				return;
 			}
 			stp->sd_flag |= STRPRI;
@@ -552,8 +638,7 @@ register mblk_t *bp;
 				strsendsig(stp->sd_siglist, S_HIPRI);
 			if (stp->sd_pollflags & POLLPRI) 
 				strwakepoll(stp, POLLPRI);
-		} 
-		else if (!q->q_first) {
+		} else if (!q->q_first) {
 			if (stp->sd_sigflags & S_INPUT)
 				strsendsig(stp->sd_siglist, S_INPUT);
 			if (stp->sd_pollflags & POLLIN) 
@@ -572,6 +657,7 @@ register mblk_t *bp;
 			wakeup((caddr_t)q);
 			curpri = oldpri;
 		}
+		splx(s);
 
 		putq(q, bp);
 		return;
@@ -583,13 +669,17 @@ register mblk_t *bp;
 		 * byte of the message.
 		 */
 		if (*bp->b_rptr != 0) {
+			s = splstr();
 			stp->sd_flag |= STRERR;
 			stp->sd_error = *bp->b_rptr;
+			splx(s);
 			wakeup((caddr_t)q);	/* the readers */
 			wakeup((caddr_t)WR(q));	/* the writers */
 			wakeup((caddr_t)stp);	/* the ioctllers */
 
+			s = splstr();
 			strwakepoll(stp, POLLERR);
+			splx(s);
 			
 			bp->b_datap->db_type = M_FLUSH;
 			*bp->b_rptr = FLUSHRW;
@@ -601,8 +691,10 @@ register mblk_t *bp;
 
 	case M_HANGUP:
 		freemsg(bp);
+		s = splstr();
 		stp->sd_error = ENXIO;
 		stp->sd_flag |= STRHUP;
+		splx(s);
 
 		/*
 		 * send signal if controlling tty
@@ -618,7 +710,9 @@ register mblk_t *bp;
 		 * wake up read, write, and exception pollers and
 		 * reset wakeup mechanism.
 		 */
+		s = splstr();
 		strwakepoll(stp, POLLHUP);
+		splx(s);
 		return;
 
 
@@ -644,8 +738,10 @@ register mblk_t *bp;
 		 */
 		switch (*bp->b_rptr) {
 		case SIGPOLL:
+			s = splstr();
 			if (stp->sd_sigflags & S_MSG) 
 				strsendsig(stp->sd_siglist, S_MSG);
+			splx(s);
 			break;
 
 		default:
@@ -693,11 +789,13 @@ register mblk_t *bp;
 		iocbp = (struct iocblk *)bp->b_rptr;
 		/*
 		 * if not waiting for ACK or NAK then just free msg
-		 * if incorrect id sequence number then just free msg
 		 * if already have ACK or NAK for user then just free msg
+		 * if incorrect id sequence number then just free msg
 		 */
+		s = splstr();
 		if ((stp->sd_flag&IOCWAIT)==0 || stp->sd_iocblk || (stp->sd_iocid != iocbp->ioc_id)) {
 			freemsg(bp);
+			splx(s);
 			return;
 		}
 
@@ -705,6 +803,41 @@ register mblk_t *bp;
 		 * assign ACK or NAK to user and wake up
 		 */
 		stp->sd_iocblk = bp;
+		splx(s);
+		wakeup((caddr_t)stp);
+		return;
+
+	case M_COPYIN:
+	case M_COPYOUT:
+		reqp = (struct copyreq *)bp->b_rptr;
+
+		/*
+		 * if not waiting for ACK or NAK then just fail request
+		 * if already have ACK, NAK, or copy request, then just fail request
+		 * if incorrect id sequence number then just fail request
+		 */
+
+		s = splstr();
+		if ((stp->sd_flag&IOCWAIT)==0 || stp->sd_iocblk || (stp->sd_iocid != reqp->cq_id)) {
+			if (bp->b_cont) {
+				freemsg(bp->b_cont);
+				bp->b_cont = NULL;
+			}
+			bp->b_datap->db_type = M_IOCDATA;
+			resp = (struct copyresp *)bp->b_rptr;
+			resp->cp_rval = (caddr_t)1;	/* failure */
+			splx(s);
+			(*stp->sd_wrq->q_next->q_qinfo->qi_putp)(stp->sd_wrq->q_next, bp);
+			if (qready())
+				runqueues();
+			return;
+		}
+
+		/*
+		 * assign copy request to user and wake up
+		 */
+		stp->sd_iocblk = bp;
+		splx(s);
 		wakeup((caddr_t)stp);
 		return;
 
@@ -717,6 +850,7 @@ register mblk_t *bp;
 
 		ASSERT((bp->b_wptr - bp->b_rptr) == sizeof(struct stroptions));
 		sop = (struct stroptions *)bp->b_rptr;
+		s = splstr();
 		if (sop->so_flags & SO_READOPT) {
 			switch (sop->so_readopt) {
 			case RNORM: 
@@ -731,19 +865,35 @@ register mblk_t *bp;
 			}
 		}
 				
-		if (sop->so_flags & SO_WROFF) stp->sd_wroff = sop->so_wroff;
-		if (sop->so_flags & SO_MINPSZ) q->q_minpsz = sop->so_minpsz;
-		if (sop->so_flags & SO_MAXPSZ) q->q_maxpsz = sop->so_maxpsz;
-		if (sop->so_flags & SO_HIWAT) q->q_hiwat = sop->so_hiwat;
-		if (sop->so_flags & SO_LOWAT) q->q_lowat = sop->so_lowat;
+		if (sop->so_flags & SO_WROFF)
+			stp->sd_wroff = sop->so_wroff;
+		if (sop->so_flags & SO_MINPSZ)
+			q->q_minpsz = sop->so_minpsz;
+		if (sop->so_flags & SO_MAXPSZ)
+			q->q_maxpsz = sop->so_maxpsz;
+		if (sop->so_flags & SO_HIWAT)
+			q->q_hiwat = sop->so_hiwat;
+		if (sop->so_flags & SO_LOWAT)
+			q->q_lowat = sop->so_lowat;
+		if (sop->so_flags & SO_MREADON)
+			stp->sd_flag |= SNDMREAD;
+		if (sop->so_flags & SO_MREADOFF)
+			stp->sd_flag &= ~SNDMREAD;
+		if (sop->so_flags & SO_NDELON)
+			stp->sd_flag |= OLDNDELAY;
+		if (sop->so_flags & SO_NDELOFF)
+			stp->sd_flag &= ~OLDNDELAY;
 
 		freemsg(bp);
 
 		if ((q->q_count <= q->q_lowat) && (q->q_flag & QWANTW)) {
 			q->q_flag &= ~QWANTW;
-			for (q = backq(q); q && !q->q_qinfo->qi_srvp; q = backq(q) );
-			if (q) qenable(q);
+			for (q = backq(q); q && !q->q_qinfo->qi_srvp; q = backq(q))
+				;
+			if (q)
+				qenable(q);
 		}
+		splx(s);
 
 		return;
 
@@ -757,6 +907,7 @@ register mblk_t *bp;
 	case M_DELAY:
 	case M_START:
 	case M_STOP:
+	case M_IOCDATA:
 		freemsg(bp);
 		return;
 
@@ -779,7 +930,8 @@ register mblk_t *bp;
 
 /*
  * Send SIGPOLL signal to all processes registered on the given signal
- * list that want a signal for the specified event.
+ * list that want a signal for the specified event.  Always called at
+ * splstr().
  */
 
 strsendsig(siglist, event)
@@ -800,25 +952,23 @@ register event;
  * on this stream.  POLLERR and POLLHUP cause a wakeup of all processes
  * regardless of the events they were looking for.  Remove all of
  * the event cells matching the given events from the pollist.
+ * Always called at splstr().
  */
 
 strwakepoll(stp, events)
 struct stdata *stp;
 {
 	register struct strevent *sep, *psep;
-	register s;
 
 	stp->sd_pollflags &= ~events;
 	sep = stp->sd_pollist;
 	psep = NULL;
 	while (sep) {
 		if ((sep->se_events & events) || (events & (POLLHUP|POLLERR|POLLNVAL))) {
-			s = splstr();
 			if (sep->se_procp->p_wchan == (caddr_t)&pollwait)
 				setrun(sep->se_procp);
 			else
 				sep->se_procp->p_flag &= ~SPOLL;
-			splx(s);
 			if (psep){
 				psep->se_next = sep->se_next;
 				sefree(sep);
@@ -869,6 +1019,7 @@ struct inode *ip;
 	short rmin, rmax;
 	char waitflag;
 	mblk_t *strmakemsg();
+	int tempmode;
 
 	ASSERT(ip->i_sptr);
 	stp = ip->i_sptr;
@@ -888,7 +1039,8 @@ struct inode *ip;
 	rmin = stp->sd_wrq->q_next->q_minpsz;
 	rmax = stp->sd_wrq->q_next->q_maxpsz;
 	ASSERT(rmax);
-	if (rmax == 0) return;
+	if (rmax == 0)
+		return;
 	if (rmax == INFPSZ) 
 		rmax = strmsgsz;
 	else
@@ -903,10 +1055,15 @@ struct inode *ip;
 	 * do until count satisfied or error
 	 */
 	waitflag = WRITEWAIT;
+	if (stp->sd_flag & OLDNDELAY)
+		tempmode = u.u_fmode & ~FNDELAY;
+	else
+		tempmode = u.u_fmode;
+
 	do {
 		s = splstr();
 		while (!canput(stp->sd_wrq->q_next))
-			if (strwaitq(stp, waitflag, u.u_fmode)) {
+			if (strwaitq(stp, waitflag, tempmode)) {
 				splx(s);
 				return;
 			}
@@ -920,7 +1077,8 @@ struct inode *ip;
 		mdata.len = min(u.u_count, rmax);
 		mdata.buf = u.u_base;
 
-		if (!(mp = strmakemsg(&mctl, &mdata, stp->sd_wroff, 0))) return;
+		if (!(mp = strmakemsg(&mctl, &mdata, stp->sd_wroff, 0)))
+			return;
 
 		u.u_base += mdata.len;
 		u.u_count -= mdata.len;
@@ -930,7 +1088,8 @@ struct inode *ip;
 		 */
 		(*stp->sd_wrq->q_next->q_qinfo->qi_putp)(stp->sd_wrq->q_next, mp);
 		waitflag |= NOINTR;
-		if (qready()) runqueues();
+		if (qready())
+			runqueues();
 
 	} while (u.u_count);
 }
@@ -950,11 +1109,13 @@ strwsrv(q)
 register queue_t *q;
 {
 	register struct stdata *stp;
+	register int s;
 
 	stp = (struct stdata *)q->q_ptr;
 
 	ASSERT(!(stp->sd_flag & STPLEX));
 
+	s = splstr();
 	if (stp->sd_flag & WSLEEP) {
 		char oldpri;
 
@@ -964,8 +1125,11 @@ register queue_t *q;
 		wakeup((caddr_t)q);
 		curpri = oldpri;
 	}
-	if (stp->sd_sigflags & S_OUTPUT) strsendsig(stp->sd_siglist, S_OUTPUT);
-	if (stp->sd_pollflags & POLLOUT) strwakepoll(stp, POLLOUT);
+	if (stp->sd_sigflags & S_OUTPUT)
+		strsendsig(stp->sd_siglist, S_OUTPUT);
+	if (stp->sd_pollflags & POLLOUT)
+		strwakepoll(stp, POLLOUT);
+	splx(s);
 }
 
 
@@ -979,7 +1143,9 @@ int arg;
 int flag;
 {
 	register struct stdata *stp;
+	register int s;
 	struct strioctl strioc;
+	char *fmt = NULL;
 
 	ASSERT(ip->i_sptr);
 	stp = ip->i_sptr;
@@ -1014,7 +1180,7 @@ int flag;
 				case TCDSET:
 					strioc.ic_len = sizeof(int);
 					strioc.ic_dp = (char *)&arg;
-					strdoioctl(stp, &strioc, K_TO_K);
+					strdoioctl(stp, &strioc, K_TO_K, STRINT);
 					return;
 
 				case TCSETA:
@@ -1022,31 +1188,44 @@ int flag;
 				case TCSETAF:
 					strioc.ic_len = sizeof(struct termio);
 					strioc.ic_dp = (char *)arg;
-					strdoioctl(stp, &strioc, U_TO_K);
+					strdoioctl(stp, &strioc, U_TO_K, STRTERMIO);
 					return;
 
 				case LDSETT:
 					strioc.ic_len = sizeof(struct termcb);
 					strioc.ic_dp = (char *)arg;
-					strdoioctl(stp, &strioc, U_TO_K);
+					strdoioctl(stp, &strioc, U_TO_K, STRTERMCB);
 					return;
 
 				case TIOCSETP:
 					strioc.ic_len = sizeof(struct sgttyb);
 					strioc.ic_dp = (char *) arg;
-					strdoioctl(stp, &strioc, U_TO_K);
+					strdoioctl(stp, &strioc, U_TO_K, STRSGTTYB);
 					return;
 
 				case TCGETA:
+					fmt = STRTERMIO;
 				case LDGETT:
+					if (!fmt) fmt = STRTERMCB;
 				case TIOCGETP:
+					if (!fmt) fmt = STRSGTTYB;
 					strioc.ic_len = 0;
 					strioc.ic_dp = (char *)arg;
-					strdoioctl(stp, &strioc, U_TO_K);
+					strdoioctl(stp, &strioc, U_TO_K, fmt);
 					return;
 			}
 		}
-		u.u_error = EINVAL;
+
+		/*
+		 * unknown cmd - send down request to support 
+		 * transparent ioctls
+		 */
+
+		strioc.ic_cmd = cmd;
+		strioc.ic_timout = INFTIM;
+		strioc.ic_len = TRANSPARENT;
+		strioc.ic_dp = (char *)&arg;
+		strdoioctl(stp, &strioc, K_TO_K, NULL);
 		return;
 
 	case I_STR:
@@ -1061,7 +1240,7 @@ int flag;
 			u.u_error = ENXIO;
 			return;
 		}
-		if (copyin((caddr_t)arg, (caddr_t)&strioc, sizeof(struct strioctl))) {
+		if (ncopyin((caddr_t)arg, (caddr_t)&strioc, sizeof(struct strioctl), STRIOCTL)) {
 			u.u_error = EFAULT;
 			return;
 		}
@@ -1070,9 +1249,9 @@ int flag;
 			return;
 		}
 
-		strdoioctl(stp, &strioc, U_TO_K);
+		strdoioctl(stp, &strioc, U_TO_K, NULL);
 
-		if (copyout((caddr_t)&strioc, arg, sizeof(struct strioctl)))
+		if (ncopyout((caddr_t)&strioc, arg, sizeof(struct strioctl), STRIOCTL))
 			u.u_error = EFAULT;
 		return;
 
@@ -1089,7 +1268,7 @@ int flag;
 
 			if (bp = RD(stp->sd_wrq)->q_first)
 				size = msgdsize(bp);
-			if (copyout(&size, (int *)arg, sizeof(size)))
+			if (ncopyout(&size, (int *)arg, sizeof(size), STRINT))
 				u.u_error = EFAULT;
 			u.u_rval1 = qsize(RD(stp->sd_wrq));
 			return;
@@ -1104,7 +1283,7 @@ int flag;
 			queue_t *q;
 			int i;
 
-			if (copyin((caddr_t)arg, mname, FMNAMESZ+1)) {
+			if (ncopyin((caddr_t)arg, mname, FMNAMESZ+1, STRNAME)) {
 				u.u_error = EFAULT;
 				return;
 			}
@@ -1120,9 +1299,9 @@ int flag;
 			u.u_rval1 = 0;
 	
 			/* look downstream to see if module is there */
-			for (q = stp->sd_wrq->q_next; 
-			     q && (fmodsw[i].f_str->st_wrinit != q->q_qinfo); 
-			     q = q->q_next);
+			for (q = stp->sd_wrq->q_next; q &&
+			    (fmodsw[i].f_str->st_wrinit != q->q_qinfo); q = q->q_next)
+				;
 
 			u.u_rval1 = ( q ? 1 : 0);
 			return;
@@ -1142,7 +1321,7 @@ int flag;
 				u.u_error = ENXIO;
 				return;
 			}
-			if (stp->sd_pushcnt > nstrpush) {
+			if (stp->sd_pushcnt >= nstrpush) {
 				u.u_error = EINVAL;
 				return;
 			}
@@ -1150,7 +1329,7 @@ int flag;
 			/*
 			 * get module name and look up in fmodsw
 			 */
-			if (copyin((caddr_t)arg, mname, FMNAMESZ+1)) {
+			if (ncopyin((caddr_t)arg, mname, FMNAMESZ+1, STRNAME)) {
 				u.u_error = EFAULT;
 				return;
 			}
@@ -1169,18 +1348,22 @@ int flag;
 					return;
 				}
 			}
+			s = splstr();
 			stp->sd_flag |= STWOPEN;
 
 			/*
 			 * Set up to test if the push creates a controlling tty.
 			 */
-			if (!u.u_ttyp) stp->sd_flag |= CTTYFLG;
+			if (!u.u_ttyp)
+				stp->sd_flag |= CTTYFLG;
+			splx(s);
 
 			/*
 			 * push new module and call its open routine via qattach
 			 */
 			if (!qattach(fmodsw[i].f_str, RD(stp->sd_wrq), ip->i_rdev, 0)) {
-				if (!u.u_error)	u.u_error =  ENXIO;
+				if (!u.u_error)
+					u.u_error =  ENXIO;
 			} else {
 				/*
 				 * if controlling tty established mark the 
@@ -1198,12 +1381,16 @@ int flag;
 			 * first back queue with svc procedure
 			 */
 			if (RD(stp->sd_wrq)->q_flag & QWANTW) {
-				for (q = backq(RD(stp->sd_wrq->q_next));
-				     q && !q->q_qinfo->qi_srvp; q = backq(q));
-				if (q) qenable(q);
+				for (q = backq(RD(stp->sd_wrq->q_next)); q &&
+				    !q->q_qinfo->qi_srvp; q = backq(q))
+					;
+				if (q)
+					qenable(q);
 			}
 
+			s = splstr();
 			stp->sd_flag &= ~(CTTYFLG | STWOPEN);
+			splx(s);
 			wakeup((caddr_t)stp);
 			return;
 		}
@@ -1237,7 +1424,7 @@ int flag;
 
 			for (i=0; i<fmodcnt; i++)
 				if(fmodsw[i].f_str->st_wrinit==stp->sd_wrq->q_next->q_qinfo) {
-					if (copyout(fmodsw[i].f_name,(char *)arg,FMNAMESZ+1))
+					if (ncopyout(fmodsw[i].f_name,(char *)arg,FMNAMESZ+1, STRNAME))
 						u.u_error = EFAULT;
 					return;
 				}
@@ -1269,7 +1456,8 @@ int flag;
 			}
 
 			fpdown = getf(arg);
-			if (u.u_error)	return;
+			if (u.u_error)
+				return;
 	
 			/*
 			 * Test for invalid lower stream 
@@ -1300,7 +1488,7 @@ int flag;
 			rq->q_flag |= QWANTR;	
 			WR(rq)->q_flag |= QWANTR;
 
-			strdoioctl(stp, &strioc, K_TO_K);
+			strdoioctl(stp, &strioc, K_TO_K, STRLINK);
 
 			if (u.u_error) {
 				linkblkp->l_qtop = NULL;
@@ -1308,8 +1496,10 @@ int flag;
 				rq->q_ptr = WR(rq)->q_ptr = (caddr_t)stpdown;
 				return;
 			}
+			s = splstr();
 			stpdown->sd_flag |= STPLEX;
 			fpdown->f_count++;
+			splx(s);
 			/*
 			 * Wake up any other processes that may have been waiting
 			 * on the lower stream.  These will all error out.
@@ -1375,9 +1565,11 @@ int flag;
 			return;
 		}
 		while (!putctl1(stp->sd_wrq->q_next, M_FLUSH, arg))
-			if (strwaitbuf(1, BPRI_HI, 1)) return;
+			if (strwaitbuf(1, BPRI_HI, 1))
+				return;
 
-		if (qready()) runqueues();
+		if (qready())
+			runqueues();
 		return;
 
 	case I_SRDOPT:
@@ -1388,20 +1580,23 @@ int flag;
 		 * RMSGN - message no discard
 		 * RMSGD - message discard
 		 */
+		s = splstr();
 		switch (arg) {
 		case RNORM: 
 			stp->sd_flag &= ~(RMSGDIS | RMSGNODIS);
-			return;
+			break;
 		case RMSGD:
 			stp->sd_flag = (stp->sd_flag & ~RMSGNODIS) | RMSGDIS;
-			return;
+			break;
 		case RMSGN:
 			stp->sd_flag = (stp->sd_flag & ~RMSGDIS) | RMSGNODIS;
-			return;
+			break;
 		default:
 			u.u_error = EINVAL;
-			return;
+			break;
 		}
+		splx(s);
+		return;
 
 
 	case I_GRDOPT:
@@ -1415,7 +1610,7 @@ int flag;
 			rdopt = ( (stp->sd_flag & RMSGDIS ? RMSGD :
 				  (stp->sd_flag & RMSGNODIS ? RMSGN : RNORM)) );
 
-			if (copyout(&rdopt, (int *)arg, sizeof(rdopt)))
+			if (ncopyout(&rdopt, (int *)arg, sizeof(rdopt), STRINT))
 				u.u_error = EFAULT;
 			return;
 		}
@@ -1430,13 +1625,14 @@ int flag;
 			struct strevent *sep, *psep;
 
 			psep = NULL;
-
-			for (sep = stp->sd_siglist; 
-			     sep && (sep->se_procp != u.u_procp);
-			     psep = sep, sep = sep->se_next);
+			s = splstr();
+			for (sep = stp->sd_siglist; sep &&
+			    (sep->se_procp != u.u_procp); psep = sep, sep = sep->se_next)
+				;
 
 			if (arg) {
 				if (arg & ~(S_INPUT|S_HIPRI|S_OUTPUT|S_MSG)) {
+					splx(s);
 					u.u_error = EINVAL;
 					return;
 				}
@@ -1446,11 +1642,14 @@ int flag;
 				 */
 				if (!sep) {
 					if (!(sep = sealloc(SE_SLEEP))) {
+						splx(s);
 						u.u_error = EAGAIN;
 						return;
 					}
-					if (psep) psep->se_next = sep;
-					else stp->sd_siglist = sep;
+					if (psep)
+						psep->se_next = sep;
+					else
+						stp->sd_siglist = sep;
 					sep->se_procp = u.u_procp;
 				}
 				/*
@@ -1458,14 +1657,17 @@ int flag;
 				 */
 				sep->se_events = arg;
 				stp->sd_sigflags |= arg;
+				splx(s);
 				return;
 			} 
 			/*
 			 * Remove proc from register list
 			 */
 			if (sep) {
-				if (psep) psep->se_next = sep->se_next;
-				else stp->sd_siglist = sep->se_next;
+				if (psep)
+					psep->se_next = sep->se_next;
+				else
+					stp->sd_siglist = sep->se_next;
 				sefree(sep);
 				/*
 				 * recalculate OR of sig events
@@ -1473,8 +1675,10 @@ int flag;
 				stp->sd_sigflags = 0;
 				for (sep = stp->sd_siglist; sep; sep = sep->se_next)
 					stp->sd_sigflags |= sep->se_events;
+				splx(s);
 				return;
 			}
+			splx(s);
 			u.u_error = EINVAL;
 			return;
 		}
@@ -1487,13 +1691,16 @@ int flag;
 		{
 			struct strevent *sep;
 
+			s = splstr();
 			for (sep = stp->sd_siglist; sep; sep = sep->se_next)
 				if (sep->se_procp == u.u_procp) {
-					if (copyout((caddr_t)&sep->se_events, 
-						         (int *)arg, sizeof(int)))
+					if (ncopyout((caddr_t)&sep->se_events, 
+						         (int *)arg, sizeof(int), STRINT))
 						u.u_error = EFAULT;
+					splx(s);
 					return;
 				};
+			splx(s);
 			u.u_error = EINVAL;
 			return;
 		}
@@ -1504,7 +1711,7 @@ int flag;
 			struct strpeek strpeek;
 			int save_ucnt, n;
 
-			if (copyin((caddr_t)arg, (caddr_t)&strpeek, sizeof(strpeek))) {
+			if (ncopyin((caddr_t)arg, (caddr_t)&strpeek, sizeof(strpeek), STRPEEK)) {
 				u.u_error = EFAULT;
 				return;
 			}
@@ -1532,7 +1739,7 @@ int flag;
 			u.u_base = strpeek.ctlbuf.buf;
 			u.u_count = strpeek.ctlbuf.maxlen;
 			u.u_segflg = 0;
-			while (bp && bp->b_datap->db_type!=M_DATA && u.u_count >= 0) {
+			while (bp && bp->b_datap->db_type!=M_DATA && (int)u.u_count >= 0) {
 				if (n = min(u.u_count, bp->b_wptr - bp->b_rptr))
 					iomove(bp->b_rptr, n, B_READ);
 				if (u.u_error)
@@ -1558,7 +1765,7 @@ int flag;
 
 			strpeek.ctlbuf.len = strpeek.ctlbuf.maxlen - save_ucnt;
 			strpeek.databuf.len = strpeek.databuf.maxlen - u.u_count;
-			if (copyout((caddr_t)&strpeek, (caddr_t)arg, sizeof(strpeek))) {
+			if (ncopyout((caddr_t)&strpeek, (caddr_t)arg, sizeof(strpeek), STRPEEK)) {
 				u.u_error = EFAULT;
 				return;
 			}
@@ -1582,8 +1789,8 @@ int flag;
 				u.u_error = ((stp->sd_flag&STPLEX) ? EINVAL : stp->sd_error);
 				return;
 			}
-			if (copyin((caddr_t)arg, (caddr_t)&strfdinsert, 
-							sizeof(strfdinsert))) {
+			if (ncopyin((caddr_t)arg, (caddr_t)&strfdinsert, 
+						sizeof(strfdinsert), STRFDINSERT)) {
 				u.u_error = EFAULT;
 				return;
 			}
@@ -1604,7 +1811,8 @@ int flag;
 			}
 
 			/* get read queue of stream terminus */
-			for (q = resstp->sd_wrq->q_next; q->q_next; q = q->q_next);
+			for (q = resstp->sd_wrq->q_next; q->q_next; q = q->q_next)
+				;
 			q = RD(q);
 	
 			if (strfdinsert.ctlbuf.len < 
@@ -1629,10 +1837,13 @@ int flag;
 			 */
 			rmin = stp->sd_wrq->q_next->q_minpsz;
 			rmax = stp->sd_wrq->q_next->q_maxpsz;
-			if (rmax == INFPSZ) rmax = strmsgsz;
-			else rmax = min(rmax, strmsgsz);
+			if (rmax == INFPSZ)
+				rmax = strmsgsz;
+			else
+				rmax = min(rmax, strmsgsz);
 			msgsize = strfdinsert.databuf.len;
-			if (msgsize < 0) msgsize = 0;
+			if (msgsize < 0)
+				msgsize = 0;
 			if ((msgsize<rmin) || (msgsize>rmax) ||
 			    (strfdinsert.ctlbuf.len>strctlsz)) {
 				u.u_error = ERANGE;
@@ -1664,7 +1875,8 @@ int flag;
 			 * Put message downstream
 			 */
 			(*stp->sd_wrq->q_next->q_qinfo->qi_putp)(stp->sd_wrq->q_next, mp);
-			if (qready()) runqueues();
+			if (qready())
+				runqueues();
 			return;
 		}
 
@@ -1679,12 +1891,14 @@ int flag;
 				u.u_error = ENXIO;
 				return;
 			}
-			for (qp = stp->sd_wrq; qp->q_next; qp = qp->q_next);
+			for (qp = stp->sd_wrq; qp->q_next; qp = qp->q_next)
+				;
 			if (qp->q_qinfo != &strdata) {
 				u.u_error = EINVAL;
 				return;
 			}
-		 	if (!(fp = getf(arg))) return;
+		 	if (!(fp = getf(arg)))
+				return;
 			if ((qp->q_flag & QFULL) || 
 			    !(mp = allocb(sizeof(struct strrecvfd), BPRI_MED))) {
 				u.u_error = EAGAIN;
@@ -1719,7 +1933,7 @@ int flag;
 					u.u_error = ENXIO;
 					return;
 				}
-				if (strwaitq(stp, READWAIT, flag)) {
+				if (strwaitq(stp, GETWAIT, flag)) {
 					splx(s);
 					return;
 				}
@@ -1738,7 +1952,7 @@ int flag;
 			}
 			u.u_ofile[i] = srf->f.fp;
 			srf->f.fd = i;
-			if (copyout((caddr_t)srf, (caddr_t)arg, sizeof(struct strrecvfd))) {
+			if (ncopyout((caddr_t)srf, (caddr_t)arg, sizeof(struct strrecvfd), STRRECVFD)) {
 				u.u_error = EFAULT;
 				srf->f.fp = u.u_ofile[i];
 				putbq(RD(stp->sd_wrq), mp);
@@ -1757,24 +1971,38 @@ int flag;
  * Send an ioctl message downstream and wait for acknowledgement
  */
 
-strdoioctl(stp, strioc, copyflg)
+strdoioctl(stp, strioc, copyflg, fmtp)
 struct stdata *stp;
 struct strioctl *strioc;
 int copyflg;
+char *fmtp;
 {
 	register mblk_t *bp;
 	register s;
 	struct iocblk *iocbp;
-	extern str2time(), str3time();
+	struct copyreq *reqp;
+	struct copyresp *resp;
+	mblk_t *fmtbp;
 	int id;
+	int transparent = 0;
+	int ret;
+	int len = 0;
+	caddr_t taddr;
+	extern str2time(), str3time();
+
+	if (strioc->ic_len == TRANSPARENT) {	/* send arg in M_DATA block */
+		transparent = 1;
+		strioc->ic_len = sizeof(int);
+	}
 	
 	if ((strioc->ic_len < 0) || (strioc->ic_len > strmsgsz)) {
 		u.u_error = EINVAL;
 		return;
 	}
 
-	while (!(bp = allocb(sizeof(struct iocblk), BPRI_HI))) 
-		if (strwaitbuf(sizeof(struct iocblk), BPRI_HI, 1)) return;
+	while (!(bp = allocb(max(sizeof(struct iocblk), sizeof(struct copyreq)), BPRI_HI))) 
+		if (strwaitbuf(sizeof(struct iocblk), BPRI_HI, 1))
+			return;
 
 	iocbp = (struct iocblk *)bp->b_wptr;
 	iocbp->ioc_count = strioc->ic_len;
@@ -1790,12 +2018,13 @@ int copyflg;
 	/*
 	 * If there is data to copy into ioctl block, do so
 	 */
-	if (iocbp->ioc_count && !putiocd(bp, strioc->ic_dp, copyflg)){
+	if (iocbp->ioc_count && !putiocd(bp, strioc->ic_dp, copyflg, SE_NOSLP, fmtp)){
 			freemsg(bp);
 			return;
 	}
 	s = splstr();
-
+	if (transparent)
+		iocbp->ioc_count = TRANSPARENT;
 
 	/*
 	 * Block for up to STRTIMOUT sec if there is a outstanding
@@ -1815,7 +2044,8 @@ int copyflg;
 				    !(stp->sd_flag & STR2TIME)) {
 			stp->sd_iocwait--;
 			u.u_error = (stp->sd_flag&STR2TIME ? EINTR : ETIME);
-			if (!stp->sd_iocwait) stp->sd_flag &= ~STR2TIME;
+			if (!stp->sd_iocwait)
+				stp->sd_flag &= ~STR2TIME;
 			splx(s);
 			untimeout(id);
 			freemsg(bp);
@@ -1824,7 +2054,8 @@ int copyflg;
 		stp->sd_iocwait--;
 		if (stp->sd_flag & (STRHUP|STRERR|STPLEX)) {
 			u.u_error = ((stp->sd_flag & STPLEX) ? EINVAL : stp->sd_error);
-			if (!stp->sd_iocwait) stp->sd_flag &= ~STR2TIME;
+			if (!stp->sd_iocwait)
+				stp->sd_flag &= ~STR2TIME;
 			splx(s);
 			untimeout(id);
 			freemsg(bp);
@@ -1832,7 +2063,8 @@ int copyflg;
 		}
 	}
 	untimeout(id);
-	if (!stp->sd_iocwait) stp->sd_flag &= ~STR2TIME;
+	if (!stp->sd_iocwait)
+		stp->sd_flag &= ~STR2TIME;
 
 	/*
 	 * Have control of ioctl mechanism.
@@ -1852,7 +2084,8 @@ int copyflg;
 
 	splx(s);
 	(*stp->sd_wrq->q_next->q_qinfo->qi_putp)(stp->sd_wrq->q_next, bp);
-	if (qready()) runqueues();
+	if (qready())
+		runqueues();
 
 
 	/*
@@ -1863,8 +2096,9 @@ int copyflg;
 	 * message arriving, the timer expiring, or the timer expiring 
 	 * on another ioctl waiting for control of the mechanism.
 	 */
+waitioc:
 	s = splstr();
-	if ( strioc->ic_timout >= 0)
+	if (!(stp->sd_flag & STR3TIME) && strioc->ic_timout >= 0)
 		id = timeout(str3time, stp, (strioc->ic_timout ? strioc->ic_timout: STRTIMOUT) * HZ);
 
 	stp->sd_flag |= STR3TIME;
@@ -1877,7 +2111,8 @@ int copyflg;
 		if (stp->sd_flag & (STRERR|STPLEX)) {
 			u.u_error = ((stp->sd_flag&STPLEX) ? EINVAL : stp->sd_error);
 			stp->sd_flag &= ~(STR3TIME|IOCWAIT);
-			if (strioc->ic_timout >= 0) untimeout(id);
+			if (strioc->ic_timout >= 0)
+				untimeout(id);
 			splx(s);
 			wakeup((caddr_t)&(stp->sd_iocwait));
 			return;
@@ -1887,12 +2122,35 @@ int copyflg;
 		    !(stp->sd_flag & STR3TIME))  {
 			u.u_error = ((stp->sd_flag&STR3TIME) ? EINTR : ETIME);
 			stp->sd_flag &= ~(STR3TIME|IOCWAIT);
+			bp = NULL;
+			/*
+			 * A message could have come in after we were scheduled
+			 * but before we were actually run.
+			 */
 			if (stp->sd_iocblk) {
-				freemsg(stp->sd_iocblk);
+				bp = stp->sd_iocblk;
 				stp->sd_iocblk = NULL;
 			}
-			if (strioc->ic_timout >= 0) untimeout(id);
+			if (strioc->ic_timout >= 0)
+				untimeout(id);
 			splx(s);
+			if (bp) {
+				if ((bp->b_datap->db_type == M_COPYIN) ||
+				    (bp->b_datap->db_type == M_COPYOUT)) {
+					if (bp->b_cont) {
+						freemsg(bp->b_cont);
+						bp->b_cont = NULL;
+					}
+					bp->b_datap->db_type = M_IOCDATA;
+					resp = (struct copyresp *)bp->b_rptr;
+					resp->cp_rval = (caddr_t)1;	/* failure */
+					(*stp->sd_wrq->q_next->q_qinfo->qi_putp)(stp->sd_wrq->q_next, bp);
+					if (qready())
+						runqueues();
+				} else {
+					freemsg(bp);
+				}
+			}
 			wakeup((caddr_t)&(stp->sd_iocwait));
 			return;
 		}
@@ -1900,22 +2158,27 @@ int copyflg;
 	ASSERT(stp->sd_iocblk);
 	bp = stp->sd_iocblk;
 	stp->sd_iocblk = NULL;
-	stp->sd_flag &= ~(STR3TIME|IOCWAIT);
-	if (strioc->ic_timout >= 0) untimeout(id);
-	splx(s);
-	wakeup((caddr_t)&(stp->sd_iocwait));
+	if (bp->b_datap->db_type == M_IOCACK || bp->b_datap->db_type == M_IOCNAK) {
+		stp->sd_flag &= ~(STR3TIME|IOCWAIT);
+		if (strioc->ic_timout >= 0)
+			untimeout(id);
+		splx(s);
+		wakeup((caddr_t)&(stp->sd_iocwait));
+	} else {
+		splx(s);
+	}
 
 
 	/*
 	 * Have recieved acknowlegment
 	 */
 
-	iocbp = (struct iocblk *)bp->b_rptr;
 	switch (bp->b_datap->db_type) {
 	case M_IOCACK:
 		/*
 		 * Positive ack
 		 */
+		iocbp = (struct iocblk *)bp->b_rptr;
 
 		/*
 		 * set error if indicated
@@ -1934,9 +2197,22 @@ int copyflg;
 		 * Data may have been returned in ACK message (ioc_count > 0).
 		 * If so, copy it out to the user's buffer.
 		 */
-		if (iocbp->ioc_count) 
-			if (!getiocd(bp, strioc->ic_dp)) break;
-		strioc->ic_len = iocbp->ioc_count;
+		if (iocbp->ioc_count && !transparent) {
+			if (strioc->ic_cmd == TCGETA || strioc->ic_cmd == TIOCGETP ||
+			    strioc->ic_cmd == LDGETT) {
+				if (!getiocd(bp, strioc->ic_dp, fmtp))
+					break;
+			} else {
+				if (!getiocd(bp, strioc->ic_dp, NULL))
+					break;
+			}
+		}
+		if (!transparent) {
+			if (len)		/* an M_COPYOUT was used with I_STR */
+				strioc->ic_len = len;
+			else
+				strioc->ic_len = iocbp->ioc_count;
+		}
 		break;
 
 	case M_IOCNAK:
@@ -1946,8 +2222,104 @@ int copyflg;
 		 * The only thing to do is set error as specified
 		 * in neg ack packet
 		 */
+		iocbp = (struct iocblk *)bp->b_rptr;
+
 		u.u_error = (iocbp->ioc_error ? iocbp->ioc_error : EINVAL);
 		break;
+
+	case M_COPYIN:
+		/*
+		 * driver or module has requested user ioctl data
+		 */
+		reqp = (struct copyreq *)bp->b_rptr;
+		fmtbp = bp->b_cont;
+		bp->b_cont = NULL;
+		if (reqp->cq_flag & RECOPY) {
+			/* redo I_STR copyin with canonical processing */
+			ASSERT(fmtbp);
+			reqp->cq_size = strioc->ic_len;
+			ret = putiocd(bp, strioc->ic_dp, copyflg, SE_SLEEP,
+					(fmtbp?fmtbp->b_rptr:NULL));
+			if (fmtbp)
+				freeb(fmtbp);
+		} else if (reqp->cq_flag & STRCANON) {
+			/* copyin with canonical processing */
+			ASSERT(fmtbp);
+			ret = putiocd(bp, reqp->cq_addr, U_TO_K, SE_SLEEP,
+					(fmtbp?fmtbp->b_rptr:NULL));
+			if (fmtbp)
+				freeb(fmtbp);
+		} else {
+			/* copyin raw data (i.e. no canonical processing) */
+			ret = putiocd(bp, reqp->cq_addr, U_TO_K, SE_SLEEP, NULL);
+		}
+		if (!ret && bp->b_cont) {
+			freemsg(bp->b_cont);
+			bp->b_cont = NULL;
+		}
+
+		bp->b_wptr = bp->b_rptr + sizeof(struct copyresp);
+		bp->b_datap->db_type = M_IOCDATA;
+		resp = (struct copyresp *)bp->b_rptr;
+		resp->cp_rval = (caddr_t)!ret;
+
+		(*stp->sd_wrq->q_next->q_qinfo->qi_putp)(stp->sd_wrq->q_next, bp);
+		if (qready())
+			runqueues();
+
+		if (!ret) {
+			u.u_error = EFAULT;
+			if (strioc->ic_timout >= 0)
+				untimeout(id);
+			return;
+		}
+
+		goto waitioc;
+
+	case M_COPYOUT:
+		/*
+		 * driver or module has ioctl data for a user
+		 */
+		reqp = (struct copyreq *)bp->b_rptr;
+		ASSERT(bp->b_cont);
+		if (transparent)
+			taddr = reqp->cq_addr;
+		else {
+			taddr = strioc->ic_dp;
+			len = reqp->cq_size;
+		}
+		if (reqp->cq_flag & STRCANON) {
+			/* copyout with canonical processing */
+			if (fmtbp = bp->b_cont) {
+				bp->b_cont = fmtbp->b_cont;
+				fmtbp->b_cont = NULL;
+			}
+			ret = getiocd(bp, taddr, (fmtbp?fmtbp->b_rptr:NULL));
+			if (fmtbp)
+				freeb(fmtbp);
+		} else {
+			/* copyout raw data (i.e. no canonical processing) */
+			ret = getiocd(bp, taddr, NULL);
+		}
+		freemsg(bp->b_cont);
+		bp->b_cont = NULL;
+
+		bp->b_wptr = bp->b_rptr + sizeof(struct copyresp);
+		bp->b_datap->db_type = M_IOCDATA;
+		resp = (struct copyresp *)bp->b_rptr;
+		resp->cp_rval = (caddr_t)!ret;
+
+		(*stp->sd_wrq->q_next->q_qinfo->qi_putp)(stp->sd_wrq->q_next, bp);
+		if (qready())
+			runqueues();
+
+		if (!ret) {
+			u.u_error = EFAULT;
+			if (strioc->ic_timout >= 0)
+				untimeout(id);
+			return;
+		}
+		goto waitioc;
 
 	default:
 		ASSERT(0);
@@ -1992,7 +2364,7 @@ register flag;
 		u.u_error = ((stp->sd_flag&STPLEX) ? EINVAL : stp->sd_error);
 		return(0);
 	}
-	if (copyin((int *)flag, (int *)&rflag, sizeof(int))) {
+	if (ncopyin((int *)flag, (int *)&rflag, sizeof(int), STRINT)) {
 		u.u_error = EFAULT;
 		return(0);
 	}
@@ -2009,12 +2381,12 @@ register flag;
 		 */
 		if (stp->sd_flag & STRHUP) {
 			mctl->len = mdata->len = 0;
-			if (copyout(&flg, (int *)flag, sizeof(int)))
+			if (ncopyout(&flg, (int *)flag, sizeof(int), STRINT))
 				u.u_error = EFAULT;
 			splx(s);
 			return(0);
 		} 
-		if (strwaitq(stp, READWAIT, u.u_fmode)) {
+		if (strwaitq(stp, GETWAIT, u.u_fmode)) {
 			splx(s);
 			return(0);
 		}
@@ -2027,12 +2399,14 @@ register flag;
 		return(0);
 	}
 
-	if (qready()) runqueues();
+	if (qready())
+		runqueues();
 
 	/*
 	 * Set HIPRI flag if message is priority.
 	 */
-	if (stp->sd_flag & STRPRI) flg |= RS_HIPRI;
+	if (stp->sd_flag & STRPRI)
+		flg |= RS_HIPRI;
 
 	/*
 	 * First process PROTO or PCPROTO blocks, if any.
@@ -2044,7 +2418,9 @@ register flag;
 			if ( (n = min(bcnt, bp->b_wptr - bp->b_rptr)) &&
 			     copyout(bp->b_rptr, ubuf, n) ) {
 				u.u_error = EFAULT;
+				s = splstr();
 				stp->sd_flag &= ~STRPRI;
+				splx(s);
 				more = 0;
 				freemsg(bp);
 				goto getmout;
@@ -2056,7 +2432,8 @@ register flag;
 				bp = bp->b_cont;
 				freeb(nbp);
 			}
-			if ((bcnt -= n) <= 0) break;
+			if ((bcnt -= n) <= 0)
+				break;
 		}
 		mctl->len = mctl->maxlen - bcnt;
 	} else
@@ -2086,7 +2463,9 @@ register flag;
 			if ( (n = min(bcnt, bp->b_wptr - bp->b_rptr)) &&
 			     copyout(bp->b_rptr, ubuf, n) ) {
 				u.u_error = EFAULT;
-				stp->sd_flag &= ~STIPRI;
+				s = splstr();
+				stp->sd_flag &= ~STRPRI;
+				splx(s);
 				more = 0;
 				freemsg(bp);
 				goto getmout;
@@ -2098,7 +2477,8 @@ register flag;
 				bp = bp->b_cont;
 				freeb(nbp);
 			}
-			if ((bcnt -= n) <= 0) break;
+			if ((bcnt -= n) <= 0)
+				break;
 		}
 		mdata->len = mdata->maxlen - bcnt;
 	} else
@@ -2114,10 +2494,13 @@ register flag;
 
 	if (savemp) 
 		putbq(RD(stp->sd_wrq), savemp);
-	else 
+	else {
+		s = splstr();
 		stp->sd_flag &= ~STRPRI;
+		splx(s);
+	}
 
-	if (copyout(&flg, (int *)flag, sizeof(int)))
+	if (ncopyout(&flg, (int *)flag, sizeof(int), STRINT))
 		u.u_error = EFAULT;
 
 	/*
@@ -2129,8 +2512,10 @@ getmout:
 		bp = getq(RD(stp->sd_wrq));
 		switch (*bp->b_rptr) {
 		case SIGPOLL:
+			s = splstr();
 			if (stp->sd_sigflags & S_MSG)
 				strsendsig(stp->sd_siglist, S_MSG);
+			splx(s);
 			break;
 
 		default:
@@ -2139,7 +2524,8 @@ getmout:
 			break;
 		}
 		freemsg(bp);
-		if (qready()) runqueues();
+		if (qready())
+			runqueues();
 	}
 	/*
 	 * If we have just received a high priority message and a
@@ -2149,10 +2535,12 @@ getmout:
 	 */
 	if (RD(stp->sd_wrq)->q_first && 
 	    !(stp->sd_flag & STRPRI) && (flg & RS_HIPRI)) {
+		s = splstr();
 		if (stp->sd_sigflags & S_INPUT) 
 			strsendsig(stp->sd_siglist, S_INPUT);
 		if (stp->sd_pollflags & POLLIN)
 			strwakepoll(stp, POLLIN);
+		splx(s);
 	}
 	return(more);
 }
@@ -2198,8 +2586,10 @@ register flag;
 	 */
 	rmin = stp->sd_wrq->q_next->q_minpsz;
 	rmax = stp->sd_wrq->q_next->q_maxpsz;
-	if (rmax == INFPSZ) rmax = strmsgsz;
-	else rmax = min(rmax, strmsgsz);
+	if (rmax == INFPSZ)
+		rmax = strmsgsz;
+	else
+		rmax = min(rmax, strmsgsz);
 	msgsize = mdata->len;
 	if (msgsize < 0) {
 		msgsize = 0;
@@ -2219,13 +2609,15 @@ register flag;
 	}
 	splx(s);
 
-	if (!(mp = strmakemsg(mctl, mdata, stp->sd_wroff, flag))) return;
+	if (!(mp = strmakemsg(mctl, mdata, stp->sd_wroff, flag)))
+		return;
 
 	/*
 	 * Put message downstream
 	 */
 	(*stp->sd_wrq->q_next->q_qinfo->qi_putp)(stp->sd_wrq->q_next, mp);
-	if (qready()) runqueues();
+	if (qready())
+		runqueues();
 }
 
 
@@ -2253,22 +2645,25 @@ short events;
 		return(POLLERR);
 	}
 
-	if (stp->sd_flag & STRHUP) retevents |= POLLHUP;
+	if (stp->sd_flag & STRHUP)
+		retevents |= POLLHUP;
 
 	for (tq = stp->sd_wrq->q_next; 
-	     tq->q_next && !tq->q_qinfo->qi_srvp;  tq = tq->q_next) ;
-	if ( (events & POLLOUT) &&
-	     !(tq->q_flag & QFULL) &&
-	     !(stp->sd_flag & STRHUP) )
+	     tq->q_next && !tq->q_qinfo->qi_srvp;  tq = tq->q_next);
+	if ((events & POLLOUT) && !(stp->sd_flag & STRHUP)) {
+		if (tq->q_flag & QFULL)
+			tq->q_flag |= QWANTW;	/* ensure backq svc proc runs */
+		else
 			retevents |= POLLOUT;
+	}
 
-	if ( (events & POLLIN) &&
+	if ((events & POLLIN) &&
 	     !(stp->sd_flag & STRPRI) &&
-	     RD(stp->sd_wrq)->q_first )
+	     RD(stp->sd_wrq)->q_first)
 			retevents |= POLLIN;
 
-	if ( (events & POLLPRI) &&
-	     (stp->sd_flag & STRPRI) )
+	if ((events & POLLPRI) &&
+	     (stp->sd_flag & STRPRI))
 			retevents |= POLLPRI;
 
 	ASSERT((retevents & (POLLPRI|POLLIN)) != (POLLPRI|POLLIN));
@@ -2335,7 +2730,8 @@ dev_t dev;
 	register s;
 	int sflg;
 
-	if (!(rq = allocq())) return(0);
+	if (!(rq = allocq()))
+		return(0);
 
 	sflg = 0;
 	s = splstr();
@@ -2380,7 +2776,8 @@ register queue_t *qp;
 	register queue_t *q, *prev = NULL;
 
 	if (clmode) {
-		if (qready()) runqueues();
+		if (qready())
+			runqueues();
 		s = splstr();
 		(*qp->q_qinfo->qi_qclose)(qp, (qp->q_next ? 0 : flag));
 		/*
@@ -2474,15 +2871,22 @@ struct stdata *stp;
  *  1 for success.
  */
 int
-putiocd(bp, arg, copymode)
+putiocd(bp, arg, copymode, flag, fmt)
 register mblk_t *bp;
 caddr_t arg;
 int copymode;
+int flag;
+char *fmt;
 {
 	register mblk_t *tmp;
 	register int count, n;
 
-	count = ((struct iocblk *)bp->b_rptr)->ioc_count;
+	if (bp->b_datap->db_type == M_IOCTL)
+		count = ((struct iocblk *)bp->b_rptr)->ioc_count;
+	else {
+		ASSERT(bp->b_datap->db_type == M_COPYIN);
+		count = ((struct copyreq *)bp->b_rptr)->cq_size;
+	}
 
 	/*
 	 * strdoioctl validates ioc_count, so if this assert fails it
@@ -2492,9 +2896,16 @@ int copymode;
 
 	while (count) {
 		n = min(MAXIOCBSZ,count);
-		if (!(tmp = allocb(n, BPRI_HI))) {
-			u.u_error = EAGAIN;
-			return(0);
+		if (flag == SE_SLEEP) {
+			while (!(tmp = allocb(n, BPRI_HI))) {
+				if (strwaitbuf(n, BPRI_HI, 1))
+					return(0);
+			}
+		} else {
+			if (!(tmp = allocb(n, BPRI_HI))) {
+				u.u_error = EAGAIN;
+				return(0);
+			}
 		}
 		switch (copymode) {
 			case K_TO_K:
@@ -2502,11 +2913,13 @@ int copymode;
 				break;
 
 			case U_TO_K:
-				if (copyin((char *)arg, tmp->b_wptr, n)) {
+				if (ncopyin((char *)arg, tmp->b_wptr, n, fmt)) {
 					freeb(tmp);
 					u.u_error = EFAULT;
 					return(0);
 				}
+				if (fmt && count > MAXIOCBSZ)
+					adjfmtp(&fmt, tmp, n);
 				break;
 
 			default:
@@ -2527,21 +2940,29 @@ int copymode;
  * copy ioctl data to user land.  Return 0 for failure, 1 for success.
  */
 int
-getiocd(bp, arg)
+getiocd(bp, arg, fmt)
 register mblk_t *bp;
 caddr_t arg;
+char *fmt;
 {
 	register int count,n;
 
-	count = ((struct iocblk *)bp->b_rptr)->ioc_count;
+	if (bp->b_datap->db_type == M_IOCACK)
+		count = ((struct iocblk *)bp->b_rptr)->ioc_count;
+	else {
+		ASSERT(bp->b_datap->db_type == M_COPYOUT);
+		count = ((struct copyreq *)bp->b_rptr)->cq_size;
+	}
 	ASSERT(count >= 0);
 
 	for(bp = bp->b_cont; bp && count; count -= n, bp = bp->b_cont ,arg += n) {
 		n = min(count, bp->b_wptr - bp->b_rptr);
-		if (copyout(bp->b_rptr, arg, n)) {
+		if (ncopyout(bp->b_rptr, arg, n, fmt)) {
 			u.u_error = EFAULT;
 			return(0);
 		}
+		if (fmt && bp->b_cont)
+			adjfmtp(&fmt, bp, n);
 	}
 	ASSERT(count==0);
 	return(1);
@@ -2633,7 +3054,8 @@ queue_t *
 getendq(q)
 register queue_t *q;
 {
-	while (q->q_next) q = q->q_next;
+	while (q->q_next)
+		q = q->q_next;
 	return(q);
 }
 
@@ -2650,6 +3072,7 @@ struct file *fpdown;
 struct linkblk *linkblkp;
 int cflag;
 {
+	register int s;
 	struct strioctl strioc;
 	struct stdata *stpdown;
 	queue_t *rq;
@@ -2659,7 +3082,7 @@ int cflag;
 	strioc.ic_len = sizeof(struct linkblk);
 	strioc.ic_dp = (char *) linkblkp;
 	
-	strdoioctl(stp, &strioc, K_TO_K);
+	strdoioctl(stp, &strioc, K_TO_K, STRLINK);
 
 	/*
 	 * If there was an error and this is not called via strclose, 
@@ -2668,15 +3091,19 @@ int cflag;
 	 */
 	if (u.u_error) {
 		if (cflag) {
-			printf("KERNEL: munlink: could not perform unlink ioctl, closing anyway\n");
+			cmn_err(CE_CONT, "KERNEL: munlink: could not perform unlink ioctl, closing anyway\n");
 			u.u_error = 0;	
+			s = splstr();
 			stp->sd_flag &= ~STRERR; /* allows strdoioctl() to work */
-		}
-		else return(-1);
+			splx(s);
+		} else
+			return(-1);
 	}
 
 	stpdown = fpdown->f_inode->i_sptr;
+	s = splstr();
 	stpdown->sd_flag &= ~STPLEX;
+	splx(s);
 	rq = RD(stpdown->sd_wrq);
 	setq(rq, &strdata, &stwdata);
 	rq->q_ptr = WR(rq)->q_ptr = (caddr_t)stpdown;
@@ -2720,9 +3147,10 @@ queue_t *rq;
 struct qinit *rinit, *winit;
 {
 	register queue_t  *wq;
+	register int s;
 
 	wq = WR(rq);
-
+	s = splstr();
 	rq->q_qinfo = rinit;
 	rq->q_hiwat = rinit->qi_minfo->mi_hiwat;
 	rq->q_lowat = rinit->qi_minfo->mi_lowat;
@@ -2733,6 +3161,7 @@ struct qinit *rinit, *winit;
 	wq->q_lowat = winit->qi_minfo->mi_lowat;
 	wq->q_minpsz = winit->qi_minfo->mi_minpsz;
 	wq->q_maxpsz = winit->qi_minfo->mi_maxpsz;
+	splx(s);
 }
 
 
@@ -2776,7 +3205,8 @@ long flag;
 		 * to allocate a message block for the ctl part.
 		 */
 		while (!(bp = allocb(count, pri))) 
-			if (strwaitbuf(count, pri, 1)) return(NULL);
+			if (strwaitbuf(count, pri, 1))
+				return(NULL);
 
 		bp->b_datap->db_type = msgtype;
 		if (copyin(base, bp->b_wptr, count)) {
@@ -2803,7 +3233,8 @@ long flag;
 
 getbp:
 			if (size < QBSIZE) {
-				if (bp = allocb(size, pri)) goto gotbp;
+				if (bp = allocb(size, pri))
+					goto gotbp;
 				if (strwaitbuf(size, pri, 1)) {
 					freemsg(mp);
 					return(NULL);
@@ -2813,9 +3244,12 @@ getbp:
 					class = NCLASS-1;
 					size = rbsize[class];
 				}
-				if (bp = allocb(rbsize[class], pri)) goto gotbp;
-				if (bp = allocb(rbsize[--class], pri)) goto gotbp;
-				if (bp = allocb(rbsize[--class], pri)) goto gotbp;
+				if (bp = allocb(rbsize[class], pri))
+					goto gotbp;
+				if (bp = allocb(rbsize[--class], pri))
+					goto gotbp;
+				if (bp = allocb(rbsize[--class], pri))
+					goto gotbp;
 				/*
 				 * Have strwaitbuf() call bufcall up to 3
 				 * times to mimic 3 allocb() tries above.
@@ -2862,8 +3296,10 @@ gotbp:
 strwaitbuf(size, pri, ncalls)
 int size, pri, ncalls;
 {
+	register int s;
 	extern setrun();
 
+	s = splstr();
 	if (!bufcall(size, pri, setrun, u.u_procp)) {
 		if (ncalls > 1) {
 			int i, class;
@@ -2878,6 +3314,7 @@ int size, pri, ncalls;
 				    setrun, u.u_procp))
 					goto bufpass;
 		}
+		splx(s);
 		u.u_error = ENOSR;
 		return(1);
 	}
@@ -2885,10 +3322,12 @@ int size, pri, ncalls;
 bufpass:
 	if (sleep((caddr_t)&(u.u_procp->p_flag), STOPRI|PCATCH)) {
 		strunbcall(size, pri, u.u_procp);
+		splx(s);
 		u.u_error = EINTR;
 		return(1);
 	}
 	strunbcall(size, pri, u.u_procp);
+	splx(s);
 	return(0);
 }
 
@@ -2911,7 +3350,10 @@ struct proc *p;
 	prvp = ( pri == BPRI_HI ? &dbp->dba_hip :
 		(pri == BPRI_LO ? &dbp->dba_lop : &dbp->dba_medp));
 	s = splstr();
-	if (!(sep = *prvp)) return;
+	if (!(sep = *prvp)) {
+		splx(s);
+		return;
+	}
 	while (sep) {
 		if ((sep->se_func == setrun) && (sep->se_arg == (long)p)) {
 			*prvp = sep->se_next;
@@ -2935,18 +3377,63 @@ register struct stdata *stp;
 int flag;
 int fmode;
 {
+	register int s;
 	int slpflg, slppri, errs;
 	caddr_t slpadr;
+	mblk_t *mp;
+	long    *rd_count;
+	extern strqbuf();
 
-	if (fmode&FNDELAY) {
-		if (!(flag & NOINTR)) u.u_error = EAGAIN;
+	if (fmode & FNDELAY) {
+		if (!(flag & NOINTR))
+			u.u_error = EAGAIN;
 		return(1);
 	}
-	if (flag & READWAIT) {
+	if ((flag & READWAIT) || (flag & GETWAIT)) {
 		slpflg = RSLEEP;
 		slpadr = (caddr_t)RD(stp->sd_wrq);
 		slppri = STIPRI;
 		errs = STRERR|STPLEX;
+
+		/* If any module downstream has requested read notification
+		 * by setting SNDMREAD flag using M_SETOPTS, send a message
+		 * down stream
+		 */
+		if ((flag & READWAIT) && (stp->sd_flag & SNDMREAD)) {
+			while ((mp = allocb(sizeof(long), BPRI_MED)) == NULL) {
+				s = splstr();
+				if (bufcall (sizeof(long), BPRI_MED, strqbuf, stp) == 0) {
+					splx(s);
+					u.u_error = EAGAIN;
+					return(1);
+				} else {
+					stp->sd_flag |= RDBUFWAIT;
+					if (sleep (slpadr, slppri| PCATCH)) {
+						if (stp->sd_flag & RDBUFWAIT) {
+							/* interrupted sleep */
+							stp->sd_flag &= ~RDBUFWAIT;
+							splx(s);
+							u.u_error = EINTR;
+							return (1);
+						}
+					}
+					splx(s);
+				}
+			}
+			mp->b_datap->db_type = M_READ;
+			rd_count = (long *)mp->b_wptr;
+			*rd_count = (long)u.u_count;
+			mp->b_wptr += sizeof(long);
+			/* send the number of bytes requested by the
+			 * read as the argument to M_READ
+			 */
+			putnext (stp->sd_wrq, mp);
+			/* if any data arrived due to inline processing
+			 * of putnext(), don't sleep.
+			 */
+			 if ( (RD(stp->sd_wrq))->q_first != NULL )
+				return (0);
+		}
 	} else {
 		slpflg = WSLEEP;
 		slpadr = (caddr_t)stp->sd_wrq;
@@ -2954,16 +3441,91 @@ int fmode;
 		errs = STRERR|STRHUP|STPLEX;
 	}
 	
+	s = splstr();
 	stp->sd_flag |= slpflg;
-	if (sleep(slpadr, slppri)) {
+	if (sleep(slpadr, slppri|PCATCH)) {
 		stp->sd_flag &= ~slpflg;
+		splx(s);
 		wakeup(slpadr);
-		if (!(flag & NOINTR)) u.u_error = EINTR;
+		if (!(flag & NOINTR))
+			u.u_error = EINTR;
 		return(1);
 	}
+	splx(s);
 	if (stp->sd_flag & errs) {
 		u.u_error = ((stp->sd_flag & STPLEX) ? EINVAL : stp->sd_error);
 		return(1);
 	}
 	return(0);
 }
+
+str2num(str)		/* string to number, updating pointer */
+register char **str;
+{
+	register int n;
+
+	n = 0;
+	for (; **str >= '0' && **str <= '9'; (*str)++)
+		n = 10 * n + **str - '0';
+	return(n);
+}
+
+adjfmtp(str, bp, bytes)    /* update canon format pointer with bytes worth of data */
+register char **str;
+register mblk_t *bp;
+int bytes;
+{
+	register caddr_t addr;
+	register caddr_t lim;
+	long num;
+
+	addr = (caddr_t)bp->b_rptr;
+	lim = addr + bytes;
+	while (addr < lim) {
+		switch (*(*str)++) {
+		case 's':			/* short */
+			addr = SALIGN(addr);
+			addr = SNEXT(addr);
+			break;
+		case 'i':			/* integer */
+			addr = IALIGN(addr);
+			addr = INEXT(addr);
+			break;
+		case 'l':			/* long */
+			addr = LALIGN(addr);
+			addr = LNEXT(addr);
+			break;
+		case 'b':			/* byte */
+			addr++;
+			break;
+		case 'c':			/* character */
+			num = str2num(str);
+			if (num = 0) {
+				while (*addr++)
+					;
+			} else
+				addr += num;
+			break;
+		case 0:
+			return;
+		default:
+			break;
+		}
+	}
+}
+
+strqbuf (stp)
+register struct stdata *stp;
+
+{
+	register int s;
+	 
+	if (stp->sd_flag & RDBUFWAIT) {
+		s = splstr();
+		stp->sd_flag &= ~RDBUFWAIT;
+		splx(s);
+		wakeup ((caddr_t)RD(stp->sd_wrq));
+	}
+	return;
+}
+

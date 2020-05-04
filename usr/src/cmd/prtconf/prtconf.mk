@@ -5,8 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)prtconf:prtconf.mk	1.5.1.1"
-#
+#ident	"@(#)prtconf:prtconf.mk	1.5.1.2"
 
 ROOT =
 INC = $(ROOT)/usr/include
@@ -15,23 +14,19 @@ LDFLAGS = -s
 INS = install
 FRC =
 
-all: prtconf
+all:	prtconf
 
-install: prtconf
-	install -n $(ROOT)/etc prtconf
+install: all
+	$(INS) -f $(ROOT)/etc prtconf
 
 prtconf:
-	$(CC) $(CFLAGS) prtconf.c -lld -o prtconf $(LDFLAGS) $(LDLIBS)
-
-clobber: clean
-	rm -f prtconf prtconf.o prtconf.lint
+	$(CC) $(CFLAGS) prtconf.c -o prtconf $(LDFLAGS) -lld -lxedt $(LDLIBS)
 
 clean:
+	rm -f prtconf.o 
 
-lint:	prtconf.lint
-
-prtconf.lint:	prtconf.c
-	lint -Uvax -I$(INC) prtconf.c > prtconf.lint
+clobber: clean
+	rm -f prtconf
 
 #
 # Header dependencies

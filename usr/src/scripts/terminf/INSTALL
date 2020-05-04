@@ -1,4 +1,4 @@
-#ident	"@(#)pkg.terminf:terminf/INSTALL	1.8"
+#ident	"@(#)pkg.terminf:terminf/INSTALL	1.11"
 #
 #	Save the mount point of the floppy & the package name.
 #
@@ -74,7 +74,11 @@ then
 	echo /usr/lib/libtermlib.a
 	echo
 	echo
-	echo "Please install the terminal files you wish from the 2nd diskette."
+	echo "The installation of the 1st diskette is now complete."
+	echo "When prompted, you may install /etc/termcap and"
+	echo "selected terminfo entries from the 2nd diskette."
+	echo
+	echo
 elif [ "`cat /install/install/ORDER`" = "2" ]
 then
 	#
@@ -87,6 +91,13 @@ then
 		echo "Please install the first diskette of this package."
 		exit 1
 	fi
+
+	cd ${INSPATH}
+	echo "The following files are being installed:"
+	find . -print | cpio -pduvm /
+	echo
+	echo
+	echo "Please install the terminfo entries you wish."
 
 	echo "Selective installation of the ${PKGNAME} database."
 	cd ${INSINS}

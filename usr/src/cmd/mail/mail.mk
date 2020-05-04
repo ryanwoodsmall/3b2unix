@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)mail:mail.mk	1.13"
+#ident	"@(#)mail:mail.mk	1.14"
 #
 #	mail make file
 #
@@ -55,10 +55,10 @@ ckdirs:
 		mkdir $(MAILDIR)/:saved; \
 		echo; \
 	fi
-	chmod 775 $(MAILDIR)
-	chgrp mail $(MAILDIR)
-	chmod 775 $(MAILDIR)/:saved
-	chgrp mail $(MAILDIR)/:saved
+	$(CH)chmod 775 $(MAILDIR)
+	$(CH)chgrp mail $(MAILDIR)
+	$(CH)chmod 775 $(MAILDIR)/:saved
+	$(CH)chgrp mail $(MAILDIR)/:saved
 
 install: ckdirs
 	$(MAKE) -f mail.mk INS="/etc/install -f"

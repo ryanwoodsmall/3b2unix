@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:boot/sys/param.h	10.1"
+#ident	"@(#)kern-port:boot/sys/param.h	10.1.1.1"
 /*
  * fundamental variables
  * don't change too often
@@ -203,6 +203,6 @@
 /*
  *  Interrupt stack size in STKENT units
  */
-#define ISTKSZ	200
+#define ISTKSZ	1000
 
 #define	MAXSUSE	255

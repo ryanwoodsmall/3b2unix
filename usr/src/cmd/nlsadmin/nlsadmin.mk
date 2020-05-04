@@ -5,14 +5,14 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)nlsadmin:nlsadmin.mk	1.5.1.2"
+#ident	"@(#)nlsadmin:nlsadmin.mk	1.5.1.3"
 
 ROOT =
 TESTDIR = .
 INSDIR = $(ROOT)/usr/bin
 INC = $(ROOT)/usr/include
 INS = :
-CFLAGS = -O -Du3b2 -Uu3b -Uvax -Updp11 -Uu3b15 -US4 -I$(INC)
+CFLAGS = -O -US4 -I$(INC)
 LDFLAGS = -s
 SOURCE = main.c util.c nlsadmin.h nlsaddr.c nstoa.c nlsstr.c
 OBJECTS = main.o util.o nstoa.o nlsaddr.o nlsstr.o

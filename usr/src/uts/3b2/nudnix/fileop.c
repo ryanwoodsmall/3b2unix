@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/fileop.c	10.17.5.13"
+#ident	"@(#)kern-port:nudnix/fileop.c	10.17.5.15"
 
 #include "sys/types.h"
 #include "sys/sema.h"
@@ -452,16 +452,16 @@ register struct inode *ip;
 			if (copyout (resp->rp_data,
 			  resp->rp_bufptr, resp->rp_count) < 0)
 				resp->rp_errno = EFAULT;
-		else
-			prele(ip);
+			else
+				prele(ip);
 		break;
 	}
 	case DUFSTATFS:
-		if (resp->rp_errno == 0
-		  && copyout(resp->rp_data, resp->rp_bufptr, resp->rp_count))
-			u.u_error = EFAULT;
-		else
-			prele(ip);
+		if (resp->rp_errno == 0)
+			if (copyout(resp->rp_data, resp->rp_bufptr, resp->rp_count))
+				u.u_error = EFAULT;
+			else
+				prele(ip);
 		break;
 	case DUGETDENTS:
 	{
@@ -500,7 +500,7 @@ register struct inode *ip;
 	case DUREAD:
 		dinfo.oreadch += (u.u_count - resp->rp_rval);	/* ch's read by outgoing read's */
 		if (ip->i_mntdev->m_rflags & MCACHE &&
-		    resp->rp_cache & CACHE_REENABLE) {
+		    resp->rp_cache & CACHE_ENABLE) {
 			DUPRINT1(DB_CACHE, "duread: cache reenabled\n");
 			sd->sd_stat |= SDCACHE;
 		}

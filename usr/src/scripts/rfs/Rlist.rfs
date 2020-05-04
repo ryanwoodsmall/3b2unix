@@ -60,4 +60,7 @@
 /usr/nserve/nserve
 /usr/nserve/rfuadmin
 /usr/nserve/rfudaemon
+/usr/nserve/rmount
+/usr/nserve/rumount
+/usr/nserve/rmnttry
 /usr/options/rfs.name

@@ -1,4 +1,4 @@
-#ident "@(#)lp:model/1640	1.2"
+#ident	"@(#)nlp:model/1640	1.5"
 # lp interface for DASI 1640 terminal
 #
 #	All output is passed through the /usr/bin/450 filter

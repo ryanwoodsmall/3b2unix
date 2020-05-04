@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:fs/s5/s5iget.c	10.9"
+#ident	"@(#)kern-port:fs/s5/s5iget.c	10.10"
 #include "sys/types.h"
 #include "sys/sysmacros.h"
 #include "sys/param.h"
@@ -90,6 +90,7 @@ register struct inode *ip;
 	s5ip->s5i_mode = dp->di_mode;
 	ip->i_ftype = dp->di_mode&IFMT;
 	s5ip->s5i_lastr = 0;
+	s5ip->s5i_gen = dp->di_gen ;
 	p1 = (char *)s5ip->s5i_addr;
 	p2 = (char *)dp->di_addr;
 	for (i = 0; i < NADDR; i++) {
@@ -141,6 +142,7 @@ register struct inode *ip;
 	ASSERT(ip->i_count == 1);
 
 	if (ip->i_nlink <= 0) {
+		s5ip->s5i_gen++ ;
 		s5itrunc(ip);
 		ip->i_flag |= IUPD|ICHG;
 		s5ifree(ip);
@@ -199,6 +201,7 @@ time_t *ta, *tm;
 	dp->di_uid = ip->i_uid;
 	dp->di_gid = ip->i_gid;
 	dp->di_size = ip->i_size;
+	dp->di_gen = s5ip->s5i_gen ;
 	p1 = (char *)dp->di_addr;
 	p2 = (char *)s5ip->s5i_addr;
 	if (ip->i_ftype == IFIFO) {

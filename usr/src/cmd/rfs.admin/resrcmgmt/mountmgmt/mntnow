@@ -1,4 +1,4 @@
-#ident	"@(#)rfs.admin:resrcmgmt/mountmgmt/mntnow	1.8"
+#ident	"@(#)rfs.admin:resrcmgmt/mountmgmt/mntnow	1.9"
 #menu# mount remote resources immediately (if RFS is running)
 
 #help# 	
@@ -125,6 +125,9 @@ do
 		'^[^ ]*$' 'The pathname must not contain a space.'		\
 		'^/.*$' 'You must specify a full pathname starting from /.'`
 
+		#remove special meaning of "." (just in case it exist)
+		path2=`echo $path | /bin/sed 's/\./\\\./g'`
+
 		if [ ! -d $path ]
 		then
 			echo "\n$path is not a directory in your file system.\n"
@@ -150,7 +153,7 @@ do
 		# Determine if the directory already exists.  If so, then print
 		# appropriate message and ask the user to input another directory.
 		/etc/mount >/usr/tmp/ismnt$$
-		/bin/grep "^$path " /usr/tmp/ismnt$$ >/dev/null 2>&1
+		/bin/grep "^$path2 " /usr/tmp/ismnt$$ >/dev/null 2>&1
 		if [ "$?" = "0" ]
 		then
 			echo "\n $path is already being used as a mount point."

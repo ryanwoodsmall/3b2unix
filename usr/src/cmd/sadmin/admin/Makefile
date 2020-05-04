@@ -5,15 +5,16 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)sadmin:admin/Makefile	2.12"
+#ident	"@(#)sadmin:admin/Makefile	2.12.1.1"
 #	Makefile for admin
-#	Generated Wed Nov 28 17:54:44 EST 1984 from skeleton makefile:
 #    @(#)SKELMakefile  2.3  /sccs/src/cmd/sadmin/admin/s.SKELMakefile
 
 ADMINHOME = $(ROOT)/usr/admin
 BIN = $(ROOT)/usr/bin
 
 CMDS = checkfsys makefsys mountfsys powerdown setup sysadm umountfsys 
+
+C_CMD = shade
 
 DIRECTORIES = menu menu/diagnostics menu/diskmgmt menu/filemgmt \
 menu/machinemgmt menu/packagemgmt menu/softwaremgmt menu/syssetup \
@@ -42,30 +43,31 @@ menu/usermgmt/moduser/chgloginid menu/usermgmt/moduser/chgpasswd \
 menu/usermgmt/moduser/chgshell profile.dot unixadmin 
 
 ALL: \
-		$(PARTS) passwd
+		$(PARTS) $(C_CMD) passwd
 
 passwd:	\
 		$(CMDS)
 	echo $(CMDS)  |  tr ' ' '\012'  | \
-	  sed 's;$$;::0:0:administration login:$(ADMINHOME):/bin/rsh;' \
+	  sed 's;.*;&::0:0:administration login:$(ADMINHOME):/usr/bin/&;' \
 >passwd
 
 install: \
-		$(PARTS) $(BIN) remove passwd
+		$(PARTS) $(BIN) $(C_CMD) remove passwd
 	: 'Must be run by root or the owner of /usr and $(BIN) (sys)'
 	@echo '\nThe following entries must be added to /etc/passwd:'
 	@cat passwd
 	@echo "\\nSee the "passwd" file in `pwd`\\n"
 	-umask 022;  if test ! -d $(ADMINHOME); then mkdir $(ADMINHOME); fi;  cd $(ADMINHOME)
 	for dir in $(DIRECTORIES); do if test ! -d $$dir; then mkdir $$dir; fi; done
-	cp unixadmin $(BIN)
-	chmod +x,u+w,go-w $(BIN)/unixadmin
-	echo $(CMDS)  |  tr ' ' '\012'  | \
-	  xargs -i -t ln -f $(BIN)/unixadmin $(BIN)/{}
-	rm -f $(BIN)/unixadmin
 	umask 022;  ls $(PARTS)  |  cpio -pd $(ADMINHOME)
 	cd $(ADMINHOME);  chmod u+xw,go-xw $(CMDS)
 	cd $(ADMINHOME);  ln -f profile.dot .profile
+	install -f $(BIN) shade
+	echo $(CMDS) | tr ' ' '\012' | \
+	  xargs -i -t ln -f $(BIN)/shade $(BIN)/{}
+
+$(C_CMD): 
+	$(CC) -s -o shade shade.c
 
 remove:
 	if test -d $(ADMINHOME); then cd $(ADMINHOME);  rm -f $(PARTS) .profile; \
@@ -81,7 +83,7 @@ $(BIN):
 	chmod 755 $(BIN)
 
 clean clobber:
-	rm -f passwd
+	rm -f passwd shade $(BIN)/shade
 
 partslist:
 	@echo Makefile SKELMakefile $(PARTS)  |  tr ' ' '\012'  |  sort

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/tic_main.c	1.7"
+#ident	"@(#)curses:screen/tic_main.c	1.8"
 /*********************************************************************
 *                         COPYRIGHT NOTICE                           *
 **********************************************************************
@@ -135,7 +135,7 @@ init()
 	extern char	*getenv();
 	char		*env = getenv("TERMINFO");
 
-	start_time = time(0);
+	start_time = time((long *) 0);
 
 	curr_line = 0;
 

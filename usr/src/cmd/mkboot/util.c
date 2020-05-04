@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mkboot-3b2:util.c	1.10"
+#ident	"@(#)mkboot-3b2:util.c	1.11"
 
 # include	<stdio.h>
 # include	"mkboot.h"
@@ -582,6 +582,7 @@ print_expression( expression )
 		break;
 	case 'C':
 	case 'D':
+	case 'S':
 	case 'M':
 		printf( "#%c", c );
 		if ( expression->nC[1] )

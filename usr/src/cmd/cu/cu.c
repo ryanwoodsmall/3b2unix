@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)cu:cu.c	2.20"
+#ident	"@(#)cu:cu.c	2.23"
 
 /********************************************************************
  *cu [-sspeed] [-lline] [-h] [-t] [-d] [-n] [-o|-e] telno | systemname
@@ -466,8 +466,18 @@ transmit()
 				if(_Cxc == _Tintr || _Cxc == _Tkill || _Cxc
 					 == _Tquit ||
 					    (Intrupt && _Cxc == '\0')) {
-					if(!(_Cxc == _Tkill) || Echok)
-						VERBOSE("\r\n","");
+					if(_Cxc == _Tkill) {
+						if(Echok)
+							VERBOSE("\r\n","");
+					}
+					else {
+					_Cxc = '\r';
+						if( w_char(Cn) == NO) {
+						 	VERBOSE(P_LINE_GONE,"");
+							return(IOERR);
+						}
+					id=0;
+					}
 					break;
 				}
 				if((p == b+1) && (_Cxc != _Terase) && (!id)) {
@@ -495,7 +505,7 @@ transmit()
 				if(Intrupt && _Cxc == '\0') {
 					CDEBUG(4,"got break in transmit\n\r","");
 					Intrupt = NO;
-					(void)ioctl(Cn, TCSBRK, 0);
+					(*genbrk)(Cn);
 					_flush();
 					break;
 				}
@@ -516,6 +526,7 @@ transmit()
 				}
 				if(_Cxc == '\n' || _Cxc == '\r' ||
 					_Cxc == _Teol || _Cxc == _Tkill) {
+					id=0;
 					Takeflag = NO;
 					break;
 				}
@@ -760,18 +771,23 @@ register char *cmd;
 		 * cat will wind up in the local file (arg[2])
 		 *
 		 * what we're doing is:
-		 *	stty -echo
-		 *	test -r arg1 && (echo '~'>:arg2; cat arg1; echo '~'>)
+		 *	stty -echo; \
+		 *	if test -r arg1
+		 *      then (echo '~'>:arg2; cat arg1; echo '~'>)
+		 *	else echo can't open: arg1
+		 *	fi; \
 		 *	stty echo
 		 *
 		 */
-		_w_str("stty -echo;test -r ");
+		_w_str("stty -echo;if test -r ");
 		_w_str(arg[1]);
-		_w_str("&&(echo '~>':");
+		_w_str("; then (echo '~>':");
 		_w_str(arg[2]);
 		_w_str(";cat ");
 		_w_str(arg[1]);
-		_w_str(";echo '~>');stty echo\n");
+		_w_str(";echo '~>'); else echo cant\\'t open: ");
+		_w_str(arg[1]);
+		_w_str("; fi;stty echo\n");
 		Takeflag = YES;
 		return;
 	}
@@ -867,7 +883,7 @@ register char *cmd;
 
 		/*  ~%b or ~%break  */
 	if(EQUALS(arg[0], "b") || EQUALS(arg[0], "break")) {
-		(void)ioctl(Cn, TCSBRK, 0);
+		(*genbrk)(Cn);
 		return;
 	}
 		/*  ~%d or ~%debug toggle  */

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/rmount.c	10.39.6.2"
+#ident	"@(#)kern-port:nudnix/rmount.c	10.39.6.3"
 /*
  *	remote mount stuff - provide remote access to a
  *	designated part of a file system structure.
@@ -482,7 +482,7 @@ rumount()
 	if (rsc (sd,bp,sizeof(struct request)-DATASIZE,&in_bp, (sndd_t)NULL)
 	    != SUCCESS) {
 		ASSERT(u.u_error != 0);
-		if (u.u_error == ENOLINK) {
+		if ((u.u_error == ENOLINK) || (u.u_error == ECOMM)) {
 			/* link is gone - let the unmount succeed */
 			DUPRINT1(DB_MNT_ADV,"rumount succeeds because link is gone\n");
 			u.u_error = 0;

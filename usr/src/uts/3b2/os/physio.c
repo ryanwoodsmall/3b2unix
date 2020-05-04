@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/physio.c	10.9"
+#ident	"@(#)kern-port:os/physio.c	10.12"
 #include "sys/types.h"
 #include "sys/param.h"
 #include "sys/psw.h"
@@ -128,25 +128,35 @@ register int	pg;
 physio(strat, bp, dev, rw)
 register struct buf *bp;
 int (*strat)();
-{	register int		count;
+{
+	register int		count;
+	register int		rcount;	/* RFS breaks to this amount */
 	register caddr_t	base;
 	register caddr_t	lbase;
 	char			*kseg();
 	register int		hpf;
+	register char		oldsegflg;
 
 	count = u.u_count;
 	base = u.u_base;
 	if (server()) {
-		if ((lbase = kseg(btoc(count))) == 0)
+srvloop:
+/*		rcount = (count < NPGPT*NBPP) ? count : NPGPT*NBPP;*/
+
+		rcount = (count < NBPS) ? count : NBPS;
+		if ((lbase = kseg(btoc(rcount))) == 0) {
+			u.u_error = ENOMEM;
 			return;
+		}
 		if (rw == B_WRITE) {
-			if (remio(base, lbase, count)) {
+			if (remio(base, lbase, rcount)) {
 				unkseg(lbase);
 				return;
 			}
-			u.u_segflg = 1;	/*you're now dealing with kernel space*/
 		}
 		u.u_base = lbase;
+		oldsegflg = u.u_segflg;
+		u.u_segflg = 1;	/*you're now dealing with kernel space*/
 	} else {
 		if (userdma(base, count, rw) == NULL) {
 			if (u.u_error == 0)
@@ -184,7 +194,7 @@ int (*strat)();
 	bp->b_proc = u.u_procp;
 	bp->b_dev = dev;
 	bp->b_un.b_addr = u.u_base;
-	bp->b_blkno = btod(u.u_offset);
+	bp->b_blkno = btodt(u.u_offset);
 	bp->b_bcount = u.u_count;
 
 	(*strat)(bp);
@@ -197,13 +207,15 @@ int (*strat)();
 	spl0();
 	if (server()) {
 		if (rw == B_READ) {
-			u.u_segflg = 0;
-			if (unremio(lbase, base, count))
+			u.u_segflg = oldsegflg;	
+			if (unremio(lbase, base, rcount))
 				printf("unremio failed: err=%d\n",u.u_error);
 		}
 		unkseg(lbase);
-	}
-	else
+		base += rcount;
+		if ((count -= rcount) > 0)
+			goto srvloop;
+	} else
 		undma(base, count, rw);
 	bp->b_flags &= ~(B_BUSY|B_PHYS);
 	if (hpf) {

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/termio.h	10.4"
+#ident	"@(#)kern-port:sys/termio.h	10.6"
 #define	NCC	8
 
 /* control characters */
@@ -146,18 +146,21 @@ struct termio {
 };
 #define	IOCTYPE	0xff00
 
-#define	TIOC	('T'<<8)
-#define	TCGETA	(TIOC|1)
-#define	TCSETA	(TIOC|2)
-#define	TCSETAW	(TIOC|3)
-#define	TCSETAF	(TIOC|4)
-#define	TCSBRK	(TIOC|5)
-#define	TCXONC	(TIOC|6)
-#define	TCFLSH	(TIOC|7)
+#define	TIOC		('T'<<8)
+#define	TCGETA		(TIOC|1)
+#define	TCSETA		(TIOC|2)
+#define	TCSETAW		(TIOC|3)
+#define	TCSETAF		(TIOC|4)
+#define	TCSBRK		(TIOC|5)
+#define	TCXONC		(TIOC|6)
+#define	TCFLSH		(TIOC|7)
 #ifdef u3b15
-#define TTYTYPE (TIOC|8)
+#define TTYTYPE 	(TIOC|8)
 #endif
-#define	TCDSET	(TIOC|32)
+#define	TIOCGWINSZ	(TIOC|104)
+#define	TIOCSWINSZ	(TIOC|103)
+
+#define	TCDSET		(TIOC|32)
 
 #define	LDIOC	('D'<<8)
 #define	LDOPEN	(LDIOC|0)

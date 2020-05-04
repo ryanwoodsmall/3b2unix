@@ -1,8 +1,8 @@
 #!/bin/sh
-#ident	"@(#)uucp:uudemon.cleanup	2.2"
+#ident	"@(#)uucp:uudemon.cleanup	2.4"
 #
 #	This demon cleans up uucp directories.
-#	It is started by /usr/lib/crontab;
+#	It is started by /usr/spool/cron/crontabs/root;
 #	it can be run daily, weekly, whatever depending on the system
 #	  uucp load.
 #	The log files get large so you may have to up the ulimit.
@@ -23,7 +23,7 @@ TMP=/tmp/uu$$
 #
 PUBDIR=/usr/spool/uucppublic
 SPOOL=/usr/spool/uucp
-LOCKS=/usr/spool/locks
+LOCKS=/usr/spool/locks	# needs a comment in parms.h on USRSPOOLOCKS
 XQTDIR=/usr/spool/uucp/.Xqtdir
 CORRUPT=/usr/spool/uucp/.Corrupt
 LOGDIR=/usr/spool/uucp/.Log
@@ -64,7 +64,22 @@ done
 > ${O_LOGS}-1
 for i in uucico uucp uux uuxqt
 do
+	if [ ! -d $LOGDIR/$i ]
+	then
+	      (echo "uudemon.cleanup: $LOGDIR/$i directory does not exist, remove if file"
+	       echo "uudemon.cleanup: making a directory $LOGDIR/$i"
+	      ) | mail $MAILTO
+		rm -f $LOGDIR/$i
+		mkdir $LOGDIR/$i
+		chmod 777 $LOGDIR/$i
+		continue
+	fi
 	cd $LOGDIR/$i
+	if [ "`pwd`" != "$LOGDIR/$i" ]
+	then
+	 	 (echo "uudemon.cleanup: unable to chdir to $LOGDIR/$i") | mail $MAILTO
+		continue
+	fi
 	for j in *
 	do
 		if [ "$j" = "*" ]
@@ -92,11 +107,24 @@ fi
 #  cleanup funny directories that may have been created in the spool areas
 for d in $SPOOL/[A-z]*
 do
-	if [ -z "`ls $d`" ]; then
+	if [ -f $d ]
+	then
+		# skip any regular files, like lockfiles
+		# and mail.log and so forth
 		continue
 	fi
-
+	if [ -z "`ls $d`" ]
+	then
+		# empty directory
+		continue
+	fi
 	cd $d
+	# we'd check that we were in the correct directory
+	if [ "`pwd`" != "$d" ]
+	then
+		(echo "uudemon.cleanup: unable to chdir to $d") | mail $MAILTO
+		continue
+	fi
 	for s in *
 	do
 		if [ "$s" = "*" ]
@@ -105,11 +133,12 @@ do
 		fi
 		if [ -d $s ]
 		then
+			# Remove subdirs of subdirs
 			rm -fr $s
 		fi
 	done
 
-#		if it is now empty, remove it.
+	# if it is now empty, remove it.
 	cd ..
 	rmdir $d
 done 2>&1 >/dev/null
@@ -127,7 +156,7 @@ fi
 #	Remove old files and directories
 #
 find $PUBDIR -type f -mtime +30 -exec rm -f {} \;
-find $PUBDIR/* -type d -exec rmdir {} \;
+find $PUBDIR/* -depth -type d -exec rmdir {} \;
 find $SEQDIR -mtime +30 -exec rm -f {} \;
 find $WORKDIR -mtime +1 -exec rm -f {} \;
 find $STATDIR -mtime +2 -exec rm -f {} \;
@@ -175,7 +204,7 @@ fi
 (echo "Subject: uucleanup ran; $SPOOL du"; du $SPOOL) | mail $MAILTO
 
 #
-#	Dispose of mail to uucp and nuucp
+#	Dispose of mail to uucpa and nuucp
 #
-rm -f $MAILDIR/uucp $MAILDIR/nuucp $TMP
+rm -f $MAILDIR/uucpa $MAILDIR/nuucp $TMP
 

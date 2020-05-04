@@ -5,16 +5,14 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)kern-port:io/lib.io.mk	10.7.1.1"
+#ident	"@(#)kern-port:io/lib.io.mk	10.7.1.3"
 ROOT =
 STRIP = strip
 INC = $(ROOT)/usr/include
 
 LIBNAME = ../lib.io
-DASHG =
 DASHO = -O
-PFLAGS= $(DASHG) -I$(INC)
-CFLAGS= $(DASHO) $(PFLAGS) -DINKERNEL $(MORECPP)
+CFLAGS= $(DASHO) -I$(INC) -DINKERNEL $(MORECPP)
 FRC =
 
 FILES =\
@@ -69,56 +67,60 @@ $(LIBNAME)(stream.o): stream.c \
 	$(INC)/sys/sysmacros.h \
 	$(INC)/sys/stropts.h \
 	$(INC)/sys/stream.h \
+	$(INC)/sys/strstat.h \
 	$(INC)/sys/conf.h \
 	$(INC)/sys/var.h \
-	$(INC)/sys/sema.h \
-	$(INC)/sys/csr.h \
+	$(INC)/sys/debug.h \
 	$(INC)/sys/inline.h \
+	$(INC)/sys/immu.h \
+	$(INC)/sys/tuneable.h \
+	$(INC)/sys/map.h \
+	$(INC)/sys/cmn_err.h \
 	$(FRC)
 
 $(LIBNAME)(tt1.o): tt1.c \
-	$(INC)/sys/conf.h \
-	$(INC)/sys/fs/s5dir.h \
-	$(INC)/sys/errno.h \
-	$(INC)/sys/file.h \
-	$(INC)/sys/immu.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/sbd.h \
 	$(INC)/sys/param.h \
 	$(INC)/sys/fs/s5param.h \
+	$(INC)/sys/immu.h \
+	$(INC)/sys/systm.h \
+	$(INC)/sys/region.h \
+	$(INC)/sys/proc.h \
+	$(INC)/sys/conf.h \
+	$(INC)/sys/fs/s5dir.h \
+	$(INC)/sys/signal.h \
 	$(INC)/sys/psw.h \
 	$(INC)/sys/pcb.h \
-	$(INC)/sys/proc.h \
-	$(INC)/sys/sbd.h \
-	$(INC)/sys/signal.h \
-	$(INC)/sys/sysinfo.h \
-	$(INC)/sys/systm.h \
-	$(INC)/sys/termio.h \
-	$(INC)/sys/tty.h \
-	$(INC)/sys/types.h \
 	$(INC)/sys/user.h \
-	$(INC)/sys/region.h \
+	$(INC)/sys/errno.h \
+	$(INC)/sys/file.h \
+	$(INC)/sys/tty.h \
+	$(INC)/sys/termio.h \
+	$(INC)/sys/sysinfo.h \
 	$(INC)/sys/inline.h \
 	$(FRC)
 
 $(LIBNAME)(tty.o): tty.c \
-	$(INC)/sys/conf.h \
-	$(INC)/sys/fs/s5dir.h \
-	$(INC)/sys/errno.h \
-	$(INC)/sys/file.h \
-	$(INC)/sys/immu.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/sbd.h \
 	$(INC)/sys/param.h \
 	$(INC)/sys/fs/s5param.h \
+	$(INC)/sys/immu.h \
+	$(INC)/sys/systm.h \
+	$(INC)/sys/region.h \
+	$(INC)/sys/proc.h \
+	$(INC)/sys/fs/s5dir.h \
+	$(INC)/sys/signal.h \
 	$(INC)/sys/psw.h \
 	$(INC)/sys/pcb.h \
-	$(INC)/sys/proc.h \
-	$(INC)/sys/sbd.h \
-	$(INC)/sys/signal.h \
-	$(INC)/sys/sysinfo.h \
-	$(INC)/sys/systm.h \
-	$(INC)/sys/termio.h \
-	$(INC)/sys/ttold.h \
-	$(INC)/sys/tty.h \
-	$(INC)/sys/types.h \
 	$(INC)/sys/user.h \
-	$(INC)/sys/region.h \
+	$(INC)/sys/errno.h \
+	$(INC)/sys/tty.h \
+	$(INC)/sys/ttold.h \
+	$(INC)/sys/file.h \
+	$(INC)/sys/conf.h \
+	$(INC)/sys/termio.h \
+	$(INC)/sys/sysinfo.h \
 	$(INC)/sys/inline.h \
 	$(FRC)

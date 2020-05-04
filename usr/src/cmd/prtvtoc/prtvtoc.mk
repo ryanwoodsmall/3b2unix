@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)prtvtoc:prtvtoc.mk	1.6.3.1"
+#ident	"@(#)prtvtoc:prtvtoc.mk	1.6.3.2"
 ROOT =
 INC = $(ROOT)/usr/include
 CFLAGS = -O -I$(INC)
@@ -16,10 +16,10 @@ FRC =
 all:	 prtvtoc
 
 install: all
-	$(INS) -n $(ROOT)/etc prtvtoc
+	$(INS) -f $(ROOT)/etc prtvtoc
 
 prtvtoc:
-	$(CC) $(CFLAGS) $(LDFLAGS) -o prtvtoc prtvtoc.c 
+	$(CC) $(CFLAGS) $(LDFLAGS) -o prtvtoc prtvtoc.c $(LDLIBS)
 
 clean:
 	-rm -f prtvtoc.o

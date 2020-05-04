@@ -5,16 +5,12 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)drvinstal:drvinstal.mk	1.5"
-########
-#
-#	drvinstall makefile for 3b2
-#
-########
+#ident	"@(#)drvinstal:drvinstal.mk	1.7"
 
 ROOT =
-INCRT = $(ROOT)/usr/include
-CFLAGS = -s -O -I$(INCRT)
+INC = $(ROOT)/usr/include
+CFLAGS =-O -I$(INC)
+LDFLAGS=-s
 INS = install
 FRC =
 
@@ -24,7 +20,7 @@ install: all
 		$(INS) -n $(ROOT)/etc drvinstall
 
 drvinstall:
-		$(CC) $(CFLAGS) -o drvinstall drvinstal.c $(LDLIBS)
+		$(CC) $(CFLAGS) -o drvinstall drvinstal.c $(LDFLAGS) $(LDLIBS)
 
 clean:
 
@@ -38,12 +34,12 @@ FRC:
 #
 
 drvinstall: drvinstal.c \
-	$(INCRT)/ctype.h \
-	$(INCRT)/fcntl.h \
-	$(INCRT)/filehdr.h \
-	$(INCRT)/stdio.h \
-	$(INCRT)/sys/dir.h \
-	$(INCRT)/sys/param.h \
-	$(INCRT)/sys/stat.h \
-	$(INCRT)/sys/types.h \
+	$(INC)/ctype.h \
+	$(INC)/fcntl.h \
+	$(INC)/filehdr.h \
+	$(INC)/stdio.h \
+	$(INC)/sys/dir.h \
+	$(INC)/sys/param.h \
+	$(INC)/sys/stat.h \
+	$(INC)/sys/types.h \
 	$(FRC)

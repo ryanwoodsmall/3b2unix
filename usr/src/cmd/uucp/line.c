@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:line.c	2.7"
+#ident	"@(#)uucp:line.c	2.8.1.1"
 
 #include "uucp.h"
 
@@ -72,7 +72,7 @@ int	tty, spwant, type;
 				speed = ps->sp_name;
 				break;
 			}
-		ASSERT(speed >= 0, "BAD SPEED", "", speed);
+		ASSERT(speed >= 0, "BAD SPEED", "", spwant);
 		ttbuf.c_cflag = speed;
 	} else
 		ttbuf.c_cflag &= CBAUD;
@@ -109,7 +109,7 @@ int	dcf;
 	}
 }
 
-genbrk(fn)
+ttygenbrk(fn)
 register int	fn;
 {
 	if (isatty(fn)) 
@@ -186,7 +186,7 @@ int tty, spwant;
 		if (ps->sp_val == spwant)
 			speed = ps->sp_name;
 	DEBUG(4, "sytfixline - speed= %d\n", speed);
-	ASSERT(speed >= 0, "BAD SPEED", "", speed);
+	ASSERT(speed >= 0, "BAD SPEED", "", spwant);
 	ttbuf.c_iflag = (ushort)0;
 	ttbuf.c_oflag = (ushort)0;
 	ttbuf.c_lflag = (ushort)0;
@@ -256,7 +256,7 @@ int tty, spwant, type;
 				speed = ps->sp_name;
 				break;
 			}
-		ASSERT(speed >= 0, "BAD SPEED", "", speed);
+		ASSERT(speed >= 0, "BAD SPEED", "", spwant);
 		ttbuf.sg_ispeed = ttbuf.sg_ospeed = speed;
 	} else {
 		for (ps = spds; ps->sp_val; ps++)
@@ -264,7 +264,7 @@ int tty, spwant, type;
 				spwant = ps->sp_val;
 				break;
 			}
-		ASSERT(spwant >= 0, "BAD SPEED", "", spwant);
+		ASSERT(spwant >= 0, "BAD SPEED", "", ttbuf.sg_ispeed);
 	}
 	ttbuf.sg_flags = (ANYP | RAW);
 	(void) (*Ioctl)(tty, TIOCSETP, &ttbuf);
@@ -287,7 +287,7 @@ int	dcf;
  *	return codes;  none
  */
 
-genbrk(fn)
+ttygenbrk(fn)
 {
 	if (isatty(fn)) {
 		(void) (*Ioctl)(fn, TIOCSBRK, 0);

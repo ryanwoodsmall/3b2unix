@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/endwin.c	1.7.1.13"
+#ident	"@(#)curses:screen/endwin.c	1.10"
 
 /* Clean things up before exiting. */
 
@@ -50,6 +50,10 @@ endwin()
 	tputs(keypad_local, 1, _outch);
     if (cur_term->_cursorstate != 1)
 	tputs(cursor_normal, 0, _outch);
+
+    /* don't bother turning off colors: it will be done later anyway */
+    curscr->_attrs &= ~A_COLOR;		/* SS: colors */
+
     if ((curscr->_attrs != A_NORMAL) && (magic_cookie_glitch < 0) && (!ceol_standout_glitch))
 	_VIDS(A_NORMAL, curscr->_attrs);
 
@@ -65,6 +69,13 @@ endwin()
     curscr->_clear = TRUE;
     reset_shell_mode();
     tputs(exit_ca_mode, 0, _outch);
+
+    /* restore colors and default color pair. SS: colors	*/
+    if (orig_colors)
+	tputs(orig_colors, 1, _outch);
+    if (orig_pair)
+        tputs(tparm (orig_pair), 1, _outch);
+
     (void) fflush(SP->term_file);
     return (OK);
 }

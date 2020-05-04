@@ -10,6 +10,7 @@ install	d--755	5 3
 	postinstall	---555	5 3	./install/bnu/postinstall
 	preinstall	---555	5 3	./install/bnu/preinstall
 	unsetup		---555	5 3	./install/bnu/unsetup
+	update.Dialers	---555	5 3	./install/bnu/update.Dialers
 $
 new	d--755	5 3
 	usr	d--775	0 3
@@ -45,15 +46,15 @@ new	d--755	5 3
 			$
 		$
 		bin	d--775	2 2
-			ct	-u-111	0 3	../usr/bin/ct
-			cu	-u-111	5 3	../usr/bin/cu
-			uucp	-u-111	5 3	../usr/bin/uucp
-			uulog	---555	5 3	../usr/bin/uulog
-			uuname	-u-111	5 3	../usr/bin/uuname
-			uupick	---555	5 3	../usr/bin/uupick
-			uustat	-u-111	5 3	../usr/bin/uustat
-			uuto	---555	5 3	../usr/bin/uuto
-			uux	-u-111	5 3	../usr/bin/uux
+			ct	-u-111	0 5	../usr/bin/ct
+			cu	-u-111	5 5	../usr/bin/cu
+			uucp	-u-111	5 5	../usr/bin/uucp
+			uulog	---555	5 5	../usr/bin/uulog
+			uuname	-u-111	5 5	../usr/bin/uuname
+			uupick	---555	5 5	../usr/bin/uupick
+			uustat	-u-111	5 5	../usr/bin/uustat
+			uuto	---555	5 5	../usr/bin/uuto
+			uux	-u-111	5 5	../usr/bin/uux
 		$
 		options	d--775	0 3
 			uucp.name	---755	0 3	./install/bnu/packagename

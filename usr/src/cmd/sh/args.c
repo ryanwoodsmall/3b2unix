@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sh:args.c	1.10"
+#ident	"@(#)sh:args.c	1.10.1.2"
 
 /*
  *	UNIX shell

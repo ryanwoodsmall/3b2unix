@@ -1,4 +1,4 @@
-#ident	"@(#)curses:screen/caps	1.17"
+#ident	"@(#)curses:screen/caps	1.24"
 # Be sure to add new capabilties at the END of the appropriate section!
 --- begin bool
 auto_left_margin,	"bw"	"bw"	cub1 wraps from column 0 to last column
@@ -28,6 +28,19 @@ hard_cursor,		"chts"	"HC"	Cursor is hard to see.
 non_rev_rmcup,		"nrrmc"	"NR"	Smcup does not reverse rmcup.
 no_pad_char,		"npc"	"NP"	Pad character doesn't exist.
 non_dest_scroll_region,	"ndscr"	"ND"	Scrolling region is non-destructive.
+can_change,		"ccc"	"cc"	Can re-define existing color
+back_color_erase,	"bce"	"ut"	Erases screen with current background
+hue_lightness_saturation,	"hls"	"hl"	HLS color notation is used (Tek)
+#
+# printer specific
+#
+col_addr_glitch,	"xhpa"	"YA"	Only positive motion for hpa/mhpa caps
+cr_cancels_micro_mode,	"crxm"	"YB"	Using cr turns off micro mode
+has_print_wheel,	"daisy"	"YC"	Printer needs operator to change character set
+row_addr_glitch,	"xvpa"	"YD"	Only positive motion for vpa/mvpa caps
+semi_auto_right_margin,	"sam"	"YE"	Printing in last column causes cr
+cpi_changes_res,	"cpix"	"YF"	Changing char. pitch changes resolution
+lpi_changes_res,	"lpix"	"YG"	Changing line pitch changes resolution
 # Add new Booleans before this line.
 --- end bool
 
@@ -48,6 +61,26 @@ max_attributes,		"ma"	"ma"	max combined video attributes terminal can display
 #
 #
 maximum_windows,	"wnum"	"MW"	Maximum number of defineable windows
+max_colors,		"colors"	"Co"	max # of color on the screen
+max_pairs,		"pairs"	"pa"	max # of color pairs on the screen
+no_color_video,		"ncv"	"NC"	Video attributes that cannot be used with colors
+#
+# printer specific
+#
+buffer_capacity,	"bufsz"	"Ya"	Number of bytes buffered before printing
+dot_vert_spacing,	"spinv"	"Yb"	Spacing of pins vertically in pins per inch
+dot_horz_spacing,	"spinh"	"Yc"	Spacing of dots horizontally in dots per inch
+max_micro_address,	"maddr"	"Yd"	Maximum value in micro_..._address
+max_micro_jump,		"mjump"	"Ye"	Maximum value in parm_..._micro
+micro_char_size,	"mcs"	"Yf"	Character step size when in micro mode
+micro_line_size,	"mls"	"Yg"	Line step size when in micro mode
+number_of_pins,		"npins"	"Yh"	Number of pins in print-head
+output_res_char,	"orc"	"Yi"	Horizontal resolution in units per character
+output_res_line,	"orl"	"Yj"	Vertical resolution in units per line
+output_res_horz_inch,	"orhi"	"Yk"	Horizontal resolution in units per inch
+output_res_vert_inch,	"orvi"	"Yl"	Vertical resolution in units per inch
+print_rate,		"cps"	"Ym"	Print rate in characters per second
+wide_char_size,		"widcs"	"Yn"	Character step size when in double wide mode
 # Add new numbers before this line.
 --- end num
 
@@ -352,5 +385,66 @@ user6,			"u6"	"u6"	User string 6
 user7,			"u7"	"u7"	User string 7
 user8,			"u8"	"u8"	User string 8
 user9,			"u9"	"u9"	User string 9
+orig_pair,		"op"	"op"	Original color-pair
+orig_colors,		"oc"	"oc"	Original colors
+initialize_color,	"initc"	"Ic"	Initialize the definition of color
+initialize_pair,	"initp"	"Ip"	Initialize color pair
+set_color_pair,		"scp"	"sp"	Set color pair	
+set_foreground,		"setf"	"Sf"	Set foregrounf color
+set_background,		"setb"	"Sb"	Set background color
+#
+# printer specific
+#
+change_char_pitch,	"cpi"	"ZA"	Change no. characters per inch
+change_line_pitch,	"lpi"	"ZB"	Change no. lines per inch
+change_res_horz,	"chr"	"ZC"	Change horizontal resolution
+change_res_vert,	"cvr"	"ZD"	Change vertical resolution
+define_char,		"defc"	"ZE"	Define a character in a character set
+enter_doublewide_mode,	"swidm"	"ZF"	Enable double wide printing
+enter_draft_quality,	"sdrfq"	"ZG"	Set draft quality print
+enter_italics_mode,	"sitm"	"ZH"	Enable italics
+enter_leftward_mode,	"slm"	"ZI"	Enable leftward carriage motion
+enter_micro_mode,	"smicm"	"ZJ"	Enable micro motion capabilities
+enter_near_letter_quality,	"snlq"	"ZK"	Set near-letter quality print
+enter_normal_quality,	"snrmq"	"ZL"	Set normal quality print
+enter_shadow_mode,	"sshm"	"ZM"	Enable shadow printing
+enter_subscript_mode,	"ssubm"	"ZN"	Enable subscript printing
+enter_superscript_mode,	"ssupm"	"ZO"	Enable superscript printing
+enter_upward_mode,	"sum"	"ZP"	Enable upward carriage motion
+exit_doublewide_mode,	"rwidm"	"ZQ"	Disable double wide printing
+exit_italics_mode,	"ritm"	"ZR"	Disable italics
+exit_leftward_mode,	"rlm"	"ZS"	Enable rightward (normal) carriage motion
+exit_micro_mode,	"rmicm"	"ZT"	Disable micro motion capabilities
+exit_shadow_mode,	"rshm"	"ZU"	Disable shadow printing
+exit_subscript_mode,	"rsubm"	"ZV"	Disable subscript printing
+exit_superscript_mode,	"rsupm"	"ZW"	Disable superscript printing
+exit_upward_mode,	"rum"	"ZX"	Enable downward (normal) carriage motion
+micro_column_address,	"mhpa"	"ZY"	Like column_address for micro adjustment
+micro_down,		"mcud1"	"ZZ"	Like cursor_down for micro adjustment
+micro_left,		"mcub1"	"Za"	Like cursor_left for micro adjustment
+micro_right,		"mcuf1"	"Zb"	Like cursor_right for micro adjustment
+micro_row_address,	"mvpa"	"Zc"	Like row_address for micro adjustment
+micro_up,		"mcuu1"	"Zd"	Like cursor_up for micro adjustment
+order_of_pins,		"porder"	"Ze"	Matches software bits to print-head pins
+parm_down_micro,	"mcud"	"Zf"	Like parm_down_cursor for micro adjust.
+parm_left_micro,	"mcub"	"Zg"	Like parm_left_cursor for micro adjust.
+parm_right_micro,	"mcuf"	"Zh"	Like parm_right_cursor for micro adjust.
+parm_up_micro,		"mcuu"	"Zi"	Like parm_up_cursor for micro adjust.
+select_char_set,	"scs"	"Zj"	Select character set
+set_bottom_margin,	"smgb"	"Zk"	Set soft bottom margin at current line
+set_bottom_margin_parm,	"smgbp"	"Zl"	Set soft bottom margin
+set_left_margin_parm,	"smglp"	"Zm"	Set soft left margin
+set_right_margin_parm,	"smgrp"	"Zn"	Set soft right margin
+set_top_margin,		"smgt"	"Zo"	Set soft top margin at current line
+set_top_margin_parm,	"smgtp"	"Zp"	Set soft top margin
+start_bit_image,	"sbim"	"Zq"	Start printing bit image graphics
+start_char_set_def,	"scsd"	"Zr"	Start definition of a character set
+stop_bit_image,		"rbim"	"Zs"	End printing bit image graphics
+stop_char_set_def,	"rcsd"	"Zt"	End definition of a character set
+subscript_characters,	"subcs"	"Zu"	List of ``subscript-able'' characters
+superscript_characters,	"supcs"	"Zv"	List of ``superscript-able'' characters
+these_cause_cr,		"docr"	"Zw"	Printing any of these chars causes cr
+zero_motion,		"zerom"	"Zx"	No motion for the subsequent character
+char_set_names,		"csnm"	"Zy"	List of character set names
 # Add new strings before this line.
 --- end str

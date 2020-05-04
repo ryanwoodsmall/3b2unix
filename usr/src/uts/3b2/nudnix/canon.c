@@ -5,31 +5,11 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/canon.c	10.5"
+#ident	"@(#)kern-port:nudnix/canon.c	10.4.1.4"
 
 #include "sys/types.h"
 #include "sys/param.h"
-
-#ifdef	pdp11
-#define	SALIGN(p)		(char *)(((int)p+1) & ~1)
-#define	IALIGN(p)		(char *)(((int)p+1) & ~1)
-#define LALIGN(p)		(char *)(((int)p+1) & ~3)
-#endif
-#ifdef	vax
-#define	SALIGN(p)		(char *)(((int)p+1) & ~1)
-#define	IALIGN(p)		(char *)(((int)p+3) & ~3)
-#define	LALIGN(p)		(char *)(((int)p+3) & ~3)
-#endif
-#ifdef	u3b2
-#define	SALIGN(p)		(char *)(((int)p+1) & ~1)
-#define	IALIGN(p)		(char *)(((int)p+3) & ~3)
-#define	LALIGN(p)		(char *)(((int)p+3) & ~3)
-#endif
-
-#define SNEXT(p)		(char *)((int)p + sizeof (short))
-#define INEXT(p)		(char *)((int)p + sizeof (int))
-#define LNEXT(p)		(char *)((int)p + sizeof (long))
-
+#include "sys/sysmacros.h"
 
 /*
  *convert from canonical to local representation
@@ -89,12 +69,11 @@ register char *fmt, *from, *to;
 			fmt = lfmt;
 			if(ltmp == 0) {
 				ltmp = *(long *)from;
-				*from++ = hibyte(hiword(ltmp));
-				*from++ = lobyte(hiword(ltmp));
-				*from++ = hibyte(loword(ltmp));
-				*from++ = lobyte(loword(ltmp));
-				from -= 4;
-				ltmp = *(long *)from;
+				cptr = (char *)&ltmp;
+				*cptr++ = hibyte(hiword(*from));
+				*cptr++ = lobyte(hiword(*from));
+				*cptr++ = hibyte(loword(*from));
+				*cptr++ = lobyte(loword(*from));
 			}
 			from = LNEXT(from);	
 			while(ltmp--)
@@ -189,14 +168,26 @@ register char *fmt, *from, *to;
 	return(to - tptr);
 }
 
+/* takes a numeric char, yields an int */
+#define	CTOI(c)		((c) & 0xf)
+/* takes an int, yields an int */
+#define TEN_TIMES(n)	(((n) << 3) + ((n) << 1))
+
+/* Returns the integer value of the string of decimal numeric
+ * chars beginning at **str.
+ * Note: updates *str to point at the last character examined.
+ */
 int
 duatoi(str)
-register char **str;
+register char	**str;
 {
-	register short i, n;
+	register char	*p = *str;
+	register int	n;
+	register int	c;
 
-	n = 0;
-	for( ; **str >= '0' && **str <= '9'; ++(*str))
-		n = 10 * n + **str - '0';
+	for (n = 0; (c = *p) >= '0' && c <= '9'; ++p){
+		n = TEN_TIMES(n) + CTOI(c);
+	}
+	*str = p;
 	return(n);
 }

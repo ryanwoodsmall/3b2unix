@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/infocmp.c	1.11.1.1"
+#ident	"@(#)curses:screen/infocmp.c	1.12"
 /*
     NAME
 	infocmp - compare terminfo descriptions, or dump a terminfo

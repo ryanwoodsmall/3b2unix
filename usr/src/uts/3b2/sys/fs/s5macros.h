@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/fs/s5macros.h	10.1"
+#ident	"@(#)kern-port:sys/fs/s5macros.h	10.2"
 
 #if FsTYPE==1
 
@@ -59,4 +59,21 @@
 	((unsigned)(x)+31)&017 : ((unsigned)(x)+15)&07)
 #define FsINOS(bsize, x)	(FsLRG(bsize) ? \
 	(((x)&~017)+1) : (((x)&~07)+1))
+#endif
+
+/* 2k fs macros */
+
+#if FsTYPE==4
+#define FsBSIZE(bsize)	BSIZE
+#define FsBSHIFT(bsize)	BSHIFT
+#define FsNINDIR(bsize)	NINDIR
+#define FsBMASK(bsize)	BMASK
+#define FsINOPB(bsize)	INOPB
+#define FsLTOP(bsize, b)	((b)<<2)
+#define FsPTOL(bsize, b)	((b)>>2)
+#define FsNMASK(bsize)	NMASK
+#define FsNSHIFT(bsize)	NSHIFT
+#define FsITOD(bsize, x)	(daddr_t)(((unsigned)(x)+(2*INOPB-1)) >> INOSHIFT)
+#define FsITOO(bsize, x)	(daddr_t)(((unsigned)(x)+(2*INOPB-1)) & (INOPB-1))
+#define FsINOS(bsize, x)	(((x)&~037)+1)
 #endif

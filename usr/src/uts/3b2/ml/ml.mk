@@ -5,13 +5,13 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)kern-port:ml/ml.mk	10.6.1.1"
+#ident	"@(#)kern-port:ml/ml.mk	10.6.1.2"
 
 
 ROOT =
 INC=$(ROOT)/usr/include
-DASHG =
-CFLAGS= $(DASHO) $(DASHG) -I$(INC) -DINKERNEL $(MORECPP)
+DASHO = -O
+CFLAGS= $(DASHO) -I$(INC) -DINKERNEL $(MORECPP)
 FRC =
 
 SFILES = ttrap.s cswitch.s misc.s 
@@ -28,7 +28,7 @@ all:	../locore.o ../start.o ../gate.o
 			-e '/^?/d' > $$$$.c && \
 		$(CC) -P $(MORECPP) $$$$.c && \
 		mv $$$$.i locore.s && \
-	$(CC) $(DASHG) -c locore.s && \
+	$(CC) $(DASHO) -c locore.s && \
 	$(LD) -r -o ../locore.o locore.o kpcbs.o && \
 	rm -f locore.o locore.s $$$$.c
 
@@ -54,7 +54,7 @@ uprt.o:uprt.s $(FRC)
 			-e '/^?/d' > $$$$.c && \
 		$(CC) -P $$$$.c && \
 		mv $$$$.i $$$$.s && \
-		$(CC) $(DASHG) -c $$$$.s && \
+		$(CC) $(DASHO) -c $$$$.s && \
 		mv $$$$.o uprt.o && \
 		rm -f $$$$.?
 

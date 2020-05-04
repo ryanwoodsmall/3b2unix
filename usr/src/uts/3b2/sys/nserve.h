@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/nserve.h	10.6"
+#ident	"@(#)kern-port:sys/nserve.h	10.7"
 /*
  * nserve.h contains defines needed both in the kernel
  * and in user programs for adv, mount, and name service fns
@@ -23,6 +23,8 @@
 /* the following will migrate to /usr/include/nserve.h in load N7	*/
 
 #define NS_REL		15
+#define NS_QMOUNT	16	/* queue resource request	*/
+#define NS_DQMOUNT	17	/* dequeue request from queue   */
 
 #define R_NOERR	0	/* no error				*/
 #define R_FORMAT 1	/* format error				*/

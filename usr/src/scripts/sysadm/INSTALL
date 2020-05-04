@@ -1,5 +1,5 @@
 #
-#	@(#)pkg.sysadm:sysadm/INSTALL	1.6.1.1
+#	@(#)pkg.sysadm:sysadm/INSTALL	1.6.1.2
 #
 
 INSPATH=/install/new
@@ -55,4 +55,6 @@ fi
 cd ${INSPATH}
 echo "The following files are being installed: "
 find . -print | cpio -pduvm /
+ln /etc/dcopy1K /etc/dcopy
+ln /etc/fsdb1K /etc/fsdb
 echo "Installation of the ${PKGNAME} complete. "

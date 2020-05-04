@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/sysmacros.h	10.5.4.3"
+#ident	"@(#)kern-port:sys/sysmacros.h	10.5.4.4"
 /*
  * Some macros for units conversion
  */
@@ -173,3 +173,27 @@ extern unsigned long rfs_vcode;		/* version code for RFS caching */
 	} \
 	FS_FCNTL(ip, F_FREESP, arg, flag, offset); \
 }
+
+
+/* machine dependent operations - defined for RFS and STREAMS */
+
+#ifdef	pdp11
+#define	SALIGN(p)		(char *)(((int)p+1) & ~1)
+#define	IALIGN(p)		(char *)(((int)p+1) & ~1)
+#define LALIGN(p)		(char *)(((int)p+1) & ~3)
+#endif
+#ifdef	vax
+#define	SALIGN(p)		(char *)(((int)p+1) & ~1)
+#define	IALIGN(p)		(char *)(((int)p+3) & ~3)
+#define	LALIGN(p)		(char *)(((int)p+3) & ~3)
+#endif
+#ifdef	u3b2
+#define	SALIGN(p)		(char *)(((int)p+1) & ~1)
+#define	IALIGN(p)		(char *)(((int)p+3) & ~3)
+#define	LALIGN(p)		(char *)(((int)p+3) & ~3)
+#endif
+
+#define SNEXT(p)		(char *)((int)p + sizeof (short))
+#define INEXT(p)		(char *)((int)p + sizeof (int))
+#define LNEXT(p)		(char *)((int)p + sizeof (long))
+

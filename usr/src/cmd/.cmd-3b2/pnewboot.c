@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)cmd-3b2:pnewboot.c	1.2.1.1"
+#ident	"@(#)cmd-3b2:pnewboot.c	1.2.1.2"
 /*
  * Simplified version of newboot. Avoids stdio to help in
  * the first-3B2-restore-floppy space crunch.
@@ -25,7 +25,6 @@
 #include <sys/types.h>
 #include <sys/vtoc.h>
 #include <fcntl.h>
-#include <a.out.h>
 
 /*
  * Definitions
@@ -38,9 +37,7 @@
  * external routines
  */
 extern long lseek();
-extern char *strrchr();
 extern char *malloc();
-extern char *strtok();
 
 /*
  * Internal routines
@@ -69,204 +66,95 @@ int argc;
 char *argv[];
 	{
 	char	*block0, *block2;
-	int	f = -1;
+	int	fsi = -1;
 	int	fso = -1;
 	long	lboot_size, lboot_origin;
-	char	*fsys, *lboot, *mboot;
+	char	*fsysin, *fsysout;
 
-	register	SCNHDR	*text, *data;
-	register FILHDR *header;
-	register SCNHDR *sheader;
 
-	if (myname = strrchr(*argv, '/'))
-		++myname;
-	else	myname = *argv;
-	if (argc != 4)
+	myname = *argv;
+	if (argc != 3)
 		usage();
 
-	lboot = argv[1];
-	mboot = argv[2];
-	fsys = argv[3];
-
-
-	header = (FILHDR *) malloc( FILHSZ );
-	sheader = (SCNHDR *) malloc ( SCNHSZ );
-	/*
-	 * the mboot program is the first block
-	 */
-
-
-	f = open(mboot, O_RDONLY);
-	if (f == -1)
-		{
-		warn(argv[2], "cannot open");
-		goto error_exit;
-		}
-
-	if ( myread(f, (char *)header, FILHSZ, mboot) ) 
-		goto error_exit;
-
-	if ( header->f_magic != FBOMAGIC )
-		{
-		warn(argv[2], "bad magic");
-		goto error_exit;
-		}
-
-	if ( mylseek(f, (long)(header->f_opthdr), 1, mboot) )
-		goto error_exit;
-
-	while( header->f_nscns-- > 0 )
-		{
-		if ( myread(f, (char *)sheader, SCNHSZ, mboot) )
-			goto error_exit;
-		if ( 0 == strncmp(sheader->s_name,".text",sizeof(sheader->s_name)) )
-			{
-			text = sheader;
-			sheader = (SCNHDR *) malloc( SCNHSZ ) ;
-			}
-		if ( 0 == strncmp(sheader->s_name,".data",sizeof(sheader->s_name)) )
-			{
-			data = sheader;
-			sheader = (SCNHDR *) malloc( SCNHSZ ) ;
-			}
-		}
+	fsysin = argv[1];
+	fsysout = argv[2];
 
 	/*
-	 * make sure mboot fits in a single block
+	 * Open the input boot device
 	 */
-	if ( data->s_paddr + data->s_size - text->s_paddr > BSIZE )
+	fsi = open(fsysin, O_RDONLY, 0600 );
+	if (fsi == -1)
 		{
-		warn(argv[2], "total size exceeds 1 disk block");
+		warn(fsysin, "cannot open");
 		goto error_exit;
 		}
 
 
-
-	block0 = malloc ( BSIZE );
 	/*
-	 * build the first disk block
+	 * Open the output boot device
 	 */
-	if ( mylseek(f, text->s_scnptr, 0, mboot) )
-		goto error_exit;
-	if ( myread(f, block0, (unsigned)text->s_size, mboot) )
-		goto error_exit;
-	if ( mylseek(f, data->s_scnptr, 0, mboot) )
-		goto error_exit;
-	if ( myread(f, block0 + (data->s_paddr - text->s_paddr), (unsigned)data->s_size, mboot) )
-		goto error_exit;
-
-
-	free ( text );
-	free ( data );
-	close( f );
-
-	/*
-	 * Now do lboot
-	 */
-
-	f = open( lboot, O_RDONLY );
-	if (f == -1)
-		{
-		warn(argv[1], "cannot open");
-		goto error_exit;
-		}
-
-	if ( myread(f, (char *)header, FILHSZ, lboot) )
-		goto error_exit;
-
-	if ( header->f_magic != FBOMAGIC )
-		{
-		warn(argv[1], "bad magic");
-		goto error_exit;
-		}
-
-	if ( mylseek(f, (long)(header->f_opthdr), 1, lboot) )
-		goto error_exit;
-
-	while( header->f_nscns-- > 0 )
-		{
-		if ( myread(f, (char *)sheader, SCNHSZ, lboot) )
-			goto error_exit;
-		if ( 0 == strncmp(sheader->s_name,".text",sizeof(sheader->s_name)) )
-			{
-			text = sheader;
-			sheader = (SCNHDR *) malloc ( SCNHSZ );
-			}
-		if ( 0 == strncmp(sheader->s_name,".data",sizeof(sheader->s_name)) )
-			{
-			data = sheader;
-			sheader = (SCNHDR *) malloc ( SCNHSZ );
-			}
-		}
-
-	/*
-	 * compute lboot size and load origin
-	 */
-	lboot_origin = text->s_paddr;
-
-	/* size of lboot in bytes (rounded up to nearest BSIZE) */
-	lboot_size = data->s_paddr + data->s_size - text->s_paddr;
-	lboot_size = ( (lboot_size + BSIZE - 1) / BSIZE) * BSIZE;
-
-	/*
-	 * get a buffer large enough to build the lboot program
-	 */
-
-	block2 = malloc ( (unsigned)lboot_size );
-
-	/*
-	 * build the lboot program buffer
-	 */
-	if ( mylseek(f, text->s_scnptr, 0, lboot) )
-		goto error_exit;
-	if ( myread(f, block2, (unsigned)text->s_size, lboot) )
-		goto error_exit;
-	if ( mylseek(f, data->s_scnptr, 0, lboot) )
-		goto error_exit;
-	if ( myread(f, block2 + (data->s_paddr - text->s_paddr), (unsigned)data->s_size, lboot) )
-		goto error_exit;
-
-	close(f);
-	f = -1;
-
-	/*
-	 * Open the boot device
-	 */
-	fso = open(fsys, O_RDWR, 0600 );
+	fso = open(fsysout, O_RDWR, 0600 );
 	if (fso == -1)
 		{
-		warn(argv[3], "cannot open");
+		warn(fsysout, "cannot open");
 		goto error_exit;
 		}
 
+
+	block0 = malloc(BSIZE);
+
+	/*
+	 * read the first disk block
+	 */
+	if ( myread(fsi, block0, BSIZE, fsysin) )
+		goto error_exit;
 
 	/*
 	 * write the first disk block
 	 */
-	if ( mywrite(fso, block0, BSIZE, fsys) )
+	if ( mywrite(fso, block0, BSIZE, fsysout) )
 		goto error_exit;
 
 	/*
-	 * update the VTOC
+	 * read the input VTOC; save the input lboot info
 	 */
-	if ( myread(fso, (char *)&block1, BSIZE, fsys) )
+	if ( myread(fsi, (char *)&block1, BSIZE, fsysin) )
+		goto error_exit;
+
+	lboot_origin = block1.vtoc_buffer.v_bootinfo[0];
+	lboot_size   = block1.vtoc_buffer.v_bootinfo[1];
+
+
+	/*
+	 * update the output VTOC
+	 */
+	if ( myread(fso, (char *)&block1, BSIZE, fsysout) )
 		goto error_exit;
 
 	block1.vtoc_buffer.v_bootinfo[0] = lboot_origin;
 	block1.vtoc_buffer.v_bootinfo[1] = lboot_size;
 
-	if ( mylseek(fso, 0L - BSIZE, 1, fsys) )
+	if ( mylseek(fso, 0L - BSIZE, 1, fsysout) )
 		goto error_exit;
 
-	if ( mywrite(fso, (char *)&block1, BSIZE, fsys) )
+	if ( mywrite(fso, (char *)&block1, BSIZE, fsysout) )
+		goto error_exit;
+
+	block2 = malloc(lboot_size);
+
+	/*
+	 * read the final disk blocks
+	 */
+	if ( myread(fsi, block2, (unsigned)lboot_size, fsysin) )
 		goto error_exit;
 
 	/*
 	 * write the final disk blocks
 	 */
-	if ( mywrite(fso, block2, (unsigned)lboot_size, fsys) )
+	if ( mywrite(fso, block2, (unsigned)lboot_size, fsysout) )
 		goto error_exit;
 
+	close(fsi);
 	close(fso);
 
 	exit( 0 );
@@ -275,8 +163,8 @@ char *argv[];
 	 * common error exit
 	 */
 error_exit:
-	if ( f >= 0 )
-		close( f );
+	if ( fsi >= 0 )
+		close( fsi );
 	if ( fso >= 0 )
 		close( fso );
 
@@ -365,7 +253,7 @@ static void
 usage()
 {
 	static char	before[] = "Usage: \t";
-	static char	after[] = "  lboot mboot partition\n";
+	static char	after[] = "  from_partition to_partition\n";
 
 	(void) write(STDERR, before, (uint) strlen(before));
 	(void) write(STDERR, myname, (uint) strlen(myname));

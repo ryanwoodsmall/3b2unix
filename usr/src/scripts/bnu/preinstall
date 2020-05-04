@@ -1,4 +1,4 @@
-#ident	"@(#)bnu:preinstall	1.11"
+#ident	"@(#)bnu:preinstall	1.13"
 #	Pre installation procedure for "Basic Networking Utilities"
 
 flags="-qq -k$$"
@@ -33,7 +33,7 @@ then
 		/etc/init q 2>/dev/null
 		mv /usr/lib/uucp/uugetty /usr/lib/uucp/RM_THIS_uugetty	
 	fi
-	mkdir /usr/lib/uucp/OlD
+	mkdir /usr/lib/uucp/OlD 2>/dev/null
 	for i in $savefiles
 	do
 		if [ -s /usr/lib/uucp/$i ]
@@ -65,3 +65,60 @@ Your new node name is '`uname`'
 "
 	fi
 fi
+
+#	Make sure default uucp uid/gid(s) are set up
+
+#	Find all 'uucp' and 'gid=5' entries' in /etc/group
+
+( grep ".*:.*:0*5:" /etc/group
+  grep "^uucp:" /etc/group ) | sort -u | cut -d: -f1,3 |
+(
+
+#	Find mismatches, if any
+
+IFS=":"
+addgrp=y
+while read a b
+do
+if [ "$a" = "uucp" -a "$b" = "5" ]; then	
+	addgrp=n
+	fi
+if [ "$a" = "uucp" -a "$b" != "5" ]; then	
+	badgid="$b $badgid"
+	fi
+if [ "$a" != "uucp" -a "$b" = "5" ]; then	
+	badgname="$a $badgname"
+	fi
+done
+
+#	Report mismatches, if any via mail to root.
+
+if [ "$badgid" != "" ]; then
+	echo "
+Subject: uucp group installation
+
+Group id for group 'uucp' must be 5.
+Possibly inconsistent group id(s) $badgid.
+
+Check the /etc/group file.
+
+" | /bin/mail root
+	fi
+if [ "$badgname" != "" ]; then
+	echo "
+Subject: uucp group installation
+
+Only group 'uucp' should have group id '5'.
+Possibly inconsistent group name(s) $badgname.
+
+Check the /etc/group file.
+
+" | /bin/mail root
+	fi
+
+#	Add 'uucp' group entry, if necessary.
+
+if [ "$addgrp" = "y" ]; then
+	echo "uucp::5:root,uucp" >>/etc/group
+	fi
+)

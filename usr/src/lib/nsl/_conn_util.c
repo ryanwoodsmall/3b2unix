@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/_conn_util.c	1.6.1.1"
+#ident	"@(#)libnsl:nsl/_conn_util.c	1.6.1.2"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/errno.h"
@@ -178,7 +178,7 @@ register struct t_call *call;
 			}
 
 			if (call != NULL) {
-				if ((rcvbuf.len > (int)call->udata.maxlen) ||
+				if ((rcvbuf.len > call->udata.maxlen) ||
 				    (pptr->conn_con.RES_length > call->addr.maxlen) ||
 				    (pptr->conn_con.OPT_length > call->opt.maxlen)) {
 					t_errno = TBUFOVFLW;
@@ -198,7 +198,7 @@ register struct t_call *call;
 				 * since a confirmation seq number
 				 * is -1 by default
 				 */
-				call->sequence = -1;
+				call->sequence = (long) -1;
 			}
 
 			return(0);

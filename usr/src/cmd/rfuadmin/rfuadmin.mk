@@ -5,19 +5,19 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)rfuadmin:rfuadmin.mk	1.3"
+#ident	"@(#)rfuadmin:rfuadmin.mk	1.3.1.1"
 
 #	rfuadmin make file
 
 ROOT=
 INSDIR = $(ROOT)/usr/nserve
-INS=/etc/install
+INS=install
 
 all:	install clobber
 
 rfuadmin:
 	sh rfuadmin.sh
-	chmod 755 rfuadmin
+	$(CH)chmod 755 rfuadmin
 
 install: rfuadmin
 	$(INS) -f $(INSDIR) -m 755 -u root -g bin rfuadmin

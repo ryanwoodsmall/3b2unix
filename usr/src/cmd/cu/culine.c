@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)cu:culine.c	2.5"
+#ident	"@(#)cu:culine.c	2.7"
 
 /*	culine.c --differs from uucp
 	line.c	2.4	1/28/84 00:56:32
@@ -86,7 +86,7 @@ int	tty, spwant, type;
 				speed = ps->sp_name;
 				break;
 			}
-		ASSERT(speed >= 0, "BAD SPEED", "", speed);
+		ASSERT(speed >= 0, "BAD SPEED", "", spwant);
 		lv.c_cflag = speed;
 	} else
 		lv.c_cflag &= CBAUD;
@@ -146,7 +146,7 @@ int	dcf;
 	}
 }
 
-genbrk(fn)
+ttygenbrk(fn)
 register int	fn;
 {
 	if (isatty(fn)) 
@@ -234,7 +234,7 @@ int tty, spwant, type;
 				speed = ps->sp_name;
 				break;
 			}
-		ASSERT(speed >= 0, "BAD SPEED", "", speed);
+		ASSERT(speed >= 0, "BAD SPEED", "", spwant);
 		ttbuf.sg_ispeed = ttbuf.sg_ospeed = speed;
 	} else {
 		for (ps = spds; ps->sp_val; ps++)
@@ -242,7 +242,7 @@ int tty, spwant, type;
 				spwant = ps->sp_val;
 				break;
 			}
-		ASSERT(spwant >= 0, "BAD SPEED", "", spwant);
+		ASSERT(spwant >= 0, "BAD SPEED", "", ttbuf.sg_ispeed);
 	}
 	ttbuf.sg_flags = (ANYP | RAW);
 	(void) ioctl(tty, TIOCSETP, &ttbuf);
@@ -265,7 +265,7 @@ int	dcf;
  *	return codes;  none
  */
 
-genbrk(fn)
+ttygenbrk(fn)
 {
 	if (isatty(fn)) {
 		(void) ioctl(fn, TIOCSBRK, 0);

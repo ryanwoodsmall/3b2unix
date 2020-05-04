@@ -16,7 +16,7 @@
 %}
 
 %{
-#ident	"@(#)mkboot-3b2:mkboot.l	1.4"
+#ident	"@(#)mkboot-3b2:mkboot.l	1.6"
 %}
 
 %Start	COMMENT HEADER DATA Q

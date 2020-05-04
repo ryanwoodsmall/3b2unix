@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sa:3.0sadc.c	1.5"
+#ident	"@(#)sa:3.0sadc.c	1.8"
 /*	sadc.c 1.28.1.1 of 6/26/86  */
 /*
 	sadc.c - writes system activity binary data from /dev/kmem to a
@@ -40,15 +40,18 @@
 #include <sys/immu.h>
 #include "sys/id.h"
 #include <sys/region.h>
-#include "sys/vtoc.h"
+#include <sys/vtoc.h>
 #include "sys/pdi.h"
 #include "sys/sd00_dep.h"
+#include "sys/scsi.h"
+#include "sys/sdi.h"
+#include "sys/disktd.h"
 #endif
 #include <sys/proc.h>
-#include <sys/sysinfo.h>
+#include "sys/sysinfo.h"
 #include <sys/fcntl.h>
 #include <sys/flock.h>
-#include "sa.h"
+#include "3.1sa.h"
 #ifdef u3b
 #include <sys/mtc.h>
 #include <sys/dma.h>
@@ -61,12 +64,13 @@ int apstate;
 #endif
 
 #ifdef u3b2
-int idcnt, sd00_tc_cnt, sd00_lu_cnt;
+int idcnt, sd00_tc_cnt, sd00_lu_cnt, Sd01_diskcnt;
 int blksize = 512;
 struct idstatstruct idstatus[IDNDRV];
 struct iotime idstat[IDNDRV];
 struct iotime ifstat;
 struct sd00_ctrl *dsd00;
+struct disk *dsd01;
 #endif /* u3b2 */
 
 #ifdef u3b15
@@ -76,7 +80,7 @@ struct sd00_ctrl *dsd00;
 #include <sys/disktd.mast.h>
 int dfcnt, Sd01_diskcnt;
 char *dfloc;
-struct Sd01_d *dsd01;
+struct disk *dsd01;
 #endif /*u3b15 */
 
 #ifdef u370
@@ -259,7 +263,7 @@ creafl:
 			if (idstatus[i].equipped)
 				idcnt++;
 	  }
-	  if (setup[SD00].n_value !=0){
+	  if (setup[SD00].n_value != 0){
 		lseek(f,(long)setup[SD00].n_value, 0);
 		if (read(f, &sd00_tc_cnt, sizeof sd00_tc_cnt) != sizeof sd00_tc_cnt)
 			perrexit("sadc can,t read SD00");
@@ -271,6 +275,14 @@ creafl:
 		lseek(f,(long)setup[SD00LU].n_value, 0);
 		if (read(f, &sd00_lu_cnt, sizeof sd00_lu_cnt) != sizeof sd00_lu_cnt)
 			perrexit("sadc can't read SD00LU");
+	  }
+	  if (setup[SD01].n_value != 0){
+		lseek(f,(long)setup[SD01].n_value, 0);
+		if (read(f, &Sd01_diskcnt, sizeof Sd01_diskcnt) != sizeof Sd01_diskcnt)
+			perrexit("sadc can't read SD01");
+		dsd01 = (struct disk *) malloc(sizeof (struct disk) * Sd01_diskcnt);
+			if (dsd01 == NULL)
+				perrexit("sadc can't malloc");
 	  }
 
 #endif /* u3b2 */
@@ -317,6 +329,8 @@ creafl:
 				tblmap[i] = idcnt;
 			else if(i == SD00)
 				tblmap[i] = sd00_lu_cnt;
+			else if(i == SD01)
+				tblmap[i] = Sd01_diskcnt;
 			else
 				tblmap[i] = iotbsz[i];
 #endif /* u3b2 */
@@ -494,6 +508,13 @@ credfl:
 			if (read(f, dsd00, sizeof(struct sd00_ctrl) * sd00_tc_cnt)
 					!= sizeof(struct sd00_ctrl) * sd00_tc_cnt){
 				perrexit("sadc can't read SD00TC");
+			}
+		}
+		if (setup[SD01_D].n_value != 0){
+			lseek(f,(long)setup[SD01_D].n_value, 0);
+			if (read(f, dsd01, sizeof(struct disk) * Sd01_diskcnt)
+					!= sizeof(struct disk) * Sd01_diskcnt){
+				perrexit("sadc can't read SD01_D");
 			}
 		}
 
@@ -683,6 +704,18 @@ credfl:
 					}
 				}
 			}	
+		}
+		if (setup[SD01_D].n_value != 0){
+			for (k=0; k < Sd01_diskcnt; k++){
+			if (dsd01[k].dk_state > 0){
+				d.devio[i][0] = dsd01[k].dk_stat.io_cnt;
+				d.devio[i][1] = dsd01[k].dk_stat.io_bcnt;
+				d.devio[i][2] = dsd01[k].dk_stat.io_act;
+				d.devio[i][3] = dsd01[k].dk_stat.io_resp;
+				d.devio[i][4] = k;
+				i++;
+				}
+			}
 		}
 
 				

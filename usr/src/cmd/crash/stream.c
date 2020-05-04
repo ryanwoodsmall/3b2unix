@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)crash-3b2:stream.c	1.15.3.1"
+#ident	"@(#)crash-3b2:stream.c	1.15.3.4"
 /*
  * This file contains code for the crash functions:  stream, queue, mblock,
  * mbfree, dblock, dbfree, strstat, linkblk, dballoc, qrun.
@@ -22,19 +22,29 @@
 #include "sys/immu.h"
 #include "sys/region.h"
 #include "sys/proc.h"
+#include "sys/fstyp.h"
+#include "sys/fsid.h"
+#include "sys/conf.h"
+#include "sys/file.h"
+#include "sys/sema.h"
+#include "sys/comm.h"
 #include "sys/inode.h"
+#include "sys/fs/s5inode.h"
 #include "sys/mount.h"
 #include "sys/poll.h"
 #include "sys/stream.h"
+#include "sys/strstat.h"
 #include "sys/stropts.h"
 #include "crash.h"
 
 static struct syment *Dblock, *Qhead, *Mbfree, *Dbfree,
-	*Linkblk, *Nmuxlink, *Dballoc;		/* namelist symbol pointers */
+	*Linkblk, *Nmuxlink, *Dballoc, *Strst;	/* namelist symbol pointers */
 struct syment *Queue,*Mblock;
 extern struct syment *Inode, *Streams, *Proc;
 int ndblock = 0;	 /* number of data blocks */
 int nmblock = 0;	 /* number of message blocks */
+
+extern struct inode ibuf;
 
 
 int
@@ -127,6 +137,7 @@ char *heading;
 	struct strevent evbuf;
 	struct strevent *next;
 	int ioc_slot; 
+	int inodeidx;
 
 	readbuf(addr,(long)(Streams->n_value+slot*sizeof strm),phys,-1,
 		(char *)&strm, sizeof strm,"streams table slot");
@@ -147,8 +158,20 @@ char *heading;
 	if ( (ioc_slot>=0)&&(ioc_slot<nmblock) )
 		fprintf(fp,"%4d ",ioc_slot);
 	else fprintf(fp,"   - ");
-	fprintf(fp,"%5d ",((long)strm.sd_inode - Inode->n_value)/
-		sizeof(struct inode));
+
+	for (inodeidx = 0; inodeidx < vbuf.v_inode; inodeidx++) {
+		readmem((long)(Inode->n_value+inodeidx*sizeof ibuf),1,-1,
+			(char *)&ibuf,sizeof ibuf,"inode table");
+		if (ibuf.i_count == 0)
+			continue;
+		if (ibuf.i_rdev == strm.sd_rdev)
+			break;
+	}
+	if (inodeidx >= vbuf.v_inode)
+		fprintf(fp,"  -   ");
+	else
+		fprintf(fp, "%5d ", inodeidx);
+
 	fprintf(fp,"%5d %10d %5d %4d %3o ", strm.sd_pgrp, strm.sd_iocid,
 		strm.sd_iocwait, strm.sd_wroff, strm.sd_error);
 	fprintf(fp,"%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
@@ -166,6 +189,18 @@ char *heading;
 		((strm.sd_flag & STRTIME) ? "sttm " : ""),
 		((strm.sd_flag & STR2TIME) ? "s2tm " : ""),
 		((strm.sd_flag & STR3TIME) ? "s3tm " : ""));
+
+	if (strm.sd_icnt > 1) {
+		for (inodeidx++ ; inodeidx < vbuf.v_inode; inodeidx++) {
+			readmem((long)(Inode->n_value+inodeidx*sizeof ibuf),1,-1,
+				(char *)&ibuf,sizeof ibuf,"inode table");
+			if (ibuf.i_count == 0)
+				continue;
+			if (ibuf.i_rdev == strm.sd_rdev)
+				fprintf(fp, "               %5d\n", inodeidx);
+		}
+	}
+
 	if(full) {
 		fprintf(fp,"\t STRTAB  RCNT\n");
 		fprintf(fp,"\t%8x   %2d\n",
@@ -742,6 +777,9 @@ streaminit()
 	if(!Mbfree)
 		if(!(Mbfree = symsrch("mbfreelist")))
 			error("mbfreelist not found in symbol table\n");
+	if(!Strst)
+		if(!(Strst = symsrch("strst")))
+			error("strst not found in symbol table\n");
 	blockinit();
 
 	strinit = 1;
@@ -772,19 +810,20 @@ prstrstat()
 {
 	queue_t que, *q;
 	struct stdata str;
+	struct strstat strst;
 	mblk_t mes, *m;
 	dblk_t dbk, *d;
-	int qusecnt, susecnt, mfreecnt, musecnt,
-	    dfreecnt, dusecnt, dfc[NCLASS], duc[NCLASS], dcc[NCLASS], qruncnt;
-	int i,j, *p;
+	int susecnt, qusecnt, mqcnt, qruncnt, musecnt, mfreecnt,
+	    dusecnt, dfreecnt, dcc[NCLASS], duc[NCLASS], dfc[NCLASS];
+	int i, j, *p;
 
-	qusecnt = susecnt = mfreecnt = 0;
-	musecnt = dfreecnt = dusecnt = qruncnt = 0;
-	for (i=0; i<NCLASS; i++) dfc[i] = duc[i] =0;
+	susecnt = qusecnt = musecnt = dusecnt = 0;
+	dfreecnt = mfreecnt = qruncnt = mqcnt = 0;
+	for (i=0; i<NCLASS; i++) duc[i] = dfc[i] = 0;
 	p = &(vbuf.v_nblk4096);
 	for (i=NCLASS-1; i>=0; i--) dcc[i] = *p++;
 
-	fprintf(fp,"ITEM               CONFIGURED   ALLOCATED     FREE\n");
+	fprintf(fp,"ITEM                  CONFIG    ALLOC    FREE         TOTAL     MAX    FAIL\n");
 
 	readmem((long)Qhead->n_value,1,-1,(char *)&q,
 		sizeof q,"qhead");
@@ -846,14 +885,19 @@ prstrstat()
 		}
 	}
 
-	fprintf(fp,"streams               %4d         %4d       %4d\n",
-		vbuf.v_nstream, susecnt, vbuf.v_nstream - susecnt);
-	fprintf(fp,"queues                %4d         %4d       %4d\n",
-		vbuf.v_nqueue, qusecnt, vbuf.v_nqueue - qusecnt);
-	fprintf(fp,"message blocks        %4d         %4d       %4d\n",
-		nmblock, musecnt, mfreecnt);
-	fprintf(fp,"data block totals     %4d         %4d       %4d\n",
-		ndblock, dusecnt, dfreecnt);
+	seekmem((long)Strst->n_value,1,-1);
+	if (read(mem, &strst, sizeof strst) != sizeof strst) 
+		error(fp,"read error for strst\n");
+
+	fprintf(fp,"streams                 %4d     %4d    %4d    %10d    %4d    %4d\n",
+		vbuf.v_nstream, susecnt, vbuf.v_nstream - susecnt, strst.stream.total, strst.stream.max, strst.stream.fail);
+	mqcnt = (strst.queue.max * 2);		/*  queue allocation by pairs  */
+	fprintf(fp,"queues                  %4d     %4d    %4d    %10d    %4d    %4d\n",
+		vbuf.v_nqueue, qusecnt, vbuf.v_nqueue - qusecnt, strst.queue.total, mqcnt, strst.queue.fail);
+	fprintf(fp,"message blocks          %4d     %4d    %4d    %10d    %4d    %4d\n",
+		nmblock, strst.mblock.use, nmblock - strst.mblock.use, strst.mblock.total, strst.mblock.max, strst.mblock.fail);
+	fprintf(fp,"data block totals       %4d     %4d    %4d    %10d    %4d    %4d\n",
+		ndblock, dusecnt, dfreecnt, strst.dblock.total, strst.dblock.max, strst.dblock.fail);
 	for (i=0; i<NCLASS; i++) 
 		{
 		fprintf(fp,"data block size ");
@@ -869,8 +913,8 @@ prstrstat()
 			case 8: fprintf(fp,"4096  "); break;
 			default: fprintf(fp,"   -  ");
 			}
-		fprintf(fp,"%4d         %4d       %4d\n",
-			dcc[i], duc[i], dfc[i]);
+		fprintf(fp,"  %4d     %4d    %4d    %10d    %4d    %4d\n",
+			dcc[i], duc[i], dfc[i], strst.dblk[i].total, strst.dblk[i].max, strst.dblk[i].fail); 
 		}
 	fprintf(fp,"\nCount of scheduled queues:%4d\n", qruncnt);
 

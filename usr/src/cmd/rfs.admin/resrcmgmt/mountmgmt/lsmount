@@ -1,4 +1,4 @@
-#ident	"@(#)rfs.admin:resrcmgmt/mountmgmt/lsmount	1.3"
+#ident	"@(#)rfs.admin:resrcmgmt/mountmgmt/lsmount	1.9"
 #menu# list remote resources that are locally mounted
 
 #help# 
@@ -49,7 +49,7 @@ fi
 # appropriately
 if [ -s /etc/fstab ]
 then
-	/bin/sed "s/#.*$//" /etc/fstab | /bin/grep "\-[r]*d[r]*[	 ]*$" | /usr/bin/awk '{
+	/bin/sed "s/^\#.*$//" /etc/fstab | /bin/grep "[	 ]\-[r]*d[r]*[	 ]*$" | /usr/bin/awk '{
 		printf "%s %s ", $1, $2
 		if ( $3 == "-d")
 			print "read-write"

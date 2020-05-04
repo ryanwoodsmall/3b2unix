@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/wclrtoeol.c	1.3"
+#ident	"@(#)curses:screen/wclrtoeol.c	1.4"
 #include	"curses_inc.h"
 
 /* This routine clears up to the end of line. */
@@ -48,6 +48,23 @@ register	WINDOW	*win;
 	    else
 		for (; m < BITSPERBYTE; ++m)
 		    *mkp &= ~(1 << m);
+
+	    /* if color terminal, do the same for color marks	*/
+
+	    if (_COLOR_MARKS != NULL)
+	    {
+	        mkp = _COLOR_MARKS[y];
+
+		m = x / BITSPERBYTE + 1;
+		for (; m < endx; ++m)
+		     mkp[m] = 0;
+		mkp += x / BITSPERBYTE;
+		if ((m = x % BITSPERBYTE) == 0)
+		     *mkp = 0;
+		else
+		     for (; m < BITSPERBYTE; ++m)
+			 *mkp &= ~(1 << m);
+	    }
 	}
 	return (OK);
     }

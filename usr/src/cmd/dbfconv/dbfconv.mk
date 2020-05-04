@@ -5,14 +5,14 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)dbfconv:dbfconv.mk	1.2"
+#ident	"@(#)dbfconv:dbfconv.mk	1.3"
 
 ROOT =
 TESTDIR = .
 INSDIR = $(ROOT)/usr/net/nls
 INC = $(ROOT)/usr/include
 INS = :
-CFLAGS = -O -Du3b2 -Uu3b -Uvax -Updp11 -Uu3b5 -I$(INC)
+CFLAGS = -O -I$(INC)
 LDFLAGS = -s
 SOURCE = dbfconv.c nlsstr.c
 OBJECT = dbfconv.o nlsstr.o

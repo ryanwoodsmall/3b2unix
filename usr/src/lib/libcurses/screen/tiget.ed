@@ -1,8 +1,8 @@
-!#ident	"@(#)curses:screen/tiget.ed	1.16"
+!#ident	"@(#)curses:screen/tiget.ed	1.17"
 H
 !rm -f tiget.c
 0a
-#ident	"@(#)curses:screen/tiget.ed	1.16"
+#ident	"@(#)curses:screen/tiget.ed	1.17"
 /*
  * Routines to retrieve a value based on the short terminfo name.
  * This file is created from tiget.ed. DO NOT EDIT ME!
@@ -14,7 +14,7 @@ H
 static	short	booloffsets[] =
 		{
 .
-!sed -e '1,/^--- begin bool/d' -e '/^#/,$d' < caps | awk '{printf "\t/* \%s */\t\%d,\n", $2, i++}' | sort > ./tmp/tiget.tmp
+!sed -e '1,/^--- begin bool/d' -e '/^--- end bool/,$d' -e '/^#/d' < caps | awk '{printf "\t/* \%s */\t\%d,\n", $2, i++}' | sort > ./tmp/tiget.tmp
 .r !cat ./tmp/tiget.tmp
 .a
 		};
@@ -23,7 +23,7 @@ static	short	booloffsets[] =
 static	short	numoffsets[] =
 		{
 .
-!sed -e '1,/^--- begin num/d' -e '/^#/,$d' < caps | awk '{printf "\t/* \%s */\t\%d,\n", $2, i++}' | sort > ./tmp/tiget.tmp
+!sed -e '1,/^--- begin num/d' -e '/^--- end num/,$d' -e '/^#/d' < caps | awk '{printf "\t/* \%s */\t\%d,\n", $2, i++}' | sort > ./tmp/tiget.tmp
 .r !cat ./tmp/tiget.tmp
 .a
 		};
@@ -32,7 +32,7 @@ static	short	numoffsets[] =
 static	short	stroffsets[] =
 		{
 .
-!sed -e '1,/^--- begin str/d' -e '/^#/,$d' < caps | awk '{printf "\t/* \%s */\t\%d,\n", $2, i++}' | sort > ./tmp/tiget.tmp
+!sed -e '1,/^--- begin str/d' -e '/^--- end str/,$d' -e '/^#/d' < caps | awk '{printf "\t/* \%s */\t\%d,\n", $2, i++}' | sort > ./tmp/tiget.tmp
 .r !cat ./tmp/tiget.tmp
 !rm ./tmp/tiget.tmp
 .a

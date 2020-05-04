@@ -5,10 +5,11 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)kern-port:boot/lboot/makefile	10.5.1.1"
+#ident	"@(#)kern-port:boot/lboot/makefile	10.5.1.5"
 
 ROOT=
 INC= $(ROOT)/usr/include
+UINC= $(ROOT)/usr/include
 INCLOC= ..
 INS=	install
 LINT=	lint -n
@@ -25,9 +26,9 @@ XREF=	cxref -c -t -s
 	-DDEBUG1f -DDEBUG1g -DDEBUG1h -DDEBUG1i \
 	-DDEBUG2
 
-#CFLAGS=	-g $(CPPOPT)
 CPPOPT=	-I$(INCLOC) -I$(INC) -Uvax -Uu3b15 -Du3b2 -Updp11 $(TEST) $(MORECPP)
-CFLAGS=	-O $(CPPOPT)
+DASHO = -O
+CFLAGS=	$(DASHO) $(CPPOPT)
 #LDFLAGS=-m
 LDFLAGS=
 #LBLD=LBLD
@@ -48,7 +49,7 @@ SOURCE=	errortable $(CSOURCE) $(ASOURCE)
 OBJECT=	main.o basicio.o clibrary.o dfcstand.o error.o loadunix.o on.o \
 	subr.o tables.o misc.o
 
-lboot:	$(LBLD) $(OBJECT) $(FRC)
+lboot:	$(LBLD) $(OBJECT) version.o $(FRC)
 	@-if [ '$(TEST)' ]; \
 	then \
 		$(MAKE) version.o; \
@@ -162,7 +163,7 @@ basicio.o: basicio.c \
 	$(FRC)
 
 clibrary.o: clibrary.c \
-	/usr/include/ctype.h \
+	$(UINC)/ctype.h \
 	$(INC)/sys/boot.h \
 	$(INC)/sys/csr.h \
 	$(INCLOC)/sys/dir.h \
@@ -173,6 +174,7 @@ clibrary.o: clibrary.c \
 	$(INC)/sys/sys3b.h \
 	$(INC)/sys/types.h \
 	error.h \
+	io.h \
 	lboot.h \
 	$(FRC)
 
@@ -206,21 +208,22 @@ error.o: error.c \
 	$(FRC)
 
 loadunix.o: loadunix.c \
-	/usr/include/a.out.h \
-	/usr/include/aouthdr.h \
-	/usr/include/filehdr.h \
-	/usr/include/linenum.h \
-	/usr/include/nlist.h \
-	/usr/include/reloc.h \
-	/usr/include/scnhdr.h \
-	/usr/include/storclass.h \
-	/usr/include/syms.h \
+	$(UINC)/a.out.h \
+	$(UINC)/aouthdr.h \
+	$(UINC)/filehdr.h \
+	$(UINC)/linenum.h \
+	$(UINC)/nlist.h \
+	$(UINC)/reloc.h \
+	$(UINC)/scnhdr.h \
+	$(UINC)/storclass.h \
+	$(UINC)/syms.h \
 	$(INC)/sys/boot.h \
 	$(INC)/sys/boothdr.h \
 	$(INC)/sys/conf.h \
 	$(INC)/sys/csr.h \
 	$(INCLOC)/sys/dir.h \
 	$(INC)/sys/edt.h \
+	$(INC)/sys/extbus.h \
 	$(INC)/sys/firmware.h \
 	$(INCLOC)/sys/param.h \
 	$(INC)/sys/sbd.h \
@@ -233,15 +236,15 @@ loadunix.o: loadunix.c \
 	$(FRC)
 
 main.o: main.c \
-	/usr/include/a.out.h \
-	/usr/include/aouthdr.h \
-	/usr/include/filehdr.h \
-	/usr/include/linenum.h \
-	/usr/include/nlist.h \
-	/usr/include/reloc.h \
-	/usr/include/scnhdr.h \
-	/usr/include/storclass.h \
-	/usr/include/syms.h \
+	$(UINC)/a.out.h \
+	$(UINC)/aouthdr.h \
+	$(UINC)/filehdr.h \
+	$(UINC)/linenum.h \
+	$(UINC)/nlist.h \
+	$(UINC)/reloc.h \
+	$(UINC)/scnhdr.h \
+	$(UINC)/storclass.h \
+	$(UINC)/syms.h \
 	$(INC)/sys/boot.h \
 	$(INC)/sys/csr.h \
 	$(INCLOC)/sys/dir.h \
@@ -271,16 +274,16 @@ on.o: on.c \
 	$(FRC)
 
 subr.o: subr.c \
-	/usr/include/a.out.h \
-	/usr/include/aouthdr.h \
-	/usr/include/ctype.h \
-	/usr/include/filehdr.h \
-	/usr/include/linenum.h \
-	/usr/include/nlist.h \
-	/usr/include/reloc.h \
-	/usr/include/scnhdr.h \
-	/usr/include/storclass.h \
-	/usr/include/syms.h \
+	$(UINC)/a.out.h \
+	$(UINC)/aouthdr.h \
+	$(UINC)/ctype.h \
+	$(UINC)/filehdr.h \
+	$(UINC)/linenum.h \
+	$(UINC)/nlist.h \
+	$(UINC)/reloc.h \
+	$(UINC)/scnhdr.h \
+	$(UINC)/storclass.h \
+	$(UINC)/syms.h \
 	$(INC)/sys/boot.h \
 	$(INC)/sys/csr.h \
 	$(INCLOC)/sys/dir.h \
@@ -296,15 +299,15 @@ subr.o: subr.c \
 	$(FRC)
 
 tables.o: tables.c \
-	/usr/include/a.out.h \
-	/usr/include/aouthdr.h \
-	/usr/include/filehdr.h \
-	/usr/include/linenum.h \
-	/usr/include/nlist.h \
-	/usr/include/reloc.h \
-	/usr/include/scnhdr.h \
-	/usr/include/storclass.h \
-	/usr/include/syms.h \
+	$(UINC)/a.out.h \
+	$(UINC)/aouthdr.h \
+	$(UINC)/filehdr.h \
+	$(UINC)/linenum.h \
+	$(UINC)/nlist.h \
+	$(UINC)/reloc.h \
+	$(UINC)/scnhdr.h \
+	$(UINC)/storclass.h \
+	$(UINC)/syms.h \
 	$(INC)/sys/boot.h \
 	$(INC)/sys/boothdr.h \
 	$(INC)/sys/conf.h \

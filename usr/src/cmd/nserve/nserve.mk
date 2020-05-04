@@ -5,11 +5,11 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)nserve:nserve.mk	1.11.3.1"
+#ident	"@(#)nserve:nserve.mk	1.11.4.1"
 ROOT =
 TESTDIR = .
 INSDIR = $(ROOT)/usr/nserve
-INCRT = $(ROOT)/usr/include
+INC = $(ROOT)/usr/include
 INS = :
 CFLAGS=-O -s $(DEBUG) $(LOG) $(PROFILE)
 CC = cc
@@ -54,7 +54,7 @@ FRC:
 
 #### dependencies now follow
 
-nserve.o: nsdb.h nslog.h $(INCRT)/nsaddr.h stdns.h $(INCRT)/nserve.h nsports.h
-nsrec.o: nsdb.h nslog.h $(INCRT)/nsaddr.h stdns.h $(INCRT)/nserve.h nsports.h
+nserve.o: nsdb.h nslog.h $(INC)/nsaddr.h stdns.h $(INC)/nserve.h nsports.h
+nsrec.o: nsdb.h nslog.h $(INC)/nsaddr.h stdns.h $(INC)/nserve.h nsports.h
 nsdb.o: nsdb.h stdns.h nslog.h
-nsfunc.o: nsdb.h stdns.h $(INCRT)/nserve.h nslog.h
+nsfunc.o: nsdb.h stdns.h $(INC)/nserve.h nslog.h

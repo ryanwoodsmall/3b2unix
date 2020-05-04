@@ -5,24 +5,17 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)volcopy:volcopy.c	4.33.1.6"
-/*	Copyright (c) 1984 AT&T	*/
-/*	  All Rights Reserved  	*/
-
-/*	THIS IS UNPUBLISHED PROPRIETARY SOURCE CODE OF AT&T	*/
-/*	The copyright notice above does not evidence any   	*/
-/*	actual or intended publication of such source code.	*/
-/*	volcopy	COMPILE:	cc -O volcopy.c -s -i -o volcopy	*/
-/*	u370	COMPILE:	cc -O -b1,1 volcopy.c -s -i -o volcopy	*/
-/*	Modified to add 3B15 16K block size option		*/
-
+#ident	"@(#)volcopy:volcopy.c	4.33.1.12"
 #define LOG
 #define AFLG 0 
 #include <sys/param.h>
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/sysmacros.h>
-#include <sys/filsys.h>
+#include <sys/fs/s5filsys.h>
+#include <sys/fs/s5dir.h>
+#include <sys/inode.h>
+#include <sys/ino.h>
 #include <sys/stat.h>
 #ifdef u3b
 #include <sys/elog.h>
@@ -297,6 +290,9 @@ char *s;
 main(argc, argv) char **argv;
 {
 	int	fsi, fso;
+#if u3b2 || u3b15
+	int	result;
+#endif
 	struct	stat statb;
 	int	altflg = AFLG;
 	FILE	*popen();
@@ -382,6 +378,8 @@ main(argc, argv) char **argv;
 	args = argv;
 
 	Devtty = fopen("/dev/tty", "r");
+	if ((Devtty == NULL) && !isatty(0))
+		Devtty = stdin;
 	time(&tvec);
 			/* get mandatory inputs */
 	if(argc!=6) {
@@ -495,6 +493,7 @@ main(argc, argv) char **argv;
 	if((reel == 1) || !Fromtape) {
 		if(read(fsi, Buf, 2*BLKSIZ) < 2*BLKSIZ)
 			err("read error on input");
+		close(fsi);
 		strncpy(Superi.s_fname,  Sptr->s_fname,6);
 		strncpy(Superi.s_fpack,  Sptr->s_fpack,6);
 
@@ -505,15 +504,33 @@ main(argc, argv) char **argv;
 			Fstype = 1;
 			Fs = Sptr->s_fsize;
 			break;
+#if u3b2 || u3b15
 		case Fs2b:
-#if u3b15
+			if(Fromtape)
+				result = tps5bsz(argv[DEV_FROM]);
+			else
+				result = s5bsize(argv[DEV_FROM]);
+			if (result == Fs2b) {
+				Fstype = 2;
+				Fs = Sptr->s_fsize * 2;
+			}
+			else if (result == Fs4b) {
+				Fstype = 4;
+				Fs = Sptr->s_fsize * 4;
+			}
+			else
+				err("can't determine logical block size,\n    root inode or root directory may be corrupted");
+			break;
+		case Fs4b:
 			Fstype = 4;
 			Fs = Sptr->s_fsize * 4;
+			break;
 #else
+		case Fs2b:
 			Fstype = 2;
 			Fs = Sptr->s_fsize * 2;
-#endif
 			break;
+#endif
 		default:
 			err("File System type unknown--get help");
 		}
@@ -611,7 +628,7 @@ main(argc, argv) char **argv;
                 printf("(DEL if wrong)\n");
 		sleep(10);   /*  10 seconds to DEL  */
 	}
-	close(fso); close(fsi);
+	close(fso);
 	sync();
 	fsi = open(argv[DEV_FROM], 0);
 	fso = open(argv[DEV_TO], 1);
@@ -752,7 +769,7 @@ int fsi,fso;
 
 		if((sts = read(fsi, Buf, BLKSIZ * Nblocks)) != BLKSIZ * Nblocks) {
 			printf("Read error on block %ld...\n", Block);
-			perror();
+			perror("");
 			for(i=0; i != Nblocks * (BLKSIZ/2); ++i) Buf[i] = 0;
 			if(!Fromtape)
 				lseek(fsi,(long)((Block+Nblocks) * BLKSIZ), 0);
@@ -937,7 +954,7 @@ int ioflg;
 	alarm(0);
 	if(NOT_EQ(Tape_hdr.t_magic, "Volcopy", 7)) {
 		fprintf(stderr,"Not a labeled tape. ");
-		if(!Fromtape) {
+		if(ioflg == OUTPUT) {
 			ask();
 			mklabel();
 			strncpy(Tape_hdr.t_volume, vol, 6);
@@ -1290,3 +1307,192 @@ char pbuff[];
 	kilchld();
 	exit(1);
 }
+#if u3b2 || u3b15
+/* heuristic function to determine logical block size of System V file system
+ *  on disk
+ */
+s5bsize(dev)
+char	*dev;
+{
+
+	int fd;
+	int results[3];
+	int count;
+	long address;
+	long offset;
+	char *buf;
+	struct dinode *inodes;
+	struct direct *dirs;
+	char * p1;
+	char * p2;
+	
+	results[1] = 0;
+	results[2] = 0;
+
+	buf = (char *)malloc(BLKSIZ);
+	fd = open(dev, 0);
+
+	for (count = 1; count < 3; count++) {
+
+		address = 2048 * count;
+		if (lseek(fd,address,0) != address)
+			continue;
+		if (read(fd, buf, BLKSIZ) != BLKSIZ)
+			continue;
+		inodes = (struct dinode *)buf;
+		if ((inodes[1].di_mode & IFMT) != IFDIR)
+			continue;
+		if (inodes[1].di_nlink < 2)
+			continue;
+		if ((inodes[1].di_size % sizeof(struct direct)) != 0)
+			continue;
+	
+		p1 = (char *) &address;
+		p2 = inodes[1].di_addr;
+		*p1++ = 0;
+		*p1++ = *p2++;
+		*p1++ = *p2++;
+		*p1   = *p2;
+	
+		offset = address << (count + 9);
+		if (lseek(fd,offset,0) != offset)
+			continue;
+		if (read(fd, buf, BLKSIZ) != BLKSIZ)
+			continue;
+		dirs = (struct direct *)buf;
+		if (dirs[0].d_ino != 2 || dirs[1].d_ino != 2 )
+			continue;
+		if (strcmp(dirs[0].d_name,".") || strcmp(dirs[1].d_name,".."))
+			continue;
+		results[count] = 1;
+		}
+	close(fd);
+	free(buf);
+	
+	if(results[1])
+		return(Fs2b);
+	if(results[2])
+		return(Fs4b);
+	return(-1);
+}
+/* heuristic function to determine logical block size of System V file system
+ *  on tape
+ */
+tps5bsz(dev)
+char	*dev;
+{
+
+	int fd;
+	int count;
+	int skipblks;
+	long offset;
+	long address;
+	char *buf;
+	struct dinode *inodes;
+	struct direct *dirs;
+	char * p1;
+	char * p2;
+	
+	buf = (char *)malloc(2*BLKSIZ*Nblocks);
+
+	/* look for i-list starting at offset 2048 (indicating 1KB block size) 
+	 *   or 4096 (indicating 2KB block size)
+	 */
+	for(count = 1; count < 3; count++) {
+
+		address = 2048 * count;
+		skipblks = address / (BLKSIZ * Nblocks);
+		offset = address % (BLKSIZ * Nblocks);
+		if ((fd = open(dev, 0)) == -1) {
+			fprintf(stderr, "Can't open %s for input\n", dev);
+			exit(1);
+		}
+		/* skip over tape header and any blocks before the potential */
+		/*   start of i-list */
+		read(fd, buf, sizeof Tape_hdr);
+		while (skipblks > 0) {
+			read(fd, buf, BLKSIZ * Nblocks);
+			skipblks--;
+		}
+
+		if (read(fd, buf, BLKSIZ * Nblocks) != BLKSIZ * Nblocks) {
+			close(fd);
+			continue;
+		}
+		/* if first two inodes cross block boundary read next block also
+		 *  - shouldn't happen as long as BLKSIZ is a multiple of 512 
+		 */
+		if ((offset + 2 * sizeof(struct dinode)) > BLKSIZ * Nblocks) {
+		    if (read(fd, &buf[BLKSIZ * Nblocks], BLKSIZ * Nblocks) != BLKSIZ * Nblocks) {
+			close(fd);
+			continue;
+		    }
+		}
+		close(fd);
+		inodes = (struct dinode *)&buf[offset];
+		if((inodes[1].di_mode & IFMT) != IFDIR)
+			continue;
+		if(inodes[1].di_nlink < 2)
+			continue;
+		if((inodes[1].di_size % sizeof(struct direct)) != 0)
+			continue;
+	
+		p1 = (char *) &address;
+		p2 = inodes[1].di_addr;
+		*p1++ = 0;
+		*p1++ = *p2++;
+		*p1++ = *p2++;
+		*p1   = *p2;
+	
+		/* look for root directory at address specified by potential */
+		/*   root inode */
+		address = address << (count + 9);
+		skipblks = address / (BLKSIZ * Nblocks);
+		offset = address % (BLKSIZ * Nblocks);
+		if ((fd = open(dev, 0)) == -1) {
+			fprintf(stderr, "Can't open %s for input\n", dev);
+			exit(1);
+		}
+		/* skip over tape header and any blocks before the potential */
+		/*   root directory */
+		read(fd, buf, sizeof Tape_hdr);
+		while (skipblks > 0) {
+			read(fd, buf, BLKSIZ * Nblocks);
+			skipblks--;
+		}
+
+		if (read(fd, buf, BLKSIZ * Nblocks) != BLKSIZ * Nblocks) {
+			close(fd);
+			continue;
+		}
+		/* if first 2 directory entries cross block boundary read next 
+		 *   block also - shouldn't happen as long as BLKSIZ is a 
+		 *   multiple of 512
+		 */
+		if ((offset + 2 * sizeof(struct direct)) > BLKSIZ * Nblocks) {
+		    if (read(fd, &buf[BLKSIZ * Nblocks], BLKSIZ * Nblocks) != BLKSIZ * Nblocks) {
+			close(fd);
+			continue;
+		    }
+		}
+		close(fd);
+
+		dirs = (struct direct *)&buf[offset];
+		if(dirs[0].d_ino != 2 || dirs[1].d_ino != 2 )
+			continue;
+		if(strcmp(dirs[0].d_name,".") || strcmp(dirs[1].d_name,".."))
+			continue;
+
+		if (count == 1) {
+			free(buf);
+			return(Fs2b);
+		}
+		else if (count == 2) {
+			free(buf);
+			return(Fs4b);
+		}
+	}
+	free(buf);
+	return(-1);
+}
+#endif

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/rnami.c	10.3.1.2"
+#ident	"@(#)kern-port:nudnix/rnami.c	10.3.1.4"
 
 #include "sys/types.h"
 #include "sys/sema.h"
@@ -76,13 +76,12 @@ register char *buf;
 	if (dp == smp->sr_rootinode) { 
 		iput(dp);
 		goback(smp->sr_mntindx);
-		u.u_arg[0] += (u.u_nextcp - buf);
 		while ((nbp = alocbuf (sizeof (struct response), BPRI_MED)) == NULL);
 		u.u_copymsg = (struct response *)PTOMSG(nbp->b_rptr);
 		u.u_copymsg->rp_type = RESP_MSG;
 		u.u_copymsg->rp_bp = (long)nbp;
-		len = strlen(u.u_arg[0]);
-		bcopy(u.u_arg[0], u.u_copymsg->rp_data, len+1);
+		len = strlen(u.u_nextcp);
+		bcopy(u.u_nextcp, u.u_copymsg->rp_data, len+1);
 		u.u_msgend = u.u_copymsg->rp_data + len + 1;
 		return(0);
 	}
@@ -93,10 +92,8 @@ register char *buf;
 
 rnamei0()
 {
-	if (u.u_gift->sd_temp != NULL){
+	if (u.u_gift && (u.u_gift->sd_temp != NULL)) {
 		freemsg((mblk_t *)u.u_gift->sd_temp);
 		u.u_gift->sd_temp = NULL;
 	}
-	else
-		printf("rnamei0: WARNING!!!! Situation\n");
 }

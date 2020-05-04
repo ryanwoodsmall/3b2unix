@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident "@(#)vi:port/ex_data.c	1.7"
+#ident "@(#)vi:port/ex_data.c	1.8"
 
 #include "ex.h"
 #include "ex_tty.h"
@@ -48,6 +48,7 @@ struct	option options[vi_NOPTS + 1] = {
 	"directory",	"dir",	STRING,		0,	0,	direct,
 	"edcompatible",	"ed",	ONOFF,		0,	0,	0,
 	"errorbells",	"eb",	ONOFF,		0,	0,	0,
+	"exrc",		"ex",	ONOFF,		0,	0,	0,
 	"flash",	"fl",	ONOFF,		1,	1,	0,
 	"hardtabs",	"ht",	NUMERIC,	8,	8,	0,
 	"ignorecase",	"ic",	ONOFF,		0,	0,	0,

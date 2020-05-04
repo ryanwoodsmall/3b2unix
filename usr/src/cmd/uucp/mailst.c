@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:mailst.c	2.3"
+#ident	"@(#)uucp:mailst.c	2.4"
 
 #include "uucp.h"
 
@@ -46,11 +46,27 @@ char *user, *str, *infile, *errfile;
 	}
 
 	/* copy back stdin */
-	if (*infile != '\0' && NOTEMPTY(infile) && (fi = fopen(infile, "r")) != NULL) {
-		fputs("\n\t===== stdin was =====\n", fp);
-		if (xfappend(fi, fp) != SUCCESS)
-			fputs("\n\t===== well, i tried =====\n", fp);
-		(void) fclose(fi);
+	if ( *infile != '\0' ) {
+		fputs("\n\t===== stdin was ", fp);
+		if ( !NOTEMPTY(infile) )
+			fputs("emtpy =====\n", fp);
+		else if ( chkpth(infile, CK_READ) == FAIL ) {
+			fputs("denied read permission =====\n", fp);
+			sprintf(cmd, "user %s, stdin %s", user, infile);
+			logent(cmd, "DENIED");
+		}
+
+		else if ( (fi = fopen(infile, "r")) == NULL ) {
+			fputs("unreadable =====\n", fp);
+			sprintf(cmd, "user %s, stdin %s", user, infile);
+			logent(cmd, "DENIED");
+		}
+		else {
+			fputs("=====\n", fp);
+			if (xfappend(fi, fp) != SUCCESS)
+				fputs("\n\t===== well, i tried =====\n", fp);
+			(void) fclose(fi);
+		}
 		fputc('\n', fp);
 	}
 

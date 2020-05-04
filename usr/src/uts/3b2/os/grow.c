@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/grow.c	10.9.1.2"
+#ident	"@(#)kern-port:os/grow.c	10.9.2.2"
 #include "sys/types.h"
 #include "sys/bitmasks.h"
 #include "sys/param.h"
@@ -75,9 +75,11 @@ sbreak()
 		ASSERT(dprp != NULL);
 		if (chkstbl(u.u_procp, dprp, rp->r_pgsz) < 0){
 			growreg(prp, -change, DBD_DZERO);
+			regrele(rp);
 			goto sbrk_err;
 		}
 		loadstbl(&u, dprp, 0);
+		loadmmu(u.u_procp, SCN2);
 	}
 
 	regrele(rp);

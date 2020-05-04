@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)adm:.adm.mk	1.18.1.3"
+#ident	"@(#)adm:.adm.mk	1.18.1.5"
 
 ROOT =
 LIB = $(ROOT)/usr/lib
@@ -20,7 +20,7 @@ CRON_LIB= .proto at.allow cron.allow queuedefs
 
 ETC_SCRIPTS= bcheckrc brc checkall checklist filesave gettydefs \
 	group ioctl.syscon master motd passwd powerfail \
-	rc shutdown system system.mtc11 system.mtc12 \
+	rc shadow shutdown system system.mtc11 system.mtc12 \
 	system.un32 tapesave
 
 all:	etc_scripts crontab cronlib
@@ -36,7 +36,7 @@ clean:
 clobber: clean
 
 install:
-	make -f .adm.mk $(ARGS)
+	$(MAKE) -f .adm.mk $(ARGS)
 
 adm::
 	cp adm $(CRONTABS)/adm
@@ -257,6 +257,16 @@ passwd::
 	$(CH)chgrp sys $(INSDIR)/passwd;\
 	$(TOUCH) 0101000070 $(INSDIR)/passwd;\
 	$(CH)chown root $(INSDIR)/passwd
+
+shadow::
+	-if u3b2;\
+	then cd u3b2;\
+		cp shadow $(INSDIR)/shadow;\
+		$(CH)chmod 400 $(INSDIR)/shadow;\
+		$(CH)chgrp sys $(INSDIR)/shadow;\
+		$(TOUCH) 0101000070 $(INSDIR)/shadow;\
+		$(CH)chown root $(INSDIR)/shadow;\
+	fi
 
 powerfail::
 	-if vax;\

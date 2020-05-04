@@ -1,4 +1,4 @@
-#ident	"@(#)terminfo:hp.ti	1.17"
+#ident	"@(#)terminfo:hp.ti	1.20"
 # # --------------------------------
 #
 # hp: HEWLETT PACKARD
@@ -372,19 +372,20 @@ memhp|memory relative addressing for new HP ttys,
 	use=newhp,
 
 scrhp|screen relative addressing for new HP ttys,
-	clear=\E&a0c0Y\EJ$<40>,
+	clear=\E&a0x0Y\EJ$<40>,
 	cub=\E&a-%p1%dC, cud=\E&a+%p1%dR, cuf=\E&a+%p1%dC, cuu=\E&a-%p1%dR,
-	cup=\E&a%p1%dy%p2%dC$<10>, mrcup=\E&a%p1%dr%p2%dC,
-	home=\E&a0y0C, hpa=\E&a%p1%dC, ll=\E&a0y0C\EA, vpa=\E&a%p1%dY,
+	cup=\E&a%p1%dy%p2%dX$<10>, mrcup=\E&a%p1%dr%p2%dC,
+	home=\E&a0y0X, hpa=\E&a%p1%dC, ll=\E&a0y0X\EA, vpa=\E&a%p1%dY,
 	use=newhp,
 
 hp+labels|"standard" label info for new HP ttys,
 	lh#2, lw#8, nlab#8,
-	pln=\E&f2a%p1%dk%p2%l%Pa%?%ga%t%ga%d%e1%;d0L%?%ga%!%t %;%p2%s,
+	pln=\E&f0a%p1%dk%p2%l%Pa%?%ga%t%ga%d%e1%;d0L%?%ga%!%t %;%p2%s,
 	smln=\E&jB,
 
 hp+printer| "standard" printer info for HP ttys,
 	ff=\E&p4u0C, mc0=\EH\E&p4dF, mc4=\E&p13C, mc5=\E&p11C,
+
 
 # Info:
 #	The new hp2621b is kind of a cross between the old 2621 and the
@@ -460,3 +461,30 @@ hp2624-10p|hp2624a-10p|hp2624b-10p|2624-10p|2624a-10p|2624b-10p|Hewlett Packard 
 
 hp2624b-10p-p|Hewlett Packard 2624 B w/ extra memory & printer,
 	lm#240, use=hp2624b-p,
+
+# Info:
+#	Color manipulations for HP terminals
+
+hp+color|hp with colors,
+	ccc,
+	pairs#8, colors#16, ncv#17,
+	scp=\E&v%p1%dS,
+	initp=\E&v%?%p2%{1000}%=%t1%e.%p2%d%;a
+		  %?%p3%{1000}%=%t1%e.%p3%d%;b
+		  %?%p4%{1000}%=%t1%e.%p4%d%;c
+		  %?%p5%{1000}%=%t1%e.%p5%d%;x
+		  %?%p6%{1000}%=%t1%e.%p6%d%;y
+		  %?%p7%{1000}%=%t1%e.%p7%d%;z
+		  %p1%dI,
+	oc=\E&v0m1a1b1c0I\E&v1a1I\E&v1b2I\E&v1a1b3I\E&v1c4I\E&v1a1c5I\E&v1b1c6I\E&v1x1y7I,
+	op=\E&v0S,
+
+# Info:
+#	is2 disables the dispay, set screen to be 80 columns wide, 
+#       set all function keys to transmit default strings, clears
+#       the screen and then enables the display.
+#
+
+hp2397|2397|2397a|hp2397a|HP 2397A,
+	is2=\E*dF\E&w6f80X\E&f0a1k2d2Lf1\Ep\E&f0a2k2d2Lf2\Eq\E&f0a3k2d2Lf3\Er\E&f0a4k2d2Lf4\Es\E&f0a5k2d2Lf5\Et\E&f0a6k2d2Lf6\Eu\E&f0a7k2d2Lf7\Ev\E&f0a8k2d2Lf8\Ew\EH\EJ$<40>\E*dE,
+	use=scrhp, use=hp+labels, use=hp+color,

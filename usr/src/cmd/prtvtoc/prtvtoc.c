@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)prtvtoc:prtvtoc.c	1.4.2.1"
+#ident	"@(#)prtvtoc:prtvtoc.c	1.4.2.3"
 /*
  * prtvtoc.c
  *
@@ -20,13 +20,15 @@
 #include <sys/vtoc.h>
 #include <errno.h>
 #include <sys/sysmacros.h>
-#include <sys/id.h>
 
 /*
  * Macros.
  */
 #define	strsize(str)	\
 		(sizeof(str) - 1)	/* Length of static character array */
+
+#define	parttn(x)	(x & 0x0f)	/* assumes partition # is low 4 bits */
+#define	noparttn(x)	(x & 0xf0) 	/* assumes partition # is low 4 bits */
 
 /*
  * Definitions.
@@ -220,9 +222,9 @@ reg struct vtoc		*vtoc;
  * directory names (indexed by partition number).
  */
 static char **
-getmntpt(slot, drive)
+getmntpt(slot, nopartminor)
 int		slot;
-int		drive;
+int		nopartminor;
 {
 	reg char	*item;
 	reg char	*line;
@@ -252,8 +254,8 @@ int		drive;
 			    item + strsize(devblk)), &sb) == 0
 			  && (sb.st_mode & S_IFMT) == S_IFCHR
 			  && major(sb.st_rdev) == slot
-			  && iddn(minor(sb.st_rdev)) == drive )
-				list[idslice(minor(sb.st_rdev))] = memstr(mtab.mt_filsys);
+			  && noparttn(minor(sb.st_rdev)) == nopartminor )
+				list[parttn(minor(sb.st_rdev))] = memstr(mtab.mt_filsys);
 		}
 	}
 	close(fd);
@@ -280,12 +282,12 @@ int		drive;
 		    item + strsize(devblk)), &sb) == 0
 		  && (sb.st_mode & S_IFMT) == S_IFCHR
 		  && major(sb.st_rdev) == slot
-		  && iddn(minor(sb.st_rdev)) == drive
+		  && noparttn(minor(sb.st_rdev)) == nopartminor
 		  /* use mnttab if both tables have entries */
-		  && list[idslice(minor(sb.st_rdev))] == 0
+		  && list[parttn(minor(sb.st_rdev))] == 0
 		  && (item = strtok((char *) 0, delimit))
 		  && *item == '/')
-			list[idslice(minor(sb.st_rdev))] = memstr(item);
+			list[parttn(minor(sb.st_rdev))] = memstr(item);
 	}
 	close(fd);
 
@@ -466,7 +468,7 @@ char		*name;
 		putfree(&vtoc, freemap);
 	else
 		puttable(&pdsector.pdinfo, &vtoc, freemap, name,
-		    getmntpt(major(sb.st_rdev), iddn(minor(sb.st_rdev))));
+		    getmntpt(major(sb.st_rdev), noparttn(minor(sb.st_rdev))));
 	return (0);
 }
 

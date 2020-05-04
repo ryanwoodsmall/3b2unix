@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:fs/s5/s5sys3.c	10.15.1.2"
+#ident	"@(#)kern-port:fs/s5/s5sys3.c	10.15.1.8"
 #include "sys/types.h"
 #include "sys/sysmacros.h"
 #include "sys/param.h"
@@ -166,8 +166,11 @@ int datalen;
 {
 	register dev_t dev;
 	register struct filsys *fp;
+	register struct inode *ip;
 	int rdonly;
 	extern short s5fstyp;
+	struct inode in;
+	struct s5inode s5in;
 
 	if (bip->i_ftype != IFBLK) {
 		u.u_error = ENOTBLK;
@@ -196,7 +199,19 @@ int datalen;
 	u.u_count = sizeof(struct filsys);
 	u.u_base = (caddr_t)fp;
 	u.u_segflg = 1;
-	s5readi(bip);
+	u.u_error = 0;
+	ip = &in;		/* need to use a dummy inode since bip may not
+				 * be an s5 inode. (bip is the special dev arg.
+				 * passed in mount.)
+				 */
+	mp->m_bsize=1024;	/* need to set bsize here to read the superblock */
+	ip->i_ftype = IFBLK;
+	ip->i_rdev = bip->i_rdev;
+	ip->i_fstyp = s5fstyp;		/* index into FSS table */
+	ip->i_mntdev = mp;
+	ip->i_fsptr = (int *)&s5in;
+	s5in.s5i_mode = IFBLK;
+	s5readi(ip);
 	if (u.u_error)
 		goto out;
 	fp->s_fmod = 0;
@@ -213,28 +228,8 @@ int datalen;
 		fp->s_type = Fs1b;
 #endif
 	}
-	if (rdonly)
-		mp->m_flags |= MRDONLY;
-	else {
-		if ((fp->s_state + (long)fp->s_time) == FsOKAY) {
-			fp->s_state = FsACTIVE;
-			u.u_offset = SUPERBOFF;
-			u.u_count = sizeof(struct filsys);
-			u.u_base = (caddr_t)fp;
-			u.u_segflg = 1;
-			u.u_fmode = FWRITE|FSYNC;
-			s5writei(bip);
-			if (u.u_error) {
-				u.u_error = EROFS;
-				goto out;
-			}
-		} else {
-			u.u_error = ENOSPC;
-			goto out;
-		}
-	}
 
-	/* determine fstyp */
+	/* determine the correct fstyp and update m_bsize in mount */
 	switch ((int) fp->s_type) {
 #ifndef u3b2
 	default:
@@ -243,6 +238,17 @@ int datalen;
 		mp->m_bsize = 512;
 		break;
 	case Fs2b:
+		/*
+		 * check root inode and directory this could be
+		 * an old style 3b15 2KB file system.
+		 */
+		if(s5chklblksz(ip,1024)){
+			/* Corrupted 1k fs or it really is an
+			 * old style 3b15 2k fs.
+			 */
+			u.u_error = EINVAL;
+			goto out;
+		}
 		/*
 		 * Invalidate buffer containing the superblock
 		 * read by s5readi().
@@ -253,13 +259,34 @@ int datalen;
 #ifdef u3b2
 	default:
 		/* 3B2 never had "old" 512-byte file systems */
+		/* This could also be a 2kb file system */
 		u.u_error = EINVAL;
 		goto out;
 #endif
 	}
+
+	if (rdonly)
+		mp->m_flags |= MRDONLY;
+	else {
+		if ((fp->s_state + (long)fp->s_time) == FsOKAY) {
+			fp->s_state = FsACTIVE;
+			u.u_offset = SUPERBOFF;
+			u.u_count = sizeof(struct filsys);
+			u.u_base = (caddr_t)fp;
+			u.u_segflg = 1;
+			u.u_fmode = FWRITE|FSYNC;
+			s5writei(ip);
+			if (u.u_error) {
+				u.u_error = EROFS;
+				goto out;
+			}
+		} else {
+			u.u_error = ENOSPC;
+			goto out;
+		}
+	}
+
 	mp->m_fstyp = s5fstyp;
-	if (pipedev == mp->m_dev)
-		pipedev = mp->m_dev;
 
 	if (mp->m_mount = iget(mp, S5ROOTINO)) {
 		mp->m_mount->i_flag |= IISROOT;
@@ -465,8 +492,6 @@ s5rmount(iflg)
 	fsinfo[mp->m_fstyp].fs_pipe = mp;
 	/* Initialize pipefstyp to that of the default root. */
 	pipefstyp = mp->m_fstyp;
-	if (pipedev == rootdev)
-		pipedev = rootdev;
 	if (iflg) {
 		clkset(fp->s_time);
 		/* 
@@ -531,8 +556,8 @@ int  ufstyp;
 		 * must be read.
 		 */
 		dev = ip->i_rdev;
-		if (ip->i_ftype != IFBLK) {
-			/* Character devices not supported for now. */
+		if (ip->i_ftype != IFBLK || bmajor(dev) < 0
+		  || bmajor(dev) >= bdevcnt) {
 			u.u_error = EINVAL;
 			return;
 		}
@@ -561,6 +586,15 @@ int  ufstyp;
 		goto out;
 	}
 	if (fp->s_type == Fs2b) {
+		if(ufstyp)
+			/* check root inode and directory, this may
+			 * be an old 3b15 2K file system
+			 */
+			if (s5chklblksz(&in,1024)){
+				/* must be a 2KB file system */
+				u.u_error = EINVAL;
+				goto out;
+			}
 		sp->f_bsize = 1024;
 	} else if (fp->s_type == Fs1b) {
 		sp->f_bsize = 512;
@@ -579,6 +613,7 @@ int  ufstyp;
 out:
 	if (ufstyp) {
 		(*bdevsw[bmajor(dev)].d_close)(dev, 0, OTYP_LYR);
+		binval(dev);  /* invalidate superblock buffer */
 		brelse(bp);
 	}
 }
@@ -677,7 +712,7 @@ int flag;
 	mp = ip->i_mntdev;
 	bsize = mp->m_bsize;
 	nindir = FsNINDIR(bsize);
-	lastblock = ((lp->l_start + FsBSIZE(bsize)-1) >> FsBSHIFT(bsize)) - 1;
+	lastblock = (long)(((ulong)lp->l_start + FsBSIZE(bsize)-1) >> FsBSHIFT(bsize)) - 1;
 	lastiblock[SINGLE] = lastblock - NDADDR;
 	lastiblock[DOUBLE] = lastiblock[SINGLE] - nindir;
 	lastiblock[TRIPLE] = lastiblock[DOUBLE] - nindir*nindir;
@@ -808,3 +843,74 @@ int level;
 
 	brelse(copy);
 }
+/*
+ * Using the raw device field of an inode, try to access part of a
+ * file system.  The block size to use is testsize.  A successful
+ * access:
+ *		- reads the first two inodes in the i-list
+ *		- verifies inode #2 is for the root directory
+ *		- reads in the first data block of the directory
+ *		- verifies first two directory entries are valid
+ *
+ * If any of the above steps fails, the access attempt fails.
+ */
+s5chklblksz(ip, testsize)
+
+register struct inode * ip;
+int testsize;
+
+{
+	struct dinode twoinodes[2];
+	struct direct  * dirs;
+	daddr_t addr;
+	register char * p1;
+	register char * p2;
+	int count;
+	struct buf * bp;
+
+	u.u_offset = testsize * 2;
+	u.u_count = sizeof(struct dinode) * 2;
+	u.u_base = (caddr_t)&twoinodes[0];
+	u.u_segflg = 1;
+	s5readi(ip);
+	if(u.u_error) {
+		u.u_error = 0;
+		return(-1);
+	}
+	if((twoinodes[1].di_mode & IFMT) != IFDIR)
+		return(-1);
+	if(twoinodes[1].di_nlink < 2)
+		return(-1);
+	if((twoinodes[1].di_size % sizeof(struct direct)) != 0)
+		return(-1);
+
+	p1 = (char *)&addr;
+	p2 = twoinodes[1].di_addr;
+	*p1++ = 0;
+	for(count = 0; count < 3; count++)
+		*p1++ = *p2++;
+
+	bp = bread(ip->i_rdev,addr,testsize);
+	if((bp->b_resid) || (bp->b_flags&B_ERROR)) {
+		u.u_error = 0;
+		brelse(bp);
+		return(-1);
+	}
+	dirs = (struct direct *) bp->b_un.b_addr;
+	if(dirs[0].d_ino != 2 || dirs[1].d_ino != 2){
+		brelse(bp);
+		return(-1);
+	}
+	if((dirs[0].d_name[0] != '.') || (dirs[0].d_name[1] != '\0')) {
+		brelse(bp);
+		return(-1);
+	}
+	if((dirs[1].d_name[0] != '.') || (dirs[1].d_name[1] != '.' )  ||
+					 (dirs[1].d_name[2] != '\0'))  {
+		brelse(bp);
+		return(-1);
+	}
+	brelse(bp);
+	return(0);
+}
+

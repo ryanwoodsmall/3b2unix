@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:debug/trace.c	10.2.1.1"
+#ident	"@(#)kern-port:debug/trace.c	10.2.1.2"
 #include	<sys/types.h>
 #include	<sys/param.h>
 #include	<sys/immu.h>
@@ -19,31 +19,52 @@
 #include	<sys/cmn_err.h>
 #include	<sys/sys3b.h>
 #include	<sys/inline.h>
+#include        <sys/var.h>
+
+#define MAXARGS		20
 
 char	tracebuf[200];
 int	my_stack[256];
 char	*s3blookup();
 int	strcmp();
-proc_t	*paddr;
-pcb_t	*pcbaddr;
 int	t_ap, t_fp, t_pc, t_sp;
+pcb_t	*pcbaddr;
+proc_t	*paddr;
 
-trace()
+trace(arg)
+int arg;
+{
+	proc_t **argptr;
+	int argc;
+
+	argc = argcount();	/* Get number of args */
+	argptr = (proc_t **) &arg;	/* Get ptr to first arg */
+	do {
+		if (argc != 0)
+			paddr = *argptr++;
+
+		else {
+			if (paddr == NULL) {
+				cmn_err(CE_CONT, "^No proc addr set yet\n");
+				return;
+			}
+
+			argc = 1;
+		}
+
+		dotrace(paddr);
+		if (argc > 1)
+			cmn_err(CE_CONT, "-------------------------------------------------------------------------------\n\n");
+
+	} while (--argc);
+}
+
+dotrace()
 {
 	register int oldsp;
 	register pcb_t **isp;
 	register int oldap, oldfp;
 	int s;
-
-	asm("	PUSHW  %r0");
-	asm("	PUSHW  %r1");
-	asm("	PUSHW  %r2");
-
-	/*
-		Since we switch u area behind demon's and UNIX's back, we
-		have to make sure no interrupts occur since pcbp may not
-		be pointing to any place meaningful
-	*/
 
 	s = spl7();
 	asm("	MOVW	%sp,%r8");

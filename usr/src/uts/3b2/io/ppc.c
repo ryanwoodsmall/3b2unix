@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/ppc.c	10.9.2.1"
+#ident	"@(#)kern-port:io/ppc.c	10.9.2.2"		/* modified by gwb 10/14/87 */
 /*
  *	Copyright 1984, 1986 AT&T
  *
@@ -19,6 +19,8 @@
 #include "sys/immu.h"
 #include "sys/psw.h"
 #include "sys/pcb.h"
+#include "sys/region.h"
+#include "sys/proc.h"
 #include "sys/user.h"
 #include "sys/iu.h"
 #include "sys/errno.h"
@@ -386,6 +388,13 @@ ppioctl(dev, cmd, arg, mode)
 			break;
 		case PPC_VERS:
 			versreq(device,cmd,arg,mode);
+			break;
+		case PPC_SETPGRP:	/* reset tty's pgrp.  gwb 10/14/87 */
+			tp = &pp_tty[device];
+			if ((tp->t_pgrp) || (&tp->t_pgrp != u.u_ttyp))
+				u.u_error = EPERM;
+			else
+				tp->t_pgrp = u.u_procp->p_pgrp;
 			break;
 		default:
 			if(ttiocom(&pp_tty[device], cmd, arg, mode))

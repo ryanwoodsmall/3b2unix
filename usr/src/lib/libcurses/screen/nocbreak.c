@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/nocbreak.c	1.3.1.5"
+#ident	"@(#)curses:screen/nocbreak.c	1.5"
 
 #include	"curses_inc.h"
 

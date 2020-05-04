@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)ps:ps.c	1.62.5.1"
+#ident	"@(#)ps:ps.c	1.62.5.3"
 
 /*	ps - process status					*/
 /*	examine and print certain things about processes	*/
@@ -208,6 +208,10 @@ int	ngrpid = 0;
 
 extern int	chown();
 extern unsigned short getegid();
+extern unsigned short getuid();
+extern unsigned short getgid();
+extern int	setuid();
+extern int	setgid();
 extern int	errno;
 extern char	*sys_errlist[];
 extern void	exit();
@@ -286,12 +290,18 @@ char **argv;
 			break;
 
 		case 'n':		/* alternate namelist */
+			/* set the effective uid and gid to their reals */
+			setuid((int)getuid());
+			setgid((int)getgid());
 			nflg++;
 			sysname = optarg;
 			break;
 
 #if !(u3b2 || u3b15)
 		case 'c':		/* core file given */
+			/* set the effective uid and gid to their reals */
+			setuid((int)getuid());
+			setgid((int)getgid());
 			coref = optarg;	/* c option unavailable on 3b2/5    */
 			memf = coref;	/* until virtual to physical memory */
 			break;		/* address translation library	    */
@@ -300,6 +310,9 @@ char **argv;
 
 #if pdp11
 		case 's':		/* swap device given */
+			/* set the effective uid and gid to their reals */
+			setuid((int)getuid());
+			setgid((int)getgid());
 			sflg++;
 			if ((swap = open(optarg, 0)) < 0 ) {
 				fprintf(stderr, "ps: cannot open %s\n",optarg);

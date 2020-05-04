@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sh:defs.h	1.14"
+#ident	"@(#)sh:defs.h	1.15.1.2"
 /*
  *	UNIX shell
  */

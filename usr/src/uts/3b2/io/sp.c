@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/sp.c	10.2"
+#ident	"@(#)kern-port:io/sp.c	10.3"
 
 /*
  * SP - Stream "pipe" device.  Any two minor devices may
@@ -79,7 +79,7 @@ register queue_t *q;
 		spp->sp_ordq = NULL;
 		WR(orq)->q_next = NULL;
 		WR(q)->q_next = NULL;
-		if (mp = allocb(0)) { 
+		if (mp = allocb(0, BPRI_MED)) { 
 			mp->b_datap->db_type = M_HANGUP;
 			putnext(orq, mp);
 		} else

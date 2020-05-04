@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sa:sys/pdi.h	1.2"
+#ident	"@(#)sa:sys/pdi.h	1.3"
 /*	Copyright (c) 1986 AT&T
  *	  All Rights Reserved
  *
@@ -13,8 +13,8 @@
  *	The copyright notice above does not evidence any
  *	actual or intended publication of such source code.
  *
- *	@(#)pdi.h	1.0
  */
+/*  #ident	"@(#)kern-common:sys/pdi.h	1.2" */
 #ifndef NULL
 #define NULL 0
 #endif
@@ -73,7 +73,7 @@ typedef struct	pdi_df_ptrack
 } pdi_ptrk_t;
 
 /*
- * structure for system accounting
+ * structures for system accounting
  */
 typedef struct pdi_iotime {
 	pdi_iostat_t 	ios; 	/* iostat sub structure */
@@ -95,6 +95,16 @@ typedef struct pdi_iotime {
 	pdi_ptrk_t	ptrackq[NTRACK];	/* queue */
 } pdi_iotime_t;
 
+typedef struct	pdi_dskinfo
+{
+	pdi_iotime_t	di_perf;	/* driver activity accnting */
+	long		di_cyls;	/* # of cylinders on drive  */
+	long		di_tracks;	/* # of tracks per cylinder */
+	long		di_sectors;	/* # of sectors per track   */
+	long		di_bytes;	/* # of bytes per sector    */
+	long		di_logicalst;	/* logical start of the disk*/
+} pdi_dskinfo_t;
+
 /*
  *  dma function tuple structure 
  */
@@ -111,61 +121,50 @@ typedef struct pdi_dev {
 	long	min;
 } pdi_dev_t;
 
-#define	io_cnt	ios.io_ops
-#define io_qc ios.io_qcnt
-#define pdi_brelse	brelse
-#define pdi_clrbuf(bp)	(clrbuf((struct buf*)bp))
-#define pdi_copyin	copyin
-#define pdi_copyout	copyout
-#define pdi_iodone	iodone
-#define pdi_iowait	iowait
-#define pdi_physck	physck
-
-#define pdi_sleep	sleep
-#define PDI_PCATCH	0400
-#define PDI_PRIBIO	20
-#define PDI_PZERO	25
-
-#define pdi_splblk	spl6
-#define pdi_splchar	spl5
-#define pdi_splhi	splhi
-#define pdi_splx	splx
-#define pdi_subyte	subyte
-#define pdi_suword	suword
-#define pdi_untimeout	untimeout
-#define pdi_wakeup	wakeup
 /*
- * PDI external major/minor macros
+ *  mode flag values in driver call
  */
-#define pdi_emajor(x)	(long)(((unsigned)(x)>>8)&0x7F)
-#define pdi_eminor(x)	(long)((x)&0xFF)
+#define	PDI_FOPEN	0xffffffff
+#define	PDI_FREAD	0x01
+#define	PDI_FWRITE	0x02
+#define	PDI_FNDELAY	0x04
+#define	PDI_FAPPEND	0x08
+#define PDI_FSYNC	0x10
 
-#define pdi_bemajor(x)	(pdi_emajor(x->unavail3))
-#define pdi_beminor(x)	(pdi_eminor(x->unavail3))
-#define pdi_bdevset(buf,maj,min) (buf->unavail3=(dev_t)(((maj)<<8) | (min)))
+#define	io_cnt	ios.io_ops
+#define io_qc	ios.io_qcnt
+
 
 /*
  * PDI Functions
  */
 extern caddr_t		pdi_base();
+extern void		pdi_bdevset();
+extern long		pdi_bemajor();
+extern long		pdi_beminor();
+extern long		pdi_brelse();
 extern time_t		pdi_btime();
+extern void		pdi_clrbuf();
 extern void		pdi_cmn_err();
 #define	PDI_CE_CONT	0
 #define	PDI_CE_NOTE	1
 #define	PDI_CE_WARN	2
 #define	PDI_CE_PANIC	3
 
+extern long		pdi_copyin();
+extern long		pdi_copyout();
 extern uint		pdi_count();
 extern void		pdi_dmafreelist();
 extern pdi_dma_t	*pdi_dmamakelist();
+extern long		pdi_emajor();
+extern long		pdi_eminor();
 extern void		pdi_error();
 extern long		pdi_euid();
-extern int		pdi_freemem();
+extern long		pdi_freemem();
 #define	PDI_ROOTID	0
 
 extern pdi_buf_t	*pdi_getrbuf();
 extern void		pdi_freerbuf();
-
 extern pdi_buf_t	*pdi_geteblk();
 extern caddr_t		pdi_getmem();
 extern void		pdi_hdelog();
@@ -185,17 +184,34 @@ extern void		pdi_hdeeqd();
 #define	PDI_EQD_ORW	6
 #define	PDI_EQD_OWORM	7
 
-extern long		pdi_itoemaj();
-extern void		pdi_logberr();
 extern long		pdi_imajor();
 extern long		pdi_iminor();
+extern void		pdi_iodone();
+extern void		pdi_iowait();
+extern long		pdi_itoemaj();
+extern void		pdi_logberr();
+extern void		pdi_lognberr();
 extern off_t		pdi_offset();
+extern long		pdi_physck();
 extern void		pdi_physio();
 extern pdi_procp_t	pdi_procp();
+extern long		pdi_sleep();
+#define PDI_PCATCH	0400
+#define PDI_PRIBIO	20
+#define PDI_PZERO	25
+
+extern long		pdi_splblk();
+extern long		pdi_splchar();
+extern long		pdi_splhi();
+extern long		pdi_splx();
+extern long		pdi_subyte();
+extern long		pdi_suword();
 extern time_t		pdi_time();
-extern int		pdi_timeout();
+extern long		pdi_timeout();
 extern void		pdi_ubase();
 extern void		pdi_ucount();
+extern void		pdi_untimeout();
 extern void		pdi_uoffset();
 extern void		pdi_ureturn();
 extern paddr_t		pdi_vtop();
+extern long		pdi_wakeup();

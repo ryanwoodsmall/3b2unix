@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:admin/menu/usermgmt/moduser/chgpasswd	2.3"
+#ident	"@(#)sadmin:admin/menu/usermgmt/moduser/chgpasswd	2.4"
 #menu# change a user's password
 #help# 
 #help#	This procedure allows you to remove or change a user's password.
@@ -30,7 +30,7 @@ This procedure will not change its password.  See the \"syssetup\" menu."
 		continue
 	fi
 
-	if  grep "^${loginid}::" /etc/passwd >/dev/null
+	if  /bin/passwd -s ${loginid} 2>/dev/null | grep "^${loginid}  *NP" 2>/dev/null 1>&2
 	then
 		/bin/passwd ${loginid}
 	else
@@ -42,11 +42,13 @@ This procedure will not change its password.  See the \"syssetup\" menu."
 			/bin/passwd ${loginid}
 			;;
 		delete )
-			ed - /etc/passwd <<-!  ||  { admerr $0 'Cannot edit /etc/passwd.'; exit 1;}
-			H
-			/^${loginid}:[^:]*:/s//${loginid}::/
-			w
-			!
+			/bin/passwd -d ${loginid} 2>/dev/null
+			if [ $? -ne 0 ]
+			then
+	
+				admerr $0 'Cannot edit /etc/passwd.'
+				exit 1
+			fi
 		esac
 	fi
 

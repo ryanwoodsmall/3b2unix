@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:main.c	1.13"
+#ident	"@(#)mailx:main.c	1.13.1.2"
 #
 
 #include <errno.h>
@@ -294,8 +294,10 @@ main(argc, argv)
 	 * source the MAILRC anyway so that "folder" will be defined.
 	 */
 
+	strcpy(origname, mailname);
+
 	if (ef != NOSTR) {
-		char *ename;
+		char *ename, *tmp;
 
 		edit++;
 		if (*ef == '+') {
@@ -307,7 +309,16 @@ main(argc, argv)
 			ef = (char *) calloc(1, strlen(ename) + 1);
 			strcpy(ef, ename);
 		}
+		strcpy(origname, ename);
 		editfile = ef;
+		if ( ef[0] != '/' ) {
+			tmp=(char *)malloc(PATHSIZE);
+			curdir(tmp);
+			strcat(tmp, "/");
+			ef=(char *)calloc(1, strlen(ename)+strlen(tmp)+1);
+			strcpy(ef, tmp);
+			strcat(ef, ename);
+		}
 		strcpy(mailname, ef);
 	}
 

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:fs/du/dusubr.c	10.14"
+#ident	"@(#)kern-port:fs/du/dusubr.c	10.13.1.1"
 #include "sys/types.h"
 #include "sys/sema.h"
 #include "sys/sysmacros.h"

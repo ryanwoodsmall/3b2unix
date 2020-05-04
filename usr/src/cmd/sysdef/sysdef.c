@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sysdef-3b2:sysdef.c	1.16.3.1"
+#ident	"@(#)sysdef-3b2:sysdef.c	1.16.3.3"
 #include	<stdio.h>
 #include	<a.out.h>
 /*  Fix known problem with a.out.h internal inconsistency  */
@@ -84,13 +84,14 @@ dev_t	root, swap, dump, pipe;
 char	MAJ[128];
 daddr_t	spl;
 int	offset;
+int	nlsize,lnsize;
 FILE	*sysfile, *mast, *mastf;
 struct	scnhdr  scn;
 LDFILE	*ldptr;
 
 void	setln();
 
-struct nlist	nl[MAXI], *nlptr, *setup(), *endnm,
+struct nlist	*nl, *nlptr, *setup(), *endnm,
 	*rootdev, *swapdev, *dumpdev, *swplo, *nswap, *MAJOR, *sys3bboot,
 	*pipedev, *vs, *tu, *msginfo, *seminfo,
 	*shminfo, *FLckinfo, *utsnm, *bdev,
@@ -116,7 +117,7 @@ struct	link {
 	unsigned int l_soft :1;	/* software driver flag from master table */
 	unsigned int l_dtype:1;	/* set if block device */
 	unsigned int l_used :1;	/* set when device entry is printed */
-} ln[MAXL], *lnptr, *endln, *majsrch();
+} *ln, *lnptr, *endln, *majsrch();
 
 
 
@@ -170,6 +171,10 @@ main(argc, argv)
 	uname(&utsname);
 	printf("*\n* %s Configuration\n*\n",utsname.machine);
 
+	nlsize=MAXI;
+	lnsize=MAXL;
+	nl=(struct nlist *)(calloc(nlsize, sizeof(struct nlist)));
+	ln=(struct link *)(calloc(lnsize, sizeof(struct link)));
 	nlptr = nl;
 	lnptr = ln;
 	if ( absolute ) {
@@ -297,7 +302,6 @@ main(argc, argv)
 	nlist(os, nl);
 	for(nlptr = vs; nlptr != endnm; nlptr++) {
 		if(nlptr->n_value == 0) {
-printf("%s\n",nlptr->n_name);
 			fprintf(stderr, "namelist error\n");
 			exit(1);
 		}
@@ -543,9 +547,14 @@ struct	nlist	*
 setup(nam)
 	char	*nam;
 {
-	if(nlptr >= &nl[MAXI]) { 
-		fprintf(stderr, "internal name list overflow\n");
-		exit(1);
+	if(nlptr >= &nl[nlsize]) { 
+		nlsize=nlptr-nl;
+		if ((nl=(struct nlist *)realloc(nl,(nlsize+99)*(sizeof(struct nlist)))) == NULL) {
+			fprintf(stderr, "Namelist space allocation failed\n");
+			exit(1);
+		}
+		nlptr=nl+nlsize;
+		nlsize+=99;
 	}
 
 	nlptr->n_name = malloc((unsigned)(strlen(nam)+1));	/* initialize pointer to next string */
@@ -566,10 +575,16 @@ setln(cf, np, block, software)
 	struct	nlist	*np;
 	int block, software;
 {
-	if(lnptr >= &ln[MAXL]) {
-		fprintf(stderr, "internal link array overflow\n");
-		exit(1);
+	if(lnptr >= &ln[lnsize]) { 
+		lnsize=lnptr-ln;
+		if ((ln=(struct link *)realloc(ln,(lnsize+99)*(sizeof(struct link)))) == NULL) {
+			fprintf(stderr, "Internal link space allocation failed \n");
+			exit(1);
+		}
+		lnptr=ln+lnsize;
+		lnsize+=99;
 	}
+
 	strncat(strcpy(lnptr->l_cfnm," "), cf,DIRSIZ);
 	lnptr->l_func = np;
 	lnptr->l_soft = software;

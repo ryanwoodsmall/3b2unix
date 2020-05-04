@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/tirdwr.c	10.4.1.1"
+#ident	"@(#)kern-port:io/tirdwr.c	10.4.1.2"
 /*
  * Transport Interface Library read/write module - issue 1
  */
@@ -223,18 +223,6 @@ register mblk_t *mp;
 			putnext(q, mp);
 			return;
 
-		case T_ERROR_ACK:
-		case T_OK_ACK:
-			if (trwptr->trw_flags & WAITACK) {
-				trwptr->trw_flags &= ~WAITACK;
-				wakeup((caddr_t)trwptr);
-				if (pptr->type == T_ERROR_ACK) {
-					send_fatal(q, mp);
-					return;
-				}
-				freemsg(mp);
-				return;
-			}
 			/* flow thru */
 		default:
 			send_fatal(q, mp);

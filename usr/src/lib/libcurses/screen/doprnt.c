@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/doprnt.c	1.7.1.1"
+#ident	"@(#)curses:screen/doprnt.c	1.8"
 /*
  * Alas, doprnt is not documented, so people feel they have license to
  * change the parameters.  The 3B implementation does not even look

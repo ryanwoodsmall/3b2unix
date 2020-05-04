@@ -1,4 +1,4 @@
-#ident	"@(#)initpkg:init.d/rfs	1.18"
+#ident	"@(#)initpkg:init.d/rfs	1.18.2.1"
 
 USAGE="Usage: /etc/init.d/rfs {start | stop | rfstart}"
 
@@ -9,6 +9,7 @@ fi
 case "$1" in
 'start')
 
+	/bin/rm -f /usr/nserve/rmnttab
 	if [ ! -r /usr/nserve/domain ]
 	then
 		echo $0: /usr/nserve/domain not initialized >/dev/console
@@ -102,6 +103,7 @@ execute rfstart to initialize /usr/nserve/loc.passwd.">/dev/console
 		exit
 	fi
 
+	/bin/rm -f /usr/nserve/rmnttab
 	if [ -x /usr/bin/rfstop ]
 	then
 		/usr/bin/rfstop

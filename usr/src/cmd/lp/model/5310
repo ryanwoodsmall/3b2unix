@@ -1,9 +1,9 @@
-#ident	"@(#)lp:model/5310	1.1"
+#ident	"@(#)nlp:model/5310	1.7"
 #
 # lp model for AT&T 5310/20 Matrix Printer
 #
 #
-# All output is passed through the /usr/bin/53filter filter unless
+# All output is passed through the /usr/lib/5310 filter unless
 # the -f option is specified (uses /bin/cat then).
 # If the filter is not executable or returns a exit code other than
 # 0, the printer will be disabled.
@@ -44,7 +44,7 @@ stty parenb -parodd 9600 cs7 cread clocal ixon -ignbrk -brkint -ignpar\
 
 x="\033P2q!750d\033\0134"
 printer=`basename $0`
-filter=/usr/bin/53filter
+filter=/usr/lib/5310
 CPI=10
 LPI=6
 id=$1

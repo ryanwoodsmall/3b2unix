@@ -1,15 +1,16 @@
-#ident	"@(#)pkg.perf:perf/INSTALL	1.7"
+#ident	"@(#)pkg.perf:perf/INSTALL	1.9"
 #
 #	@(#)INSTALL	1.1
 #
 
 INSPATH=/install/new
 PATH30=/install/3.0
+PATH31=/install/3.1
 SAPATH=/usr/lib/sa
 PKGNAME=`cat ${INSPATH}/usr/options/perf.name`
 
 echo "Installing the ${PKGNAME}"
-echo "Copyright (c) 1984 AT&T"
+echo "Copyright (c) 1984,1987,1988 AT&T"
 echo "All Rights Reserved"
 
 #
@@ -72,12 +73,21 @@ find . -print | cpio -pduvm /
 #
 
 #
-#	Check for release 3.0
+#	Check for release 3.0 
 #
 if
 	[ `uname -r` = "3.0" ]
 then
 	cd ${PATH30}
+	find . -print | cpio -pdum / 2>/dev/null
+fi
+#
+#	Check for release 3.1 
+#
+if
+	[ `uname -r` = "3.1" ]
+then
+	cd ${PATH31}
 	find . -print | cpio -pdum / 2>/dev/null
 fi
 /install/install/setup

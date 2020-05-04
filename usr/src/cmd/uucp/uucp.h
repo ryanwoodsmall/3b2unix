@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:uucp.h	2.11"
+#ident	"@(#)uucp:uucp.h	2.12"
 
 #include "parms.h"
 
@@ -450,6 +450,7 @@ extern int sprintf();
 #endif /* BSD4_2 */
 
 /* uucp functions and subroutine */
+extern 		(*genbrk)();
 extern int	anlwrk(), iswrk(), gtwvec();		/* anlwrk.c */
 extern void	chremdir(), mkremdir();			/* chremdir.c */
 extern		void toCorrupt();			/* cpmv.c  */

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/ungetch.c	1.1.1.4"
+#ident	"@(#)curses:screen/ungetch.c	1.4"
 #include "curses_inc.h"
 
 /* Place a char onto the beginning of the input queue. */

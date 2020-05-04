@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:names.c	1.10"
+#ident	"@(#)mailx:names.c	1.10.1.1"
 #
 
 /*
@@ -268,6 +268,7 @@ outof(names, fo, hp)
 				close(0);
 				dup(image);
 				close(image);
+				setgid(getgid());
 				if ((shell = value("SHELL")) == NOSTR || *shell=='\0')
 					shell = SHELL;
 				execlp(shell, shell, "-c", fname, 0);

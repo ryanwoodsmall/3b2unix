@@ -5,7 +5,14 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)su:su.c	1.9"
+/*	Copyright (c) 1984 AT&T	*/
+/*	  All Rights Reserved  	*/
+
+/*	THIS IS UNPUBLISHED PROPRIETARY SOURCE CODE OF AT&T	*/
+/*	The copyright notice above does not evidence any   	*/
+/*	actual or intended publication of such source code.	*/
+
+#ident	"@(#)su:su.c	1.9.1.2"
 /*
  *	su [-] [name [arg ...]] change userid, `-' changes environment.
  *	If SULOG is defined, all attempts to su to another user are
@@ -20,6 +27,7 @@
  */
 #include <stdio.h>
 #include <pwd.h>
+#include <shadow.h>
 #include <time.h>
 #include <signal.h>
 #include <fcntl.h>
@@ -29,7 +37,6 @@
 #define SUPRMT	"PS1=# "		/*primary prompt for root*/
 #define ELIM 128
 #define ROOT 0
-#define SYS 3
 long time();
 void pause();
 void to();
@@ -52,9 +59,10 @@ main(argc, argv)
 int	argc;
 char	**argv;
 {
-	char *nptr, *password;
+	struct spwd *sp;
+	char *nptr, *password, *opasswdp;
 	char	*pshell = shell;
-	int badsw = 0;
+	int shadow_exist = 0;
 	int eflag = 0;
 	int uid, gid;
 	char *dir, *shprog, *name;
@@ -65,11 +73,18 @@ char	**argv;
 		argc--;
 	}
 
-	/*determine specified userid, get their password file entry,
-	  and set variables to values in password file entry fields
+	/* check the existence of shadow password file */
+
+	if ( access(SHADOW, 0) == 0)
+		shadow_exist = 1;
+	/* 
+	 * determine specified userid, get their password file entry,
+	 * and set variables to values in password file entry fields
 	*/
+
 	nptr = (argc > 1)? argv[1]: "root";
-	if((pwd = getpwnam(nptr)) == NULL) {
+	if(((pwd = getpwnam(nptr)) == NULL) || (
+             shadow_exist && (sp = getspnam(nptr)) == NULL)) {
 		fprintf(stderr,"su: Unknown id: %s\n",nptr);
 		exit(1);
 	}
@@ -94,10 +109,15 @@ char	**argv;
 	/*Prompt for password if invoking user is not root or
 	  if specified(new) user requires a password
 	*/
-	if(pwd->pw_passwd[0] == '\0' || getuid() == 0 )
+	if (shadow_exist)  
+		opasswdp = sp->sp_pwdp;
+	else
+		opasswdp = pwd->pw_passwd;
+	if (*opasswdp == '\0' || getuid() == 0)
 		goto ok;
 	password = getpass("Password:");
-	if(badsw || (strcmp(pwd->pw_passwd, crypt(password, pwd->pw_passwd)) != 0)) {
+
+	if((strcmp(opasswdp, crypt(password, opasswdp)) != 0)) {
 #ifdef SULOG
 		log(SULOG, nptr, 0);	/*log entry*/
 #endif
@@ -106,11 +126,14 @@ char	**argv;
 	}
 ok:
 	endpwent();	/*close password file*/
+	if (shadow_exist)
+		(void) endspent();	/*close shadow password file*/
 #ifdef SULOG
 		log(SULOG, nptr, 1);	/*log entry*/
 #endif
 
 	/*set user and group ids to specified user*/
+
 	if((setgid(gid) != 0) || (setuid(uid) != 0)) {
 		printf("su: Invalid ID\n");
 		exit(2);
@@ -248,14 +271,10 @@ int how;
 	/*write entry into SULOG or onto CONSOLE -
 		 if write fails, return
 	*/
-	if ((fprintf(logf,"SU %.2d/%.2d %.2d:%.2d %c %s %s-%s\n",
+	fprintf(logf,"SU %.2d/%.2d %.2d:%.2d %c %s %s-%s\n",
 		tmp->tm_mon+1,tmp->tm_mday,tmp->tm_hour,tmp->tm_min,
 		how?'+':'-',(strrchr(ttyn,'/')+1),
-		cuserid((char *)0),towho)) < 0)
-	{
-		fclose(logf);
-		return;
-	}
+		cuserid((char *)0),towho); 
 
 	fclose(logf);	/*close SULOG or CONSOLE*/
 

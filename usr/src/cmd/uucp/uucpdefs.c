@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:uucpdefs.c	2.5"
+#ident	"@(#)uucp:uucpdefs.c	2.6"
 
 #include "uucp.h"
 
@@ -40,6 +40,8 @@ int	Role;
 char	*Bnptr;			/* used when BASENAME macro is expanded */
 char	Jobid[NAMESIZE] = "";	/* Jobid of current C. file */
 int	Uerror;			/* global error code */
+
+int	(*genbrk)();
 
 #ifdef STANDALONE
 int	Verbose = 0;	/* for cu and ct only */

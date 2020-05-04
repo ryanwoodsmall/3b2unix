@@ -1,4 +1,4 @@
-#ident	"@(#)curses:screen/llib-lcurses	1.9.1.20"
+#ident	"@(#)curses:screen/llib-lcurses	1.12"
 
 #include	<curses.h>
 #include	<term.h>
@@ -44,7 +44,7 @@ int	wprintw(win, fmt, args) WINDOW *win; char *fmt; { return 0; }
 	/*VARARGS2*/
 int	wscanw(win, fmt, args) WINDOW *win; char *fmt; { return 0; }
 
-int	LINES, COLS;
+int	LINES, COLS, TABSIZE, COLORS, COLOR_PAIRS;
 char	*UP, *BC, PC;
 short	ospeed;
 WINDOW	*stdscr, *curscr;
@@ -667,3 +667,17 @@ void	wbkgdset(win, ch) WINDOW *win; chtype ch; {}
 char	*termname()	{ return sp; }
 
 void	idcok(win,bf) WINDOW *win; int bf; {}
+
+int	color_content (color, r, g, b)	short color, *r,*g,*b;	{ return 0; }
+
+char	has_colors()	{ return 'a'; }
+
+int	init_color(color, r, g, b)	short color, r, g, b;	{ return 0; }
+
+int	start_color()	{ return 0; }
+
+int	init_pair (pair, f, b)	short pair, f, b;	{ return 0; }
+
+int	pair_content (pair, f, b)	short pair, *f, *b;	{ return 0; }
+
+char	can_change_color()	{ return 'a'; }

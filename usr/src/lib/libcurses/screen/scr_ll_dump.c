@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/scr_ll_dump.c	1.2"
+#ident	"@(#)curses:screen/scr_ll_dump.c	1.4"
 #include	"curses_inc.h"
 #include	<sys/types.h>
 #include	<sys/stat.h>
@@ -59,6 +59,41 @@ register	FILE	*filep;
 	    {
 		goto err;
 	    }
+    }
+
+    /* now write information about colors.  Use the following format.	*/
+    /* Line 1 is mandatory, the remaining lines are required only if 	*/
+    /* line one is 1.							*/
+    /* line 1: 0 (no colors) or 1 (colors)				*/
+    /* line 2: number of colors, number of color pairs, can_change	*/
+    /* X lines: Contents of colors (r, g, b)				*/
+    /* Y lines: Contents of color-pairs					*/
+
+    magic = ((SP->_pairs_tbl) ? 1 : 0);
+    if (fwrite((char *) &magic, sizeof(int), 1, filep) != 1)
+	goto err;
+    if (magic)
+    {
+	/* number of colors and color_pairs	*/
+	if ((fwrite((char *) &COLORS, sizeof(int), 1, filep) != 1) ||
+	    (fwrite((char *) &COLOR_PAIRS, sizeof(int), 1, filep) != 1) ||
+	    (fwrite((char *) &can_change, sizeof(char), 1, filep) != 1))
+	    goto err;
+
+	/* contents of color_table		*/
+
+	if (can_change)
+	{
+	    if (fwrite((char *) &(SP->_color_tbl->r),
+				sizeof(_Color), COLORS, filep) != COLORS)
+		goto err;
+	}
+
+	/* contents of pairs_table		*/
+
+	if (fwrite((char *) &(SP->_pairs_tbl->foreground),
+		sizeof(_Color_pair), COLOR_PAIRS, filep) != COLOR_PAIRS)
+	    goto err;
     }
 
     /* success */

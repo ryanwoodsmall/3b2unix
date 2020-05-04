@@ -5,7 +5,8 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:interface.c	1.9"
+#ident	"@(#)uucp:interface.c	1.11.1.1"
+
 /*	interface( label )
 	provide alternate definitions for the I/O functions through global
 	interfaces.
@@ -17,9 +18,10 @@
 #endif /*  TLI  */
 
 #ifdef DATAKIT
-#include	<dk.h>
+#include	"dk.h"
 
-static int	dkteardown();
+static int	dksetup(),
+		dkteardown();
 #endif	/* DATAKIT */
 
 extern int	read(), write(), ioctl();
@@ -57,6 +59,14 @@ static
 } Interface[] = {
 			/* vanilla UNIX */
 		{ "UNIX", read, write, ioctl, usetup, uteardown },
+#ifdef DIAL801
+			/* 801 auto dialers */
+		{ "801", read, write, ioctl, usetup, uteardown },
+#endif /* DIAL801 */
+#ifdef DIAL801
+			/* 212 auto dialers */
+		{ "212", read, write, ioctl, usetup, uteardown },
+#endif /* DIAL801 */
 #ifdef TLI
 			/* AT&T Transport Interface Library WITHOUT streams */
 		{ "TLI", tread, twrite, tioctl, tsetup, tteardown },
@@ -66,7 +76,7 @@ static
 #endif /*  TLIS  */
 #endif /*  TLI  */
 #ifdef DATAKIT
-		{ "DK", read, write, ioctl, usetup, dkteardown },
+		{ "DK", read, write, ioctl, dksetup, dkteardown },
 #endif /* DATAKIT */
 		{ 0, 0, 0, 0, 0, 0 }
 	};
@@ -135,6 +145,34 @@ uteardown( role, fdread, fdwrite )
 }
 
 #ifdef DATAKIT
+/*
+ *	dksetup - DATAKIT setup routine
+ *
+ * Put line in block mode.
+ */
+
+static
+int
+dksetup (role, fdreadp, fdwritep)
+
+int	role;
+int *	fdreadp;
+int *	fdwritep;
+
+{
+	static short dkrmode[3] = { DKR_BLOCK | DKR_TIME, 0, 0 };
+	int	ret;
+
+	(void) usetup(role, fdreadp, fdwritep);
+	if((ret = (*Ioctl)(*fdreadp, DIOCRMODE, dkrmode)) < 0) {
+		DEBUG(4, "dksetup: failed to set block mode. ret=%d,\n", ret);
+		DEBUG(4, "read fd=%d, ", *fdreadp);
+		DEBUG(4, "errno=%d\n", errno);
+		return(FAIL);
+	}
+	return(SUCCESS);
+}
+
 /*
  *	dkteardown  -  DATAKIT teardown routine
  */

@@ -13,6 +13,7 @@ etc/passwd
 etc/profile
 etc/init.d/cron
 etc/rc2.d/S75cron
+etc/shadow
 usr/lib/cron/at.allow
 usr/lib/cron/cron.allow
 usr/lib/cron/queuedefs

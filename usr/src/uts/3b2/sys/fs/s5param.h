@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/fs/s5param.h	10.4"
+#ident	"@(#)kern-port:sys/fs/s5param.h	10.5"
 
 /*
 /*
@@ -65,6 +65,21 @@
 #define	NMASK		0177		/* NINDIR-1 */
 #define	NSHIFT		7		/* log2(NINDIR) */
 #define NDPC		4
+#define Fs2BLK		0x8000		/* large block flag in bsize */
+#endif
+
+#if FsTYPE==4
+/* New 2048 byte file system */
+#define	BSIZE		2048		/* size of secondary block (bytes) */
+#define SBUFSIZE	2048		/* system buffer size */
+#define	BSHIFT		11		/* log2(BSIZE) */
+#define	NINDIR		(BSIZE/sizeof(daddr_t))	/* BSIZE/sizeof(daddr_t) */
+#define	BMASK		03777		/* BSIZE-1 */
+#define INOPB		32		/* BSIZE/sizeof(struct dinode) */
+#define INOSHIFT	5		/* log2(INOPB) */
+#define	NMASK		0777		/* NINDIR-1 */
+#define	NSHIFT		9		/* log2(NINDIR) */
+#define NDPC		4		/* number of blocks per click */
 #define Fs2BLK		0x8000		/* large block flag in bsize */
 #endif
 

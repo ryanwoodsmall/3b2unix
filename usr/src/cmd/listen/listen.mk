@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)listen:listen.mk	1.14.2.1"
+#ident	"@(#)listen:listen.mk	1.14.2.2"
 #	Copyright (c) 1984 AT&T
 #	  All Rights Reserved
 
@@ -20,7 +20,7 @@
 
 INC	= $(ROOT)/usr/include
 OPT	= -O
-CFLAGS	= -Um68k -Um68 -Umc68k -US4 -Uvax  -UMICROOMS -Updp11 -Uu3b -Du3b2 -I$(INC) ${OPT}
+CFLAGS	= -US4 -I$(INC) ${OPT}
 LDFLAGS	= $(LLDFLAGS)
 LIBNLS = libnls.a
 LDLIBS = -lnsl_s

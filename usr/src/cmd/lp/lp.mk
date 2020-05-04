@@ -5,140 +5,163 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident "@(#)lp:lp.mk	1.11"
-# Makefile for lp line printer spooler system
-
-OL	= /
-BINCOMP  = cancel disable enable lp lpstat
-LPCOMP   = accept lpmove lpshut reject
-ROOTCOMP = lpadmin lpsched
-SPOOL	= $(OL)usr/spool/lp
-ADMDIR	= $(OL)usr/lib
-USRDIR	= $(OL)usr/bin
-LIB	= lib.a
-CFLAGS	= -O
-LDFLAGS	= -s -n
-COMPILE	= $(CC) $(CFLAGS) $(LDFLAGS) -o $@ $@.c $(LIB)
-
-all:	$(BINCOMP) $(LPCOMP) $(ROOTCOMP)
-	-mkdir $(SPOOL) $(SPOOL)/model
-	for i in model/*;\
-		do \
-			cpset $$i $(ROOT)/$(SPOOL)/model 644 lp ; \
-		done
-	touch pstatus; cpset pstatus $(SPOOL) 644 lp
-	touch qstatus; cpset qstatus $(SPOOL) 644 lp
-
-	-cd $(SPOOL) ; \
-		mkdir class interface member request ; \
-		chmod 755 . class interface member model request
-
-	$(CH) cd $(SPOOL) ; chown lp . * ; chgrp bin . *
+#ident	"@(#)nlp:lp.mk	1.6"
+#
+# Top level makefile for the LP Print Service component
+#
 
 
-.c.a:
+USRSPOOL=	$(ROOT)/usr/spool
 
-.PRECIOUS: $(LIB)
+CMDDIR	=	./cmd
+LIBDIR	=	./lib
+INCDIR	=	./include
+ETCDIR	=	./etc
+MODELDIR=	./model
+FILTDIR	=	./filter
+TERMINFODIR=	./terminfo
 
-accept:	accept.c lp.h $(LIB)
-	$(COMPILE)
-cancel:	cancel.c lp.h $(LIB)
-	$(COMPILE)
-disable:	disable.c lp.h $(LIB)
-	$(COMPILE)
-enable:	enable.c lp.h $(LIB)
-	$(COMPILE)
-lp:	lp.c lp.h $(LIB)
-	$(COMPILE)
-lpadmin:	lpadmin.c lp.h $(LIB)
-	$(COMPILE)
-lpmove:	lpmove.c lp.h $(LIB)
-	$(COMPILE)
-lpsched:	lpsched.c lpsched.h lp.h $(LIB)
-	$(COMPILE)
-lpshut:	lpshut.c lp.h $(LIB)
-	$(COMPILE)
-lpstat:	lpstat.c lpsched.h lp.h $(LIB)
-	$(COMPILE)
-reject:	reject.c lp.h $(LIB)
-	$(COMPILE)
-$(LIB): \
-	$(LIB)(dest.o) \
-	$(LIB)(destlist.o) \
-	$(LIB)(fullpath.o) \
-	$(LIB)(gwd.o) \
-	$(LIB)(enter.o) \
-	$(LIB)(fifo.o) \
-	$(LIB)(getname.o) \
-	$(LIB)(isclass.o) \
-	$(LIB)(isprinter.o) \
-	$(LIB)(isrequest.o) \
-	$(LIB)(outlist.o) \
-	$(LIB)(outputq.o) \
-	$(LIB)(pstatus.o) \
-	$(LIB)(date.o) \
-	$(LIB)(isdest.o) \
-	$(LIB)(eaccess.o) \
-	$(LIB)(qstatus.o) \
-	$(LIB)(fatal.o) \
-	$(LIB)(lock.o) \
-	$(LIB)(request.o) \
-	$(LIB)(sendmail.o) \
-	$(LIB)(trim.o) \
-	$(LIB)(wrtmsg.o) \
-	$(LIB)(findtty.o)
-	$(CC) -c $(CFLAGS) $(?:.o=.c)
-	ar r $(LIB) $?
-	rm -f $?
-	chmod 664 $@
 
-$(LIB)(date.o): date.c lp.h
-$(LIB)(dest.o): dest.c lpsched.h lp.h
-$(LIB)(destlist.o): destlist.c lpsched.h
-$(LIB)(eaccess.o): eaccess.c lp.h
-$(LIB)(enter.o): enter.c lp.h
-$(LIB)(fatal.o): fatal.c lp.h
-$(LIB)(fifo.o): fifo.c lp.h
-$(LIB)(findtty.o): findtty.c lp.h lpsched.h
-$(LIB)(fullpath.o): fullpath.c lp.h
-$(LIB)(getname.o): getname.c lp.h
-$(LIB)(gwd.o): gwd.c lp.h
-$(LIB)(isclass.o): isclass.c lp.h
-$(LIB)(isdest.o): isdest.c lp.h
-$(LIB)(isprinter.o): isprinter.c lp.h
-$(LIB)(isrequest.o): isrequest.c lp.h
-$(LIB)(lock.o): lock.c lp.h
-$(LIB)(outlist.o): outlist.c lp.h lpsched.h
-$(LIB)(outputq.o): outputq.c lp.h
-$(LIB)(pstatus.o): pstatus.c lp.h
-$(LIB)(qstatus.o): qstatus.c lp.h
-$(LIB)(request.o): request.c lp.h
-$(LIB)(sendmail.o): sendmail.c lp.h
-$(LIB)(trim.o): trim.c lp.h
-$(LIB)(wrtmsg.o): wrtmsg.c lp.h lpsched.h
 
-install: $(BINCOMP) $(LPCOMP) $(ROOTCOMP)
-	for c in $(BINCOMP) ;\
-	do \
-		cpset $$c $(USRDIR) 6775 lp ; \
-	done
-	for c in $(LPCOMP) ;\
-	do \
-		cpset $$c $(ADMDIR) 6775 lp ; \
-	done
-	for c in $(ROOTCOMP) ;\
-	do \
-		cpset $$c $(ADMDIR) 6775 root ; \
-	done
-	cd filter;  $(MAKE) -f filter.mk OL=$(ROOT)/$(OL) install
-	cd model;   $(MAKE) -f model.mk  OL=$(ROOT)/$(OL) install
+FIFODIR	=	$(USRSPOOL)/lp/fifos
+FIFOPRI	=	$(FIFODIR)/private
+FIFOPUB	=	$(FIFODIR)/public
+
+DIRS	= \
+		$(USRSPOOL)/lp \
+		$(USRSPOOL)/lp/admins \
+		$(USRSPOOL)/lp/admins/lp \
+		$(USRSPOOL)/lp/admins/lp/classes \
+		$(USRSPOOL)/lp/admins/lp/forms \
+		$(USRSPOOL)/lp/admins/lp/interfaces \
+		$(USRSPOOL)/lp/admins/lp/logs \
+		$(USRSPOOL)/lp/admins/lp/printers \
+		$(USRSPOOL)/lp/admins/lp/pwheels \
+		$(USRSPOOL)/lp/bin \
+		$(USRSPOOL)/lp/logs \
+		$(USRSPOOL)/lp/model \
+		$(USRSPOOL)/lp/requests \
+		$(USRSPOOL)/lp/system \
+		$(USRSPOOL)/lp/temp \
+		$(FIFODIR) \
+		$(FIFOPRI) \
+		$(FIFOPUB)
+
+OWNER	=	lp
+GROUP	=	sys
+DMODES	=	0775
+PRIMODE	=	0771
+PUBMODE	=	0773
+
+all:		libs \
+		cmds \
+		etcs \
+		models \
+		filters \
+		terminfos
+		
+install:	all \
+		strip \
+		dirs
+	cd $(CMDDIR); $(MAKE) install
+	cd $(ETCDIR); $(MAKE) install
+	cd $(MODELDIR); $(MAKE) install
+	cd $(FILTDIR); $(MAKE) install
+	cd $(TERMINFODIR); $(MAKE) install
+
+dirs:
+	for d in $(DIRS); do if [ ! -d $$d ]; then mkdir $$d; fi; done
+	$(CH)chown $(OWNER) $(DIRS)
+	$(CH)chgrp $(GROUP) $(DIRS)
+	$(CH)chmod $(DMODES) $(DIRS)
+	$(CH)chmod $(PRIMODE) $(FIFOPRI)
+	$(CH)chmod $(PUBMODE) $(FIFOPUB)
 
 clean:	
-	cd filter; $(MAKE) -f filter.mk clean
-	cd model;  $(MAKE) -f model.mk  clean
-	rm -f $(LIB) *.o pstatus qstatus
+	cd $(LIBDIR); $(MAKE) clean
+	cd $(CMDDIR); $(MAKE) clean
+	cd $(MODELDIR); $(MAKE) clean
+	cd $(FILTDIR); $(MAKE) clean
+	cd $(TERMINFODIR); $(MAKE) clean
 
-clobber:	clean
-	cd filter; $(MAKE) -f filter.mk clobber
-	cd model;  $(MAKE) -f model.mk  clobber
-	rm -f $(BINCOMP) $(LPCOMP) $(ROOTCOMP)
+clobber:
+	cd $(LIBDIR); $(MAKE) clobber
+	cd $(CMDDIR); $(MAKE) clobber
+	cd $(MODELDIR); $(MAKE) clobber
+	cd $(FILTDIR); $(MAKE) clobber
+	cd $(TERMINFODIR); $(MAKE) clobber
+
+strip:
+	if [ -n "$(STRIP)" ]; \
+	then \
+		$(MAKE) STRIP=$(STRIP) -f lp.mk realstrip; \
+	else \
+		$(MAKE) STRIP=strip -f lp.mk realstrip; \
+	fi
+
+realstrip:
+	cd $(CMDDIR); $(MAKE) STRIP=$(STRIP) strip
+	cd $(MODELDIR); $(MAKE) STRIP=$(STRIP) strip
+	cd $(FILTDIR); $(MAKE) STRIP=$(STRIP) strip
+
+libs:
+	cd $(LIBDIR); $(MAKE) FUNCDCL="$(FUNCDCL)"
+
+cmds:
+	cd $(CMDDIR); $(MAKE)
+
+etcs:
+	cd $(ETCDIR); $(MAKE)
+
+models:
+	cd $(MODELDIR); $(MAKE)
+
+filters:
+	cd $(FILTDIR); $(MAKE)
+
+terminfos:
+	cd $(TERMINFODIR); $(MAKE)
+
+
+prof:
+	cd $(LIBDIR); $(MAKE) prof
+	cd $(CMDDIR); $(MAKE) prof
+
+lprof:
+	cd $(LIBDIR); $(MAKE) lprof
+	cd $(CMDDIR); $(MAKE) lprof
+
+
+lint:
+	cd $(LIBDIR); $(MAKE) FUNCDCL="$(FUNCDCL)" lint
+	cd $(CMDDIR); $(MAKE) lint
+	cd $(MODELDIR); $(MAKE) lint
+	cd $(FILTDIR); $(MAKE) lint
+
+lintsrc:
+	cd $(LIBDIR); $(MAKE) FUNCDCL="$(FUNCDCL)" lintsrc
+
+lintlib:
+	cd $(LIBDIR); $(MAKE) FUNCDCL="$(FUNCDCL)" lintlib
+
+
+grab:
+	( \
+		ls ./lp.mk; \
+		ls $(INCDIR)/*.h; \
+		ls $(CMDDIR)/Makefile; \
+		ls $(CMDDIR)/*.[ch]; \
+		ls $(CMDDIR)/*/Makefile; \
+		ls $(CMDDIR)/*/*.[ch]; \
+		ls $(LIBDIR)/Makefile; \
+		ls $(LIBDIR)/*/Makefile; \
+		ls $(LIBDIR)/*/*.[ch]; \
+		ls $(LIBDIR)/*/llib-*; \
+		ls $(LIBDIR)/oam/msg.source; \
+		ls $(MODELDIR)/*; \
+		ls $(FILTDIR)/*.[ch]; \
+		ls $(FILTDIR)/Makefile; \
+		ls $(TERMINFODIR)/Makefile; \
+		ls $(TERMINFODIR)/*.ti; \
+		ls $(ETCDIR)/*; \
+	) | cpio -cova >$${GRABOUT:-lp.grab.cpio}

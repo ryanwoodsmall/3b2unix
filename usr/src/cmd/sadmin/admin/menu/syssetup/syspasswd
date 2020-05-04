@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:admin/menu/syssetup/syspasswd	2.2"
+#ident	"@(#)sadmin:admin/menu/syssetup/syspasswd	2.4"
 #menu# assign system passwords
 #help# 
 #help#	Syspasswd lets you set system passwords normally reserved for the
@@ -11,8 +11,18 @@
 #	system logins are those in the /etc/passwd file with user ID < 100
 #	and that are not Simple Administration logins.
 admlogins=`ls -p ${MENUTOP:?}`
-syslogins=`sed -n '/^[^:]*::.\{1,2\}:/s/:.*//p' /etc/passwd  |
+syslogs=`sed -n '/^[^:]*:[^:]*:.\{1,2\}:/s/:.*//p' /etc/passwd  |
 		fgrep -vx "${admlogins}"`
+
+# get system logins which do not have a password
+syslogins=`
+	for sys in $syslogs
+	do
+		if /bin/passwd -s $sys 2>/dev/null | grep "^$sys  *NP" >/dev/null
+		then
+			echo $sys
+		fi
+	done`
 
 flags="-f -qq -k$$"
 trap 'exit 0' 1 2 15
@@ -43,12 +53,23 @@ then
 		fi
 	}
 fi
-sed -n '/^[^:]*::.\{1,2\}:/s/:.*//p' /etc/passwd  |
-	fgrep -vx "${admlogins}"  |  sort  |
-	sed '1i\
-echo "The following system logins still do not have passwords:"\
-pr -t -5 -o5 -w75 <<!
-	$a\
+syslogins=`
+	for sys in $syslogs
+	do
+		if /bin/passwd -s $sys 2>/dev/null | grep "^$sys  *NP" >/dev/null
+		then
+			echo $sys
+		fi
+	done`
+
+if [ -n "${syslogins}" ]
+then
+	echo "${syslogins}" | sort  |
+		sed '1i\
+	echo "The following system logins still do not have passwords:"\
+	pr -t -5 -o5 -w75 <<!
+		$a\
 !
-	'  |
-	sh
+		'  |
+		sh
+fi

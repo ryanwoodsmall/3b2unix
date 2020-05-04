@@ -5,6 +5,13 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
+/*	Copyright (c) 1984 AT&T	*/
+/*	  All Rights Reserved  	*/
+
+/*	THIS IS UNPUBLISHED PROPRIETARY SOURCE CODE OF AT&T	*/
+/*	The copyright notice above does not evidence any   	*/
+/*	actual or intended publication of such source code.	*/
+
 #ident	"@(#)find:find.c	4.22"
 
 /*	find	COMPILE:	cc -o find -s -O -i find.c -lS	*/
@@ -165,16 +172,18 @@ usage:		(void) fprintf(stderr,"Usage: find path-list predicate-list\n");
 			chdir(Home);
 		if(cp = strrchr(Pathname, '/')) {
 			sp = cp + 1;
-			*cp = '\0';
-			if(chdir(*Pathname? Pathname: "/") == -1) {
-				(void) fprintf(stderr,"find: bad starting directory\n");
-				exit(2);
+			if (*sp != '\0') {
+				*cp = '\0';
+				if(chdir(*Pathname? Pathname: "/") == -1) {
+					(void) fprintf(stderr,"find: bad starting directory\n");
+					exit(2);
+				}
+				*cp = '/';
 			}
-			*cp = '/';
 		}
 		Fname = *sp? sp: Pathname;
 		if(mount_flag)
-			if (stat(Pathname, &Statb) <0) {
+			if (stat(Fname, &Statb) <0) {
 				fprintf(stderr,"find: cannot stat %s\n", Pathname);
 				exit(2);
 			} else

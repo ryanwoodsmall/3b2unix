@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/proc.h	10.10.2.10"
+#ident	"@(#)kern-port:sys/proc.h	10.10.2.12"
 /*
  * One structure allocated per active process.  It contains all
  * data needed about the process while the process may be swapped

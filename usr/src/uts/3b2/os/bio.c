@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/bio.c	10.5.2.1"
+#ident	"@(#)kern-port:os/bio.c	10.5.2.2"
 #include "sys/types.h"
 #include "sys/sema.h"
 #include "sys/sysmacros.h"
@@ -365,6 +365,9 @@ found:
 /*
  * Wait for I/O completion on the buffer; return errors
  * to the user.
+ *
+ * Warning: SV 2K-byte file system add-on is dependent on this routine so
+ * don't call any file system dependent routines here.
  */
 iowait(bp)
 register struct buf *bp;
@@ -395,7 +398,10 @@ register struct buf *bp;
 			basynwait = 0;
 			wakeup((caddr_t)&basyncnt);
 		}
-		brelse(bp);
+		if (bp->b_flags & B_S52K)
+			s52kbrelse(bp);		/* release bp to 2k freelist */
+		else
+			brelse(bp);		/* release bp to 1k freelist */
 	} else {
 		bp->b_flags &= ~B_WANTED;
 		wakeup((caddr_t)bp);
@@ -404,6 +410,9 @@ register struct buf *bp;
 
 /*
  * Zero the core associated with a buffer.
+ *
+ * Warning: SV 2K-byte file system add-on is dependent on this routine so
+ * don't call file system dependent routines here.
  */
 clrbuf(bp)
 struct buf *bp;
@@ -435,6 +444,8 @@ loop:
 		}
 	}
 	spl0();
+
+	s52kbflush(dev);			/* 2K-byte bflush routine */
 }
 
 /*
@@ -458,6 +469,8 @@ loop:
 		}
 	}
 	spl0();
+
+	s52kbdflush();			/* 2K-byte bdflush routine */
 
 	sleep(bdflush, PRIBIO);
 	goto loop;

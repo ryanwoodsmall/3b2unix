@@ -5,18 +5,18 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)getmajor:getmajor.c	1.2.1.1"
-/*
- *		Copyright 1984 AT&T
- */
+#ident	"@(#)getmajor:getmajor.c	1.2.1.4"
+
 #include <stdio.h>
 #include <ctype.h>
 #include <sys/param.h>
 #include <sys/types.h>
 #include <sys/edt.h>
+#include <sys/libxedt.h>
 #include <sys/sys3b.h>
 
 extern int errno;
+extern struct libxedt *readedt();
 
         /***************************************************************/
         /*********   It reads the       		     ***********/
@@ -30,18 +30,9 @@ char	*argv[];
 {
 	int i;
 	int first_time;
-	int edt_size;
 	int base, numb_edt;
      
-	struct edtsze {
-			short esize;
-			short ssize;
-		} edtsize;
 #ifdef u3b2
-	struct myedt {
-		  struct edtsze mysize;
-		  struct edt myedt[1];
-		  };
 	int name_size = E_NAMLEN;
 #else
 	struct myedt {
@@ -49,15 +40,16 @@ char	*argv[];
 		};
 	int name_size = 9;
 	char temp[10];
-#endif
-
-     	struct myedt *edtptr = NULL;
-     	char *iname = NULL;
-     
-     	int code = 0;
-     	int found = 0;
 	base = 0;
 	numb_edt = 1;
+
+#endif
+
+     	struct libxedt *edtptr = NULL;
+     	char *iname = NULL;
+     
+     	unsigned code = 0;    /* should be unsigned since it is in edt.h/libxedt.h*/
+     	int found = 0;
 	first_time = 1;
 
      	if(argc < 2 || argc > 2)
@@ -87,45 +79,28 @@ char	*argv[];
 		code = strtol(iname, (char **)NULL, 0);
 
 
-     	if(sys3b(S3BEDT,&edtsize,sizeof(int)) != 0)
-		{
-		perror("S3BEDT failed\n");
-		goto error_out;
-	}
-    
-#ifdef u3b2
-     	edt_size = edtsize.esize * sizeof(struct edt) + edtsize.ssize * sizeof(struct subdevice) + sizeof(int);
-#else
-	edt_size = (int)(edtsize.ssize) * (int)sizeof(struct edt) + (int)sizeof(int) * (int)(edtsize.esize);
-#endif
+/* Read the combined main and extended edts */
+if((edtptr = readedt()) == NULL) {
+	printf("getmajor: read of EDT failed\n");
+	goto error_out;
+}
 
-     	if((edtptr = (struct myedt *)malloc(edt_size)) == NULL)
-		{
-		perror("Unabled to allocate memory for edt\n");
-		goto error_out;
-	}
-
-     	if(sys3b(S3BEDT,edtptr,edt_size) != 0)
-		{
-		perror ("S3BEDT failed\n");
-		goto error_out;
-	}
 #ifdef u3b2
-     	for(i = 0; i < edtsize.esize; ++i)
+     	for(i = 0; i < edtptr->edtentries; ++i)
 		{
 		if(code != NULL)
 			{
-			if(edtptr->myedt[i].opt_code != code)
+			if(edtptr->edt[i].code != code)
 				continue;
 		}
 		else
-			if(strncmp(edtptr->myedt[i].dev_name, iname, name_size) != 0)
+			if(strncmp(edtptr->edt[i].dev_name, iname, name_size) != 0)
 				continue;
 	
 		if(first_time == 0)
 			printf(" ");
 	
-		printf("%d", edtptr->myedt[i].opt_slot);
+		printf("%d", edtptr->edt[i].major);
 		found = 1;
 		first_time = 0;
      	}

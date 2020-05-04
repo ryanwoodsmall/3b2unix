@@ -1,4 +1,4 @@
-#ident	"@(#)terminfo:tektronix.ti	1.11"
+#ident	"@(#)terminfo:tektronix.ti	1.14"
 # # --------------------------------
 #
 # tektronix: TEKTRONIX
@@ -185,3 +185,116 @@ ct8500|tektronix ct8500,
 	dl1=\E^M, ich1=\E^\, lines#25, cuf1=\ES, ht=^I, ri=\E^A, rmso=\E ,
 	smso=\E$, rmul=\E , cuu1=\ER, smul=\E\041, is2=^_\EZ\Ek,
 	sgr0=\E\s,
+
+#
+#	Tektronix 4205 terminal.  This entry contains information required
+#	by color curses
+#
+
+tek4205|4205|tektronix 4205,
+
+#	am is not defined because the wrap around occurs not when the char.
+#	is placed in the 80'th column, but when we are attempting to type
+#	the 81'st character on the line.
+
+# 	bold, dim, and standout are simulated by colors and thus not allowed
+#	with colors
+
+	am, xenl, msgr, mir, ccc,
+	cols#80, lines#30, it#8, colors#8, pairs#64, ncv#49,
+	acsc=``aaffggjjkkllmmnnooppqqrrssttuuvvwwxxyyzz{{||}}~~,
+        il1=\E[1L, ed=\E[J, el=\E[K, clear=\E[2J\E[H, 
+	il=\E[%p1%dL,
+	cup=\E[%i%p1%d;%p2%dH,
+	dch1=\E[1P, dl1=\E[1M,
+	home=\E[H, smir=\E[4h, rmir=\E[4l, 
+	cuf1=\E[C, cud1=\E[B, cuu1=\E[A, cub1=\E[D,
+	cuf=\E[%p1%dC, cud=\E[%p1%dB, cuu=\E[%p1%dA, cub=\E[%p1%dD,
+	ech=\E%p1%dX, el1=\E[1K, ich=\E[%p1%d@, 
+	smacs=, rmacs=, enacs=\E)0,
+	rmso=\E[=0;<1m, smso=\E[=2;<3m,
+	smul=\E[4m, rmul=\E[24m,
+	is1=\E%!0\ETM1\E%!1\E[0m,
+	rev=\E[7m, bold=\E[=7;<4m, invis=\E[=6;<5, dim=\E[=1;<6m,
+	blink=\E[5m, sgr0=\E[=0;<1m\E[24;25;27m,
+	smcup=\E%%!1\E[?6l\E[2J, 
+	kbs=^h, kcuu1=\E[A, kcud1=\E[B,
+	kcub1=\E[D, kcuf1=\E[C,
+	.is2=\E%%!1\E[?6141\E[0m,
+	cbt=\E[Z, cr=^M, ind=\ED, ri=\EM,
+	tbc=\E[1g, ht=^I, bel=^G,
+
+#	tektroinix color table is mapped into the RGB color table
+
+	setf=\E[<%?%p1%{0}%=%t0m
+		 %e%p1%{1}%=%t4m
+		 %e%p1%{2}%=%t3m
+		 %e%p1%{3}%=%t5m
+		 %e%p1%{4}%=%t2m
+		 %e%p1%{5}%=%t6m
+		 %e%p1%{6}%=%t7m
+		 %e1m%;,
+	setb=\E[=%?%p1%{0}%=%t0m
+		 %e%p1%{1}%=%t4m
+		 %e%p1%{2}%=%t3m
+		 %e%p1%{3}%=%t5m
+		 %e%p1%{4}%=%t2m
+		 %e%p1%{5}%=%t6m
+		 %e%p1%{6}%=%t7m
+		 %e1m%;,
+#	All colors are reset to factory specifications
+
+	oc=\E%!0
+	      \ETFB0
+		0000
+		1F4F4F4
+		2F400
+		30F40
+		4A4C<F4
+		50F4F4
+		6F40F4
+		7F4F40
+	    \E%!1,
+	op=\E[39;40m,
+
+#	using RGB notation to define colors.  for arguments 1-3 the interval
+#	(0-1000) is broken into 8 smaller sub-intervals (125).  Each sub-
+#	interval then maps into pre-defined value.
+
+	initc=\E%%!0
+	      \ETF4
+	         %?%p1%{0}%=%t0
+		 %e%p1%{1}%=%t4
+		 %e%p1%{2}%=%t3
+		 %e%p1%{3}%=%t5
+		 %e%p1%{4}%=%t2
+		 %e%p1%{5}%=%t6
+		 %e%p1%{6}%=%t7
+		 %e1%;
+		  %?%p2%{125}%<%t0
+		  %e%p2%{250}%<%tA2
+		  %e%p2%{375}%<%tA?
+		  %e%p2%{500}%<%tC8
+		  %e%p2%{625}%<%tD4
+		  %e%p2%{750}%<%tE1
+		  %e%p2%{875}%<%tE:
+		  %eF4%;
+		  %?%p3%{125}%<%t0
+		  %e%p3%{250}%<%tA2
+		  %e%p3%{375}%<%tA?
+		  %e%p3%{500}%<%tC8
+		  %e%p3%{625}%<%tD4
+		  %e%p3%{750}%<%tE1
+		  %e%p3%{875}%<%tE:
+		  %eF4%;
+		  %?%p4%{125}%<%t0
+		  %e%p4%{250}%<%tA2
+		  %e%p4%{375}%<%tA?
+		  %e%p4%{500}%<%tC8
+		  %e%p4%{625}%<%tD4
+		  %e%p4%{750}%<%tE1
+		  %e%p4%{875}%<%tE:
+		  %eF4%;
+	      \E%%!1,
+	kf0=\EOA, kf1=\EOB, kf2=\EOC, kf3=\EOD,
+	kf4=\EP, kf5=\EQ, kf6=\ER, kf7=\ES,

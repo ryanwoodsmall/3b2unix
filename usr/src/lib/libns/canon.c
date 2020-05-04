@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libns:canon.c	1.3.1.2"
+#ident	"@(#)libns:canon.c	1.3.2.1"
 
 #include "sys/types.h"
 #include "sys/param.h"
@@ -89,12 +89,11 @@ register char *fmt, *from, *to;
 			fmt = lfmt;
 			if(ltmp == 0) {
 				ltmp = *(long *)from;
-				*from++ = hibyte(hiword(ltmp));
-				*from++ = lobyte(hiword(ltmp));
-				*from++ = hibyte(loword(ltmp));
-				*from++ = lobyte(loword(ltmp));
-				from -= 4;
-				ltmp = *(long *)from;
+				cptr = (char *)&ltmp;
+				*cptr++ = hibyte(hiword(ltmp));
+				*cptr++ = lobyte(hiword(ltmp));
+				*cptr++ = hibyte(loword(ltmp));
+				*cptr++ = lobyte(loword(ltmp));
 			}
 			from = LNEXT(from);	
 			while(ltmp--)

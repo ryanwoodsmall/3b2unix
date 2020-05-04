@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/wbkgd.c	1.3"
+#ident	"@(#)curses:screen/wbkgd.c	1.5"
 #include	"curses_inc.h"
 
 /* Change the background of a window.  nbkgd :	new background. */
@@ -15,8 +15,14 @@ register	WINDOW	*win;
 chtype	nbkgd;
 {
     register	int	x, y, maxx;
-    register	chtype	*wcp, obkgda, obkgdc, nbkgda, nbkgdc, c;
+    register	chtype	*wcp, obkgda, obkgdc, nbkgda, nbkgdc, acolor, c;
     register	short	*begch, *endch;
+
+    /* if 'nbkgd' contains color information, but this is not a color   */
+    /* terminal, erase that information.				*/
+
+    if ((nbkgd & A_COLOR) && (SP->_pairs_tbl == NULL))
+	 nbkgd &= ~A_COLOR;
 
     if (nbkgd == win->_bkgd)
 	return (OK);
@@ -30,7 +36,27 @@ chtype	nbkgd;
 	nbkgdc = obkgdc, nbkgd = nbkgdc|nbkgda;
 
     win->_bkgd = nbkgd;
-    win->_attrs = _ATTR((win->_attrs & ~obkgda) | nbkgda);
+
+    /* delete the old background from the attribute field and replace    */
+    /* it with the new background.  Note: if the same attribute was      */
+    /* first set by wbkgd() and then by wattron(), or vice versa, it	 */
+    /* will be deleted, so the effect of wattron() will be lost.	 */
+    /* This applies to both video and color attributes.			 */
+
+    if (acolor = (win->_attrs & A_COLOR))
+    {
+	if (acolor == (obkgda & A_COLOR))
+	{
+	    win->_attrs = _ATTR((win->_attrs & ~obkgda) | nbkgda);
+	}
+	else
+	{
+	    win->_attrs = _ATTR((win->_attrs & (~obkgda | A_COLOR)) |
+			        (nbkgda & ~A_COLOR));
+	}
+    }
+    else
+        win->_attrs = _ATTR((win->_attrs & ~obkgda) | nbkgda);
 
     maxx = win->_maxx - 1;
     begch = win->_firstch;
@@ -41,7 +67,16 @@ chtype	nbkgd;
 	{
 	    if ((c = _CHAR(*wcp)) == obkgdc)
 		c = nbkgdc;
-	    *wcp = c | _ATTR((*wcp & ~obkgda) | nbkgda);
+	    if (acolor = (*wcp & A_COLOR))
+	    {
+		if (acolor == (obkgda & A_COLOR))
+	    	    *wcp = c | _ATTR((*wcp & ~obkgda) | nbkgda);
+		else
+		    *wcp = c | _ATTR((*wcp & (~obkgda | A_COLOR)) |
+				     (nbkgda & ~A_COLOR));
+	    }
+	    else
+	    	*wcp = c | _ATTR((*wcp & ~obkgda) | nbkgda);
 	}
 	*begch = 0;
 	*endch = maxx;

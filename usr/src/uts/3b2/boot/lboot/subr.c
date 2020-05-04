@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:boot/lboot/subr.c	10.4"
+#ident	"@(#)kern-port:boot/lboot/subr.c	10.6"
 
 #include <sys/types.h>
 #include <a.out.h>
@@ -32,6 +32,7 @@
 /*
  * Static function declarations for this file
  */
+static char    *do_mirror();
 static char    *do_boot();
 static char    *do_device();
 static char    *do_exclude();
@@ -71,6 +72,7 @@ findsystem()
 	{PROGRAM(findsystem)
 
 	extern boolean	DebugMode;
+	extern boolean	LoadMap;
 	register char *sp;
 	register int fd;
 	char path[81];
@@ -277,6 +279,28 @@ findsystem()
 					continue;
 				}
 
+				/*
+				 * check for "load map" feature
+				 */
+
+				if (0 == strcmp(sp,"load")) {
+					char *mp;
+
+					if ((mp=strtok((char*)NULL,"\r\n\t ")) == NULL || 0 != strcmp(mp,"map"))
+						break;
+
+					mp = strtok((char *)NULL, "\r\n\t ");
+
+					if (!strcmp(mp, "on"))
+						LoadMap = TRUE;
+					 else if (!strcmp(mp, "off"))
+						LoadMap = FALSE;
+
+					printf("\nload map is %s.\n",
+						(LoadMap ? "on" : "off"));
+
+					continue;
+				}
 				break;
 				}
 			}
@@ -449,6 +473,7 @@ static struct syntax syntax[] ={
 #ifdef u3b15
 			{ "DUMPDEV", do_device, (char*) &dumpdev },
 #endif
+			{ "MIRRORDEV", do_mirror, 0 },
 			{ "ROOTDEV", do_device, (char*) &rootdev },
 			{ "SWAPDEV", do_swapdevice, 0 },
 			{ "PIPEDEV", do_device, (char*) &pipedev },
@@ -1757,3 +1782,31 @@ sreset()
 		loadmap = NULL;
 		}
 	}
+
+
+/*
+ * MIRRORDEV: path [ path ]
+ */
+
+static char *
+do_mirror( argc, argv )
+register int argc;
+register char **argv;
+{
+	char *rtn;
+	extern dev_t mirrordev[];
+
+
+	if (argc >= 3)
+		return("syntax error");
+
+	if ((rtn = do_device(1, &argv[0], &mirrordev[0])) != NULL)
+		return(rtn);
+
+	if (argc > 1) {
+		if ((rtn = do_device(1, &argv[1], &mirrordev[1])) != NULL)
+			return(rtn);
+	}
+	
+	return(NULL);
+}

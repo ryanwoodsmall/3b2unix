@@ -1,4 +1,4 @@
-*#ident	"@(#)kern-port:master.d/stubs	10.14.3.3"
+*#ident	"@(#)kern-port:master.d/stubs	10.14.3.5"
 *
 *  STUBS
 *      Used to define all functions referenced in the kernel
@@ -17,6 +17,7 @@ ox
 						shmslp(){true}
 						shmtext(){}
 						shmseg(){false}
+						strlog(){}
 						xtin(){}
 						xtout(){}
 						xtvtproc(){}
@@ -67,3 +68,6 @@ ox
 						disable_cache(){noreach}
 						enable_cache(){noreach}
 						chk_rlist(){noreach}
+						s52kbrelse(){noreach}
+						s52kbflush(){}
+						s52kbdflush(){}

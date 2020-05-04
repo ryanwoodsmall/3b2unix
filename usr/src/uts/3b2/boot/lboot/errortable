@@ -1,4 +1,4 @@
-#ident	"@(#)kern-port:boot/lboot/errortable	10.5"
+#ident	"@(#)kern-port:boot/lboot/errortable	10.8"
 
 /*
  * This file contains the table of all error messages for which the recovery
@@ -59,7 +59,7 @@ ER9	_RETURN_	"VTOC does not exist or is damaged"
 ER10	_RETURN_	"I/O ERROR: disk=%s block=%d count=%d"
 #endif
 ER12	_RETURN_	"Driver %s: not processed by mkboot(1M)"
-ER13	_RETURN_	"Driver %s: major number greater than 127"
+ER13	_RETURN_	"Driver %s: major number greater than 71"
 ER14	_RETURN_	"Driver %s: missing section .text"
 ER15	_RETURN_	"Driver %s: not a valid object file"
 ER16	_RETURN_	"%s: No drivers"
@@ -125,3 +125,27 @@ ER75	_RETURN_	"          %s: %s = \"%s\"  (%s EXCLUDED, parameter ignored)"
 ER76	_RETURN_	"          %s: %s = \"%s\"  (set to zero)"
 ER77	_DYNAMIC_	"%s configured for more memory than available - use /etc/system\n"
 ER78	_DYNAMIC_	"%s configured for less memory than available\n"
+ER79	_RETURN_	"A minimum of one megabyte required to configure HA, device ignored\n"
+ER80	_RETURN_	"stat or open failed for HA gen file %s, device ignored\n"
+ER81	_RETURN_	"HA gen file %s not 3b2 executable\n"
+ER82	_RETURN_	"%s: execution failed for HA in slot %d, device ignored\n"
+ER83	_RETURN_	"Found invalid TC count (%d) for HA in slot %d, device ignore\n"
+ER84	_DYNAMIC_	"Major numbers (%d-%d) assigned to HA in slot %d are below system limit for this type of device\n"
+ER85	_RETURN_	"driver %s not found for TC configured on HA in slot %d, device ignored\n"
+ER86	_DYNAMIC_	"TC Device %s (major number %d) on HA in slot %d not configured"
+ER87	_DYNAMIC_	"MAXCNTL exceeded for HA in slot %d\n"
+ER88	_DYNAMIC_	"MAX_LU exceeded for HA %s\n"
+ER89	_DYNAMIC_	"HA in slot %d has bad equipage value, reported %d devices equipped but actually found %d equipped\n"
+ER90	_RETURN_	"%s: data initializer #S(%s) unknown; zero assumed"
+ER91	_DYNAMIC_	"Driver missing for boot HA %s slot %d\n"
+ER92	_DYNAMIC_	"Boot HA %s in slot %d has been excluded\n"
+ER93	_DYNAMIC_	"Boot TC %s configured on HA %s slot %d has been excluded\n"
+ER94	_DYNAMIC_	"Driver missing for boot TC %s configured on HA %s slot %d\n"
+ER101	_RETURN_	"WARNING: ROOTDEV specification doesn't match VTOC - using ROOTDEV [%d,%d]"
+ER102	_RETURN_	"WARNING: SWAPDEV specification doesn't match VTOC - using SWAPDEV [%d,%d]"
+#ifdef u3b15
+ER103 _RETURN_		"WARNING: DUMPDEV specification doesn't match VTOC - using DUMPDEV [%d,%d]"
+#endif
+ER104	_RETURN_	"WARNING: PIPEDEV specification doesn't match VTOC - using PIPEDEV [%d,%d]"
+
+

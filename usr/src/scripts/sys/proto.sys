@@ -46,6 +46,7 @@ new	d--775 0 3
 				erec.h	---444	2 2	../usr/include/sys/erec.h
 				err.h	---444	2 2	../usr/include/sys/err.h
 				errno.h	---444	2 2	../usr/include/sys/errno.h
+				extbus.h	---444	2 2	../usr/include/sys/extbus.h
 				fblk.h	---444	2 2	../usr/include/sys/fblk.h
 				fcntl.h	---444	2 2	../usr/include/sys/fcntl.h
 				file.h	---444	2 2	../usr/include/sys/file.h
@@ -75,6 +76,7 @@ new	d--775 0 3
 				iu.h	---444	2 2	../usr/include/sys/iu.h
 				jioctl.h	---444	2 2	../usr/include/sys/jioctl.h
 				lboot.h	---444	2 2	../usr/include/sys/lboot.h
+				libxedt.h	---444	2 2	../usr/include/sys/libxedt.h
 				lihdr.h	---444	2 2	../usr/include/sys/lihdr.h
 				lla.h	---444	2 2	../usr/include/sys/lla.h
 				lla_ppc.h	---444	2 2	../usr/include/sys/lla_ppc.h
@@ -166,4 +168,4 @@ new	d--775 0 3
 	$
 $
 $
-#ident "@(#)pkg.sys:proto.sys	1.9.1.4"
+#ident "@(#)pkg.sys:proto.sys	1.9.1.5"

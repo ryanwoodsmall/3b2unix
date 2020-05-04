@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:fs/s5/s5subr.c	10.11"
+#ident	"@(#)kern-port:fs/s5/s5subr.c	10.11.1.2"
 #include "sys/types.h"
 #include "sys/sysmacros.h"
 #include "sys/param.h"
@@ -79,8 +79,12 @@ register struct inode *ip;
 			/* work properly. */
 			for (mp = &mount[0];
 			    mp < (struct mount *)v.ve_mount; mp++) {
-				if ((mp->m_flags&MINUSE) && mp->m_dev == dev)
+				if ((mp->m_flags&MINUSE) && mp->m_dev == dev){
+					if (mp->m_bsize > ip->i_mntdev->m_bsize)
+						/* src. block size > dest. */
+						mp = ip->i_mntdev;
 					break;
+				}
 			}
 			/* If this is true the fs was not mounted */
 			if (mp == (struct mount *)v.ve_mount)
@@ -399,7 +403,7 @@ off_t offset;
 
 	cleanlocks(ip,USE_PID);
 	if (ip->i_sptr && ip->i_ftype != IFDIR)
-		strclean(ip);
+		strclean(ip, count);
 	if ((unsigned)count > 1)
 		return;
 

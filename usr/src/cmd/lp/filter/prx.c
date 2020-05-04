@@ -5,7 +5,14 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident "@(#)lp:filter/prx.c	1.3"
+#ident	"@(#)nlp:filter/prx.c	1.1"
+/*	Copyright (c) 1984 AT&T	*/
+/*	  All Rights Reserved  	*/
+
+/*	THIS IS UNPUBLISHED PROPRIETARY SOURCE CODE OF AT&T	*/
+/*	The copyright notice above does not evidence any   	*/
+/*	actual or intended publication of such source code.	*/
+
 /* prx -- filter for PRINTRONIX P-300 line printer.
 	Lines beginning with backspace are passed through unchanged,
 	since this is the way PRINTRONIX knows to print in double

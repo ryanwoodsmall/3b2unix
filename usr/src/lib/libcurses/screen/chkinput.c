@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/chkinput.c	1.6.1.7"
+#ident	"@(#)curses:screen/chkinput.c	1.8"
 /*
  * chkinput()
  *

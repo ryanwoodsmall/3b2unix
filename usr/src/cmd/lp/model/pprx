@@ -1,4 +1,4 @@
-#ident "@(#)lp:model/pprx	1.3"
+#ident	"@(#)nlp:model/pprx	1.5"
 # lp interface for printronix line printer with	parallel interface
 #
 #	All output is passed through the /usr/lib/pprx filter

@@ -1,4 +1,4 @@
-#	@(#)bnu:INSTALL	1.12
+#	@(#)bnu:INSTALL	1.14
 #	installation procedure for Basic Networking Utilities Package
 #
 #	Command packages are shipped on a file system '/install'.
@@ -10,6 +10,7 @@
 #					files are copied.
 #	/install/install/postinstall	(optional) actions performed after
 #					files are copied.
+#	/install/install/update.xxx	perform updates to system file xxx
 #	/install/new			the "root" of the files to be installed
 #	/install/new/root		top of files going to / file system
 
@@ -115,7 +116,7 @@ do
 	#	space enough for both. must use hardcoded #'s, since
 	#	2nd floppy isn't available for "du".
 	#	THESE #'s MUST BE UPDATED WHEN BNU CODE CHANGES!!!!
-	USRneeds=1860
+	USRneeds=1987
 	ROOTneeds=1
 	
 	

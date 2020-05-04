@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libns:ind_data.c	1.7.1.1"
+#ident	"@(#)libns:ind_data.c	1.7.2.1"
 #include <stdio.h>
 #include <nserve.h>
 #include <sys/tiuser.h>
@@ -94,11 +94,7 @@ int	size;
 		return NULL;
 	fcanon("c0",pp->p_ptr,buffer);
 	pp->p_ptr += c_sizeof(buffer);
-	if ((rsize = strlen(buffer)) == 0) {
-		if (str)
-			str[0] = '\0';
-		return(str);
-	}
+	rsize = strlen(buffer);
 	if (str == NULL) {
 		if ((str=malloc(rsize+1)) == 0) {
 			PLOG3("(%5d) getstr: malloc(%d) failed\n",

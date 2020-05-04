@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:conn.c	2.14"
+#ident	"@(#)uucp:conn.c	2.17"
 
 #include "uucp.h"
 
@@ -263,6 +263,8 @@ char *sysnam, *flds[];
 		if ( !EQUALSN(sysnam, flds[F_NAME], SYSNSIZE))
 			continue;
 #ifdef STANDALONE
+		*_ProtoStr = NULLCHAR;
+		getProto(flds[F_TYPE]);
 		Uerror = 0;
 		return(na);	/* FOUND OK LINE */
 #else /* !STANDALONE */
@@ -347,7 +349,7 @@ int nf, fn;
 
 	/* init ttybuf - used in sendthem() */
 	if ( !did_ioctl ) {
-		if ( ioctl(fn, TCGETA, &ttybuf) == 0 )
+		if ( (*Ioctl)(fn, TCGETA, &ttybuf) == 0 )
 			ioctlok = 1;
 		else
 			DEBUG(7, "chat: TCGETA failed, errno %d\n", errno);
@@ -490,7 +492,7 @@ int fn;
 	if (PREFIX("BREAK", str)) {
 		/* send break */
 		CDEBUG(5, "BREAK\n", 0);
-		genbrk(fn);
+		(*genbrk)(fn);
 		return;
 	}
 
@@ -569,7 +571,7 @@ int fn;
 			case 'K':	/* inline break */
 				FLUSH();
 				CDEBUG(5, "BREAK\n", 0);
-				genbrk(fn);
+				(*genbrk)(fn);
 				continue;
 			case 'M':	/* modem control - set CLOCAL */
 				FLUSH();
@@ -579,7 +581,7 @@ int fn;
 				}
 				CDEBUG(5, ")\nCLOCAL set\n", 0);
 				ttybuf.c_cflag |= CLOCAL;
-				if ( ioctl(fn, TCSETAW, &ttybuf) < 0 )
+				if ( (*Ioctl)(fn, TCSETAW, &ttybuf) < 0 )
 					CDEBUG(5, "TCSETAW failed, errno %d\n", errno);
 				continue;
 			case 'm':	/* no modem control - clear CLOCAL */
@@ -590,7 +592,7 @@ int fn;
 				}
 				CDEBUG(5, ")\nCLOCAL clear\n", 0);
 				ttybuf.c_cflag &= ~CLOCAL;
-				if ( ioctl(fn, TCSETAW, &ttybuf) < 0 )
+				if ( (*Ioctl)(fn, TCSETAW, &ttybuf) < 0 )
 					CDEBUG(5, "TCSETAW failed, errno %d\n", errno);
 				continue;
 			}

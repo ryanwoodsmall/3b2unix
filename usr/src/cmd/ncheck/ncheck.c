@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)ncheck:ncheck.c	1.14"
+#ident	"@(#)ncheck:ncheck.c	1.16"
 /*
  * ncheck -- obtain file names from reading filesystem
  */
@@ -33,16 +33,16 @@
 #include <sys/fs/s5inode.h>
 #include <sys/inode.h>
 #include <sys/ino.h>
-#include <sys/dir.h>
-#include <sys/filsys.h>
+#include <sys/fs/s5dir.h>
+#include <sys/fs/s5filsys.h>
 #include <sys/fblk.h>
 
-/* file system block size */
-#if (vax || u3b || u3b15 || u3b2) && (FsTYPE == 3)
-#if u3b15
-#define FSBSIZE	(BSIZE*4)
+/* FSBSIZE is maximum logical block size */
+#if (vax || u3b || u3b15 || u3b2)
+#if u3b2 || u3b15
+#define FSBSIZE 2048
 #else
-#define FSBSIZE	(BSIZE*2)
+#define FSBSIZE	1024
 #endif
 #else
 #define	FSBSIZE BSIZE
@@ -51,6 +51,8 @@
 #define	NIDIR	(FSBSIZE/sizeof(daddr_t))
 #define	NBINODE	(FSBSIZE/sizeof(struct dinode))
 #define	NDIR	(FSBSIZE/sizeof(struct direct))
+
+#define PHYSBLKSZ 512
 
 char	*checklist = "/etc/checklist";
 struct	filsys	sblock;
@@ -76,6 +78,9 @@ int	bsize, physblks;
 int	nidir;
 int	nbinode;
 int	ndir;
+#if u3b2 || u3b15
+int	result;
+#endif
 
 int	nerror;
 daddr_t	bmap();
@@ -163,11 +168,35 @@ char *file;
 	if(sblock.s_magic == FsMAGIC) {
 		if(sblock.s_type == Fs1b) {
 			physblks = 1;
-			bsize = BSIZE;
-		} else if(sblock.s_type == Fs2b) {
+			bsize = 512;
+		}
+#if u3b2 || u3b15
+		else if(sblock.s_type == Fs2b) {
+			result = s5bsize(fi);
+			    if (result == Fs2b) {
+				physblks = 2;
+				bsize = 1024;
+			    }
+			    else if(result == Fs4b) {
+				physblks = 4;
+				bsize = 2048;
+			    }
+			    else {
+				printf("(%-10s): can't determine logical block size,\n\t\troot inode or root directory may be  corrupted\n", file);
+				return;
+			    }
+		}
+		else if(sblock.s_type == Fs4b) {
+			physblks = 4;
+			bsize = 2048;
+		}
+#else
+		else if(sblock.s_type == Fs2b) {
 			physblks = FSBSIZE/BSIZE;
 			bsize = FSBSIZE;
-		} else {
+		}
+#endif
+		else {
 			printf("(%-10s): bad block type\n", file);
 			return;
 		}
@@ -400,3 +429,68 @@ char *loc;
 	*p = 0;
 	return(p - loc);
 }
+#if u3b2 || u3b15
+/* heuristic function to determine logical block size of System V file system */
+
+s5bsize(fd)
+int fd;
+{
+
+	int results[3];
+	int count;
+	long address;
+	long offset;
+	char *buf;
+	struct dinode *inodes;
+	struct direct *dirs;
+	char * p1;
+	char * p2;
+	
+	results[1] = 0;
+	results[2] = 0;
+
+	buf = (char *)malloc(PHYSBLKSZ);
+
+	for (count = 1; count < 3; count++) {
+
+		address = 2048 * count;
+		if (lseek(fd, address, 0) != address)
+			continue;
+		if (read(fd, buf, PHYSBLKSZ) != PHYSBLKSZ)
+			continue;
+		inodes = (struct dinode *)buf;
+		if ((inodes[1].di_mode & IFMT) != IFDIR)
+			continue;
+		if (inodes[1].di_nlink < 2)
+			continue;
+		if ((inodes[1].di_size % sizeof(struct direct)) != 0)
+			continue;
+	
+		p1 = (char *) &address;
+		p2 = inodes[1].di_addr;
+		*p1++ = 0;
+		*p1++ = *p2++;
+		*p1++ = *p2++;
+		*p1   = *p2;
+	
+		offset = address << (count + 9);
+		if (lseek(fd, offset, 0) != offset)
+			continue;
+		if (read(fd, buf, PHYSBLKSZ) != PHYSBLKSZ)
+			continue;
+		dirs = (struct direct *)buf;
+		if (dirs[0].d_ino != 2 || dirs[1].d_ino != 2 )
+			continue;
+		if (strcmp(dirs[0].d_name,".") || strcmp(dirs[1].d_name,".."))
+			continue;
+		results[count] = 1;
+		}
+	free(buf);
+	
+	if(results[1])
+		return(Fs2b);
+	if(results[2])
+		return(Fs4b);
+	return(-1);
+}
+#endif

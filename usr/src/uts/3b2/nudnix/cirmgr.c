@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/cirmgr.c	10.26.7.2"
+#ident	"@(#)kern-port:nudnix/cirmgr.c	10.26.7.5"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/sema.h"
@@ -159,6 +159,7 @@ LABEL(gdpbadproto);
 			break;
 
 		case T_DISCON_IND:
+		case T_ORDREL_IND:
 /* disable: possible bug in npack
 			ASSERT((bp->b_wptr-bp->b_rptr) == sizeof(struct T_discon_ind));
 */
@@ -202,6 +203,7 @@ LABEL(gdpbaddiscon);
 		goto free;
 
 	case M_ERROR:	
+	case M_HANGUP:
 		DUPRINT2(DB_GDPERR, "gdp_rput: M_ERROR/M_HANGUP on q %x\n", q);
 		gp->flag = GDPDISCONN;
 		msgflag |= DISCONN;
@@ -559,8 +561,6 @@ register struct gdp *gdpp;
 	/* Deny for lots of reasons.... */
 	if ( (fd < 0 || fd >= NOFILE) ||
 		!(fp = u.u_ofile[fd]) || 
-		(u.u_pofile[fd] & FREMOTE) ||
-		(fp->f_count != 1) ||
 		(fp->f_inode->i_count != 1) ||
 		!(stp = fp->f_inode->i_sptr) )
 	{
@@ -726,8 +726,12 @@ register queue_t *qp;
 	register mglen;
 
 	gp = GDP(qp);
-	while (canput(qp->q_next) && (bp = getq(qp))) {
+	while (bp = getq(qp)) {
 frag:
+		if (!canput(qp->q_next)) {
+			putbq(qp,bp);
+			break;
+		}	
 		if ((mglen = mgsize(bp)) > gp->maxpsz) {
 			register mblk_t *bp1;
 
@@ -735,8 +739,7 @@ frag:
 			if (bp1 == (mblk_t *)-1) {
 				DUPRINT1(DB_GDPERR,"gdp_wsrv: split failed\n");
 				putbq(qp, bp);
-				timeout(qenable, (char *)qp, HZ);
-				return;
+				break;
 			}
 			putnext(qp, bp);
 			bp = bp1;
@@ -744,5 +747,6 @@ frag:
 		} else
 			putnext(qp, bp);
 	}
-	wakeup(qp->q_ptr);
+	if (canput(qp))	/*don't wake up server unless necessary*/
+		wakeup(qp->q_ptr);
 }

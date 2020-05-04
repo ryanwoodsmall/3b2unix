@@ -5,12 +5,13 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/rbio.c	10.1.3.5"
+#ident	"@(#)kern-port:nudnix/rbio.c	10.1.3.7"
 #include "sys/types.h"
 #include "sys/sema.h"
 #include "sys/sysmacros.h"
 #include "sys/sbd.h"
 #include "sys/param.h"
+#include "sys/fs/s5param.h"
 #include "sys/fs/s5macros.h"
 #include "sys/psw.h"
 #include "sys/pcb.h"
@@ -33,8 +34,6 @@
 #include "sys/debug.h"
 #include "sys/rdebug.h"
 #include "sys/message.h"
-#include "sys/fs/s5param.h"
-#include "sys/fs/s5macros.h"
 #include "sys/rbuf.h"
 
 
@@ -367,8 +366,8 @@ register int blkct;
 			{
 				continue;
 			}
-			if ( (blkno == -1) || (bp->b_blkno < blkno + blkct)
-			   || (bp->b_blkno >= blkno)) {
+			if ( (blkno == -1) || ((bp->b_blkno < blkno + blkct)
+			   && (bp->b_blkno >= blkno))) {
 				bp->b_flags |= B_STALE|B_AGE;
 				rcinfo.blk_inval++;
 			}

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/newscreen.c	1.16"
+#ident	"@(#)curses:screen/newscreen.c	1.17"
 #include	"curses_inc.h"
 
 #ifdef	_VR2_COMPAT_CODE
@@ -234,6 +234,8 @@ err2:
     }
     SP->ichok = (SP->imode || insert_character || parm_ich);
     SP->dchok = (delete_character || parm_dch);
+    SP->_pairs_tbl = (_Color_pair *) NULL;
+    SP->_color_tbl = (_Color *) NULL;
 
     stdscr = SP->std_scr;
     _virtscr = SP->virt_scr;

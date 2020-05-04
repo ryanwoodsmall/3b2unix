@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/getpages.c	10.8"
+#ident	"@(#)kern-port:os/getpages.c	10.9"
 #include "sys/types.h"
 #include "sys/tuneable.h"
 #include "sys/param.h"
@@ -65,6 +65,7 @@ pglstunlk()
 	wakeup(&pglstlock);
 }
 
+reg_t		vhandreg;
 
 /*	This process is awakened periodically by clock to update the
  *	system's idea of the working sets of all processes and to
@@ -75,6 +76,7 @@ vhand()
 {
 	register reg_t	*rp;
 	register reg_t	*nrp;
+	register int	newractive;
 
 
 	getpgslim = tune.t_gpgslo;
@@ -131,6 +133,7 @@ vhand()
 		 */
 
 		pglstlk();
+		newractive = 0;
 		for (rp = ractive.r_forw; rp != &ractive; rp = nrp) {
 
 			/*	Try to lock the region.  If we can't,
@@ -154,6 +157,15 @@ vhand()
 	 	*/
 
 			if (freemem > getpgslim) {
+				if (!newractive)  {
+					rlstlock();
+					vhandreg.r_forw = rp;
+					vhandreg.r_back = rp->r_back;
+					vhandreg.r_back->r_forw = &vhandreg;
+					rp->r_back = &vhandreg;
+					newractive = 1;
+					rlstunlock();
+				}
 				regrele(rp);
 				getpgslim = tune.t_gpgslo;
 			}
@@ -174,6 +186,17 @@ vhand()
 			**	now.
 			*/
 
+		}
+
+		if ( newractive ) {
+			rlstlock();
+			ractive.r_back->r_forw = ractive.r_forw;
+			ractive.r_forw->r_back = ractive.r_back;
+			ractive.r_forw = vhandreg.r_forw;
+			ractive.r_back = vhandreg.r_back;
+			ractive.r_back->r_forw = &ractive;
+			ractive.r_forw->r_back = &ractive;
+			rlstunlock();
 		}
 
 		/*	If we still do not have enough free

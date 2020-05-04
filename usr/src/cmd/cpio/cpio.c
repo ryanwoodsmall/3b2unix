@@ -5,9 +5,9 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)cpio:cpio.c	1.30.3.22"
+#ident	"@(#)cpio:cpio.c	1.30.3.23"
 /*	/sccs/src/cmd/s.cpio.c
-	cpio.c	1.30.3.22	12/5/86 14:03:55
+	cpio.c	1.30.3.23	6/9/87 17:33:41
 	Reworked cpio which uses getopt(3) to interpret flag arguments and
 	changes reels to the save file name.
 	Performance and size improvements.
@@ -109,6 +109,8 @@ short	Option,
 static
 int	Ifile,
 	Ofile,
+	orig_umask,	/* umask inherited from cpio's parent process */
+	df_mode = 0777,	/* default file/directory protection modes */
 	Input = 0,
 	Output = 1;
 			/* sBlocks: short Blocks.  Cumulative character   */
@@ -200,7 +202,7 @@ char **argv;
 	if(*argv[1] != '-')
 		usage();
 	Uid = getuid();
-	umask(0);
+	orig_umask = umask(0);
 
 	while( (ans = getopt( argc, argv, "aBC:ifopcdklmrSsbtuvVM:6eI:O:")) != EOF ) {
 
@@ -728,15 +730,17 @@ register char *namep;
 		if(stat(namep, &Xstatb) == -1) {
 
 /* try creating (only twice) */
+			(void) umask(orig_umask);
 			ans = 0;
 			do {
-				if(makdir(namep) != 0) {
+				if (!mkdir(namep, df_mode)) {
 					ans += 1;
 				}else {
 					ans = 0;
 					break;
 				}
 			}while(ans < 2 && missdir(namep) == 0);
+			(void) umask(0);
 			if(ans == 1) {
 				fperrno("Cannot create directory for <%s>",
 					namep);
@@ -1291,30 +1295,6 @@ char *s, **pat;
 
 
 static
-makdir(namep)		/* make needed directories */
-register char *namep;
-{
-	static status;
-	register pid;
-
-	pid = fork();
-	if (pid == 0) {			/* pid == 0 implies child process */
-		close(2);
-		execl("/bin/mkdir", "mkdir", namep, 0);
-		exit(2);
-	}
-	if (pid == -1) {		/* pid != 0 implies parent process */
-		fperr("Cannot fork, try again\n");
-		exit(2);
-	}
-	while(wait(&status) != pid);
-
-	return ((status>>8) & 0377)? 1: 0;
-}
-
-
-
-static
 swap(buf, ct)		/* swap halfwords, bytes or both */
 register ct;
 register char *buf;
@@ -1468,7 +1448,10 @@ register char *namep;
 			*np = '\0';
 			if(stat(namep, &Xstatb) == -1) {
 				if(Dir) {
-					if((ct = makdir(namep)) != 0) {
+					(void) umask(orig_umask);
+					ct = mkdir(namep, df_mode);
+					(void) umask(0);
+					if (ct != 0) {
 						*np = '/';
 						return(ct);
 					}

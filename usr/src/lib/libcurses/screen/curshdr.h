@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/curshdr.h	1.3.1.15"
+#ident	"@(#)curses:screen/curshdr.h	1.7"
 
 #define	_NOHASH		(-1)	/* if the hash value is unknown */
 #define	_REDRAW		(-2)	/* if line need redrawn */
@@ -72,6 +72,19 @@ typedef	struct
     bool	_lch[LABMAX];	/* change status */
 } SLK_MAP;
 
+
+typedef struct {
+	short  foreground;   /* foreground color */
+	short  background;   /* background color */
+	bool   init;         /* TRUE if pair was initialized */
+} _Color_pair;
+
+
+typedef struct {
+	short	r, g, b;
+} _Color;
+
+
 struct	screen
 {
     unsigned	fl_echoit : 1;	/* in software echo mode */
@@ -104,6 +117,10 @@ struct	screen
     char	**_mks;		/* marks, only used with xhp terminals */
     COSTS	term_costs;	/* costs of various capabilities */
     SGTTY	save_tty_buf;	/* saved state of this tty */
+    _Color_pair	_cur_pair;
+    _Color_pair	*_pairs_tbl;
+    _Color	*_color_tbl;
+    char	**_color_mks;	/* marks, only used with color xhp terminals */
 };
 
 extern	SCREEN	*SP;
@@ -137,7 +154,16 @@ extern	FILE	*outf;
 #define	_CTRL(c)	(c | 0100)
 #define	_ATTR(c)	((c) & A_ATTRIBUTES)
 #define	_CHAR(c)	((c) & A_CHARTEXT)
-#define	_WCHAR(w, c)	(_CHAR((c) == _BLNKCHAR ? (w)->_bkgd : (c))|(w)->_attrs)
+
+/* combine CHAR par of the character with the attributes of the window.
+   Two points: 1) If character is blank, usebackground instead
+	       2) If character contains color, delete color from
+		  window attribute.
+*/
+#define _WCHAR(w, c)    (_CHAR((c) == _BLNKCHAR ? (w)->_bkgd : (c))| \
+				(((c) & A_COLOR) ? ((w)->_attrs & ~A_COLOR) : \
+						   ((w)->_attrs)))
+
 #define	_DARKCHAR(c)	((c) != _BLNKCHAR)
 #define	_UNCTRL(c)	((c) ^ 0100)
 
@@ -155,6 +181,7 @@ extern	FILE	*outf;
 
 /* video marks */
 #define	_MARKS		SP->_mks
+#define	_COLOR_MARKS	SP->_color_mks
 
 #define	_NUMELEMENTS(x)	(sizeof(x)/sizeof(x[0]))
 

@@ -5,20 +5,22 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)mkboot-3b2:mkboot.mk	1.6.1.1"
+#ident	"@(#)mkboot-3b2:mkboot.mk	1.6.1.3"
+ROOT =
 INC = $(ROOT)/usr/include
 SOURCES = $(INC)/sys/boothdr.h mkboot.h xmkboot.l mkboot.y main.c util.c
 OBJECTS = mkboot.o main.o util.o
 LEXLIB = -ll
-CFLAGS = -s -O -I$(INC) -Uvax -Updp11 -Du3b15
+CFLAGS = -s -O -I$(INC) 
 #CFLAGS = -g -N -I$(INC) -DYYDEBUG=1 -DLEXDEBUG=1
 PR = xcl -x -2 -pmini
+INS = install
 
 mkboot:	$(OBJECTS)
 	$(CC) $(CFLAGS) $(OBJECTS) $(LEXLIB) -o mkboot
 
 install:mkboot
-	install -f $(ROOT)/etc mkboot
+	$(INS) -f $(ROOT)/etc mkboot
 
 main.o:	mkboot.h $(INC)/sys/boothdr.h
 util.o:	mkboot.h $(INC)/sys/boothdr.h
@@ -26,7 +28,6 @@ mkboot.o:lex.yy.c mkboot.h $(INC)/sys/boothdr.h
 
 lex.yy.c:xmkboot.l
 	$(LEX) xmkboot.l
-
 
 clobber:clean
 	rm -f mkboot

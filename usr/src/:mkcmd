@@ -1,6 +1,7 @@
-#ident	"@(#)mk::mkcmd	1.17"
+#ident	"@(#)mk::mkcmd	1.19"
 #
 MAKE=${MAKE:-make}
+CLOBBER=${CLOBBER:-"ON"}
 #	If we are in a cross compilation environment then use cross compiler
 if [ "$ROOT" != "" ]
 then
@@ -171,8 +172,7 @@ do(
 		else	ret=1
 		fi
 		CMD="$MAKE -b -f ${BASE}.mk LDLIBS='$ldlibs' IFLAG=\"$iflag\" FFLAG=\"$fflag\" $yaccrm clobber"
-		echo "$CMD"
-		eval $CMD
+		test "$CLOBBER" != "OFF" && ( echo "$CMD" ; eval $CMD )
 		if [ $ret -ne 0 ]
 		then	echo "**** Build of ${BASE} failed ($MAKE)"
 		fi
@@ -264,8 +264,8 @@ do(
 				else	ret=1
 				fi
 				CMD="$MAKE -b -f $B.mk LDLIBS='$ldlibs' IFLAG=\"$iflag\" FFLAG=\"$fflag\" $yaccrm clobber"
-				echo "$CMD"
-				eval $CMD
+				test "$CLOBBER" != "OFF" &&
+					(echo "$CMD" ; eval $CMD)
 				if [ $ret -ne 0 ]
 				then	echo "**** Build of ${BASE} failed ($MAKE)"
 				fi

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/prefresh.c	1.10"
+#ident	"@(#)curses:screen/prefresh.c	1.11"
 #include	"curses_inc.h"
 
 /*
@@ -136,6 +136,8 @@ int	pminy, pminx, sminy, sminx, smaxy, smaxx;
     padwin->_maxx = pcols;
     padwin->_begy = sminy;
     padwin->_begx = sminx;
+    padwin->_pary = pminy;
+    padwin->_parx = pminx;
 
     /* update the malloc'ed areas */
 

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)crash-3b2:proc.c	1.15.6.3"
+#ident	"@(#)crash-3b2:proc.c	1.15.6.6"
 /*
  * This file contains code for the crash functions:  proc, defproc.
  */

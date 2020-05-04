@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/mau.c	10.8"
+#ident	"@(#)kern-port:io/mau.c	10.9"
 
 /*
  * support functions for the WE 32106 Math Accelerator Unit
@@ -75,11 +75,15 @@ mauinit()
  * Called from exece() to reinitialize mau to default IEEE environment.
  * This will set rounding mode to "round to nearest", mask all 
  * exceptions,  clear all sticky bits.
+ * Also, clear the flag that says save floating pt registers on context
+ * switch. Since mau_setup is called from exece(), this process image
+ * has not used the mau, hence no floating point context has to be saved.
  */
 
 void
 mau_setup()
 {
+	u.u_spop = 0;			/* clear save fp on context swtch */
 	u.u_mau.asr = 0;		/* initialize ublock asr save area */
 	movta(u.u_mau.asr);		/* clear asr	*/
 }

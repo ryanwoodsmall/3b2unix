@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:demo/aliens.c	1.1"
+#ident	"@(#)curses:demo/aliens.c	1.2"
 /*
  * Aliens -- an animated video game
  *      the original version is from 
@@ -19,6 +19,7 @@
  * Changed to use curses November, 1981, by Mark Horton, BTL.
  * Changed to use nodelay input in curses, October 1982.
  *
+ * Modified to use colors: May 1987, by Sam Shteingart, BTL
  */
 
 #include <sys/types.h>
@@ -54,7 +55,7 @@ int scores,bases,game;
 int i,j,danger,max_danger;
 int flip,flop,going_left,al_num,b;
 int al_cnt,bmb_cnt;
-int slow = 0;
+/* int slow = 0; */
 int interv = INTERVAL;
 int scorefile;
 int repeat;
@@ -74,7 +75,7 @@ char barrinit [4] [81]  = {
 	"        ###    ###        ###    ###        ###    ###        ###    ###        ",
 	"        ###    ###        ###    ###        ###    ###        ###    ###        "
 };
-char barr [4] [81];
+chtype barr [4] [81];
 int have_barriers = 1;
 
 /*
@@ -138,22 +139,46 @@ int class;
 	switch (class)
 	{
 	case 0: 
-		addstr(" OXO ");
+		addch(' ');
+		attrset (COLOR_PAIR(1));
+		addstr("OXO");
+		attrset (A_NORMAL);
+		addch(' ');
 		break;
 	case 1: 
-		addstr(" XOX ");
+		addch(' ');
+		attrset (COLOR_PAIR(2));
+		addstr("XOX");
+		attrset (A_NORMAL);
+		addch(' ');
 		break;
 	case 2: 
-		addstr(" \\o/ ");
+		addch(' ');
+		attrset (COLOR_PAIR(3));
+		addstr("\\o/");
+		attrset (A_NORMAL);
+		addch(' ');
 		break;
 	case 3: 
-		addstr(" /o\\ ");
+		addch(' ');
+		attrset (COLOR_PAIR(4));
+		addstr("/o\\");
+		attrset (A_NORMAL);
+		addch(' ');
 		break;
 	case 4: 
-		addstr(" \"M\" ");
+		addch(' ');
+		attrset (COLOR_PAIR(5));
+		addstr("\"M\"");
+		attrset (A_NORMAL);
+		addch(' ');
 		break;
 	case 5: 
-		addstr(" wMw ");
+		addch(' ');
+		attrset (COLOR_PAIR(6));
+		addstr("wMw");
+		attrset (A_NORMAL);
+		addch(' ');
 		break;
 	case 6: 
 		addstr("     ");
@@ -267,9 +292,10 @@ init()
 	vsinit();
 	/*
 	 * setup raw mode, no echo
+	 *
+	 *  if (baudrate() < 9600)
+	 *	slow = 1;
 	 */
-	if (baudrate() < 9600)
-		slow = 1;
 
 	/*
 	 * New game starts here
@@ -314,7 +340,7 @@ tabl()
 	 * initialize laser base position, velocity
 	 */
 	bas.row = 23;
-	bas.col = 72;
+	bas.col = 70;
 	bas.vel = 0;
 	bem.row = 0;
 	/*
@@ -327,7 +353,11 @@ tabl()
 	 * initialize barricades
 	 */
 	for (i=0;i<=3;i++) {
-		for (j=0;j<80;j++)   barr [i] [j] = barrinit [i] [j];
+		for (j=0;j<80;j++)
+		     /* barr[i][j] = barrinit[i][j] | ((barrinit[i][j] == ' ') ?
+							A_NORMAL : COLOR_PAIR(7)); */
+		     barr[i][j] = (barrinit[i][j] == ' ') ?
+					' ' : (ACS_BLOCK | COLOR_PAIR (7));
 	}
 	/*
 	 * initialize mystery ships
@@ -356,7 +386,7 @@ draw()
 	 */
 	for (i=0;i<=3;i++) {
 		move(i+19,0);
-		printw(&barr [i] [0]);
+		addchstr (&barr [i] [0]);
 	}
 
 	/*
@@ -365,7 +395,10 @@ draw()
 	 */
 	move(bas.row, 0);
 	clrtoeol();
-	mvprintw(bas.row, bas.col, " xx|xx");
+	/* addch(' '); */
+	attrset(COLOR_PAIR(2));
+	mvaddstr(bas.row, bas.col, "xx|xx");
+	attrset(A_NORMAL);
 
 	/* display aliens */
 	for (a=0; a<55; a++)
@@ -400,7 +433,11 @@ draw()
 	 * display mystery ship
 	 */
 	if (shp.vel)
-		mvprintw(1, shp.col, " <=%2d=> ", shp.val/3);
+	{
+		attrset(COLOR_PAIR(4) | A_BLINK);
+		mvprintw(1, shp.col, "<=%2d=>", shp.val/3);
+		attrset(A_NORMAL);
+	}
 	refresh();
 	fflush(stdout);
 }
@@ -499,7 +536,7 @@ beam()
 	if (bem.row == 0)
 		return;
 	if (bem.row == 22)
-		bem.col = bas.col + 3;
+		bem.col = bas.col + 2;
 	/*
 	 * check for contact with an alien
 	 */
@@ -627,7 +664,7 @@ ship()
 			 */
 			if (i<16) {
 				shp.vel = -1;
-				shp.col = COLS - 8;
+				shp.col = COLS - 6;
 			}
 			else {
 				shp.vel = 1;
@@ -642,7 +679,7 @@ ship()
 		 */
 		shp.val--;
 		shp.col += shp.vel;
-		if (((i=shp.col)>(COLS-8))||(i<MINCOL))   {
+		if (((i=shp.col)>(COLS-6))||(i<MINCOL))   {
 			/*
 			 * remove the mystery ship
 			 */
@@ -786,6 +823,16 @@ char **argv;
 vsinit()
 {
 	initscr();
+	if (start_color() == OK)
+	{
+	    init_pair (1, COLOR_YELLOW, COLOR_BLUE);
+	    init_pair (2, COLOR_YELLOW, COLOR_RED);
+	    init_pair (3, COLOR_WHITE, COLOR_GREEN);
+	    init_pair (4, COLOR_MAGENTA, COLOR_YELLOW);
+	    init_pair (5, COLOR_YELLOW, COLOR_MAGENTA);
+	    init_pair (6, COLOR_RED, COLOR_CYAN);
+	    init_pair (7, COLOR_BLUE, COLOR_WHITE);
+	}
 	cbreak();
 	noecho();
 	nonl();

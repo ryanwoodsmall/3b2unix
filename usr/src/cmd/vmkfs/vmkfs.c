@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)vmkfs:vmkfs.c	1.2"
+#ident	"@(#)vmkfs:vmkfs.c	1.3"
 /*
  * vmkfs.c
  *
@@ -98,20 +98,24 @@ reg char	**av;
  * appropriate parameters. NEVER returns.
  */
 static void
-child(name, pdinfo, part)
+child(name, pdsector, part)
 reg char	*name;
-reg struct pdinfo	*pdinfo;
+reg struct pdsector	*pdsector;
 reg struct partition	*part;
 {
 	auto char	blocks[64];
+	auto char	gap_size[64];
 	auto char	cylsize[64];
 	auto char	*args[6];
 
 	args[0] = "/etc/mkfs";
 	args[1] = name;
 	args[2] = strcpy(blocks, itoa((ulong) part->p_size));
-	args[3] = "10";
-	args[4] = strcpy(cylsize, itoa(pdinfo->tracks * pdinfo->sectors));
+	if (pdsector->gapsz == 0)
+		args[3] = "10";
+	else
+		args[3] = strcpy(gap_size, itoa((ulong) pdsector->gapsz));
+	args[4] = strcpy(cylsize, itoa(pdsector->pdinfo.tracks * pdsector->pdinfo.sectors));
 	args[5] = 0;
 	if (xflag) {
 		reg char	**av;
@@ -288,7 +292,7 @@ char		*name;
 	if ((pid = fork()) < 0)
 		return (warn(name, syserr()));
 	if (pid == 0)
-		child(name, &pdsector.pdinfo, part);
+		child(name, &pdsector, part);
 	while (wait(&status) != pid)
 		;
 	return (status ? warn(name, "mkfs failed") : 0);

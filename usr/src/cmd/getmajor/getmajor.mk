@@ -5,30 +5,22 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)getmajor:getmajor.mk	1.3.1.1"
-# (IH)getmajor.mk	1.1
-#
-#		Copyright 1984 AT&T
-#
-########
-#
-#	getmajor makefile for 3b15
-#
-########
+#ident	"@(#)getmajor:getmajor.mk	1.3.1.2"
 
 ROOT =
-INCRT = $(ROOT)/usr/include
-CFLAGS = -s -O -I$(INCRT)
+INC = $(ROOT)/usr/include
+CFLAGS = -O -I$(INC)
+LDFLAGS = -s
 INS = install
 FRC =
 
 all:	getmajor 
 
 install: all
-	$(INS) -n $(ROOT)/etc getmajor
+	$(INS) -f $(ROOT)/etc getmajor
 
 getmajor:
-	$(CC) $(CFLAGS) -o getmajor getmajor.c  $(LDLIBS)
+	$(CC) $(CFLAGS) getmajor.c  -o getmajor $(LDFLAGS) -lxedt $(LDLIBS)
 
 clean:
 	rm -f getmajor.o
@@ -36,17 +28,16 @@ clean:
 clobber: clean
 	rm -f getmajor
 
-FRC:
-
 #
 # Header dependencies
 #
 
 getmajor: getmajor.c \
-	$(INCRT)/ctype.h \
-	$(INCRT)/stdio.h \
-	$(INCRT)/sys/edt.h \
-	$(INCRT)/sys/param.h \
-	$(INCRT)/sys/sys3b.h \
-	$(INCRT)/sys/types.h \
+	$(INC)/ctype.h \
+	$(INC)/stdio.h \
+	$(INC)/sys/edt.h \
+	$(INC)/sys/libxedt.h \
+	$(INC)/sys/param.h \
+	$(INC)/sys/sys3b.h \
+	$(INC)/sys/types.h \
 	$(FRC)

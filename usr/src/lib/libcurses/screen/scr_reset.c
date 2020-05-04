@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/scr_reset.c	1.10"
+#ident	"@(#)curses:screen/scr_reset.c	1.11"
 
 #include	"curses_inc.h"
 #include	<sys/types.h>
@@ -138,16 +138,101 @@ int	type;
 	else
 	{
 	    if (fseek(filep, (long) (2 * labmax * lablen * sizeof(char)), 1) != 0)
+		goto err;
+	}
+    }
+
+    /* read the color information (if any) from the file 		*/
+
+    if (fread((char *) &magic, sizeof(int), 1, filep) != 1)
+	goto err;
+
+    if (magic)
+    {   
+	int  colors, color_pairs;
+	bool could_change;
+	register int i;
+
+	/* if the new terminal doesn't support colors, or it supports    */
+	/* less colors (or color_pairs) than the old terminal, or	 */
+	/* start_color() has not been called, simply advance  the file	 */
+	/* pointer pass the color related info.		 		 */
+	/* Note: must to read the first line of color info, even if the  */
+	/* new terminal doesn't support color, in order to know how to   */
+	/* deal with the rest of the file				 */
+
+	if ((fread((char *) &colors, sizeof(int), 1, filep) != 1) ||
+	    (fread((char *) &color_pairs, sizeof(int), 1, filep) != 1) ||
+	    (fread((char *) &could_change, sizeof(char), 1, filep) != 1))
+	    goto err;
+
+	if (max_pairs == -1 || SP->_pairs_tbl == NULL ||
+	    colors > max_colors || color_pairs > max_pairs)
+	{
+	    if (fseek(filep, (long) (colors * sizeof(_Color) +
+				     color_pairs * sizeof(_Color_pair)), 1) != 0)
+		goto err;
+	}
+	else
+	{
+	    register _Color_pair *ptp, *save_ptp;
+
+	    /* if both old and new terminals could modify colors, read in */
+	    /* color table, and call init_color for each color		  */
+
+	    if (could_change)
+	    {
+		if (can_change)
+	    	{
+	            register _Color	 *ctp, *save_ctp;
+
+		    if ((save_ctp = (ctp = (_Color *)
+				malloc (colors * sizeof (_Color)))) == NULL)
+			 goto err;
+
+		    if (fread(ctp, sizeof(_Color), colors, filep) != colors)
+			goto err;
+
+	            for (i=0; i<colors; i++, ctp++)
+	    	    {    
+		        init_color (i, ctp->r, ctp->g, ctp->b);
+		    }
+		    free (save_ctp);
+	    	}
+
+		/* the old terminal could modify colors, by the new one */
+		/* cannot skip over color_table info.		        */
+
+		else
+		{
+		    if (fseek(filep, (long) (colors * sizeof(_Color)), 1) != 0)
+			goto err;
+		}
+	    }
+
+	    /* read color_pairs info. call init_pair for each pair	*/
+
+	    if ((save_ptp = (ptp = (_Color_pair *)
+			malloc (color_pairs * sizeof (_Color_pair)))) == NULL)
+		 goto err;
+	    if (fread(ptp, sizeof(_Color_pair), color_pairs, filep) != color_pairs)
 	    {
 err:
-		if (win != NULL)
-		    (void) delwin(win);
-		if (win1 != NULL)
-		    (void) delwin(win1);
-		if (type == 0)
-		    curscr->_clear = TRUE;
-		return (ERR);
+			if (win != NULL)
+		    	   (void) delwin(win);
+			if (win1 != NULL)
+		    	   (void) delwin(win1);
+			if (type == 0)
+		    	   curscr->_clear = TRUE;
+			return (ERR);
 	    }
+
+	    for (i=1, ++ptp; i<=color_pairs; i++, ptp++)
+	    {    
+		 if (ptp->init)
+		     init_pair (i, ptp->foreground, ptp->background);
+	    }
+	    free (save_ptp);
 	}
     }
 

@@ -1,4 +1,4 @@
-#ident	"@(#)initpkg:init.d/firstcheck	1.1"
+#ident	"@(#)initpkg:init.d/firstcheck	1.2"
 #	Perform the "never have been run before" checks.
 
 set `who -r`
@@ -19,7 +19,7 @@ sleep 20
 echo 'Checking file systems:
 '
 sync
-if  /etc/fsck -y -D `sed '	/^#/d
+if  /etc/fsck -y -t /tmp/firstcheck -D `sed '	/^#/d
 			s/[ 	].*//' /etc/fstab`
 then
 	echo '\n'

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/tic_scan.c	1.10"
+#ident	"@(#)curses:screen/tic_scan.c	1.11"
 /*********************************************************************
 *                         COPYRIGHT NOTICE                           *
 **********************************************************************
@@ -467,7 +467,7 @@ char	*ptr;
 
 	    count ++;
 
-	    if (count > 500)
+	    if (count > 1000)
 		warning("Very long string found.  Missing comma?");
 	} /* end while */
 

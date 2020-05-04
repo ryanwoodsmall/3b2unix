@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)initpkg:./shutdown.sh	1.6"
+#ident	"@(#)initpkg:./shutdown.sh	1.8"
 
 echo "#	Sequence performed to change the init stat of a machine.
 

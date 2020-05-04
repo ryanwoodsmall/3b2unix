@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/idlok.c	1.15"
+#ident	"@(#)curses:screen/idlok.c	1.16"
 #include	"curses_inc.h"
 
 
@@ -302,7 +302,7 @@ _use_idln()
     if (didcsr)
     {
 	_PUTS(tparm(change_scroll_region, 0, scrli - 1), scrli);
-	(void) mvcur(-1, -1, cy, cx);
+	cy = cx = -1;
     }
 
     curscr->_cury = cy;
@@ -327,9 +327,7 @@ int	tsy, bsy, idn, doinsert;
 	if (change_scroll_region)
 	{
 	    _PUTS(tparm(change_scroll_region, tsy, bsy - 1), bsy - tsy);
-	    (void) mvcur(-1, -1, tsy, 0);
-	    cy = tsy;
-	    cx = 0;
+	    cy = cx = -1;
 	    yesscrl = usecsr = didcsr = TRUE;
 	}
     }
@@ -338,7 +336,7 @@ int	tsy, bsy, idn, doinsert;
 	if (didcsr)
 	{
 	    _PUTS(tparm(change_scroll_region, 0, scrli - 1), scrli);
-	    (void) mvcur(-1, -1, cy, cx);
+	    cy = cx = -1;
 	    didcsr = FALSE;
 	}
 	yesscrl = TRUE;
@@ -478,18 +476,16 @@ _hash_ln(sc, ec)
 chtype	*sc, *ec;
 {
     unsigned	int	hv;
+    bool		didhash;
 
+    didhash = FALSE;
     hv = 0;
     for(; sc <= ec; ++sc)
 	if (*sc != _BLNKCHAR)
+	    {
+	    didhash = TRUE;
 	    hv = (hv << 1) + ((unsigned) *sc);
-    switch (hv)
-    {
-	case 0:
-	    return (_THASH);
-	case _NOHASH:
-	    return (_THASH + 1);
-	default:
-	    return (hv);
-    }
+	    }
+
+    return (didhash ? (hv == 0 ? _THASH : hv == _NOHASH ? _THASH+1 : hv) : hv);
 }

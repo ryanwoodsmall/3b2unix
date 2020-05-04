@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mv:mv.c	1.24"
+#ident	"@(#)mv:mv.c	1.26"
 /*
  * Combined mv/cp/ln command:
  *	mv file1 file2
@@ -225,10 +225,25 @@ char *source, *target;
 	 * message.
 	 */
 
-	if ((mve)
-	  && accs_parent(source, 2) == -1)
-		goto s_unlink;
+	if (mve) {
+		struct stat spd;	/* stat of source's parent */
+		int uid;		/* real uid */
+		if (accs_parent(source, 2, &spd) == -1)
+			goto s_unlink;
 	
+		/*
+		 * If sticky bit set on source's parent, then move only when :
+		 * superuser, source's owner, parent's owner, or source is writable.
+		 * Otherwise, we won't be able to unlink source later and will be
+		 * left with two links and an error exit from mv.
+		 */
+		if (spd.st_mode&S_ISVTX && (uid=getuid()) != 0 &&
+		   s1.st_uid != uid && spd.st_uid != uid &&
+		   access(source, 2)<0) {
+			errno = EACCES;
+			goto s_unlink;
+		}
+	}
 	/*
 	 * If stat fails, then the target doesn't exist,
 	 * we will create a new target with default file type of regular.
@@ -454,9 +469,11 @@ s_unlink:
 }
 
 
-accs_parent(name, amode)
+/* In addition to checking write access on parent dir, do a stat on it */
+accs_parent(name, amode, sdirp)
 register char *name;
 register int amode;
+register struct stat *sdirp;
 {
 	register c;
 	register char *p, *q;
@@ -495,13 +512,19 @@ register int amode;
 	 * If no parent specified, use dot.
 	 */
 	 
-	c = access(buf[0] ? buf : DOT,amode);
-	free(buf);
-	
-	/* 
-	 * Return access for parent.
+	if ((c = access(buf[0] ? buf : DOT,amode)) == -1) {
+	/* No write access to directory : no need to check sticky bit */
+		free(buf);
+		return(c);
+	}
+
+	/*
+	 * Stat the parent : needed for sticky bit check.
+	 * If stat fails, move() should fail the access, 
+	 * since we cannot proceed anyway.
 	 */
-	
+	c = stat(buf[0] ? buf : DOT, sdirp);
+	free(buf);
 	return(c);
 }
 

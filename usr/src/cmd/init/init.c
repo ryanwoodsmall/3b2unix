@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)init:init.c	1.29"
+#ident	"@(#)init:init.c	1.32"
 
 /*	"init" is the general process spawning program.  It reads	*/
 /*	/etc/inittab for a script.					*/
@@ -447,7 +447,7 @@ struct	termio	dflt_termio = {
 };
 #endif
 
-struct	termio	termio;
+struct	termio	termio, curterm;
 
 #else
 
@@ -1833,36 +1833,37 @@ init_signals()
 	extern int abort();
 #endif
 
-	signal(LVLQ,siglvl);
-	signal(LVL0,siglvl);
-	signal(LVL1,siglvl);
+	sigset(LVLQ,siglvl);
+	sigset(LVL0,siglvl);
+	sigset(LVL1,siglvl);
 #ifdef	UDEBUG
-	signal(LVL2,SIG_DFL);
-	signal(LVL3,SIG_DFL);
-	signal(LVL4,SIG_DFL);
+	sigset(LVL2,SIG_DFL);
+	sigset(LVL3,SIG_DFL);
+	sigset(LVL4,SIG_DFL);
 #else
-	signal(LVL2,siglvl);
-	signal(LVL3,siglvl);
-	signal(LVL4,siglvl);
+	sigset(LVL2,siglvl);
+	sigset(LVL3,siglvl);
+	sigset(LVL4,siglvl);
 #endif
-	signal(LVL5,siglvl);
-	signal(LVL6,siglvl);
-	signal(SINGLE_USER,siglvl);
-	signal(LVLa,siglvl);
-	signal(LVLb,siglvl);
-	signal(LVLc,siglvl);
+	sigset(LVL5,siglvl);
+	sigset(LVL6,siglvl);
+	sigset(SINGLE_USER,siglvl);
+	sigset(LVLa,siglvl);
+	sigset(LVLb,siglvl);
+	sigset(LVLc,siglvl);
+	sigset(SIGALRM,alarmclk);
 	alarmclk();
 #ifdef	UDEBUG
-	signal(SIGTERM,SIG_DFL);
-	signal(SIGUSR1,abort);
-	signal(SIGUSR2,abort);
+	sigset(SIGTERM,SIG_DFL);
+	sigset(SIGUSR1,abort);
+	sigset(SIGUSR2,abort);
 #else
-	signal(SIGTERM,SIG_IGN);
-	signal(SIGUSR1,SIG_IGN);
-	signal(SIGUSR2,SIG_IGN);
+	sigset(SIGTERM,SIG_IGN);
+	sigset(SIGUSR1,SIG_IGN);
+	sigset(SIGUSR2,SIG_IGN);
 #endif
 	signal(SIGCLD,childeath);
-	signal(SIGPWR,powerfail);
+	sigset(SIGPWR,powerfail);
 }
 
 /**********************/
@@ -1877,7 +1878,6 @@ int sig;
 	extern struct PROC_TABLE proc_table[];
 	register struct PROC_TABLE *process;
 
-	signal(sig,SIG_IGN);
 /* If the signal received is a "LVLQ" signal, do not really */
 /* change levels, just restate the current level. */
 	if (sig == LVLQ) new_state = cur_state;
@@ -1898,7 +1898,6 @@ int sig;
 
 /* Set the flag saying that a "user signal" was received. */
 	wakeup.w_flags.w_usersignal = 1;
-	signal(sig,siglvl);
 }
 
 /************************/
@@ -1909,7 +1908,6 @@ alarmclk()
 {
 	extern int time_up;
 
-	signal(SIGALRM,alarmclk);
 	time_up = TRUE;
 }
 
@@ -1968,7 +1966,6 @@ powerfail()
 	nice(-19);
 #endif
 	wakeup.w_flags.w_powerhit = 1;
-	signal(SIGPWR,powerfail);
 }
 
 /**********************/
@@ -2012,7 +2009,7 @@ getlvl()
 	signal(SIGCLD,SIG_DFL);
 	while ((process = fork()) == -1);
 	if (process == 0) {
-		signal(SIGHUP,SIG_IGN);
+		sigset(SIGHUP,SIG_IGN);
 
 /* Open /dev/systty so that if someone types a <del>, we can be */
 /* informed of the fact. */
@@ -2026,12 +2023,12 @@ getlvl()
 
 /* Prepare to catch the interupt signal if <del> typed at */
 /* /dev/systty. */
-			signal(SIGINT,switchcon);
-			signal(SIGQUIT,switchcon);
+			sigset(SIGINT,switchcon);
+			sigset(SIGQUIT,switchcon);
 		}
 #ifdef	UDEBUG
-		signal(SIGUSR1,abort);
-		signal(SIGUSR2,abort);
+		sigset(SIGUSR1,abort);
+		sigset(SIGUSR2,abort);
 #endif
 		for (;;) {
 
@@ -2101,7 +2098,6 @@ int sig;
 	extern int own_pid;
 	extern int fd_systty;
 
-	signal(sig,SIG_IGN);
 
 /* If this is the first time a <del> has been typed on the */
 /* /dev/systty, then unlink /dev/syscon and relink it to */
@@ -2114,7 +2110,6 @@ int sig;
 /* the future as far as relinking /dev/syscon to /dev/systty. */
 		fd_systty = -1;
 	}
-	signal(sig,switchcon);
 }
 
 /*********************/
@@ -2215,9 +2210,9 @@ int modes;
 /* Reset all signals to the system defaults. */
 #ifdef	UDEBUG
 		for (i=SIGHUP; i <= SIGPWR;i++)
-			oldsigs[i] = signal(i,SIG_DFL);
+			oldsigs[i] = sigset(i,SIG_DFL);
 #else
-		for (i=SIGHUP; i <= SIGPWR;i++) signal(i,SIG_DFL);
+		for (i=SIGHUP; i <= SIGPWR;i++) sigset(i,SIG_DFL);
 #endif
 	}
 	return(process);
@@ -2414,7 +2409,7 @@ opensyscon()
 	extern struct ttiothcb ttiothcb;
 #endif
 	extern struct termcb termcb;
-	struct	termio	curterm;	/* current terminal state */
+	extern struct termio curterm;	/* current terminal state */
 
 	fclose(stdin);
 	fclose(stdout);
@@ -2438,7 +2433,9 @@ opensyscon()
 /* Make sure the hangup on last close is off.  Then restore */
 /* the modes that were on syscon when the signal was sent. */
 #ifndef	CBUNIX
+	/*Get current SYSCON settings, console() restores them */
 	fioctl(fp,TCGETA,&curterm);
+	curterm.c_cflag &= ~HUPCL;
 	/* Don't overwrite cflag when init console is real system console */
 	if (realcon())
 		termio.c_cflag = curterm.c_cflag;
@@ -2713,6 +2710,7 @@ int arg1,arg2,arg3,arg4;
 	char outbuf[BUFSIZ];
 	extern int childeath();
 	extern struct PROC_TABLE *efork();
+	FILE *fp;
 #ifdef	UDEBUG
 	extern int abort();
 #endif
@@ -2725,8 +2723,8 @@ int arg1,arg2,arg3,arg4;
 		signal(SIGCLD,childeath);
 		if (process == NULLPROC) {
 #ifdef	UDEBUG
-			signal(SIGUSR1,abort);
-			signal(SIGUSR2,abort);
+			sigset(SIGUSR1,abort);
+			sigset(SIGUSR2,abort);
 #endif
 
 /* Close the standard descriptors and open the system console. */
@@ -2737,6 +2735,8 @@ int arg1,arg2,arg3,arg4;
 			fprintf(stdout,"\nINIT: ");
 			fprintf(stdout,format,arg1,arg2,arg3,arg4);
 			fflush(stdout);
+			/*Restore the setting saved in opensyscon()*/
+			fioctl (stdout, TCSETAW, &curterm) ;
 			exit(0);
 
 /* The parent waits for the message to complete. */
@@ -2750,6 +2750,8 @@ int arg1,arg2,arg3,arg4;
 		fprintf(stdout,"\nINIT: ");
 		fprintf(stdout,format,arg1,arg2,arg3,arg4);
 		fflush(stdout);
+		/*Restore the setting saved in opensyscon()*/
+		fioctl (stdout, TCSETAW, &curterm) ;
 	}
 #ifdef	ACCTDEBUG
 	debug(format,arg1,arg2,arg3,arg4);
@@ -3020,7 +3022,7 @@ char *reason;
 		fprintf(fp,"core.%05d: \"%s\"\n",getpid(),reason);
 		fclose(fp);
 	}
-	signal(SIGIOT,SIG_DFL);
+	sigset(SIGIOT,SIG_DFL);
 	abort();
 }
 #endif
@@ -3068,3 +3070,15 @@ register char *id;
 	return(&answer[0]);
 }
 #endif
+
+
+
+
+
+
+
+
+
+
+
+

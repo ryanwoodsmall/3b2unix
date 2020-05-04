@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)frec:frec.c	1.13"
+#ident	"@(#)frec:frec.c	1.18"
 /*
 
 	frec - fast recover
@@ -32,6 +32,9 @@
 	- the input tape header should be in the format of labelit, with
 		info from finc(1) or volcopy(1).
 
+	- the input tape must have been written in blocks at least as
+		large as the logical block size of the file system.
+
 
 
 */
@@ -52,16 +55,22 @@
 #include <sys/param.h>
 #include <sys/types.h>
 #include <fcntl.h>
-#include <sys/filsys.h>
+#include <sys/fs/s5filsys.h>
 #include <sys/fs/s5inode.h>
 #include <sys/inode.h>
 #include <sys/ino.h>
-#include <sys/dir.h>
+#include <sys/fs/s5dir.h>
 #include <sys/stat.h>
 #include <stdio.h>
 #include <errno.h>
+#include <string.h>
+#include <memory.h>
 
 extern	int	errno;
+extern	void	exit();
+extern	void	l3tol();
+extern	long	lseek();
+extern	void	qsort();
 /*eject*/
 char	*usage = "[-p /path]  [-f file]  tape-dev  inumber:newname  ...";
 
@@ -114,7 +123,7 @@ struct	stat	statb;
 int	Finc = 0;	/* type of tape */
 int	Vcop = 0;
 
-int	g_bufn,		/* index into buffer pool */
+int	g_bufoff,		/* index into buffer pool */
 	g_bsize = BSIZE,	/* BSIZE of tape */
 	g_nindir,	/* NINDIR of tape */
 	g_curb = -1,	/* current real or relative block number */
@@ -131,6 +140,7 @@ int	g_bufn,		/* index into buffer pool */
 
 char	*g_cmd,		/* command name as we were invoked */
 	*g_ibuf,	/* our buffer pool pointer */
+	*g_lbbuf,	/* buf used by getblk when read crosses tape blk bndry*/
 	*g_idev,	/* input device name */
 	*g_path,	/* prefixing path string from command line */
 	*g_fsname[15];	/* from tape super block */
@@ -145,8 +155,7 @@ char **argv;
 	int	getopt(), recover(), icomp(), savereq();
 	char	*malloc(), *fgets(), str[MAXL];
 	FILE	*ifile, *fopen();
-	struct	Bdata	*Bp, *delnode();
-	struct 	Ireq	*pi;
+	struct	Bdata	*delnode();
 	extern	int	optind;
 	extern	char	*optarg;
 
@@ -223,6 +232,8 @@ int init()
 
 	if ((g_ibuf=(char *)malloc(g_blksize)) <= 0) 
 		errorx("insufficient memory for buffer area\n");
+	if ((g_lbbuf=(char *)malloc(g_bsize)) <= 0) 
+		errorx("insufficient memory for logical block buffer\n");
 
 	return;
 
@@ -231,9 +242,11 @@ int init()
 int super()
 {
 
-	long	bs;
 	char	*getblk();
 	struct	filsys	*fs;
+#if u3b2 || u3b15
+	int	result;
+#endif
 
 	clrbuf();
 	getblk(); /* skip boot block */
@@ -242,21 +255,78 @@ int super()
 	g_fstblk = fs->s_isize;
 	g_lstblk = fs->s_fsize;
 	g_ilb = g_fstblk - 2;
-#if FsTYPE == 3
-	g_bsize = (fs->s_magic!=FsMAGIC ? BSIZE :
-			(fs->s_type==1 ? 512 :
-#ifdef u3b5
-			(fs->s_type==2 ? 2048 :
+
+#ifdef FsMAGIC
+	if (fs->s_magic != FsMAGIC)
+		g_bsize = BSIZE;
+	else {
+		switch(fs->s_type) {
+		case Fs1b:
+			g_bsize = 512;
+			break;
+#if u3b2 || u3b15
+		case Fs2b:
+			if (Finc)
+			    g_bsize = g_blksize / g_nblocks;
+			else {
+			    close(g_fpi);
+			    result = tps5bsz();
+			    if(result == Fs2b)
+				g_bsize = 1024;
+			    else if (result == Fs4b)
+				g_bsize = 2048;
+			    else 
+				errorx("can't determine block size of file system on tape,\n        root inode or root directory may be corrupted\n");
+
+			    /* re-open tape device and set things up so that */
+			    /*   next getblk() will get start of ilist */
+			    if ((g_fpi = open(g_idev, 0)) == -1)
+				errorx("Can't open %s for input\n", g_idev);
+			    if (read(g_fpi, g_ibuf, sizeof(struct Thdr)) < 0 )
+				errorx("Read failed(%d) on read of tape header\n", errno);
+			    g_curb = -1;
+			    clrbuf();
+			    getblk();
+			    getblk();
+			}
+			break;
+		case Fs4b:
+			g_bsize = 2048;
+			break;
 #else
-			(fs->s_type==2 ? 1024 :
+		case Fs2b:
+			g_bsize = 1024;
+			break;
 #endif
-			errorx("unknown filesystem BSIZE on tape\n"))));
+		default:
+			errorx("can't determine block size,\n        unknown file system type on tape\n");
+		}
+	}
 #else
 	g_bsize = BSIZE;
 #endif
+	free(g_lbbuf);
+	if ((g_lbbuf=(char *)malloc(g_bsize)) <= 0) 
+		errorx("insufficient memory for logical block buffer\n");
 
 	g_nblocks = g_blksize / g_bsize;
 	g_nindir = g_bsize/sizeof(daddr_t);
+
+	/* set things up so that next getblk() will get start of ilist */
+	if (2 * g_bsize > g_blksize) {
+		close(g_fpi);
+		if ((g_fpi = open(g_idev, 0)) == -1)
+			errorx("Can't open %s for input\n", g_idev);
+		if (read(g_fpi, g_ibuf, sizeof(struct Thdr)) < 0 )
+			errorx("Read failed(%d) on read of tape header\n", errno);
+		g_curb = -1;
+		clrbuf();
+		getblk();
+		getblk();
+	}
+	else {
+		g_bufoff = 2 * g_bsize;
+	}
 #ifdef debug
 	error("reelblks:%d  blksize:%d  nblocks:%d  bsize:%d\n",
 		g_reelblks, g_blksize, g_nblocks, g_bsize);
@@ -329,7 +399,6 @@ ilist()
 int recover()
 {
 
-	int	i = 0;
 	int	Vrecover(), Frecover();
 	struct	Bdata	*Bp;
 
@@ -779,7 +848,7 @@ struct	dinode	*dip;
 struct	Ireq	*pi;
 {
 
-	register int fp, exist;
+	register int fp = 0, exist;
 	struct	utimbuf	{
 		time_t	actime;
 		time_t	modtime;
@@ -790,7 +859,7 @@ struct	Ireq	*pi;
 
 	case IFREG:
 		if (!exist) {
-			pave(dip,pi);
+			pave(pi);
 			fp=creat(pi->fp, (int)dip->di_mode);
 			if (fp != -1) {
 				close(fp);
@@ -800,13 +869,13 @@ struct	Ireq	*pi;
 		break;
 	case IFDIR:
 		if (!exist) {
-			pave(dip,pi);
+			pave(pi);
 			fp=mkdir(pi->fp);
 		}
 		break;
 	default:
 		if (!exist) {
-			pave(dip,pi);
+			pave(pi);
 			fp=mknod(pi->fp, (int)dip->di_mode, (int)dip->di_uid);
 			break;
 		}
@@ -839,8 +908,7 @@ struct	Ireq	*pi;
 	return(OK);
 }
 /*eject*/
-pave(dip,pi)
-struct	dinode	*dip;
+pave(pi)
 struct	Ireq	*pi;
 {
 	register char *np;
@@ -924,17 +992,44 @@ char *getblk()
 
 	int i;
 
-	if (g_bufn >= g_nblocks || g_bufn == INITIO) {
-		g_bufn = 0;
-		i = read(g_fpi, g_ibuf, g_blksize);
-		if (i < 0 || i != g_blksize) {
-			errorx("read failed(%d), %d=read(%d,%d,%d), for block %d\n",
-			errno,i,g_fpi,g_ibuf,g_blksize,g_curb+1);
+	if ((g_blksize - g_bufoff < g_bsize) || g_bufoff == INITIO) {
+
+		if((g_blksize - g_bufoff == 0) || g_bufoff == INITIO) {
+		/* we are at the beginning of a block on tape - read block 
+		 *  into g_ibuf
+		 */
+			i = read(g_fpi, g_ibuf, g_blksize);
+			if (i < 0 || i != g_blksize) {
+				errorx("read failed(%d), %d=read(%d,%d,%d), for block %d\n",
+				errno,i,g_fpi,g_ibuf,g_blksize,g_curb+1);
+			}
+			g_bufoff = g_bsize;
+			g_curb++;
+			return(g_ibuf);
+		}
+		else {
+		/* We have a partial logical block remaining in g_ibuf.
+		 *  Copy partial block into g_lbbuf, read next tape block into
+		 *  g_ibuf, and copy rest of this logical block into g_lbbuf
+		 */
+			memcpy(g_lbbuf, &g_ibuf[g_bufoff], g_blksize - g_bufoff);
+			i = read(g_fpi, g_ibuf, g_blksize);
+			if (i < 0 || i != g_blksize) {
+				errorx("read failed(%d), %d=read(%d,%d,%d), for block %d\n",
+				errno,i,g_fpi,g_ibuf,g_blksize,g_curb+1);
+			}
+			memcpy(&g_lbbuf[g_blksize - g_bufoff], g_ibuf,
+				g_bsize - (g_blksize - g_bufoff));
+			g_bufoff = g_bsize - (g_blksize - g_bufoff);
+			g_curb++;
+			return(g_lbbuf);
 		}
 	}
-	g_curb++;
-	return(&g_ibuf[g_bsize*g_bufn++]);
-
+	else {
+		g_bufoff += g_bsize;
+		g_curb++;
+		return(&g_ibuf[g_bufoff - g_bsize]);
+	}
 }
 
 /*
@@ -946,7 +1041,7 @@ char *getblk()
 clrbuf()
 {
 
-	g_bufn = INITIO;
+	g_bufoff = INITIO;
 
 }
 
@@ -1021,3 +1116,125 @@ struct	Bdata	*Bp;
 	return;
 
 }
+#if u3b2 || u3b15
+/* heuristic function to determine logical block size of System V file system
+ *  on tape
+ */
+tps5bsz()
+{
+
+	int results[3];
+	int count;
+	int skipblks;
+	long offset;
+	long address;
+	char *buf;
+	struct dinode *inodes;
+	struct direct *dirs;
+	char * p1;
+	char * p2;
+	
+	results[1] = 0;
+	results[2] = 0;
+
+	buf = (char *)malloc(2 * g_blksize);
+
+
+	/* look for i-list starting at offset 2048 (indicating 1KB block size) 
+	 *   or 4096 (indicating 2KB block size)
+	 */
+	for(count = 1; count < 3; count++) {
+
+		address = 2048 * count;
+		skipblks = address / g_blksize;
+		offset = address % g_blksize;
+		if ((g_fpi = open(g_idev, 0)) == -1) {
+			fprintf(stderr, "Can't open %s for input\n", g_idev);
+			exit(1);
+		}
+		/* skip over tape header and any blocks before the potential */
+		/*   start of i-list */
+		read(g_fpi, buf, sizeof Thdr);
+		while (skipblks > 0) {
+			read(g_fpi, buf, g_blksize);
+			skipblks--;
+		}
+
+		if (read(g_fpi, buf, g_blksize) != g_blksize) {
+			close(g_fpi);
+			continue;
+		}
+		/* if first 2 inodes cross block boundary read next block also*/
+		if ((offset + 2 * sizeof(struct dinode)) > g_blksize) {
+		    if (read(g_fpi, &buf[g_blksize], g_blksize) != g_blksize) {
+			close(g_fpi);
+			continue;
+		    }
+		}
+		close(g_fpi);
+		inodes = (struct dinode *)&buf[offset];
+		if((inodes[1].di_mode & IFMT) != IFDIR)
+			continue;
+		if(inodes[1].di_nlink < 2)
+			continue;
+		if((inodes[1].di_size % sizeof(struct direct)) != 0)
+			continue;
+	
+		p1 = (char *) &address;
+		p2 = inodes[1].di_addr;
+		*p1++ = 0;
+		*p1++ = *p2++;
+		*p1++ = *p2++;
+		*p1   = *p2;
+	
+		/* look for root directory at address specified by potential */
+		/*   root inode */
+		address = address << (count + 9);
+		skipblks = address / (g_blksize);
+		offset = address % (g_blksize);
+		if ((g_fpi = open(g_idev, 0)) == -1) {
+			fprintf(stderr, "Can't open %s for input\n", g_idev);
+			exit(1);
+		}
+		/* skip over tape header and any blocks before the potential */
+		/*   root directory */
+		read(g_fpi, buf, sizeof Thdr);
+		while (skipblks > 0) {
+			read(g_fpi, buf, g_blksize);
+			skipblks--;
+		}
+
+		if (read(g_fpi, buf, g_blksize) != g_blksize) {
+			close(g_fpi);
+			continue;
+		}
+		/* if first 2 directory entries cross block boundary read next 
+		 *   block also
+		 *   multiple of 512
+		 */
+		if ((offset + 2 * sizeof(struct direct)) > g_blksize) {
+		    if (read(g_fpi, &buf[g_blksize], g_blksize) != g_blksize) {
+			close(g_fpi);
+			continue;
+		    }
+		}
+		close(g_fpi);
+
+		dirs = (struct direct *)&buf[offset];
+		if(dirs[0].d_ino != 2 || dirs[1].d_ino != 2 )
+			continue;
+		if(strcmp(dirs[0].d_name,".") || strcmp(dirs[1].d_name,".."))
+			continue;
+		results[count] = 1;
+		break;
+	}
+
+		
+	free(buf);
+	if(results[1])
+		return(Fs2b);
+	if(results[2])
+		return(Fs4b);
+	return(-1);
+}
+#endif

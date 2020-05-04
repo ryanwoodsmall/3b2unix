@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)fumount:fumount.mk	1.4.2.1"
+#ident	"@(#)fumount:fumount.mk	1.4.3.1"
 
 #	fumount make file
 
@@ -20,7 +20,7 @@ all:	fumount
 
 fumount: fumount.o getnodes.o sndmes.o
 	$(CC) -o fumount $(LDFLAGS) fumount.o getnodes.o sndmes.o
-	chmod 4755 fumount
+	chmod 755 fumount
 
 fumount.o: fumount.c $(INC)/stdio.h $(INC)/sys/types.h \
 		$(INC)/sys/idtab.h fumount.h
@@ -40,7 +40,7 @@ debug.o: debug.c
 	$(CC) $(CFLAGS) debug.c
 
 install: fumount
-	$(INS) -f $(INSDIR) -m 4755 -u root -g bin fumount
+	$(INS) -f $(INSDIR) -m 755 -u root -g bin fumount
 
 clean:
 	-rm -f fumount.o getnodes.o sndmes.o

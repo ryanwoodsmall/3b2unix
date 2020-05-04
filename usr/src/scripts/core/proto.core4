@@ -3,13 +3,13 @@
 d--775 0 3
 	setup		---555 2 2	setup.core4
 	dgn		d--775 0 0
-		SBD		---500 0 0	../init/dgn/MSBD
+		SBD		---500 0 0	../init/dgn/SBD
 		X.SBD		---500 0 0	../init/dgn/X.SBD
 		PORTS		---500 0 0	../init/dgn/PORTS
 		X.PORTS		---500 0 0	../init/dgn/X.PORTS
 	$
 	etc	d--775 0 3
-		cron		---544 2 2		../etc/cron
+		cron		---500 0 3		../etc/cron
 		editsa		---550 0 0		../etc/editsa
 		edittbl		---755 2 2		../etc/edittbl
 		fltboot		---555 2 2		../etc/fltboot
@@ -29,6 +29,7 @@ d--775 0 3
 			cut		---555 2 2	../usr/bin/cut
 			egrep		---555 2 2	../usr/bin/egrep
 			what		---555 2 2	../usr/bin/what
+			dsconfig	---555 2 2	../usr/bin/dsconfig
 		$
 		lbin		d--775 2 2
 			mktable		---555 0 3	../usr/lbin/mktable
@@ -84,12 +85,17 @@ d--775 0 3
 					4426	---644 2 2	../usr/lib/terminfo/4/4426
 				$
 				5	d--775 2 2
+					505	---644 2 2	../usr/lib/terminfo/5/505
 					513bct	---644 2 2	../usr/lib/terminfo/5/513bct
 					5420_2	---644 2 2	../usr/lib/terminfo/5/5420_2
 					5620	---644 2 2	../usr/lib/terminfo/5/5620
+					5630	---644 2 2	../usr/lib/terminfo/5/5630
 				$
 				6	d--775 2 2
-					610bct	---644 2 2	../usr/lib/terminfo/6/610bct
+					605	---644 2 2	../usr/lib/terminfo/6/605
+					610	---644 2 2	../usr/lib/terminfo/6/610
+					615	---644 2 2	../usr/lib/terminfo/6/615
+					620	---644 2 2	../usr/lib/terminfo/6/620
 				$
 				9	d--775 2 2
 					925	---644 2 2	../usr/lib/terminfo/9/925
@@ -149,4 +155,4 @@ d--775 0 3
 		$
 	$
 $
-:#ident	"@(#)core:proto.core4	1.11.1.5"
+:#ident	"@(#)core:proto.core4	1.11.1.9"

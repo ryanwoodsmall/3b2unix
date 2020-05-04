@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:send.c	1.11"
+#ident	"@(#)mailx:send.c	1.11.1.1"
 #
 
 #include "rcv.h"
@@ -460,6 +460,7 @@ topdog:
 #endif /* CC */
 		if ((deliver = value("sendmail")) == NOSTR)
 			deliver = MAIL;
+		setgid(getgid());
 		execvp(deliver, namelist);
 		perror(deliver);
 		exit(1);

@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:admin/menu/usermgmt/deluser	2.4"
+#ident	"@(#)sadmin:admin/menu/usermgmt/deluser	2.5"
 #menu# delete a user from the system
 #help# 
 #help#	Deluser allows you to remove users from the computer.  The
@@ -38,12 +38,7 @@ This procedure will not delete that login ID."
 	If you answer  y  all files under ${home} will be removed." \
 			-f "Do you want to remove login ID '${loginid}'?"
 		then
-			ed - /etc/passwd <<-!
-				H
-				/^${loginid}:/d
-				w
-				q
-			!
+			passmgmt -d ${loginid} 2>/dev/null 1>&2
 			if [ $? -ne 0 ]
 			then
 				admerr $0 'Failure attempting to delete user password entry'

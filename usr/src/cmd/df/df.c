@@ -5,9 +5,10 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)df:df.c	1.33"
-
-/*	Distributed Unix, FS Switching Version	*/
+#ident	"@(#)df:df.c	1.35"
+/* df (with support for 512, 1KB and 2KB block sizes)
+ *	Distributed Unix, FS Switching Version
+ */
 #include <stdio.h>
 #include <sys/param.h>
 #include <sys/fs/s5param.h>
@@ -24,6 +25,7 @@
 #include <setjmp.h>
 #include <sys/errno.h>
 #include <string.h>
+#include <sys/inode.h>
 
 #define EQ(x,y,z) (strncmp(x,y,z)==0)
 #define MNTTAB "/etc/mnttab"
@@ -31,6 +33,7 @@
 #define DEVLEN sizeof(Mp.mt_dev)
 #define DEVLSZ 200	/* number of unique file systems we can remember */
 #define FREMOTE	0x0002	/* file is remote (see <sys/user.h>)  */
+#define PHYSBLKSZ 512	/* size of physical disk block */
 
 extern char *optarg;
 extern int optind, opterr;
@@ -48,6 +51,9 @@ long	bsize;
 int 	bshift;
 int	freflg, totflg, locflg;
 int	fd;
+#if u3b2 || u3b15
+int	result;
+#endif
 daddr_t	blkno	= 1;
 daddr_t	alloc();
 
@@ -209,22 +215,38 @@ char *dev, *fs_name;
 			return(1);
 		}	
 		if(sblock.s_magic == FsMAGIC) {
-			if(sblock.s_type == Fs1b) {
+			if(sblock. s_type == Fs1b) {
 				physblks = 1;
-				bsize = BSIZE;
-				bshift = BSHIFT;
+				bsize = 512;
+				bshift = 9;
+#if u3b2 || u3b15
 			} else if(sblock.s_type == Fs2b) {
-#ifdef u3b15
+				result = s5bsize(fd);
+				if(result == Fs2b) {
+					physblks = 2;
+					bsize = 1024;
+					bshift = 10;
+				} else if(result == Fs4b) {
+					physblks = 4;
+					bsize = 2048;
+					bshift = 11;
+				} else {
+					printf("          (%-12s): can't verify logical block size\n\t\t\t  root inode or root directory may be corrupted\n", dev);
+					return(1);
+				}
+			} else if(sblock.s_type == Fs4b) {
 				physblks = 4;
-				bsize = 4 * BSIZE;
-				bshift = BSHIFT + 2;
-#else
+				bsize = 2048;
+				bshift = 11;
+#else				
+
+			} else if(sblock.s_type == Fs2b) {
 				physblks = 2;
-				bsize = 2 * BSIZE;
-				bshift = BSHIFT + 1;
+				bsize = 1024;
+				bshift = 10;
 #endif
 			} else {
-				printf("          (%-12s): bad block type\n", dev);
+				printf("          (%-12s): can't determine logical block size\n", dev);
 				return(1);
 			}
 		} else {
@@ -420,3 +442,68 @@ short ddir, fno;
 	}
 	return(0);
 }
+#if u3b2 || u3b15
+/* heuristic function to determine logical block size of System V file system */
+
+s5bsize(fd)
+int fd;
+{
+
+	int results[3];
+	int count;
+	long address;
+	long offset;
+	char *buf;
+	struct dinode *inodes;
+	struct direct *dirs;
+	char * p1;
+	char * p2;
+	
+	results[1] = 0;
+	results[2] = 0;
+
+	buf = (char *)malloc(PHYSBLKSZ);
+
+	for (count = 1; count < 3; count++) {
+
+		address = 2048 * count;
+		if (lseek(fd, address, 0) != address)
+			continue;
+		if (read(fd, buf, PHYSBLKSZ) != PHYSBLKSZ)
+			continue;
+		inodes = (struct dinode *)buf;
+		if ((inodes[1].di_mode & IFMT) != IFDIR)
+			continue;
+		if (inodes[1].di_nlink < 2)
+			continue;
+		if ((inodes[1].di_size % sizeof(struct direct)) != 0)
+			continue;
+	
+		p1 = (char *) &address;
+		p2 = inodes[1].di_addr;
+		*p1++ = 0;
+		*p1++ = *p2++;
+		*p1++ = *p2++;
+		*p1   = *p2;
+	
+		offset = address << (count + 9);
+		if (lseek(fd,offset,0) != offset)
+			continue;
+		if (read(fd, buf, PHYSBLKSZ) != PHYSBLKSZ)
+			continue;
+		dirs = (struct direct *)buf;
+		if (dirs[0].d_ino != 2 || dirs[1].d_ino != 2 )
+			continue;
+		if (strcmp(dirs[0].d_name,".") || strcmp(dirs[1].d_name,".."))
+			continue;
+		results[count] = 1;
+		}
+	free(buf);
+	
+	if(results[1])
+		return(Fs2b);
+	if(results[2])
+		return(Fs4b);
+	return(-1);
+}
+#endif

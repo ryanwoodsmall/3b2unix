@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/setupterm.c	1.44"
+#ident	"@(#)curses:screen/setupterm.c	1.45"
 #ifndef	NOBLIT
 #include	<sys/jioctl.h>
 #endif	/* NOBLIT */
@@ -542,7 +542,7 @@ out_err:
     /* Pull out the strings. */
     {
 	register	char	**pp = &cur_strs->strs._back_tab;
-	char		**fp = &cur_strs->strs3.Sentinel;
+	char		**fp = &cur_strs->strs4.Sentinel;
 #ifdef	DUMPTI
 	register	int	tempindex = 0;
 	register	char	*startstr = ip + sizeof(short) * nstrs;

@@ -5,7 +5,9 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident		"@(#)fsck:fsck.c	1.31"
+#ident		"@(#)fsck:fsck.c	1.33"
+/* fsck with 512, 1K, and 2K block size support */
+
 #include <stdio.h>
 #include <ctype.h>
 #ifdef RT
@@ -24,6 +26,7 @@
 #else
 #include <sys/param.h>
 #include <sys/types.h>
+#include <sys/fs/s5param.h>
 #include <sys/fs/s5inode.h>
 #include <sys/inode.h>
 #endif
@@ -31,11 +34,11 @@
 #ifndef u370
 #include <sys/sysmacros.h>
 #endif
-#include <sys/filsys.h>
 #if u3b2 || u3b15
 #include <sys/uadmin.h>
 #endif
-#include <sys/dir.h>
+#include <sys/fs/s5filsys.h>
+#include <sys/fs/s5dir.h>
 #include <sys/fs/s5fblk.h>
 #include <sys/ino.h>
 #include <sys/stat.h>
@@ -57,6 +60,8 @@
 
 #define NDIRECT	(BSIZE/sizeof(struct direct))
 #define SPERB	(BSIZE/sizeof(short))
+
+#define PHYSBLKSZ 512
 
 #define NO	0
 #define YES	1
@@ -199,7 +204,7 @@ MEMSIZE	memsize;		/* amt of memory we got */
 #define MAXDATA ((MEMSIZE)350*1024)
 #endif
 #if u3b15
-#define MAXDATA (((MEMSIZE)100*2048) + 0x80880000)
+#define MAXDATA (((MEMSIZE)120*2048) + 0x80880000)
 #endif
 #if u3b2
 #define MAXDATA (((MEMSIZE)64*2048) + 0x80880000)
@@ -236,6 +241,7 @@ char	fast;			/* fast check- dup blks and free list check */
 char	hotroot;		/* checking root device */
 char	fixstate;		/* is FsSTATE to be fixed? */
 char	bflag;			/* reboot if root was modified (automatically) */
+char	xflag = 0;	
 char	rawflg;			/* read raw device */
 char	rebflg;			/* needs reboot if set, remount okay if clear */
 char	rmscr;			/* remove scratch file when done */
@@ -332,6 +338,12 @@ int	pass2();
 int	pass3();
 int	pass4();
 int	pass5();
+#if u3b15 || u3b2
+int	s5bsize();
+int	prmptbsize();
+char	**addx();
+void	confused();
+#endif
 char	id = ' ';
 dev_t	pipedev = -1;	/* is pipedev (and != -1) iff the standard input
 			 * is a pipe, which means we can't check pipedev! */
@@ -345,10 +357,14 @@ char	*argv[];
 	char filename[50];
 	int ret;
 	int n;
-	int svargc, argvix;
-	int ix;
+	int svargc, ix;
 	char **argx;
 	struct stat statbuf;
+#if u3b15 || u3b2
+	int result;
+	int response;
+	int xpos;
+#endif
 
 	if ( argv[0][0] >= '0' && argv[0][0] <= '9' ) id = argv[0][0];
 #ifndef STANDALONE
@@ -410,6 +426,12 @@ char	*argv[];
 			case 'f':
 				fast++;
 				break;
+			case 'x':
+				/* undocumented option for internal use by */
+				/* fsck only - DO NOT USE on command line */
+				if (strcmp(argv[i], "-x394") == 0)
+					xflag++;
+				break;
 			default:
 				errexit("%c %c option?\n",id,*(argv[i]+1));
 		}
@@ -424,6 +446,22 @@ char	*argv[];
 
 #ifdef u3b15
 	bflag++;
+#endif
+#if u3b15 || u3b2
+	if(xflag) {
+		/* strip -x394 option out of argument string so it
+		 *    doesn't affect file systems further down the
+		 *    command line
+		 */
+		for ( i = 1; i < svargc; i++ ) {
+			if (strcmp(argv[i], "-x394") == 0)
+				xpos = i;
+		}
+		for ( i = xpos; i < svargc - 1; i++ )
+			argv[i] = argv[i+1];
+		argv[svargc-1] = NULL;
+		svargc--;
+	}
 #endif
 
 #if !STANDALONE && !pdp11
@@ -447,13 +485,486 @@ char	*argv[];
 		svargc += argc;
 		fclose(fp);
 	}
-	ix = argvix = svargc - argc;		/* position of first fs argument */
+	ix = svargc - argc;		/* position of first fs argument */
+#ifdef DEBUG
+#if FsTYPE==1
+printf("entering while loop in fsck512, svargc = %d argc = %d\n", svargc, argc);
+#endif
+#if FsTYPE==2
+printf("entering while loop in fsck1K, svargc = %d argc = %d\n", svargc, argc);
+#endif
+#if FsTYPE==4
+printf("entering while loop in fsck2K, svargc = %d argc = %d\n", svargc, argc);
+#endif
+#endif /*  DEBUG */
 	while(argc > 0) {
+		if(ix < svargc - argc) {
+			for(n = 0; n < argc; n++)
+				argv[ix + n] = argv[ix + n + 1];
+			argv[ix + n] = NULL;
+			xflag = 0;
+		}
+#ifdef DEBUG
+printf("before checksb  ix = %d argc = %d\n", ix, argc);
+#endif
 		initbarea(&sblk);
 		if(checksb(argv[ix]) == NO) {
-			argc--; ix++;
+			argc--;
 			continue;
 		}
+
+/* The following code exists to deal with different logical block 
+ *  sizes and different interpretations of s_type for 3b2 vs. 3b15.
+ *  On the 3b2  it works as follows:
+ *    - when FsTYPE==1 we are the fsck512 executable and BSIZE is 512
+ *    - when FsTYPE==2 we are fsck1K and BSIZE is 1024
+ *    - when FsTYPE==4 we are fsck2K and BSIZE is 2048
+ *  We look at s_type for current file system and if it doesn't agree with
+ *  our BSIZE we exec the executable with the appropriate BSIZE.
+ *  If s_type is Fs2b we don't really know what the block size of the file 
+ *  system is so we call a heuristic function to try to find out.
+ *  If there is an invalid value for s_type or if the heuristic fails we still
+ *  don't know the block size so we ask the user. The user tells us and we
+ *  exec the appropriate executable with the -x394 option. We should once again
+ *  encounter an invalid s_type or heuristic failure but we ignore this
+ *  because xflag is set so know we are in the right executable because the user
+ *  told us which one to use.
+ *  Note that the separate block of code #ifdef'd for the 3b15 is identical
+ *  to the 3b2 code except for the interpretation of FsTYPE and the names
+ *  of the various executables.
+ */
+
+#ifdef u3b2
+
+#if FsTYPE==1	/* we are in fsck512 */
+	if(superblk.s_magic == FsMAGIC) {
+	    if(superblk.s_type == Fs4b) {
+		if(xflag)
+			confused(argv[ix]);
+		close(dfile.rfdes);
+		if(execvp("/etc/fsck2K",argv)==-1) {
+			error("%c cannot exec /etc/fsck2K to check %s\n",id,argv[ix]);
+			argc--;
+			continue;
+		}
+	    }
+	    if(superblk.s_type == Fs2b) {
+		result = s5bsize(dfile.rfdes);
+		if(result == Fs2b) {
+			if(xflag)
+				confused(argv[ix]);
+			close(dfile.rfdes);
+			if(execvp("/etc/fsck1K",argv)==-1) {
+				error("%c cannot exec /etc/fsck1K to check %s\n",id,argv[ix]);
+				argc--;
+				continue;
+			}
+		} 
+		if(result == Fs4b) {
+			if(xflag)
+				confused(argv[ix]);
+			close(dfile.rfdes);
+			if(execvp("/etc/fsck2K",argv)==-1) {
+				error("%c cannot exec /etc/fsck2K to check %s\n",id,argv[ix]);
+				argc--;
+				continue;
+			}
+		}
+	    }
+	    if((superblk.s_type == Fs2b && result == -1) ||
+	       (superblk.s_type != Fs2b && superblk.s_type != Fs1b)) {
+	    /* Unknown block  size. If xflag not set we prompt, if */
+	    /*  xflag is set we fall through and check as a 512 */
+			if (!xflag) {
+			    response = prmptbsize(argv[ix]);
+			    if (response == -1) { 
+			    /* user says to skip this file system */
+				argc--;
+				continue;
+			    }
+			    if (response == Fs2b) {
+				close(dfile.rfdes);
+				argx = addx(svargc + 1, argv);
+				if(execvp("/etc/fsck1K", argx) == -1) {
+					error("%c cannot exec /etc/fsck1K to check %s\n",id,argv[ix]);
+					argc--;
+					continue;
+				}
+			    }
+			    if (response == Fs4b) {
+				close(dfile.rfdes);
+				argx = addx(svargc + 1, argv);
+				if(execvp("/etc/fsck2K", argx) == -1) {
+					error("%c cannot exec /etc/fsck2K to check %s\n",id,argv[ix]);
+					argc--;
+					continue;
+				}
+			    }
+
+			}
+	    }
+	}
+#endif	/* end FsTYPE==1 */
+#if FsTYPE==2	/* we are in fsck1K */
+	if(superblk.s_magic != FsMAGIC) {
+		if(xflag)
+			confused(argv[ix]);
+		close(dfile.rfdes);
+		if(execvp("/etc/fsck512",argv) == -1) {
+			error("%c cannot exec /etc/fsck512 to check %s\n",id,argv[ix]);
+			argc--;
+			continue;
+		}
+	}
+	if(superblk.s_type == Fs1b) {
+		if(xflag)
+			confused(argv[ix]);
+		close(dfile.rfdes);
+		if(execvp("/etc/fsck512",argv) == -1) {
+			error("%c cannot exec /etc/fsck512 to check %s\n",id,argv[ix]);
+			argc--;
+			continue;
+		}
+	}
+	if(superblk.s_type == Fs4b) {
+		if(xflag)
+			confused(argv[ix]);
+		close(dfile.rfdes);
+		if(execvp("/etc/fsck2K",argv) == -1) {
+			error("%c cannot exec /etc/fsck2K to check %s\n",id,argv[ix]);
+			argc--;
+			continue;
+		}
+	}
+	if(superblk.s_type == Fs2b) {
+		result = s5bsize(dfile.rfdes);
+		if(result == Fs4b) {
+			if(xflag)
+				confused(argv[ix]);
+			close(dfile.rfdes);
+			if(execvp("/etc/fsck2K",argv)==-1) {
+				error("%c cannot exec /etc/fsck2K to check %s\n",id,argv[ix]);
+				argc--;
+				continue;
+			}
+		}
+	}
+	if((superblk.s_type == Fs2b && result == -1) || superblk.s_type != Fs2b) {
+	/* Unknown block size. If xflag not set we prompt, if */
+	/*  xflag is set we fall through and check as a 1K */
+		if (!xflag) {
+		    response = prmptbsize(argv[ix]);
+		    if (response == -1) { 
+		    /* user says to skip this file system */
+			argc--;
+			continue;
+		    }
+		    if (response == Fs1b) {
+			close(dfile.rfdes);
+			argx = addx(svargc + 1, argv);
+			if(execvp("/etc/fsck512", argx) == -1) {
+				error("%c cannot exec /etc/fsck512 to check %s\n",id,argv[ix]);
+				argc--;
+				continue;
+			}
+		    }
+		    if (response == Fs4b) {
+			close(dfile.rfdes);
+			argx = addx(svargc + 1, argv);
+			if(execvp("/etc/fsck2K", argx) == -1) {
+				error("%c cannot exec /etc/fsck2K to check %s\n",id,argv[ix]);
+				argc--;
+				continue;
+			}
+		    }
+		}
+	}
+#endif	/* end FsTYPE==2 */
+#if FsTYPE==4	/* we are in fsck2K */
+	if(superblk.s_magic != FsMAGIC) {
+		if(xflag)
+			confused(argv[ix]);
+		close(dfile.rfdes);
+		if(execvp("/etc/fsck512",argv) == -1) {
+			error("%c cannot exec /etc/fsck512 to check %s\n",id,argv[ix]);
+			argc--;
+			continue;
+		}
+	}
+	if(superblk.s_type == Fs1b) {
+		if(xflag)
+			confused(argv[ix]);
+		close(dfile.rfdes);
+		if(execvp("/etc/fsck512",argv) == -1) {
+			error("%c cannot exec /etc/fsck512 to check %s\n",id,argv[ix]);
+			argc--;
+			continue;
+		}
+	}
+	if(superblk.s_type == Fs2b) {
+		result = s5bsize(dfile.rfdes);
+		if(result == Fs2b) {
+			if(xflag)
+				confused(argv[ix]);
+			close(dfile.rfdes);
+			if(execvp("/etc/fsck1K",argv)==-1) {
+				error("%c cannot exec /etc/fsck1K to check %s\n",id,argv[ix]);
+				argc--;
+				continue;
+			}
+		}
+	}
+	if((superblk.s_type == Fs2b && result == -1) ||
+	   (superblk.s_type != Fs2b && superblk.s_type != Fs4b)) {
+	/* Unknown block size. If xflag not set we prompt, if */
+	/*  xflag is set we fall through and check as a 2K */
+		if (!xflag) {
+		    response = prmptbsize(argv[ix]);
+		    if (response == -1) { 
+		    /* user says to skip this file system */
+			argc--;
+			continue;
+		    }
+		    if (response == Fs1b) {
+			close(dfile.rfdes);
+			argx = addx(svargc + 1, argv);
+			if(execvp("/etc/fsck512", argx) == -1) {
+				error("%c cannot exec /etc/fsck512 to check %s\n",id,argv[ix]);
+				argc--;
+				continue;
+			}
+		    }
+		    if (response == Fs2b) {
+			close(dfile.rfdes);
+			argx = addx(svargc + 1, argv);
+			if(execvp("/etc/fsck1K", argx) == -1) {
+				error("%c cannot exec /etc/fsck1K to check %s\n",id,argv[ix]);
+				argc--;
+				continue;
+			}
+		    }
+		}
+	}
+#endif	/* end FsTYPE==4 */
+
+#endif	/* end u3b2 */
+
+#ifdef u3b15
+#if FsTYPE==1	/* we are in fsck1b */
+	if(superblk.s_magic == FsMAGIC) {
+	    if(superblk.s_type == Fs4b) {
+		if(xflag)
+			confused(argv[ix]);
+		close(dfile.rfdes);
+		if(execvp("/etc/fsck",argv)==-1) {
+			error("%c cannot exec /etc/fsck to check %s\n",id,argv[ix]);
+			argc--;
+			continue;
+		}
+	    }
+	    if(superblk.s_type == Fs2b) {
+		result = s5bsize(dfile.rfdes);
+		if(result == Fs2b) {
+			if(xflag)
+				confused(argv[ix]);
+			close(dfile.rfdes);
+			if(execvp("/etc/fsck2b",argv)==-1) {
+				error("%c cannot exec /etc/fsck2b to check %s\n",id,argv[ix]);
+				argc--;
+				continue;
+			}
+		} 
+		if(result == Fs4b) {
+			if(xflag)
+				confused(argv[ix]);
+			close(dfile.rfdes);
+			if(execvp("/etc/fsck",argv)==-1) {
+				error("%c cannot exec /etc/fsck to check %s\n",id,argv[ix]);
+				argc--;
+				continue;
+			}
+		}
+	    }
+	    if((superblk.s_type == Fs2b && result == -1) ||
+	       (superblk.s_type != Fs2b && superblk.s_type != Fs1b)) {
+	    /* Unknown block size. If xflag not set we prompt, if */
+	    /*  xflag is set we fall through and check as a 512 */
+			if (!xflag) {
+			    response = prmptbsize(argv[ix]);
+			    if (response == -1) { 
+			    /* user says to skip this file system */
+				argc--;
+				continue;
+			    }
+			    if (response == Fs2b) {
+				close(dfile.rfdes);
+				argx = addx(svargc + 1, argv);
+				if(execvp("/etc/fsck2b", argv) == -1) {
+					error("%c cannot exec /etc/fsck2b to check %s\n",id,argv[ix]);
+					argc--;
+					continue;
+				}
+			    }
+			    if (response == Fs4b) {
+				close(dfile.rfdes);
+				argx = addx(svargc + 1, argv);
+				if(execvp("/etc/fsck", argv) == -1) {
+					error("%c cannot exec /etc/fsck to check %s\n",id,argv[ix]);
+					argc--;
+					continue;
+				}
+			    }
+
+			}
+	    }
+	}
+#endif	/* end FsTYPE==1 */
+#if FsTYPE==4	/* we are in fsck2b */
+	if(superblk.s_magic != FsMAGIC) {
+		if(xflag)
+			confused(argv[ix]);
+		close(dfile.rfdes);
+		if(execvp("/etc/fsck1b",argv) == -1) {
+			error("%c cannot exec /etc/fsck1b to check %s\n",id,argv[ix]);
+			argc--;
+			continue;
+		}
+	}
+	if(superblk.s_type == Fs1b) {
+		if(xflag)
+			confused(argv[ix]);
+		close(dfile.rfdes);
+		if(execvp("/etc/fsck1b",argv) == -1) {
+			error("%c cannot exec /etc/fsck1b to check %s\n",id,argv[ix]);
+			argc--;
+			continue;
+		}
+	}
+	if(superblk.s_type == Fs4b) {
+		if(xflag)
+			confused(argv[ix]);
+		close(dfile.rfdes);
+		if(execvp("/etc/fsck",argv) == -1) {
+			error("%c cannot exec /etc/fsck to check %s\n",id,argv[ix]);
+			argc--;
+			continue;
+		}
+	}
+	if(superblk.s_type == Fs2b) {
+		result = s5bsize(dfile.rfdes);
+		if(result == Fs4b) {
+			if(xflag)
+				confused(argv[ix]);
+			close(dfile.rfdes);
+			if(execvp("/etc/fsck",argv)==-1) {
+				error("%c cannot exec /etc/fsck to check %s\n",id,argv[ix]);
+				argc--;
+				continue;
+			}
+		}
+	}
+	if((superblk.s_type == Fs2b && result == -1) || superblk.s_type != Fs2b) {
+	/* Unknown block size. If xflag not set we prompt, if */
+	/*  xflag is set we fall through and check as a 1K */
+		if (!xflag) {
+		    response = prmptbsize(argv[ix]);
+		    if (response == -1) { 
+		    /* user says to skip this file system */
+			argc--;
+			continue;
+		    }
+		    if (response == Fs1b) {
+			close(dfile.rfdes);
+			argx = addx(svargc + 1, argv);
+			if(execvp("/etc/fsck1b", argx) == -1) {
+				error("%c cannot exec /etc/fsck1b to check %s\n",id,argv[ix]);
+				argc--;
+				continue;
+			}
+		    }
+		    if (response == Fs4b) {
+			close(dfile.rfdes);
+			argx = addx(svargc + 1, argv);
+			if(execvp("/etc/fsck", argv) == -1) {
+				error("%c cannot exec /etc/fsck to check %s\n",id,argv[ix]);
+				argc--;
+				continue;
+			}
+		    }
+		}
+	}
+#endif	/* end FsTYPE==4 */
+#if FsTYPE==2	/* we are in fsck */
+	if(superblk.s_magic != FsMAGIC) {
+		if(xflag)
+			confused(argv[ix]);
+		close(dfile.rfdes);
+		if(execvp("/etc/fsck1b",argv) == -1) {
+			error("%c cannot exec /etc/fsck1b to check %s\n",id,argv[ix]);
+			argc--;
+			continue;
+		}
+	}
+	if(superblk.s_type == Fs1b) {
+		if(xflag)
+			confused(argv[ix]);
+		close(dfile.rfdes);
+		if(execvp("/etc/fsck1b",argv) == -1) {
+			error("%c cannot exec /etc/fsck1b to check %s\n",id,argv[ix]);
+			argc--;
+			continue;
+		}
+	}
+	if(superblk.s_type == Fs2b) {
+		result = s5bsize(dfile.rfdes);
+		if(result == Fs2b) {
+			if(xflag)
+				confused(argv[ix]);
+			close(dfile.rfdes);
+			if(execvp("/etc/fsck2b",argv)==-1) {
+				error("%c cannot exec /etc/fsck2b to check %s\n",id,argv[ix]);
+				argc--;
+				continue;
+			}
+		}
+	}
+	if((superblk.s_type == Fs2b && result == -1) ||
+	   (superblk.s_type != Fs2b && superblk.s_type != Fs4b)) {
+	/* Unknown block size. If xflag not set we prompt, if */
+	/*  xflag is set we fall through and check as a 2K */
+		if (!xflag) {
+		    response = prmptbsize(argv[ix]);
+		    if (response == -1) { 
+		    /* user says to skip this file system */
+			argc--;
+			continue;
+		    }
+		    if (response == Fs1b) {
+			close(dfile.rfdes);
+			argx = addx(svargc + 1, argv);
+			if(execvp("/etc/fsck1b", argx) == -1) {
+				error("%c cannot exec /etc/fsck1b to check %s\n",id,argv[ix]);
+				argc--;
+				continue;
+			}
+		    }
+		    if (response == Fs2b) {
+			close(dfile.rfdes);
+			argx = addx(svargc + 1, argv);
+			if(execvp("/etc/fsck2b", argv) == -1) {
+				error("%c cannot exec /etc/fsck2b to check %s\n",id,argv[ix]);
+				argc--;
+				continue;
+			}
+		    }
+		}
+
+	}
+#endif	/* end FsTYPE==2 */
+#endif	/* end u3b15 */
+
+#if !u3b2 && !u3b15
+
 #if FsTYPE==2
 		if(superblk.s_magic != FsMAGIC ||
 		(superblk.s_magic == FsMAGIC && superblk.s_type == Fs1b)) {
@@ -461,11 +972,6 @@ char	*argv[];
 		if(superblk.s_magic == FsMAGIC && superblk.s_type == Fs2b) {
 #endif
 			close(dfile.rfdes);
-			if(argvix < svargc - argc) {
-				for(n = 0; n < argc; n++)
-					argv[argvix + n] = argv[svargc - argc + n];
-				argv[argvix + n] = NULL;
-			}
 #if FsTYPE==2
 			if(execvp("/etc/fsck1b",argv) == -1)
 				errexit("%c %sCannot exec /etc/fsck1b\n",
@@ -476,14 +982,28 @@ char	*argv[];
 					id,devname);
 #endif
 		}
+#endif	/* !u3b2 && !u3b15 */
+
+
 		if(!initdone) {
 			initmem();
 			initdone++;
 		}
-		check(argv[ix++]);
+#ifdef DEBUG
+#if FsTYPE==1
+	printf("checking %s in fsck512\n", argv[ix]);
+#endif
+#if FsTYPE==2
+	printf("checking %s in fsck1K\n", argv[ix]);
+#endif
+#if FsTYPE==4
+	printf("checking %s in fsck2K\n", argv[ix]);
+#endif
+#endif /* DEBUG */
+		check(argv[ix]);
 		argc--;
 	}
-#else
+#else			/* pdp11 or STANDALONE */
 	initmem();
 	ix = svargc - argc;
 	if(argc) {
@@ -535,7 +1055,7 @@ char	*argv[];
 		}
 		fclose(fp);
 	}
-#endif
+#endif			/* pdp11 or STANDALONE */
 	exit(0);
 }
 
@@ -935,7 +1455,16 @@ if(!fast) {
 #else
 		n_files,n_blks*2,n_free*2);
 #endif
-#else
+#endif
+#if FsTYPE==4
+#if u3b15
+		n_files,n_blks*2,n_free*2);
+#endif
+#if u3b2
+		n_files,n_blks*4,n_free*4);
+#endif
+#endif
+#if FsTYPE==1
 		n_files,n_blks,n_free);
 #endif
 	if(dfile.mod || fixstate) {
@@ -1834,7 +2363,18 @@ char *dev;
 			if(niblk > MAXRAW / 2)
 				niblk = MAXRAW / 2;
 #endif
-#else
+#endif
+#if FsTYPE==4
+#ifdef u3b15
+			if(niblk > MAXRAW / 2)
+				niblk = MAXRAW / 2;
+#endif
+#ifdef u3b2
+			if(niblk > MAXRAW / 4)
+				niblk = MAXRAW / 4;
+#endif
+#endif
+#if FsTYPE==1
 			if(niblk > MAXRAW)
 				niblk = MAXRAW;
 #endif
@@ -2375,6 +2915,16 @@ makefree()
 	cyl /= 2;
 #endif
 #endif
+#if FsTYPE==4
+#ifdef u3b15
+	step /= 2;
+	cyl /= 2;
+#endif
+#ifdef u3b2
+	step /= 4;
+	cyl /=4;
+#endif
+#endif
 	i = 0;
 	for(j = 0; j < cyl; j++) {
 		while(flg[i])
@@ -2743,5 +3293,183 @@ reboot()
 	if (fputs(bootstr, f) == EOF)
 		abort("Write error to TSS!");
 	fclose(f);
+}
+#endif
+
+#if u3b15 || u3b2
+
+/* Prompt user for block size and return block size identifier. */
+prmptbsize(fs)
+char	*fs;
+{
+    char	bsize[20];
+    char	fsname[40];
+
+    if (id != ' ') {		/* if  we  were invoked through dfsck */
+	strcpy(fsname, fs);
+	strcat(fsname, "\t");
+    }
+    else
+	fsname[0] = '\0';
+
+
+    if ( yflag || nflag ) {
+	printf("%c %sWARNING: SUPER BLOCK, ROOT INODE, OR ROOT\n", id, fsname);
+	printf("%c %sDIRECTORY MAY BE CORRUPTED. fsck CAN'T DETERMINE\n", id, fsname);
+	printf("%c %sLOGICAL BLOCK SIZE OF %s.\n", id, fsname, fs);
+	printf("%c %sBLOCK SIZE COULD BE 512, 1024, OR 2048 BYTES.\n", id, fsname);
+	printf("%c %sRE-RUN fsck WITHOUT -y OR -n OPTION AND YOU\n", id, fsname);
+	printf("%c %sWILL BE PROMPTED FOR BLOCK SIZE.\n", id, fsname);
+	errexit("\n");
+    }
+    else if (id != ' ') {
+	printf("%c %sWARNING: SUPER BLOCK, ROOT INODE, OR ROOT\n", id, fsname);
+	printf("%c %sDIRECTORY MAY BE CORRUPTED. fsck CAN'T DETERMINE\n", id, fsname);
+	printf("%c %sLOGICAL BLOCK SIZE OF %s.\n", id, fsname, fs);
+	printf("%c %sBLOCK SIZE COULD BE 512, 1024, OR 2048 BYTES.\n", id, fsname);
+	printf("%c %sRE-RUN fsck FOR %s WITHOUT\n", id, fsname, fs);
+	printf("%c %sINVOKING THROUGH dfsck AND YOU WILL BE PROMPTED\n", id, fsname);
+	printf("%c %sFOR BLOCK SIZE.\n", id, fsname);
+	errexit("\n");
+    }
+    else {
+	printf("WARNING: SUPER BLOCK, ROOT INODE, OR ROOT DIRECTORY ON %s MAY\n", fs);
+	printf("BE CORRUPTED. fsck CAN'T DETERMINE LOGICAL BLOCK SIZE OF %s\n", fs);
+	printf("BLOCK SIZE COULD BE 512, 1024, OR 2048 BYTES.\n\n");
+	printf("ENTER LOGICAL BLOCK SIZE OF %s IN BYTES (NOTE: INCORRECT\n", fs);
+	printf("RESPONSE COULD DAMAGE FILE SYSTEM BEYOND REPAIR!)\n");
+	printf("ENTER 512, 1024, OR 2048 OR ENTER s TO SKIP THIS FILE SYSTEM:  ");
+	gets(bsize);
+	while (strcmp(bsize, "s") != 0 &&
+	       strcmp(bsize, "512") != 0 &&
+	       strcmp(bsize, "1024") != 0 &&
+	       strcmp(bsize, "2048") != 0) {
+			printf("\nENTER 512, 1024, 2048, OR s: ");
+			gets(bsize);
+	}
+	if (strcmp(bsize, "s") == 0)
+		return(-1);
+	if (strcmp(bsize, "512") == 0)
+		return(Fs1b);
+	if (strcmp(bsize, "1024") == 0)
+		return(Fs2b);
+	if (strcmp(bsize, "2048") == 0)
+		return(Fs4b);
+    }
+}
+
+/* function inserts -x394 option into argument list */
+char	**
+addx(nargs, args)
+int	nargs;
+char	*args[];
+{
+	int	i;
+	static char	**arglist;
+
+	arglist = (char **)calloc(nargs, sizeof(char *));
+	arglist[0] = args[0];
+	arglist[1] = (char *)calloc(3, 1);
+	strcpy(arglist[1], "-x394");
+	for (i = 2; i < nargs; i++)
+		arglist[i] = args[i-1];
+	arglist[nargs] = NULL;
+
+	return(arglist);
+
+}
+
+/* Most likely way to get here is user using -x394 option  on command line
+ *  We will also come here if fsck previously failed to identify the
+ *  block size and prompted the user but program now thinks it knows
+ *  the block size and user appears to be wrong
+ * Print error message and exit
+ */
+void
+confused(fs)
+char	*fs;
+{
+	char	fsname[40];
+
+	if (id != ' ') {	/* if  we  were invoked through dfsck */
+		strcpy(fsname, fs);
+		strcat(fsname, "\t");
+	}
+	else
+		fsname[0] = '\0';
+
+	printf("%c %sfsck FAILED FOR %s\n\n", id, fsname, fs);
+	printf("%c %sIF YOU INVOKED fsck WITH AN UNDOCUMENTED OPTION\n", id, fsname);
+	printf("%c %sRE-RUN fsck WITHOUT THIS OPTION.\n\n", id, fsname);
+	printf("%c %sIF YOU INVOKED fsck CORRECTLY AND HAVE\n", id, fsname);
+	printf("%c %sBEEN PROMPTED FOR BLOCK SIZE YOU HAVE\n", id, fsname);
+	printf("%c %sSUPPLIED A BLOCK SIZE WHICH MAY BE WRONG.\n",id, fsname);
+	printf("%c %sRE-RUN fsck FROM SCRATCH\n", id, fsname);
+
+	errexit("\n");
+}
+
+/* heuristic function to determine logical block size of System V file system */
+
+s5bsize(fd)
+int fd;
+{
+
+	int results[3];
+	int count;
+	long address;
+	long offset;
+	char *buf;
+	struct dinode *inodes;
+	struct direct *dirs;
+	char * p1;
+	char * p2;
+	
+	results[1] = 0;
+	results[2] = 0;
+
+	buf = (char *)malloc(PHYSBLKSZ);
+
+	for (count = 1; count < 3; count++) {
+
+		address = 2048 * count;
+		if (lseek(fd, address, 0) != address)
+			continue;
+		if (read(fd, buf, PHYSBLKSZ) != PHYSBLKSZ)
+			continue;
+		inodes = (struct dinode *)buf;
+		if ((inodes[1].di_mode & IFMT) != IFDIR)
+			continue;
+		if (inodes[1].di_nlink < 2)
+			continue;
+		if ((inodes[1].di_size % sizeof(struct direct)) != 0)
+			continue;
+	
+		p1 = (char *) &address;
+		p2 = inodes[1].di_addr;
+		*p1++ = 0;
+		*p1++ = *p2++;
+		*p1++ = *p2++;
+		*p1   = *p2;
+	
+		offset = address << (count + 9);
+		if (lseek(fd, offset, 0) != offset)
+			continue;
+		if (read(fd, buf, PHYSBLKSZ) != PHYSBLKSZ)
+			continue;
+		dirs = (struct direct *)buf;
+		if (dirs[0].d_ino != 2 || dirs[1].d_ino != 2 )
+			continue;
+		if (strcmp(dirs[0].d_name,".") || strcmp(dirs[1].d_name,".."))
+			continue;
+		results[count] = 1;
+		}
+	free(buf);
+	
+	if(results[1])
+		return(Fs2b);
+	if(results[2])
+		return(Fs4b);
+	return(-1);
 }
 #endif

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/startup.c	10.10.1.2"
+#ident	"@(#)kern-port:os/startup.c	10.10.1.3"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/psw.h"
@@ -491,7 +491,7 @@ startup()
 
 
 	cmn_err(CE_CONT,
-		"\nUNIX System V Release %s AT&T %s Version %s\n",
+		"\nUNIX(R) System V Release %s AT&T %s Version %s\n",
 		utsname.release, utsname.machine, utsname.version);
 	cmn_err(CE_CONT,
 		"Node %s\n", utsname.nodename);

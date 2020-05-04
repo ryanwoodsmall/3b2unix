@@ -5,10 +5,10 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/lock.c	10.9"
+#ident	"@(#)kern-port:os/lock.c	10.10"
 #include "sys/types.h"
 #include "sys/param.h"
-#include "sys/dir.h"
+#include "sys/fs/s5dir.h"
 #include "sys/signal.h"
 #include "sys/psw.h"
 #include "sys/pcb.h"

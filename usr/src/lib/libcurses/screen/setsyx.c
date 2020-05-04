@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/setsyx.c	1.7"
+#ident	"@(#)curses:screen/setsyx.c	1.8"
 /*
  * Set the current screen coordinates (y, x).
  *
@@ -21,7 +21,11 @@
 setsyx(y, x)
 int	y, x;
 {
-    if (y >= 0 && x >= 0)
+    if (y < 0 && x < 0)
+    {
+	SP->virt_scr->_leave = TRUE;
+    }
+    else
     {
 	_virtscr->_cury = y + SP->Yabove;
 	_virtscr->_curx = x;

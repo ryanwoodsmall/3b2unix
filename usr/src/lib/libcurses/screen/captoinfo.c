@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/captoinfo.c	1.6.1.7"
+#ident	"@(#)curses:screen/captoinfo.c	1.8"
 /*
     NAME
 	captoinfo - convert a termcap description to a terminfo description
@@ -1520,7 +1520,7 @@ char **argv;
 		verbose++;
 		break;
 	    case 'V':
-		printf("@(#)curses:screen/captoinfo.c	1.6.1.7\n");
+		printf("@(#)curses:screen/captoinfo.c	1.8\n");
 		fflush(stdout);
 		exit (0);
 	    case '?':

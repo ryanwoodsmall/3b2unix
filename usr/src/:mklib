@@ -1,4 +1,4 @@
-#ident	"@(#)mk::mklib	1.5"
+#ident	"@(#)mk::mklib	1.7"
 #
 #	Build UNIX System libraries
 #	For each directory build the library by invoking its
@@ -7,6 +7,7 @@
 trap "exit 1" 1 2 3 15
 MAKE=${MAKE:-make}
 SRCDIR=${SRC:-$ROOT/usr/src}/lib
+CLOBBER=${CLOBBER:-"ON"}
 cd $SRCDIR
 #
 for ARG in $*
@@ -23,7 +24,7 @@ do
 			then
 				echo ":mklib: *** $MAKE failed using $LIB.mk"
 			fi
-			$MAKE -b -f $LIB.mk clobber
+			test "$CLOBBER" != "OFF" && $MAKE -b -f $LIB.mk clobber
 		else
 			echo ":mklib: *** no $LIB.mk file in $SRCDIR/$LIB"
 		fi

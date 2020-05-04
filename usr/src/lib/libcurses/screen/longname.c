@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/longname.c	1.4.1.4"
+#ident	"@(#)curses:screen/longname.c	1.6"
 
 /* This routine returns the long name of the terminal. */
 

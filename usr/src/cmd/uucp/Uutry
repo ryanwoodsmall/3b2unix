@@ -1,5 +1,5 @@
 #!/bin/sh
-#ident	"@(#)uucp:Uutry	2.4"
+#ident	"@(#)uucp:Uutry	2.6.1.1"
 
 #	This shell will start a uucico for the system given.
 #	Options:
@@ -50,10 +50,11 @@ fi
 STMP=/tmp/$SYS
 rm -f $STMP
 > $STMP
-chmod 660 $STMP
-#  remove old status file
+chmod 622 $STMP
+#  remove old status file (can't actually remove, since $STATUS isn't
+#  publicly writable, but zero-ing it out works fine)
 if [ -n "$REMOVE" ]; then
-    rm -f $STATUS/${SYS}
+    cp /dev/null $STATUS/${SYS} 2>/dev/null
 fi
 
 echo "$UUCICO -r1 -s$SYS  $X >$STMP 2>&1&"

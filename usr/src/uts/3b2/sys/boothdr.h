@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/boothdr.h	10.4"
+#ident	"@(#)kern-port:sys/boothdr.h	10.5"
 /*
  * Each object file existing in the /boot directory contains an 
  * optional header containing the following information.  This header
@@ -164,6 +164,7 @@ struct	format
  *		function:  <, or >	(min or max)
  *		builtin:   #Dname\0
  *		builtin:   #Cname\0
+ *		builtin:   #Sname\0
  *		builtin:   #Mname\0
  *		sizeof:    #name\0
  *		address:   &name\0
@@ -178,9 +179,10 @@ union	element
 	{
 	char		operator;		/* +, -, * or / */
 	char		function;		/* < or > */
-	char		nD[ELENGTH];		/* D */
-	char		nC[ELENGTH];		/* C */
-	char		nM[ELENGTH];		/* M */
+	char		nD[ELENGTH];		/* D number of subdevices */
+	char		nC[ELENGTH];		/* C number of controllers */
+	char		nS[ELENGTH];		/* S number of logical units */
+	char		nM[ELENGTH];		/* M internal major number */
 	char		size_of[ELENGTH];	/* # name */
 	char		address_of[ELENGTH];	/* & name */
 	char		string[ELENGTH];	/* " name */

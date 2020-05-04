@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/nami.c	10.10.2.2"
+#ident	"@(#)kern-port:os/nami.c	10.10.2.4"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/systm.h"
@@ -36,6 +36,9 @@
 #else
 #define PATHSIZE	1024
 #endif
+
+#define MAXRESTARTS	32	/* the maximum number of times that we will */
+				/* restart a parse due to a symbolic link */
 
 /*
  * Convert a pathname into a pointer to
@@ -71,6 +74,7 @@ register struct argnamei *flagp;
 	struct mount *mp;
 	char stkbuf[PATHSIZE];
 	extern short dufstyp;
+	int restartcnt = 0;
 
 	sysinfo.namei++;
 
@@ -247,7 +251,7 @@ nmount:
 	if (server() && (dp->i_flag & IDOTDOT) &&
 			(comp[0] == '.' && comp[1] == '.' && comp[2] == '\0')){
 		if (u.u_rdir == dp) {
-			if (u.u_nextcp == '\0')
+			if (*u.u_nextcp == '\0')
 				goto out;
 			else	
 				goto dirloop;
@@ -332,7 +336,19 @@ pout:		if (*u.u_nextcp == '\0') {
 
 	case NI_RESTART:
 		iput(p.dp);
-		goto restart;
+		if (++restartcnt <= MAXRESTARTS)
+			goto restart;
+		u.u_error = ENOENT;
+		break;
+
+	case NI_SYMRESTART:
+		if (++restartcnt <= MAXRESTARTS) {
+			cp = p.comp;
+			goto dirloop;
+		}
+		iput(p.dp);
+		u.u_error = ENOENT;
+		break;
 
 	default:
 		cmn_err(CE_CONT, "namei: Invalid fs dependent namei return");

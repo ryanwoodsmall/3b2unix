@@ -5,12 +5,12 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)dcopy:dcopy.c	1.14"
-/*	COMPILE:	cc -O dcopy.c -i -o dcopy	*/
+#ident	"@(#)dcopy:dcopy.c	1.17"
+/* dcopy (with support for 512, 1KB and 2KB block sizes) */
 #include <sys/param.h>
 #include <sys/types.h>
-#include <sys/filsys.h>
-#include <sys/dir.h>
+#include <sys/fs/s5filsys.h>
+#include <sys/fs/s5dir.h>
 #include <sys/fs/s5inode.h>
 #include <sys/ino.h>
 #include <sys/inode.h>
@@ -35,6 +35,7 @@
 #define	B_WRITE		   1		/* For alloc */
 #define	B_READ		   0		/* ditto */
 #define FAIL		  -1
+#define PHYSBLKSZ 512
 
 #define	howmany(a,b)	(((a)+((b)-1))/(b))
 #define	roundup(a,b)	(howmany(a,b)*(b))
@@ -179,6 +180,10 @@ char **argv;
 	daddr_t	sip_off;
 	char 	*bp;
 	char **args;
+	char	bootblk[512];
+#if u3b2 || u3b15
+	int result;
+#endif
 
 	sync();
 	args = argv + 1;
@@ -247,26 +252,190 @@ char **argv;
 	if((infs = open(argv[i], O_RDONLY)) < 0)
 		err("Can't open %s", argv[i]);
 
-	if((outfs = open(argv[i+1], O_RDWR)) < 0)
-		err("Can't open %s", argv[i+1]);
-
-	printf("From: %s, to: %s? ", argv[i], argv[i+1]);
-	printf("(DEL if wrong)\n");
-	sleep(10);   /*  10 seconds to DEL  */
 
 	/*
-	 * Copy bootstrap (block 0) and read in super block.
+	 * Read in super block.
 	 */
 
-#if FsTYPE==2
-	getsblk(&super0, (daddr_t) 0);
-	putsblk(&super0, (daddr_t) 0);
 	getsblk(&super0, (daddr_t) 1);
-#else
-	getblk(&super0, (daddr_t) 0);
-	putblk(&super0, (daddr_t) 0);
-	getblk(&super0, (daddr_t) 1);
-#endif
+
+/* The following code exists to deal with different logical block 
+ *  sizes and different interpretations of s_type for 3b2 vs. 3b15.
+ *  On the 3b2  it works as follows:
+ *    - when FsTYPE==1 we are the dcopy512 executable and BSIZE is 512
+ *    - when FsTYPE==2 we are dcopy1K and BSIZE is 1024
+ *    - when FsTYPE==4 we are dcopy2K and BSIZE is 2048
+ *  We look at s_type for current file system and if it doesn't agree with
+ *  our BSIZE we exec the executable with the appropriate BSIZE.
+ *  If s_type is Fs2b we don't really know what the block size of the file 
+ *  system is so we call a heuristic function (s5bsize) to try to find out.
+ *  Note that the separate block of code #ifdef'd for the 3b15 is identical
+ *  to the 3b2 code except for the interpretation of FsTYPE and the names
+ *  of the various executables.
+ */
+
+#ifdef u3b2
+#if FsTYPE==1	/* we are in dcopy512 */
+	if(super0.s_magic == FsMAGIC) {
+	    if(super0.s_type == Fs4b) {
+		close(infs);
+		if(execvp("/etc/dcopy2K",argv)==-1)
+			err("Cannot exec /etc/dcopy2K");
+	    }
+	    if(super0.s_type == Fs2b) {
+		result = s5bsize(infs);
+		if(result == Fs2b) {
+			close(infs);
+			if(execvp("/etc/dcopy1K",argv)==-1)
+				err("cannot exec /etc/dcopy1K");
+		} 
+		if(result == Fs4b) {
+			close(infs);
+			if(execvp("/etc/dcopy2K",argv)==-1)
+				err("cannot exec /etc/dcopy2K");
+		}
+	    }
+	    if((super0.s_type == Fs2b && result == -1) ||
+	       (super0.s_type != Fs2b && super0.s_type != Fs1b))
+		err("Can't determine block size");
+	}
+#endif	/* end FsTYPE==1 */
+#if FsTYPE==2	/* we are in dcopy1K */
+	if(super0.s_magic != FsMAGIC) {
+		close(infs);
+		if(execvp("/etc/dcopy512",argv) == -1)
+			err("cannot exec /etc/dcopy512");
+	}
+	if(super0.s_type == Fs1b) {
+		close(infs);
+		if(execvp("/etc/dcopy512",argv) == -1)
+			err("cannot exec /etc/dcopy512");
+	}
+	if(super0.s_type == Fs4b) {
+		close(infs);
+		if(execvp("/etc/dcopy2K",argv) == -1)
+			err("cannot exec /etc/dcopy2K");
+	}
+	if(super0.s_type == Fs2b) {
+		result = s5bsize(infs);
+		if(result == Fs4b) {
+			close(infs);
+			if(execvp("/etc/dcopy2K",argv)==-1)
+				err("cannot exec /etc/dcopy2K");
+		}
+	}
+	if((super0.s_type == Fs2b && result == -1) || super0.s_type != Fs2b)
+		err("Can't determine block size");
+#endif	/* end FsTYPE==2 */
+
+#if FsTYPE==4	/* we are in dcopy2K */
+	if(super0.s_magic != FsMAGIC) {
+		close(infs);
+		if(execvp("/etc/dcopy512",argv) == -1)
+			err("cannot exec /etc/dcopy512");
+	}
+	if(super0.s_type == Fs1b) {
+		close(infs);
+		if(execvp("/etc/dcopy512",argv) == -1)
+			err("cannot exec /etc/dcopy512");
+	}
+	if(super0.s_type == Fs2b) {
+		result = s5bsize(infs);
+		if(result == Fs2b) {
+			close(infs);
+			if(execvp("/etc/dcopy1K",argv)==-1)
+				err("cannot exec /etc/dcopy1K");
+		}
+	}
+	if((super0.s_type == Fs2b && result == -1) ||
+	   (super0.s_type != Fs2b && super0.s_type != Fs4b))
+		err("Can't determine block size");
+#endif	/* end FsTYPE==4 */
+
+#endif	/* end u3b2 */
+
+#ifdef u3b15
+#if FsTYPE==1	/* we are in dcopy1b */
+	if(super0.s_magic == FsMAGIC) {
+	    if(super0.s_type == Fs4b) {
+		close(infs);
+		if(execvp("/etc/dcopy",argv)==-1)
+			err("cannot exec /etc/dcopy");
+	    }
+	    if(super0.s_type == Fs2b) {
+		result = s5bsize(infs);
+		if(result == Fs2b) {
+			close(infs);
+			if(execvp("/etc/dcopy2b",argv)==-1)
+				err("cannot exec /etc/dcopy2b");
+		} 
+		if(result == Fs4b) {
+			close(infs);
+			if(execvp("/etc/dcopy",argv)==-1)
+				err("cannot exec /etc/dcopy");
+		}
+	    }
+	    if((super0.s_type == Fs2b && result == -1) ||
+	       (super0.s_type != Fs2b && super0.s_type != Fs1b))
+		err("Can't determine block size");
+	}
+#endif	/* end FsTYPE==1 */
+
+#if FsTYPE==4	/* we are in dcopy2b */
+	if(super0.s_magic != FsMAGIC) {
+		close(infs);
+		if(execvp("/etc/dcopy1b",argv) == -1)
+			err("cannot exec /etc/dcopy1b");
+	}
+	if(super0.s_type == Fs1b) {
+		close(infs);
+		if(execvp("/etc/dcopy1b",argv) == -1)
+			err("cannot exec /etc/dcopy1b");
+	}
+	if(super0.s_type == Fs4b) {
+		close(infs);
+		if(execvp("/etc/dcopy",argv) == -1)
+			err("cannot exec /etc/dcopy");
+	}
+	if(super0.s_type == Fs2b) {
+		result = s5bsize(infs);
+		if(result == Fs4b) {
+			close(infs);
+			if(execvp("/etc/dcopy",argv)==-1)
+				err("cannot exec /etc/dcopy");
+		}
+	}
+	if((super0.s_type == Fs2b && result == -1) || super0.s_type != Fs2b)
+		err("Can't determine block size");
+#endif	/* end FsTYPE==4 */
+#if FsTYPE==2	/* we are in dcopy */
+	if(super0.s_magic != FsMAGIC) {
+		close(infs);
+		if(execvp("/etc/dcopy1b",argv) == -1)
+			err("cannot exec /etc/dcopy1b");
+	}
+	if(super0.s_type == Fs1b) {
+		close(infs);
+		if(execvp("/etc/dcopy1b",argv) == -1)
+			err("cannot exec /etc/dcopy1b");
+	}
+	if(super0.s_type == Fs2b) {
+		result = s5bsize(infs);
+		if(result == Fs2b) {
+			close(infs);
+			if(execvp("/etc/dcopy2b",argv)==-1)
+				err("cannot exec /etc/dcopy2b");
+		}
+	}
+	if((super0.s_type == Fs2b && result == -1) ||
+	   (super0.s_type != Fs2b && super0.s_type != Fs4b))
+		err("Can't determine block size");
+
+#endif	/* end FsTYPE==2 */
+#endif	/* end u3b15 */
+
+
+#if !u3b2 && !u3b15
 #if FsTYPE==2
 	if(super0.s_magic != FsMAGIC ||
 	(super0.s_magic == FsMAGIC && super0.s_type == Fs1b)) {
@@ -279,12 +448,18 @@ char **argv;
 			err("Cannot exec /etc/dcopy");
 	}
 #endif
-#if FsTYPE==2
-	if(super0.s_magic != FsMAGIC ||
-	(super0.s_magic == FsMAGIC && super0.s_type == Fs1b)) {
-		err("%s not a 1k file system",argv[0]);
-	}
-#endif
+#endif /* end !u3b2 && !u3b15 */
+
+	if((outfs = open(argv[i+1], O_RDWR)) < 0)
+		err("Can't open %s", argv[i+1]);
+
+	printf("From: %s, to: %s? ", argv[i], argv[i+1]);
+	printf("(DEL if wrong)\n");
+	sleep(10);   /*  10 seconds to DEL  */
+
+	/* Copy boot block (block 0) */
+	getsblk(bootblk, (daddr_t) 0);
+	putsblk(bootblk, (daddr_t) 0);
 
 	/*
 	 * Assign and check new file system sizes.
@@ -308,7 +483,7 @@ char **argv;
 		printf("old filesize = %ld, old inode size = %u\n",
 			super0.s_fsize,super0.s_isize);
 		printf("old stepsize = %d, old cylinder size = %d\n",
-			stepsize,cylsize);
+			super0.s_dinfo[0], super0.s_dinfo[1]);
 	}
 	if(stepsize > cylsize || stepsize <= 0 ||
 	    cylsize <= 0 || cylsize > MAXCYL) {
@@ -418,11 +593,7 @@ char **argv;
 	/*
 	 * Copy superblock and sync to make sure it all gets done.
 	 */
-#if FsTYPE==2
 	putsblk(&super1, (daddr_t) 1);
-#else
-	putblk(&super1, (daddr_t) 1);
-#endif
 	sync();
 	if(vflg) {
 		printf("Files:		%d\n", --inext);
@@ -931,7 +1102,6 @@ daddr_t	bno;
 		err("Read error: block no %lu", bno);
 }
 
-#if FsTYPE==2
 getsblk(p, bno)
 char *p;
 daddr_t	bno;
@@ -943,7 +1113,6 @@ daddr_t	bno;
 	if(read(infs, p, 512) != 512)
 		err("Read error: superblock no %lu", bno);
 }
-#endif
 
 /*
  * Putblk() writes block bno of the source f.s.
@@ -962,7 +1131,6 @@ daddr_t	bno;
 		err("Write error: block no. %lu", bno);
 }
 
-#if FsTYPE==2
 putsblk(p, bno)
 char *p;
 daddr_t	bno;
@@ -974,7 +1142,6 @@ daddr_t	bno;
 	if(write(outfs, p, 512) != 512)
 		err("Write error: superblock no. %lu", bno);
 }
-#endif
 
 /*
  * Reldir() fixes up the i-numbers in directory files
@@ -1419,3 +1586,68 @@ int size;
 	}
 	return(FAIL);
 }
+#if u3b2 || u3b15
+/* heuristic function to determine logical block size of System V file system */
+
+s5bsize(fd)
+int fd;
+{
+
+	int results[3];
+	int count;
+	long address;
+	long offset;
+	char *buf;
+	struct dinode *inodes;
+	struct direct *dirs;
+	char * p1;
+	char * p2;
+	
+	results[1] = 0;
+	results[2] = 0;
+
+	buf = (char *)malloc(PHYSBLKSZ);
+
+	for (count = 1; count < 3; count++) {
+
+		address = 2048 * count;
+		if (lseek(fd, address, 0) != address)
+			continue;
+		if (read(fd, buf, PHYSBLKSZ) != PHYSBLKSZ)
+			continue;
+		inodes = (struct dinode *)buf;
+		if ((inodes[1].di_mode & IFMT) != IFDIR)
+			continue;
+		if (inodes[1].di_nlink < 2)
+			continue;
+		if ((inodes[1].di_size % sizeof(struct direct)) != 0)
+			continue;
+	
+		p1 = (char *) &address;
+		p2 = inodes[1].di_addr;
+		*p1++ = 0;
+		*p1++ = *p2++;
+		*p1++ = *p2++;
+		*p1   = *p2;
+	
+		offset = address << (count + 9);
+		if (lseek(fd, offset, 0) != offset)
+			continue;
+		if (read(fd, buf, PHYSBLKSZ) != PHYSBLKSZ)
+			continue;
+		dirs = (struct direct *)buf;
+		if (dirs[0].d_ino != 2 || dirs[1].d_ino != 2 )
+			continue;
+		if (strcmp(dirs[0].d_name,".") || strcmp(dirs[1].d_name,".."))
+			continue;
+		results[count] = 1;
+		}
+	free(buf);
+	
+	if(results[1])
+		return(Fs2b);
+	if(results[2])
+		return(Fs4b);
+	return(-1);
+}
+#endif

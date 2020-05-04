@@ -5,11 +5,11 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:pk.h	2.2"
+#ident	"@(#)uucp:pk.h	2.2.1.1"
 
 
 #define	PACKSIZE	64
-#define	WINDOWS		3
+#define	WINDOWS		7
 #define	PKASSERT(e, s1, s2, i1) if (!(e)) {\
 assert(s1, s2, i1, __FILE__, __LINE__);\
 pkfail();};

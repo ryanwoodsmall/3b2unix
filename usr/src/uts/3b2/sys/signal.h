@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/signal.h	10.9"
+#ident	"@(#)kern-port:sys/signal.h	10.10"
 
 #define	SIGHUP	1	/* hangup */
 #define	SIGINT	2	/* interrupt (rubout) */
@@ -27,9 +27,9 @@
 #define	SIGUSR2	17	/* user defined signal 2 */
 #define	SIGCLD	18	/* death of a child */
 #define	SIGPWR	19	/* power-fail restart */
+#define SIGWINCH 20	/* window change */
 
-			/* SIGWIND and SIGPHONE only used in UNIX/PC */
-/*#define SIGWIND 20*/	/* window change */
+			/* SIGPHONE only used in UNIX/PC */
 /*#define SIGPHONE 21*/	/* handset, line status change */
 
 #define SIGPOLL 22	/* pollable event occured */

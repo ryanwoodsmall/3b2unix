@@ -1,4 +1,4 @@
-#ident	"@(#)rfs.admin:resrcmgmt/advmgmt/advnow	1.9"
+#ident	"@(#)rfs.admin:resrcmgmt/advmgmt/advnow	1.11"
 #menu# advertise local resources immediately (if RFS is running)
 
 #help# 	
@@ -70,8 +70,8 @@ mount it as read-only.  No users on the client machines may make any
 changes to your resource.
 
 If you advertise this resource as read-write, client machines may choose 
-mount it as read-write or as read-only.  When client machines mount the 
-resource as read-write, the user and group ID mappings that you have 
+to mount it as read-write or as read-only.  When client machines mount
+the resource as read-write, the user and group ID mappings that you have 
 defined will govern which remote users are able to make changes to it."
 
 DEF_CLIENTS="
@@ -137,12 +137,15 @@ do
 	'^[^ ]*$' 'The pathname must not contain a space.'		\
 	'^/.*$' 'You must specify a full pathname starting with /.'`
 
+	#remove "." special meaning (just in case it is used)
+	path2=`echo $path | /bin/sed 's/\./\\\./g'`
+
 	if [ ! -d $path ]
 	then
 		echo "$path is not a directory in your file system.\n"
 		continue
 	else
-		/usr/bin/adv | /bin/grep " $path " >/dev/null 2>&1
+		/usr/bin/adv | /bin/grep " $path2 " >/dev/null 2>&1
 		if [ "$?" = "0" ]
 		then
 			echo "$path is already advertised."

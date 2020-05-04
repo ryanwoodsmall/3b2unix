@@ -5,7 +5,14 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)passwd:passwd.mk	1.5"
+#	Copyright (c) 1984 AT&T
+#	  All Rights Reserved
+
+#	THIS IS UNPUBLISHED PROPRIETARY SOURCE CODE OF AT&T
+#	The copyright notice above does not evidence any
+#	actual or intended publication of such source code.
+
+#ident	"@(#)passwd:passwd.mk	1.5.1.1"
 
 #	Makefile for passwd
 
@@ -15,9 +22,9 @@ DIR = $(ROOT)/bin
 
 INC = $(ROOT)/usr/include
 
-LDFLAGS = -s -lcrypt $(LDLIBS)
+LDFLAGS = -s -lsec -lcrypt $(LDLIBS)
 
-CFLAGS = -O -I$(INC)
+CFLAGS =  -O -I$(INC)
 
 STRIP = strip
 
@@ -45,7 +52,7 @@ passwd.o:	 $(INC)/stdio.h $(INC)/signal.h \
 		 $(INC)/sys/signal.h $(INC)/pwd.h \
 		 $(INC)/sys/types.h $(INC)/ctype.h 
 
-GLOBALINCS = $(INC)/ctype.h $(INC)/pwd.h $(INC)/signal.h \
+GLOBALINCS = $(INC)/ctype.h $(INC)/pwd.h $(INC)/shadow.h $(INC)/signal.h \
 	$(INC)/stdio.h $(INC)/sys/signal.h \
 	$(INC)/sys/types.h 
 

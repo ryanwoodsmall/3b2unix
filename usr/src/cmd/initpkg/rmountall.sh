@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)initpkg:./rmountall.sh	1.7"
+#ident	"@(#)initpkg:./rmountall.sh	1.7.2.1"
 
 if u3b2
 then echo "
@@ -50,16 +50,11 @@ cat \$*  |
  			then
  				fstype=''
  			fi
-			if [ -x /bin/setpgrp ]
-			then
-				/bin/setpgrp sh /etc/rmount \${fsflags} \${dev} \\
-				\${fs} \${fstype} >/dev/console 2>&1&
-			else
-				/usr/lbin/setpgrp sh /etc/rmount \${fsflags} \\
-				\${dev} \${fs} \${fstype} >/dev/console 2>&1&
-			fi
+				/etc/rmount \${fsflags} \${dev} \\
+				\${fs} \${fstype} >/dev/console 2>&1
 		esac 
 
 	done
+	/usr/nserve/rmnttry&
 " >rmountall
 fi

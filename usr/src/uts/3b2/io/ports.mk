@@ -5,12 +5,13 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)kern-port:io/ports.mk	10.10.1.1"
+#ident	"@(#)kern-port:io/ports.mk	10.10.1.3"
 ROOT =
 INC = $(ROOT)/usr/include
 MKBOOT = mkboot
 MASTERD = ../master.d
-CFLAGS = -O -I$(INC) -Uvax -Uu3b -Uu3b15 -Du3b2 -DINKERNEL -DDBO -Updp11
+DASHO = -O
+CFLAGS = $(DASHO) -I$(INC) -Uvax -Uu3b -Uu3b15 -Du3b2 -DINKERNEL -DDBO -Updp11
 FRC =
 
 DFILES =\
@@ -106,4 +107,5 @@ lla_ppc.o: lla_ppc.c \
 	$(INC)/sys/types.h \
 	$(INC)/sys/user.h \
 	$(INC)/sys/inline.h \
+	$(INC)/sys/firmware.h \
 	$(FRC)

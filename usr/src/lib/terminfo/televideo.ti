@@ -1,4 +1,4 @@
-#ident	"@(#)terminfo:televideo.ti	1.8"
+#ident	"@(#)terminfo:televideo.ti	1.9"
 # # --------------------------------
 #
 # televideo: TELEVIDEO
@@ -87,20 +87,21 @@ tvi950-ns|tvi950 w/no standout,
 #	
 #
 tvi950|950|televideo950,
-	tbc=\E3, hts=\E1, cr=^M, cud1=^J, ind=^J, bel=^G,
-	is2=\EDF\EC\Ed\EG0\Eg\Er\EO\E\047\E(\E%\Ew\EX\Ee ^O
-	\El\E016\E004\Ex0\0\0\Ex1\0\0\Ex2\0\0
-	\Ex3\0\0\Ex4\r\0\Ef\r,
-	il1=\EE, am, cub1=^H, cbt=\EI, ed=\Ey, el=\Et, clear=\E"6g\E*,
-	cup=\E=%p1%' '%+%c%p2%' '%+%c, cols#80, dch1=\EW, dl1=\ER,
-	cud1=^V, rmir=\Er, home=^^, smir=\Eq, kf0=^A0\r,
-	kf1=^A@\r, kf2=^AA\r, kf3=^AB\r, kf4=^AC\r, kf5=^AD\r, kf6=^AE\r,
-	kf7=^AF\r, kf8=^AG\r, kf9=^AH\r, kbs=^H, kcud1=^V, khome=^^, kcub1=^H,
-	kcuf1=^L, kcuu1=^K, lines#24, mir, msgr,
-	ht=^I, rmso=\EG0, xmc#1, smso=\EG4, ri=\Ej,
-	rmul=\EG0, cuu1=^K, smul=\EG8,
-	flash=\Eb$<20>\Ed, xenl,
-	hs, tsl=\Eg\Ef, fsl=\r, dsl=\Eg\Ef\r, mc5=\E', mc4=\Ea,
+	am, hs, mir, msgr, xenl,
+	cols#80, lh#0, lines#24, lw#0, nlab#0, xmc#1,
+	acsc=mExJlFtMjHqKvOkGuLwNnI, bel=^G, cbt=\EI,
+	clear=\E*, cr=\r, cub1=\b, cud1=\n, cuf1=\f,
+	cup=\E=%p1%'\s'%+%c%p2%'\s'%+%c, cuu1=^K, dch1=\EW,
+	dl1=\ER, dsl=\Eg\Ef\r, ed=\Ey, el=\Et,
+	flash=\Eb$<20>\Ed, fsl=\r, home=^^, ht=\t, hts=\E1,
+	il1=\EE, ind=\n,
+	is2=\EDF\EC\Ed\EG0\Eg\Er\EO\E'\E(\E%%\Ew\EX\Ee\s^O\El\E016\E004\Ex0\200\200\Ex1\200\200\Ex2\200\200\Ex3\200\200\Ex4\r\200\Ef\r,
+	kbs=\b, kcub1=\b, kcud1=^V, kcuf1=\f, kcuu1=^K,
+	kf0=^A0\r, kf1=^A@\r, kf2=^AA\r, kf3=^AB\r, kf4=^AC\r,
+	kf5=^AD\r, kf6=^AE\r, kf7=^AF\r, kf8=^AG\r, kf9=^AH\r,
+	khome=^^, mc4=\Ea, mc5=\E`, ri=\Ej, rmacs=\E%%,
+	rmir=\Er, smacs=\E$, smir=\Eq, smso=\EG4, smul=\EG8,
+	tbc=\E3, tsl=\Eg\Ef,
 # Info:
 #	is2 for 950 with two pages adds the following:
 #	set 48 line page (\E\\2)

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)listen:lslog.c	1.7.1.1"
+#ident	"@(#)listen:lslog.c	1.7.1.2"
 
 /*
  * error/logging/cleanup functions for the network listener process.
@@ -185,9 +185,6 @@ char *msg;
 		t_unbind(Nfd1);
 		t_unbind(Nfd2);
 		t_unbind(Nfd3);
-
-		if (!Background)
-			fprintf(stderr,Lastmsg);
 
 #ifdef	S4
 		else  if (!(flag & NORMAL)) {

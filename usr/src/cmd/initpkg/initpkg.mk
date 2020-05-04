@@ -5,11 +5,12 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)initpkg:./initpkg.mk	1.10"
+#ident	"@(#)initpkg:./initpkg.mk	1.11"
 
 ROOT =
 INSDIR = $(ROOT)/etc
 TOUCH=$(CH)/bin/touch
+MAKE=make
 
 SCRIPTS= bcheckrc brc inittab fstab rstab mountall rc0 rc2 rc3 \
 	rmount rmountall rumountall shutdown umountall
@@ -28,7 +29,7 @@ clobber: clean
 	rm -f $(SCRIPTS)
 
 install:
-	make -f initpkg.mk $(ARGS)
+	$(MAKE) -f initpkg.mk $(ARGS)
 
 bcheckrc::
 	

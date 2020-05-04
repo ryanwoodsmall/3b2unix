@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)nlsadmin:main.c	1.18.2.1"
+#ident	"@(#)nlsadmin:main.c	1.18.2.2"
 
 #include "sys/types.h"
 #include "sys/tiuser.h"
@@ -983,7 +983,7 @@ FILE *fp;
 {
 	register int i;
 
-	for ( i=0; *init[i]; i++)
+	for ( i=0; init[i]; i++)
 		fprintf(fp,"%s\n",init[i]);
 }
 

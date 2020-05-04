@@ -1,4 +1,4 @@
-#ident	"@(#)core:setup.core4	1.6.1.1"
+#ident	"@(#)core:setup.core4	1.6.1.2"
 #
 #	Sets up "3B2 Core Unix Part 4" file system on floppy
 #
@@ -10,6 +10,10 @@ export PATH
 PATH=/bin:/usr/bin:/etc
 ROOT=/install
 cd ${ROOT}/usr/lib/terminfo
+mkdir g
+chmod 775 g
+chown 2 g
+chgrp 2 g
 ln 1/1620 1/1640
 ln 1/1620 4/450
 ln 1/1620 d/diablo
@@ -107,6 +111,9 @@ ln 4/4425 t/tty5425
 ln 4/4426 A/ATT4426
 ln 4/4426 a/att4426
 ln 4/4426 t/tty4426
+ln 5/505 5/5430
+ln 5/505 g/gs5430
+ln 5/505 p/pt505
 ln 5/513bct A/ATT513
 ln 5/513bct a/att513
 ln 5/5420_2 A/ATT5420_2
@@ -116,8 +123,22 @@ ln 5/5620 a/att5620
 ln 5/5620 d/dmd
 ln 5/5620 t/tty5620
 ln 5/5620 t/ttydmd
-ln 6/610bct A/ATT610BCT
-ln 6/610bct a/att610bct
+ln 5/5630 5/5630DMD
+ln 5/5630 6/630
+ln 5/5630 6/630MTG
+ln 5/5630 a/att630
+ln 6/605 6/605bct
+ln 6/605 A/ATT605
+ln 6/605 a/att605
+ln 6/610 6/610bct
+ln 6/610 A/ATT610
+ln 6/610 a/att610
+ln 6/615 6/615mt
+ln 6/615 A/ATT615
+ln 6/615 a/att615
+ln 6/620 6/620mtg
+ln 6/620 A/ATT620
+ln 6/620 a/att620
 ln 9/925 t/tvi925
 ln 9/950 t/televideo950
 ln 9/950 t/tvi950

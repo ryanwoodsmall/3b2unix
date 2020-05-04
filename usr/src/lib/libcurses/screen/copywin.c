@@ -5,11 +5,11 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/copywin.c	1.6.1.5"
+#ident	"@(#)curses:screen/copywin.c	1.9"
 
 /*
  * This routine writes parts of Srcwin onto Dstwin,
- * either non-destructively or destructively.
+ * either non-destructively (over_lay = TRUE) or destructively (over_lay = FALSE).
  */
 
 #include	"curses_inc.h"
@@ -27,7 +27,8 @@ int			over_lay;
     register	int	ySrc, yDst, width_bytes;
     register	int	height = (maxRowDst - minRowDst) + 1;
     chtype		**_yDst = Dstwin->_y, **_ySrc = Srcwin->_y,
-			bkSrc = Srcwin->_bkgd;
+			bkSrc = Srcwin->_bkgd,
+			atDst = Dstwin->_attrs;
     int			width = (maxColDst - minColDst) + 1, which_copy;
 
 #ifdef	DEBUG
@@ -61,18 +62,17 @@ int			over_lay;
 	    spDst = &_yDst[yDst][minColDst];
 	    numcopied = width;
 
-	    if (which_copy == 1)
+	    if (which_copy == 1)		/* overlay */
 	    {
 		for (; numcopied-- > 0; spSrc++, spDst++)
 		    /* Check to see if the char is a "blank/bkgd". */
 		    if (*spSrc != bkSrc)
-			*spDst = _WCHAR(Dstwin, *spSrc);
+			*spDst = *spSrc | atDst;
 	    }
 	    else
 	    {
 		for (; numcopied-- > 0; spSrc++, spDst++)
-		    /* Do background and attribute translation. */
-		    *spDst = _WCHAR(Dstwin, *spSrc);
+		    *spDst = *spSrc | atDst;
 	    }
 	}
 	else

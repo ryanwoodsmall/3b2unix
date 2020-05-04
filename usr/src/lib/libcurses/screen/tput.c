@@ -5,13 +5,18 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/tput.c	1.15"
+#ident	"@(#)curses:screen/tput.c	1.18"
 
 /* tput - print terminal attribute
 
-   return codes:
+   return codes for cammand line arguments:
 	0	ok (if boolean capname -> TRUE)
 	1	(for boolean capname -> FALSE)
+
+   return codes for standard input arguments:
+	0	ok (tput for all lines was successful)
+
+   return codes for both cases:
 	2	usage error
 	3	bad terminal type given or no terminfo database
 	4	unknown capname
@@ -46,14 +51,14 @@ main (argc, argv)
 int argc;
 char **argv;
 {
-    register int i;
+    register int i, std_argc;
     register char *term = getenv("TERM");
-    register char *cap;
+    register char *cap, std_input = FALSE;
     int setuperr;
 
     progname = argv[0];
 
-    while ((i = getopt (argc, argv, "T:")) != EOF)
+    while ((i = getopt (argc, argv, "ST:")) != EOF)
 	switch (i)
 	    {
 	    case 'T':
@@ -62,18 +67,21 @@ char **argv;
 		putenv("COLUMNS=");
 		term = optarg;
 		break;
+	    case 'S':
+		std_input = TRUE;
+		break;
 	    case '?':
 	    usage:
 		(void) fprintf (stderr,
-		    "usage: \"%s [-T term] capname [tparm argument...]\"\n",
-		    argv[0]);
+		    "usage: \"%s [-ST term] capname [tparm argument...]\"\n",
+		    progname);
 		exit(2);
 	    }
 
     if (!term || !*term)
 	{
 	(void) fprintf(stderr,"%s: No value for $TERM and no -T specified\n",
-	    argv[0]);
+	    progname);
 	exit(2);
 	}
 
@@ -83,33 +91,68 @@ char **argv;
 	{
 	case -2:
 	    (void) fprintf(stderr,"%s: unreadable terminal descriptor \"%s\"\n",
-		argv[0], term);
+		progname, term);
 	    exit(3);
 	case -1:
 	    (void) fprintf(stderr,"%s: no terminfo database\n",
-		argv[0]);
+		progname);
 	    exit(3);
 	case 0:
 	    (void) fprintf(stderr,"%s: unknown terminal \"%s\"\n",
-		argv[0], term);
+		progname, term);
 	    exit(3);
 	}
 
     reset_shell_mode();
-    if (argc == optind)
-	goto usage;
 
-    cap = argv[optind++];
+    /* command line arguments */
+    if (!std_input)
+    {
+        if (argc == optind)
+	    goto usage;
+	cap = argv[optind++];
 
-    if (strcmp(cap, "init") == 0)
-        initterm();
-    else if (strcmp(cap, "reset") == 0)
-        reset_term();
-    else if (strcmp(cap, "longname") == 0)
-        printf("%s\n",longname());
+	if (strcmp(cap, "init") == 0)
+	    initterm();
+	else if (strcmp(cap, "reset") == 0)
+	    reset_term();
+	else if (strcmp(cap, "longname") == 0)
+	    printf("%s\n",longname());
+	else
+	    exit (outputcap(cap, argc, argv));
+	exit (0);
+    }
+
+    /* standard input argumets	*/
     else
-	outputcap(cap, argc, argv);
-    /* NOTREACHED */
+    {
+	register char buff[128], **v;
+
+	/* allocate storage for the 'faked' argv[] array	*/
+	v = (char **) malloc (10 * sizeof (char *));
+	for (i=0; i<10; i++)
+	     v[i] = (char *) malloc (32 * sizeof (char));
+	while (gets (buff) != NULL)
+	{
+	    /* read standart input line; skip over empty lines */
+	    if ((std_argc = sscanf (buff, "%s %s %s %s %s %s %s %s %s %s",
+		v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8], v[9])) < 1)
+		continue;
+	    cap = v[0];
+	    optind = 1;
+
+	    if (strcmp(cap, "init") == 0)
+		initterm();
+	    else if (strcmp(cap, "reset") == 0)
+		reset_term();
+	    else if (strcmp(cap, "longname") == 0)
+		printf("%s\n",longname());
+	    else
+		outputcap(cap, std_argc, v);
+	    fflush (stdout);
+	}
+	exit (0);
+    }
 }
 
 static int parm[9] =
@@ -127,17 +170,17 @@ char **argv;
     register int i;
 
     if ((i = tigetflag(cap)) >= 0)
-	exit(1 - i);
+	return(1 - i);
 
     if ((i = tigetnum(cap)) >= -1)
 	{
 	(void) printf ("%d\n", i);
-	exit (0);
+	return (0);
 	}
 
     if ((thisstr = tigetstr(cap)) != (char *)-1)
 	{
-	if (!thisstr) exit(1);
+	if (!thisstr) return(1);
 	for (parmset = 0; optind < argc; optind++, parmset++)
 	    if (allnumeric(argv[optind]))
 		parm[parmset] = atoi(argv[optind]);
@@ -150,10 +193,10 @@ char **argv;
 		parm[6], parm[7], parm[8], parm[9]));
 	else
 	    putp (thisstr);
-	exit (0);
+	return (0);
 	}
 
-    (void) fprintf(stderr,"%s: unknown terminfo capability '%s'\n", argv[0], cap);
+    (void) fprintf(stderr,"%s: unknown terminfo capability '%s'\n", progname, cap);
     exit (4);
 }
 
@@ -552,8 +595,6 @@ initterm ()
     /* Let the terminal settle down. */
     (void) fflush (stdout);
     (void) sleep (1);
-
-    exit(0);
 }
 
 reset_term()

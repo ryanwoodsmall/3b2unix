@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)ct:ct.c	2.13"
+#ident	"@(#)ct:ct.c	2.14"
 
 /*
  *
@@ -341,6 +341,18 @@ char   *argv[];
     /****** Successfully made connection ******/
     VERBOSE("Connected\n", "");
 
+#ifdef	DATAKIT
+ 	if (!strcmp(_Dev[D_CALLER], "DK")) {
+ 		strcpy(_Tty, dtnamer(dkminor(fdl)));
+ 		strcpy(Dc, (strrchr(_Tty, '/')+1));
+ 		if ((_Fdl = fopen(_Tty, "r+")) == NULL) {
+ 			(void) fprintf(stderr, "ct: Cannot open %s, errno %d\n",
+ 				_Tty, errno);
+ 			cleanup(101);
+ 		}
+ 	}
+#endif
+ 
     /* ignore some signals if they were ignored upon invocation of ct */
     /* or else, have them go to graceful disconnect */
     if (save_hup == SIG_IGN)

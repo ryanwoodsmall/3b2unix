@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)libns:libns.mk	1.10"
+#ident	"@(#)libns:libns.mk	1.10.1.1"
 # This makefile makes libns.a, which is the library for
 # the name server library.
 # NOTE: this library is not for general use.  It is put
@@ -15,7 +15,7 @@
 ROOT =
 CC = cc
 LIBDIR = .
-INCDIR = $(ROOT)/usr/include
+INC = $(ROOT)/usr/include
 USRLIB = $(ROOT)/usr/lib
 LIBNAME = libns.a
 LLIB = ns
@@ -23,7 +23,7 @@ LINTLIB = llib-l$(LLIB).ln
 LOG=-DLOGGING -DLOGMALLOC
 PROFILE=
 DEBUG=
-CFLAGS=-O -I $(INCDIR) $(DEBUG) $(LOG) $(PROFILE)
+CFLAGS=-O -I $(INC) $(DEBUG) $(LOG) $(PROFILE)
 SRC= ind_data.c nsblock.c nsports.c nsrports.c \
 	rtoken.c astoa.c stoa.c ns_comm.c nslog.c canon.c spipe.c \
 	logmalloc.c ns_findp.c ns_getaddr.c ns_getblock.c ns_initaddr.c \
@@ -86,32 +86,32 @@ clobber: clean
 
 #### dependencies now follow
 
-$(LIBNAME)(nsports.o): stdns.h nsports.h nsdb.h $(INCDIR)/nsaddr.h nslog.h
-$(LIBNAME)(nsrports.o): stdns.h nsports.h nsdb.h $(INCDIR)/nsaddr.h nslog.h \
-	$(INCDIR)/pn.h
+$(LIBNAME)(nsports.o): stdns.h nsports.h nsdb.h $(INC)/nsaddr.h nslog.h
+$(LIBNAME)(nsrports.o): stdns.h nsports.h nsdb.h $(INC)/nsaddr.h nslog.h \
+	$(INC)/pn.h
 $(LIBNAME)(rtoken.o): stdns.h nsdb.h
 $(LIBNAME)(ind_data.o): stdns.h nslog.h
-$(LIBNAME)(nsblock.o): nslog.h nsdb.h stdns.h $(INCDIR)/nserve.h
-$(LIBNAME)(ns_comm.o): $(INCDIR)/nserve.h $(INCDIR)/nsaddr.h nslog.h stdns.h nsports.h
+$(LIBNAME)(nsblock.o): nslog.h nsdb.h stdns.h $(INC)/nserve.h
+$(LIBNAME)(ns_comm.o): $(INC)/nserve.h $(INC)/nsaddr.h nslog.h stdns.h nsports.h
 $(LIBNAME)(nslog.o): nslog.h
-$(LIBNAME)(astoa.o): $(INCDIR)/nsaddr.h
-$(LIBNAME)(stoa.o): $(INCDIR)/nsaddr.h
-$(LIBNAME)(ns_getaddr.o): $(INCDIR)/nserve.h $(INCDIR)/nsaddr.h
-$(LIBNAME)(ns_findp.o): $(INCDIR)/nserve.h $(INCDIR)/nsaddr.h
-$(LIBNAME)(ns_getblock.o): $(INCDIR)/nserve.h
-$(LIBNAME)(ns_initaddr.o): $(INCDIR)/nserve.h
-$(LIBNAME)(ns_verify.o): $(INCDIR)/nserve.h
-$(LIBNAME)(ns_sendpass.o): $(INCDIR)/nserve.h
-$(LIBNAME)(attconnect.o): $(INCDIR)/pn.h
-$(LIBNAME)(rfrequest.o): $(INCDIR)/pn.h
-$(LIBNAME)(negotiate.o): $(INCDIR)/pn.h
-$(LIBNAME)(getoken.o): $(INCDIR)/sys/nserve.h $(INCDIR)/sys/cirmgr.h\
-	$(INCDIR)/sys/utsname.h $(INCDIR)/sys/rfsys.h
-$(LIBNAME)(netname.o): $(INCDIR)/sys/nserve.h $(INCDIR)/sys/cirmgr.h\
-	$(INCDIR)/sys/utsname.h $(INCDIR)/sys/rfsys.h
-$(LIBNAME)(swtab.o): $(INCDIR)/sys/nserve.h $(INCDIR)/sys/cirmgr.h\
-	$(INCDIR)/sys/param.h $(INCDIR)/pn.h
-$(LIBNAME)(uidmap.o): idload.h $(INCDIR)/nserve.h $(INCDIR)/sys/rfsys.h
-$(LIBNAME)(rfs_up.o): $(INCDIR)/nserve.h $(INCDIR)/sys/rfsys.h
-$(LIBNAME)(ns_syntax.o): $(INCDIR)/nserve.h
-$(LIBNAME)(rfrcv.o): $(INCDIR)/tiuser.h
+$(LIBNAME)(astoa.o): $(INC)/nsaddr.h
+$(LIBNAME)(stoa.o): $(INC)/nsaddr.h
+$(LIBNAME)(ns_getaddr.o): $(INC)/nserve.h $(INC)/nsaddr.h
+$(LIBNAME)(ns_findp.o): $(INC)/nserve.h $(INC)/nsaddr.h
+$(LIBNAME)(ns_getblock.o): $(INC)/nserve.h
+$(LIBNAME)(ns_initaddr.o): $(INC)/nserve.h
+$(LIBNAME)(ns_verify.o): $(INC)/nserve.h
+$(LIBNAME)(ns_sendpass.o): $(INC)/nserve.h
+$(LIBNAME)(attconnect.o): $(INC)/pn.h
+$(LIBNAME)(rfrequest.o): $(INC)/pn.h
+$(LIBNAME)(negotiate.o): $(INC)/pn.h
+$(LIBNAME)(getoken.o): $(INC)/sys/nserve.h $(INC)/sys/cirmgr.h\
+	$(INC)/sys/utsname.h $(INC)/sys/rfsys.h
+$(LIBNAME)(netname.o): $(INC)/sys/nserve.h $(INC)/sys/cirmgr.h\
+	$(INC)/sys/utsname.h $(INC)/sys/rfsys.h
+$(LIBNAME)(swtab.o): $(INC)/sys/nserve.h $(INC)/sys/cirmgr.h\
+	$(INC)/sys/param.h $(INC)/pn.h
+$(LIBNAME)(uidmap.o): idload.h $(INC)/nserve.h $(INC)/sys/rfsys.h
+$(LIBNAME)(rfs_up.o): $(INC)/nserve.h $(INC)/sys/rfsys.h
+$(LIBNAME)(ns_syntax.o): $(INC)/nserve.h
+$(LIBNAME)(rfrcv.o): $(INC)/tiuser.h

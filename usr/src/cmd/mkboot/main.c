@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mkboot-3b2:main.c	1.4"
+#ident	"@(#)mkboot-3b2:main.c	1.5"
 
 # include	<stdio.h>
 # include	"mkboot.h"
@@ -892,6 +892,7 @@ polish( root )
 			break;
 		case 'C':
 		case 'D':
+		case 'S':
 		case 'M':
 			ep->nC[0] = root->type;
 			if ( root->name )
@@ -942,8 +943,9 @@ exprlen( expression )
 		exprlen( (union element *)NULL );
 		exprlen( (union element *)NULL );
 		break;
-	case 'D':
 	case 'C':
+	case 'D':
+	case 'S':
 	case 'M':
 	case '#':
 	case '&':

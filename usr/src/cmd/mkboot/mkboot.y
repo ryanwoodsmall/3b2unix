@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 %{
-#ident	"@(#)mkboot-3b2:mkboot.y	1.8"
+#ident	"@(#)mkboot-3b2:mkboot.y	1.10"
 
 # include	<stdio.h>
 # include	"mkboot.h"
@@ -674,7 +674,7 @@ expression	:	expression '+' expression
 				}
 		|	'#' DWORD
 				{	
-				static char *table[] ={ "C", "D", "M", "c", "d", "m", NULL };
+				static char *table[] ={ "C", "D", "S", "M", "c", "d", "s", "m", NULL };
 				char *p, **q = table;
 
 				while( p = *q++ )
@@ -688,7 +688,7 @@ expression	:	expression '+' expression
 				}
 		|	'#' DWORD '(' DWORD ')'
 				{	
-				static char *table[] ={ "C", "D", "M", "c", "d", "m", NULL };
+				static char *table[] ={ "C", "D", "S", "M", "c", "d", "s", "m", NULL };
 				char *p, **q = table;
 
 				while( p = *q++ )
@@ -963,6 +963,7 @@ node(type,left,right,value)
 		break;
 	case 'C':
 	case 'D':
+	case 'S':
 	case 'M':
 	case '#':
 	case '&':

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mount:mount.c	1.48"
+#ident	"@(#)mount:mount.c	1.50"
 #include <nserve.h>
 #include <sys/tiuser.h>
 #include <sys/stropts.h>
@@ -121,10 +121,6 @@ char **argv;
 		}
 		exit(rtn);
 	}
-
-	signal(SIGHUP,  SIG_IGN);
-	signal(SIGQUIT, SIG_IGN);
-	signal(SIGINT,  SIG_IGN);
 
 	/*
 	 *	check for proper arguments
@@ -255,6 +251,10 @@ char **argv;
 		dist_mount(special, directory, roflag & RO_BIT | cacheflag);
 	else
 		loc_mount(special, directory, fsname, roflag & RO_BIT);
+
+	signal(SIGHUP,  SIG_IGN);
+	signal(SIGQUIT, SIG_IGN);
+	signal(SIGINT,  SIG_IGN);
 
 	/*
 	 *	Update the MNTTAB file.  If an error occurs while
@@ -425,7 +425,7 @@ int	rflag;
 
 	if (mount(special, directory, rflag | MS_DATA, fstyp,
 	  (char *)NULL, 0)) {
-		rpterr(special, directory);
+		rpterr(special, directory, fsname);
 		exit(2);
 	}
 
@@ -540,8 +540,8 @@ int	rflag;
 	}
 }
 
-rpterr(bs, mp)
-register char *bs, *mp;
+rpterr(bs, mp, fsid)
+register char *bs, *mp, *fsid;
 {
 	switch(errno) {
 	case EPERM:
@@ -560,7 +560,7 @@ register char *bs, *mp;
 		if (roflag & REMOTE_BIT) {
 			fprintf(stderr,"mount: %s not a valid resource\n",bs);
 		} else {
-			fprintf(stderr,"mount: %s not a valid file system\n",bs);
+			fprintf(stderr,"mount: %s not a valid file system or not type %s\n",bs, fsid);
 		}
 		break;
 	case EBUSY:

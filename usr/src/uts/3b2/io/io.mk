@@ -5,12 +5,14 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)kern-port:io/io.mk	10.3.1.1"
+#ident	"@(#)kern-port:io/io.mk	10.3.1.3"
 STRIPOPT = -x -r
 
 ROOT =
 INC = $(ROOT)/usr/include
-CFLAGS = -I$(INC) -Uvax -Du3b2 -Uu3b15 -Updp11 -DINKERNEL $(MORECPP)
+DASHO = -O
+CFLAGS = $(DASHO) -I$(INC) -Uvax -Du3b2 -Uu3b15 -Updp11 -DINKERNEL $(MORECPP)
+MAKE = make
 FRC =
 
 all:
@@ -20,8 +22,8 @@ all:
 		io*.mk)\
 			;;\
 		*.mk)\
-			echo "====== make -f $$i \"MAKE=$(MAKE)\" \"AS=$(AS)\" \"CC=$(CC)\" \"LD=$(LD)\" \"FRC=$(FRC)\" \"INC=$(INC)\" \"MORECPP=$(MORECPP)\"";\
-			make -f $$i "MAKE=$(MAKE)" "AS=$(AS)" "CC=$(CC)" "LD=$(LD)" "FRC=$(FRC)" "INC=$(INC)" "MORECPP=$(MORECPP)" ; \
+			echo "====== $(MAKE) -f $$i \"MAKE=$(MAKE)\" \"AS=$(AS)\" \"CC=$(CC)\" \"LD=$(LD)\" \"FRC=$(FRC)\" \"INC=$(INC)\" \"MORECPP=$(MORECPP)\" \"DASHO=$(DASHO)\" ";\
+			$(MAKE) -f $$i "MAKE=$(MAKE)" "AS=$(AS)" "CC=$(CC)" "LD=$(LD)" "FRC=$(FRC)" "INC=$(INC)" "MORECPP=$(MORECPP)" "DASHO=$(DASHO)" ; \
 			;;\
 		*)\
 			;;\
@@ -35,8 +37,8 @@ clean:
 		io*.mk)\
 			;;\
 		*.mk)\
-			echo "====== make -f $$i clean";\
-			make -f $$i clean;;\
+			echo "====== $(MAKE) -f $$i clean";\
+			$(MAKE) -f $$i clean;;\
 		*)\
 			;;\
 		esac;\
@@ -49,8 +51,8 @@ clobber:
 		io*.mk)\
 			;;\
 		*.mk)\
-			echo "====== make -f $$i clobber";\
-			make -f $$i clobber;;\
+			echo "====== $(MAKE) -f $$i clobber";\
+			$(MAKE) -f $$i clobber;;\
 		*)\
 			;;\
 		esac;\

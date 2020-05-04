@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/rmove.c	10.16.2.3"
+#ident	"@(#)kern-port:nudnix/rmove.c	10.16.2.4"
 /*  remote copyin
  *  Remote copyin function to bring data from the remote system
  *  (client side) to the local system (server side).
@@ -25,7 +25,11 @@
 #include "sys/pcb.h"
 #include "sys/user.h"
 #include "sys/inode.h"
+#include "sys/dirent.h"
 #include "sys/message.h"
+#include "sys/hetero.h"
+#include "sys/nserve.h"
+#include "sys/cirmgr.h"
 #include "sys/rdebug.h"
 
 rcopyin (from, to, n)
@@ -159,7 +163,7 @@ int	n;
 		u.u_copymsg->rp_errno = (long)u.u_error;
 		u.u_msgend = u.u_copymsg->rp_data + size;
 	}
-	for (; n > 0; n -= DATASIZE, from += DATASIZE, to += DATASIZE)  {
+	for (; n > 0; n -= size, from += size, to += size)  {
 		/*  if there is already a message ready to go, send it	*/
 		if (u.u_copymsg)  {
 			u.u_gift->sd_copycnt++;
@@ -215,7 +219,11 @@ int	n;
 		while ((bp = alocbuf (sizeof (struct response), BPRI_MED)) == NULL);
 		u.u_copymsg = (struct response *)PTOMSG(bp->b_rptr);
 		u.u_copymsg->rp_type = RESP_MSG;
-		size = (n > DATASIZE) ? DATASIZE : n;
+		if (u.u_syscall == DUGETDENTS 
+		    && (GDP(u.u_gift->sd_queue)->hetero != NO_CONV) && n > DATASIZE)
+			size = getdsize(from);
+		else
+			size = (n > DATASIZE) ? DATASIZE : n;
 		u.u_caddrflt = (int)rcopyfault;
 		if (bcopy (from, u.u_copymsg->rp_data, size) < 0) 
 			goto badcopy;
@@ -346,4 +354,22 @@ unsigned int c;
 	}
 	u.u_rflags &= ~U_RCOPY;
 	return(0);
+}
+/*This routine gets the directory entry size making sure a full 
+ *direcroty entry fits into the buffer
+ */
+getdsize(from)
+caddr_t from;
+{
+	register caddr_t top = from;
+	register int size = 0;
+	register int dirsz = sizeof(struct dirent) - 1;
+	register caddr_t lim = (from + DATASIZE + dirsz);
+
+	while (from < lim) {
+		size = ((struct dirent *)from)->d_reclen;
+		from += size;
+	}
+	from -= size;
+	return (from - top);
 }

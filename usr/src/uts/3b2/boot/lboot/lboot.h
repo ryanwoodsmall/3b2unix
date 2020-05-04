@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:boot/lboot/lboot.h	10.4.1.1"
+#ident	"@(#)kern-port:boot/lboot/lboot.h	10.4.1.2"
 
 /*
  * Note -- header files must be included in the following order:
@@ -35,6 +35,8 @@
 
 #undef ON	/* Undef ON so we can have our own ON() */
 #endif
+
+#define IMEG		(1024*1024)
 
 /*
  * OFFSET TO BEGINNING OF FILE SYSTEM
@@ -214,6 +216,8 @@ extern int              nswap;
 
 #define EDT_START	P_EDT	/* origin of EDT */
 
+#define XEDT_START	0x2080000	/* origin of extended EDT */
+
 /*
  * Is this an automatic boot of /unix?  (Equivalent to 3B15's AUTOBOOT switch)
  */
@@ -368,7 +372,6 @@ extern int             fseek();			/* reposition a file pointer for a buffered st
 #define	G_PCB	4	/*              pcb     4   char* name, char* entry, ipl, vector#  */
 #define	G_IRTN	5	/* interupt routine     3   char* name, char* entry, minor     */
 #define	G_IOSYS	6	/*    I/O subsystem     0                                      */
-
 /*
  * Debugging options
  *
@@ -423,7 +426,7 @@ extern int             fseek();			/* reposition a file pointer for a buffered st
 #undef DEBUG1i
 #undef DEBUG2
 
-#else
+#else	/* TEST is defined */
 
 #if !DEBUG1
 #undef DEBUG1a
@@ -470,6 +473,25 @@ extern boolean prt[];
 #define	_MAXFILES	8	/* total number of source files */
 #endif
 
-#else
+#else	/* !TEST */
 #define	PROGRAM(name)
 #endif
+ 
+/* extended s3bconf structure for two (HA/TC) level devices */
+ 
+struct xs3bconf{
+	int	haslot;			/* Controlling HA */
+	long	maj;			/* external major number of TC */
+	char	tcname[DIRSIZ];		/* TC driver name */
+	struct xs3bconf *next;		/* pointer to next entry */
+};
+ 
+#define HTCMAJ 127		/* Starting TC major number */
+#define LTCMAJ 71		/* Last TC major number,
+ 				 * major numbers 71-127 are
+ 				 * reserved for two tri-devices
+ 				 */
+
+#define S3BC_TCDRV	0x10	/* EDT name[] is a TC driver; board code is the
+ 				 * major number of this TC.
+ 				 */

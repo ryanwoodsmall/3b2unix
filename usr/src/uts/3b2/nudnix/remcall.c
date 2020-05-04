@@ -5,8 +5,8 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
+#ident	"@(#)kern-port:nudnix/remcall.c	10.27.8.4"
 
-#ident	"@(#)kern-port:nudnix/remcall.c	10.27.7.13"
 /*
  *	R E M O T E   C A L L
  *
@@ -109,7 +109,7 @@ resend:
 	    && u.u_syscall != DUSYNCTIME && u.u_syscall != DUIUPDATE) {  
 		u.u_nextcp = nextcp;
 		while (c = *u.u_nextcp) {
-			if (cp < &msg_out->rq_data[DATASIZE - 2])
+			if (cp < &msg_out->rq_data[DATASIZE - 1])
 				*cp++ = c;
 			else {
 				u.u_error = E2BIG;
@@ -441,7 +441,7 @@ register struct inode *ip;
 		int	cacheflg, stat;
 		jump = 0;
 		cacheflg = resp->rp_cache;
-		stat = ((struct message *) PTOMSG(in_bp->b_rptr))->m_stat;
+		stat = ((struct message *)(in_bp->b_rptr))->m_stat;
 		*inop = rem_inode (ip, gift, in_bp);
 		if (*inop == NULL)
 			break;
@@ -745,6 +745,7 @@ queue_t *qp;
 	tmp = u.u_syscall;
 	u.u_syscall = DUSYNCTIME;
 	ip.i_fsptr = (int *)sd;
+	ip.i_count = 1;
 	remote_call (&ip, NULL);
 	u.u_syscall = tmp;
 	free_sndd (sd);

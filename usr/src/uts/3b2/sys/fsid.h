@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/fsid.h	10.3"
+#ident	"@(#)kern-port:sys/fsid.h	10.5"
 
 /* Fstyp names for use in fsinfo structure. These names */
 /* must be constant across releases and will be used by a */
@@ -15,3 +15,5 @@
 #define S51K	"S51K"
 #define PROC	"PROC"
 #define DUFST	"DUFST"
+#define NFS		"NFS"
+#define S52K	"S52K"

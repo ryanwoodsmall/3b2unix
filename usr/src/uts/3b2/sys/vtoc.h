@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/vtoc.h	10.1"
+#ident	"@(#)kern-port:sys/vtoc.h	10.2"
 /*
  * VTOC.H
  */
@@ -27,12 +27,12 @@
 #define V_RONLY		0x10		/* Read only */
 
 /* driver ioctl() commands */
-#define VIOC			('V'<<8)
-#define V_PREAD			(VIOC|1)	/* Physical Read */
-#define V_PWRITE		(VIOC|2)		/* Physical Write */
-#define V_PDREAD		(VIOC|3)		/* Read of Physical Description Area */
-#define V_PDWRITE		(VIOC|4)		/* Write of Physical Description Area */
-#define V_GETSSZ		(VIOC|5)		/* Get the sector size of media */
+#define VIOC		('V'<<8)
+#define V_PREAD		(VIOC|1)	/* Physical Read */
+#define V_PWRITE	(VIOC|2)	/* Physical Write */
+#define V_PDREAD	(VIOC|3)	/* Read of Physical Description Area */
+#define V_PDWRITE	(VIOC|4)	/* Write of Physical Description Area */
+#define V_GETSSZ	(VIOC|5)	/* Get the sector size of media */
 
 /* ioctl() error return codes */
 #define V_BADREAD		0x01
@@ -57,6 +57,7 @@ struct vtoc {
 	ushort v_nparts;			/*number of partitions*/
 	unsigned long v_reserved[10];		/*free space*/
 	struct partition v_part[V_NUMPAR];	/*partition headers*/
+	time_t timestamp[V_NUMPAR];		/*partition timestamp*/
 };
 
 struct pdinfo	{
@@ -81,9 +82,16 @@ struct pdinfo	{
 	unsigned long relnext;		/*address of next avail reloc sector*/
 };
 
+struct diaginfo {			/* diagnostic info block */
+	unsigned long diagst;		/* sector address of dgn area */
+	unsigned long diagsz;		/* size in sectors of dgn area */
+};					/* diaginfo added by SCSI */
+
 struct pdsector	{
 	struct pdinfo pdinfo;		/*disk physical info*/
-	unsigned long reserved[10];	/*reserved for UNIX*/
+	struct diaginfo diaginfo;	/* diagnostic info block */
+	unsigned long gapsz;		/* fmthard, vmkfs: to set gap size */
+	unsigned long reserved[7];	/*reserved for UNIX*/
 	unsigned long devsp[97];	/*used for device specific info*/
 					/*remaining words in sector 0*/
 };

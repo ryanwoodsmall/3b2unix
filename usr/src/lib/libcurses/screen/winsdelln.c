@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/winsdelln.c	1.4"
+#ident	"@(#)curses:screen/winsdelln.c	1.5"
 #include	"curses_inc.h"
 
 /*
@@ -110,6 +110,15 @@ int	id;
 		mk = _MARKS[to];
 		_MARKS[to] = _MARKS[fr];
 		_MARKS[fr] = mk;
+
+		/* for color terminal do the same for color marks */
+
+		if (_COLOR_MARKS != NULL)
+		{
+		    mk = _COLOR_MARKS[to];
+		    _COLOR_MARKS[to] = _COLOR_MARKS[fr];
+		    _COLOR_MARKS[fr] = mk;
+		}
 	    }
 	}
 	else

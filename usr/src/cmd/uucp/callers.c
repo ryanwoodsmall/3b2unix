@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:callers.c	2.21"
+#ident	"@(#)uucp:callers.c	2.23"
 
 #include "uucp.h"
 struct utsname	utsname;
@@ -206,8 +206,12 @@ register char *flds[], *dev[];
 	register nullfd;
 	char *phonecl;			/* clear phone string */
 	char phoneex[2*(MAXPH+2)];	/* expanded phone string */
+	extern ttygenbrk();
 
 	sdev = dev;
+/*	set up default "break" routine */
+	genbrk = ttygenbrk;
+
 	for (ca = Caller; ca->CA_type != NULL; ca++) {
 		/* This will find built-in caller functions */
 		if (EQUALS(ca->CA_type, dev[D_CALLER])) {
@@ -442,6 +446,7 @@ char *flds[], *dev[];
 #endif
 
 	char	dialstring[64];
+	extern  dkbreak();
 
 	strcpy(dialstring, dev[D_ARG]);
 
@@ -479,8 +484,10 @@ char *flds[], *dev[];
 		Uerror = SS_DIAL_FAILED;
 		return(FAIL);
 	}
-	else
+	else {
+		genbrk = dkbreak;
 		return(fd);
+	}
 }
 
 #endif /* DATAKIT */
@@ -955,7 +962,16 @@ char *dev[];
 	}
 	/* gimme local transport endpoint */
 	errno = t_errno = 0;
+	if (setjmp(Sjbuf)) {
+		DEBUG(1, "t_open timeout\n", 0);
+		logent("t_open", "TIMEOUT");
+		Uerror = SS_NO_DEVICE;
+		return(FAIL);
+	}
+	(void) signal(SIGALRM, alarmtr);
+	(void) alarm(5);
 	fd = t_open(devname, O_RDWR, &tinfo);
+	(void) alarm(0);
 	if (fd < 0) {
 		tfaillog(fd, "t_open" );
 		Uerror = SS_NO_DEVICE;

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/nami.h	10.3"
+#ident	"@(#)kern-port:sys/nami.h	10.4"
 /*
  * Structure used by system calls to pass parameters
  * to the file system independent namei and attribute
@@ -74,6 +74,11 @@ struct argnamei {	/* namei's flag argument */
 #define NI_NULL 	4	/* Tell fs independent to return NULL to */
 				/* the calling procedure without doing /*
 				/* an iput */
+#define NI_SYMRESTART	5	/* the fs dependant code overwrote the */
+				/* the buffer and namei must reparse */
+				/* starting at the currently directory */
+				/* in the parse.  Used mostly for */
+				/* symbolic links */
 
 /*
  * Data that is passed from the file system independent namei to the

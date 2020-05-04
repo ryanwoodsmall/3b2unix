@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/fcntl.h	10.4"
+#ident	"@(#)kern-port:sys/fcntl.h	10.5"
 /* Flag values accessible to open(2) and fcntl(2) */
 /*  (The first three can only be set by open) */
 #define	O_RDONLY 0
@@ -29,7 +29,7 @@
 #define	F_GETLK		5	/* Get file lock */
 #define	F_SETLK		6	/* Set file lock */
 #define	F_SETLKW	7	/* Set file lock and wait */
-#define	F_CHKFL		8	/* Check legality of file flag changes */
+#define	F_CHKFL		8	/* reserved */
 #define	F_ALLOCSP	10	/* reserved */
 #define	F_FREESP	11	/* reserved */
 

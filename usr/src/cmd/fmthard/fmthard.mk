@@ -5,11 +5,11 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)fmthard:fmthard.mk	1.4.2.1"
+#ident	"@(#)fmthard:fmthard.mk	1.4.2.2"
 
 ROOT =
-INCRT = $(ROOT)/usr/include
-CFLAGS = -O -I$(INCRT)
+INC = $(ROOT)/usr/include
+CFLAGS = -O -I$(INC)
 LDFLAGS = -s
 INS = install
 FRC =
@@ -17,7 +17,7 @@ FRC =
 all:	fmthard
 
 install: all
-	$(INS) -n $(ROOT)/etc fmthard
+	$(INS) -f $(ROOT)/etc fmthard
 
 fmthard:
 	$(CC) $(CFLAGS) $(LDFLAGS) -o fmthard fmthard.c $(LDLIBS)
@@ -35,10 +35,10 @@ FRC:
 #
 
 fmthard: fmthard.c \
-	$(INCRT)/fcntl.h \
-	$(INCRT)/stdio.h \
-	$(INCRT)/sys/id.h \
-	$(INCRT)/sys/open.h \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/vtoc.h \
+	$(INC)/fcntl.h \
+	$(INC)/stdio.h \
+	$(INC)/sys/id.h \
+	$(INC)/sys/open.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/vtoc.h \
 	$(FRC)

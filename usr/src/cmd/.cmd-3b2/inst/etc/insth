@@ -1,4 +1,4 @@
-#ident	"@(#)cmd-3b2:inst/etc/insth	1.24.1.5"
+#ident	"@(#)cmd-3b2:inst/etc/insth	1.24.1.13"
 #
 # insth
 #
@@ -8,9 +8,7 @@
 
 . /inst/etc/define
 
-read LAST < /inst/etc/last
 read TYPE < /inst/etc/type
-
 
 echo "\nChecking the hard disk file systems." >&2
 
@@ -36,11 +34,14 @@ done
 
 ignore	rm -f /usr/admin/menu/usermgmt/modgroup  2> /dev/null
 
-for seq in 2 3 4 5 6
+while true
 do
-	if [ ${seq} -le "${LAST}" ]
+	SKIP=0
+	read seq < /inst/etc/last
+	seq=`expr $seq + 1`
+	if [ "$seq" -gt 6 ]
 	then
-		continue
+		break
 	fi
 	while true
 	do
@@ -64,8 +65,8 @@ the door." \
 			else :
 			fi
 			trap '' 2 3
-			read LAST < /inst/etc/last
-			continue
+			SKIP=1
+			break
 			;;
 		trace)
 			set -x
@@ -80,6 +81,10 @@ the door." \
 Incorrect floppy" >&2
 		fi
 	done
+	if [ "$SKIP" = 1 ]
+	then
+		continue
+	fi
 	echo "
 Installing additional Essential Utilities system files.
 This should take no more than ten minutes." >&2
@@ -105,6 +110,7 @@ then
 	hdelogger -i
 else
 	(
+	rm -f /etc/shadow
 	umask 022
 	echo "\
 *
@@ -122,8 +128,8 @@ fi
 
 if [ ${TYPE} = upgrade ]
 then
-	###  rm old rc.d stuff that has been moved to init.d
-	###  it has been saved in /usr/old
+	#  rm old rc.d stuff that has been moved to init.d
+	#  it has been saved in /usr/old
 	cd /etc/rc.d
 	rm -f 0_firstcheck .0_firstcheck 
 	rm -f ANNOUNCE MOUNTFILESYS README RMTMPFILES
@@ -131,34 +137,52 @@ then
 	rm -f /etc/shutdown.d/ANNOUNCE
 
 	cd /usr/tmp/move
-	###  lots of inittab changes;
-	###  start with new, add in old tty lines, expanding 
-	###  xx:2:....:/etc/getty tty....     to
-	###  xx:234:....    for new init 3 and 4 states.
-	###  keep initdefault line
+	#  lots of inittab changes;
+	#  start with new, add in old tty lines, expanding 
+	#  xx:2:....:/etc/getty tty....     to
+	#  xx:234:....    for new init 3 and 4 states.
+	#  keep initdefault line
 	if [ -f etc/inittab ]
 	then
-		x=`ignore grep :initdefault: etc/inittab 2> /dev/null`
-		y="is:2:initdefault:"
-		sed \
-			-e '/:.*:respawn:/d' \
-			-e '/:.*:off:/d' \
-			-e "s/^$y/${x:-$y}/" \
+                x=`ignore grep :initdefault: etc/inittab 2> /dev/null`
+                y="is:2:initdefault:"
+                sed \
+                        -e '/:.*:respawn:/d' \
+                        -e '/:.*:off:/d' \
+                        -e "s/^$y/${x:-$y}/" \
 				< /etc/inittab > etc/Ninittab
-		sed -n \
-			-e '/:.*:respawn:/p' \
-			-e '/:.*:off:/p' \
-				< etc/inittab |
-			sed \
-			-e '/^[1-9][0-9]*[1-9]:.*:off:/s/:.*:off:/:234:off:/' \
-			-e '/^ct:.*:off:/s//ct:234:off:/' \
-			-e '/^co:.*:off:/s//co:234:off:/' \
-			-e '/^he:.*:off:/s//he:234:off:/' \
-			-e '/^[1-9][0-9]*[1-9]:.*:respawn:/s/:.*:respawn:/:234:respawn:/' \
-			-e '/^ct:.*:respawn:/s//ct:234:respawn:/' \
-			-e '/^co:.*:respawn:/s//co:234:respawn:/' \
-			-e '/^he:.*:respawn:/s//he:234:respawn:/' \
-				>> etc/Ninittab
+                sed  \
+                        -e '/^zu:/d' \
+                        -e '/^fs:/d' \
+                        -e '/^ck:/d' \
+                        -e '/^xdc:/d' \
+                        -e '/^mt:/d' \
+                        -e '/^pt:/d' \
+                        -e '/^is:/d' \
+                        -e '/^p1:/d' \
+                        -e '/^p3:/d' \
+                        -e '/^fl:/d' \
+                        -e '/^lt:/d' \
+                        -e '/^su:/d' \
+                        -e '/^s0:/d' \
+                        -e '/^s1:/d' \
+                        -e '/^s2:/d' \
+                        -e '/^s3:/d' \
+                        -e '/^of:/d' \
+                        -e '/^fw:/d' \
+                        -e '/^RB:/d' \
+                        -e '/^rb:/d' \
+                                < etc/inittab |
+                        sed \
+                        -e '/^[1-9][0-9]*[1-9]:.*:off:/s/:.*:off:/:234:off:/' \
+                        -e '/^ct:.*:off:/s//ct:234:off:/' \
+                        -e '/^co:.*:off:/s//co:234:off:/' \
+                        -e '/^he:.*:off:/s//he:234:off:/' \
+                        -e '/^[1-9][0-9]*[1-9]:.*:respawn:/s/:.*:respawn:/:234:respawn:/' \
+                        -e '/^ct:.*:respawn:/s//ct:234:respawn:/' \
+                        -e '/^co:.*:respawn:/s//co:234:respawn:/' \
+                        -e '/^he:.*:respawn:/s//he:234:respawn:/' \
+                                >> etc/Ninittab
 		cp etc/Ninittab etc/inittab # preserve modes, etc
 		rm etc/Ninittab 
 	fi
@@ -174,7 +198,15 @@ then
 
 	find . ! -type d -print | cpio -pdum /
 
-	### Add new "hangup upon last close" gettydefs entries. ###
+	# Modify admin login shells.
+	for LOGIN in checkfsys makefsys mountfsys powerdown \
+		setup sysadm umountfsys
+	do
+		/usr/bin/passmgmt -m -s /usr/bin/$LOGIN $LOGIN ||
+		echo "WARNING: change of login shell failed for \"$LOGIN\""
+	done
+
+	# Add new "hangup upon last close" gettydefs entries.
 	if grep '^conttyH#' /etc/gettydefs > /dev/null
 	then
 		:
@@ -195,7 +227,7 @@ contty5H# B19200 OPOST ONLCR # B19200 HUPCL SANE IXANY TAB3 #login: #conttyH
 !
 	fi
 
-	###  Add 38400 to /etc/gettydefs if none exists
+	#  Add 38400 to /etc/gettydefs if none exists
 if grep '38400#' /etc/gettydefs > /dev/null
 then
 	:
@@ -218,17 +250,25 @@ a
 !
 	fi
 
-	###  If user has XDC, need to mkboot HDELOG
-	if [ -f /boot/XDC ]
+	# upgrade the root crontab file
+	if grep '/usr/lib/cron/logchecker' /usr/spool/cron/crontabs/root> /dev/null
 	then
-		if [ -f /usr/old/etc/master.d/hdelog ]
-		then
-			cp /usr/old/etc/master.d/hdelog /etc/master.d/hdelog 
-			ignore /etc/mkboot /boot/HDELOG
-		fi
+		:
+	else
+		cat >> /usr/spool/cron/crontabs/root <<-!
+0 2 * * 0,4 /usr/lib/cron/logchecker
+!
 	fi
 
-	### If already on 3.0 keep /etc/system and /etc/master.d/kernel
+	#  Copy back master.d/hdelog since entries 
+	#  may have been added for XDC, SCSI, ...
+	if [ -f /usr/old/etc/master.d/hdelog ]
+	then
+		cp /usr/old/etc/master.d/hdelog /etc/master.d/hdelog 
+		ignore /etc/mkboot /boot/HDELOG
+	fi
+
+	# If already on 3.0 keep /etc/system and /etc/master.d/kernel
 	UOE=/usr/old/etc
 	if grep NSRMOUNT $UOE/master.d/kernel > /dev/null 2>&1  &&
 		[ "`cd / ; ignore what etc/master.d/kernel`"  = \
@@ -270,13 +310,12 @@ a
 See /usr/old/README regarding changes to system configuration files." >&2
 fi
 
-# Tty simple administration has been change. Remove old files.
+# Remove old Tty simple administration files.
 
 	ignore rm -f /usr/admin/menu/ttymgmt/baud
 	ignore rm -f /usr/admin/menu/ttymgmt/disable
 	ignore rm -f /usr/admin/menu/ttymgmt/enable
 
-# create /usr/lib/cron/log if it is not there
 if [ ! -f /usr/lib/cron/log ]
 then
 	> /usr/lib/cron/log
@@ -299,14 +338,22 @@ then
 	rm -f /etc/rc.d/setup < /dev/null
 fi
 
-rm -r /inst < /dev/null
+rm -rf /inst < /dev/null
 
 echo "
+This Release of UNIX System V contains software designed to enhance security.
+Two areas affected by this software are 1) the shell, and 2) the User Password
+Mechanism.
+
+Please refer to the Security Section of the UNIX System V Release 3.2 Release
+Notes for further information on how to determine the current security status
+and how to install or remove these security features on your system.
+
 Installation is now complete. The system is restarting itself from
 the hard disk. It will be ready to use when you receive the \"Console
 Login\" prompt. This should take no more than five minutes." >&2
 
 sync;sync;sync
-sleep 5  # Because uadmin(2) doesn't wait for terminal output to complete
+sleep 5
 
 exec uadmin 2 1

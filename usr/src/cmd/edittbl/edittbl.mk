@@ -5,16 +5,17 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)edittbl:edittbl.mk	1.6.1.1"
+#ident	"@(#)edittbl:edittbl.mk	1.6.1.6"
 TITLE = edittbl
 
 MACHINE = m32
 PRODUCTS = edt_data
-CFLAGS = -g
+CFLAGS = -O -I$(INC)
+LDFLAGS = -s
 ROOT =
-INCRT = $(ROOT)/usr/include
+INC = $(ROOT)/usr/include
 STRIP = strip
-DEFS = -Du3b2 -Dm32 -Uu3b20 -Uu3b
+DEFS = -Dm32 
 
 all: edittbl
 
@@ -22,11 +23,11 @@ dgn:
 	if [ ! -d $(ROOT)/dgn ];then mkdir $(ROOT)/dgn; fi;
 
 edittbl: edittbl.c
-	cc -o edittbl -I$(INCRT) edittbl.c
+	cc -o edittbl -I$(INC) edittbl.c
 	./edittbl -t -g -s -d
 	> .edt_swapp
 	rm -f edittbl
-	$(CC) -o edittbl $(DEFS) $(CFLAGS) edittbl.c $(LDLIBS)
+	$(CC) -o edittbl $(DEFS) $(CFLAGS) $(LDFLAGS) edittbl.c $(LDLIBS)
 
 install: dgn all
 	mv edt_data $(ROOT)/dgn/edt_data
@@ -48,7 +49,7 @@ install: dgn all
 	$(CH)chown 2 $(ROOT)/etc/edittbl
 
 clobber:
-	rm -f edittbl
+	rm -f edittbl edt_data .edt_swapp
 
 clean:
 

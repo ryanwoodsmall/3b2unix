@@ -5,9 +5,8 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)fsdb:fsdb.c	1.9"
-
-	/*  fsdb - file system debugger    */
+#ident	"@(#)fsdb:fsdb.c	1.11"
+/*  fsdb - file system debugger    */
 
 #if	u370 || u3b || u3b15
 #define loword(X)	(((ushort *)&X)[1])
@@ -22,11 +21,11 @@
 #include	"sys/sysmacros.h"
 #include	"sys/fs/s5inode.h"
 #include	"sys/inode.h"
-#include	"sys/dir.h"
+#include	"sys/fs/s5dir.h"
 #include	"sys/ino.h"
 #include	"stdio.h"
 #include	"setjmp.h"
-#include	"sys/filsys.h"
+#include	"sys/fs/s5filsys.h"
 #ifdef STANDALONE
 #define ASSEM "Stand-Alone"
 #else
@@ -51,6 +50,8 @@
 #define	BLOCK	12
 #define	DIR	13
 
+#define PHYSBLKSZ 512
+
 #define	HIBIT	0100000
 
 struct buf {
@@ -74,9 +75,17 @@ long	cur_ino = BSIZE * 2;
 short	objsz =  2;
 short	fd, c_count, i, j, k, oldobjsz, error, type;
 short	count, pid, rpid, mode, char_flag, prt_flag;
+#if u3b2 || u3b15
+int	xflag = 0;
+int	s5bsize();
+int	prmptbsize();
+char	**addx();
+void	confused();
+#endif
 int	retcode;
 unsigned	isize;
 long	fsize;
+char	errmsg[80];
 char	*p,
 	*getblk();
 short	override = 1;
@@ -97,6 +106,11 @@ main(argc,argv)
 	register	char  *cptr;
 	register	char c;
 	register	short  *iptr;
+#if u3b2  || u3b15
+	int	result;
+	int	response;
+	char	**argx;
+#endif
 #ifdef STANDALONE
 	char devnam[9];
 	int maj,min;
@@ -113,6 +127,21 @@ main(argc,argv)
 	register struct buf *bp;
 	unsigned block;
 	short offset;
+
+#if u3b2 || u3b15
+	/*  check for -x394 option - strip from argument string if found.
+	 *  NOTE - this is an undocumented option for internal use by fsdb
+	 *  only. It should NOT be used on the command line.
+	 */
+	if (strcmp(argv[1], "-x394") == 0) {
+		xflag++;
+		for (i = 1; i < argc; i++)
+			argv[i] = argv[i + 1];
+		argv[argc - 1] = NULL;
+		argc--;
+	}
+#endif
+
 
 /*  printf("version 1.4 - 12/15/80 %lu%\n\n");*/
 #ifndef STANDALONE
@@ -153,10 +182,411 @@ printf("trying to make node %s %d %d %ld\n",devnam,maj,min,blk);
 		}
 	}
 #else
-		/*printf("cannot open %s\n",argv[1]);*/
-		perror(argv[0]);
+		sprintf(errmsg, "%s: cannot open %s", argv[0], argv[1]);
+		perror(errmsg);
 		exit(1);
 	}
+/* The following code exists to deal with different logical block 
+ *  sizes and different interpretations of s_type for 3b2 vs. 3b15.
+ *  On the 3b2  it works as follows:
+ *    - when FsTYPE==1 we are the fsdb512 executable and BSIZE is 512
+ *    - when FsTYPE==2 we are fsdb1K and BSIZE is 1024
+ *    - when FsTYPE==4 we are fsdb2K and BSIZE is 2048
+ *  We look at s_type for current file system and if it doesn't agree with
+ *  our BSIZE we exec the executable with the appropriate BSIZE.
+ *  If s_type is Fs2b we don't really know what the block size of the file 
+ *  system is so we call a heuristic function to try to find out.
+ *  If there is an invalid value for s_type or if the heuristic fails we still
+ *  don't know the block size so we ask the user. The user tells us and we
+ *  exec the appropriate executable with the -x394 option. We should once again
+ *  encounter an invalid s_type or heuristic failure but we ignore this
+ *  because xflag is set so know we are in the right executable because the user
+ *  told us which one to use.
+ *  Note that the separate block of code #ifdef'd for the 3b15 is identical
+ *  to the 3b2 code except for the interpretation of FsTYPE and the names
+ *  of the various executables.
+ */
+
+#ifdef u3b2
+	if (read(fd, &sblock, sizeof sblock) != sizeof sblock) {
+		printf("%s: cannot read superblock\n", argv[0]);
+		exit(1);
+	}
+#define S	sblock.fs
+#if FsTYPE==1	/* we are in fsdb512 */
+	if(S.s_magic == FsMAGIC) {
+	    if(S.s_type == Fs4b) {
+		if(xflag)
+			confused(argv[1]);
+		close(fd);
+		if(execvp("/etc/fsdb2K",argv)==-1) {
+			perror("cannot exec /etc/fsdb2K");
+			exit(1);
+		}
+	    }
+	    if(S.s_type == Fs2b) {
+		result = s5bsize(fd);
+		if(result == Fs2b) {
+			if(xflag)
+				confused(argv[1]);
+			close(fd);
+			if(execvp("/etc/fsdb1K",argv)==-1) {
+				perror("cannot exec /etc/fsdb1K");
+				exit(1);
+			}
+		} 
+		if(result == Fs4b) {
+			if(xflag)
+				confused(argv[1]);
+			close(fd);
+			if(execvp("/etc/fsdb2K",argv)==-1) {
+				perror("cannot exec /etc/fsdb2K");
+				exit(1);
+			}
+		}
+	    }
+	    if((S.s_type == Fs2b && result == -1) ||
+	       (S.s_type != Fs2b && S.s_type != Fs1b)) {
+	    /* Unknown block  size. If xflag not set we prompt, if */
+	    /*  xflag is set we fall through and process as a 512 */
+			if (!xflag) {
+			    response = prmptbsize(argv[1]);
+			    if (response == Fs2b) {
+				close(fd);
+				argx = addx(argc + 1, argv);
+				if(execvp("/etc/fsdb1K", argx) == -1) {
+					perror("cannot exec /etc/fsdb1K");
+					exit(1);
+				}
+			    }
+			    if (response == Fs4b) {
+				close(fd);
+				argx = addx(argc + 1, argv);
+				if(execvp("/etc/fsdb2K", argx) == -1) {
+					perror("cannot exec /etc/fsdb2K");
+					exit(1);
+				}
+			    }
+
+			}
+	    }
+	}
+	printf("%s(%s): 512 byte Block File System\n", argv[1], S.s_fname);
+#endif	/* end FsTYPE==1 */
+#if FsTYPE==2	/* we are in fsdb1K */
+	if(S.s_magic != FsMAGIC) {
+		if(xflag)
+			confused(argv[1]);
+		close(fd);
+		if(execvp("/etc/fsdb512",argv) == -1) {
+			perror("cannot exec /etc/fsdb512");
+			exit(1);
+		}
+	}
+	if(S.s_type == Fs1b) {
+		if(xflag)
+			confused(argv[1]);
+		close(fd);
+		if(execvp("/etc/fsdb512",argv) == -1) {
+			perror("cannot exec /etc/fsdb512");
+			exit(1);
+		}
+	}
+	if(S.s_type == Fs4b) {
+		if(xflag)
+			confused(argv[1]);
+		close(fd);
+		if(execvp("/etc/fsdb2K",argv) == -1) {
+			perror("cannot exec /etc/fsdb2K");
+			exit(1);
+		}
+	}
+	if(S.s_type == Fs2b) {
+		result = s5bsize(fd);
+		if(result == Fs4b) {
+			if(xflag)
+				confused(argv[1]);
+			close(fd);
+			if(execvp("/etc/fsdb2K",argv)==-1) {
+				perror("cannot exec /etc/fsdb2K");
+				exit(1);
+			}
+		}
+	}
+	if((S.s_type == Fs2b && result == -1) || S.s_type != Fs2b) {
+	/* Unknown block size. If xflag not set we prompt, if */
+	/*  xflag is set we fall through and process as a 1K */
+		if (!xflag) {
+		    response = prmptbsize(argv[1]);
+		    if (response == Fs1b) {
+			close(fd);
+			argx = addx(argc + 1, argv);
+			if(execvp("/etc/fsdb512", argx) == -1) {
+				perror("cannot exec /etc/fsdb512");
+				exit(1);
+			}
+		    }
+		    if (response == Fs4b) {
+			close(fd);
+			argx = addx(argc + 1, argv);
+			if(execvp("/etc/fsdb2K", argx) == -1) {
+				perror("cannot exec /etc/fsdb2K");
+				exit(1);
+			}
+		    }
+		}
+	}
+	printf("%s(%s): 1K byte Block File System\n", argv[1], S.s_fname);
+#endif	/* end FsTYPE==2 */
+#if FsTYPE==4	/* we are in fsdb2K */
+	if(S.s_magic != FsMAGIC) {
+		if(xflag)
+			confused(argv[1]);
+		close(fd);
+		if(execvp("/etc/fsdb512",argv) == -1) {
+			perror("cannot exec /etc/fsdb512");
+			exit(1);
+		}
+	}
+	if(S.s_type == Fs1b) {
+		if(xflag)
+			confused(argv[1]);
+		close(fd);
+		if(execvp("/etc/fsdb512",argv) == -1) {
+			perror("cannot exec /etc/fsdb512");
+			exit(1);
+		}
+	}
+	if(S.s_type == Fs2b) {
+		result = s5bsize(fd);
+		if(result == Fs2b) {
+			if(xflag)
+				confused(argv[1]);
+			close(fd);
+			if(execvp("/etc/fsdb1K",argv)==-1) {
+				perror("cannot exec /etc/fsdb1K");
+				exit(1);
+			}
+		}
+	}
+	if((S.s_type == Fs2b && result == -1) ||
+	   (S.s_type != Fs2b && S.s_type != Fs4b)) {
+	/* Unknown block size. If xflag not set we prompt, if */
+	/*  xflag is set we fall through and process as a 2K */
+		if (!xflag) {
+		    response = prmptbsize(argv[1]);
+		    if (response == Fs1b) {
+			close(fd);
+			argx = addx(argc + 1, argv);
+			if(execvp("/etc/fsdb512", argx) == -1) {
+				perror("cannot exec /etc/fsdb512");
+				exit(1);
+			}
+		    }
+		    if (response == Fs2b) {
+			close(fd);
+			argx = addx(argc + 1, argv);
+			if(execvp("/etc/fsdb1K", argx) == -1) {
+				perror("cannot exec /etc/fsdb1K");
+				exit(1);
+			}
+		    }
+		}
+	}
+	printf("%s(%s): 2K byte Block File System\n", argv[1], S.s_fname);
+#endif	/* end FsTYPE==4 */
+
+#endif	/* end u3b2 */
+
+#ifdef u3b15
+	if (read(fd, &sblock, sizeof sblock) != sizeof sblock) {
+		printf("%s: cannot read superblock\n", argv[0]);
+		exit(1);
+	}
+#define S	sblock.fs
+#if FsTYPE==1	/* we are in fsdb1b */
+	if(S.s_magic == FsMAGIC) {
+	    if(S.s_type == Fs4b) {
+		if(xflag)
+			confused(argv[1]);
+		close(fd);
+		if(execvp("/etc/fsdb",argv)==-1) {
+			perror("cannot exec /etc/fsdb");
+			exit(1);
+		}
+	    }
+	    if(S.s_type == Fs2b) {
+		result = s5bsize(fd);
+		if(result == Fs2b) {
+			if(xflag)
+				confused(argv[1]);
+			close(fd);
+			if(execvp("/etc/fsdb2b",argv)==-1) {
+				perror("cannot exec /etc/fsdb2b");
+				exit(1);
+			}
+		} 
+		if(result == Fs4b) {
+			if(xflag)
+				confused(argv[1]);
+			close(fd);
+			if(execvp("/etc/fsdb",argv)==-1) {
+				perror("cannot exec /etc/fsdb");
+				exit(1);
+			}
+		}
+	    }
+	    if((S.s_type == Fs2b && result == -1) ||
+	       (S.s_type != Fs2b && S.s_type != Fs1b)) {
+	    /* Unknown block size. If xflag not set we prompt, if */
+	    /*  xflag is set we fall through and check as a 512 */
+			if (!xflag) {
+			    response = prmptbsize(argv[1]);
+			    if (response == Fs2b) {
+				close(fd);
+				argx = addx(argc + 1, argv);
+				if(execvp("/etc/fsdb2b", argv) == -1) {
+					perror("cannot exec /etc/fsdb2b");
+					exit(1);
+				}
+			    }
+			    if (response == Fs4b) {
+				close(fd);
+				argx = addx(argc + 1, argv);
+				if(execvp("/etc/fsdb", argv) == -1) {
+					perror("cannot exec /etc/fsdb");
+					exit(1);
+				}
+			    }
+
+			}
+	    }
+	}
+#endif	/* end FsTYPE==1 */
+#if FsTYPE==4	/* we are in fsdb2b */
+	if(S.s_magic != FsMAGIC) {
+		if(xflag)
+			confused(argv[1]);
+		close(fd);
+		if(execvp("/etc/fsdb1b",argv) == -1) {
+			perror("cannot exec /etc/fsdb1b");
+			exit(1);
+		}
+	}
+	if(S.s_type == Fs1b) {
+		if(xflag)
+			confused(argv[1]);
+		close(fd);
+		if(execvp("/etc/fsdb1b",argv) == -1) {
+			perror("cannot exec /etc/fsdb1b");
+			exit(1);
+		}
+	}
+	if(S.s_type == Fs4b) {
+		if(xflag)
+			confused(argv[1]);
+		close(fd);
+		if(execvp("/etc/fsdb",argv) == -1) {
+			perror("cannot exec /etc/fsdb");
+			exit(1);
+		}
+	}
+	if(S.s_type == Fs2b) {
+		result = s5bsize(fd);
+		if(result == Fs4b) {
+			if(xflag)
+				confused(argv[1]);
+			close(fd);
+			if(execvp("/etc/fsdb",argv)==-1) {
+				perror("cannot exec /etc/fsdb");
+				exit(1);
+			}
+		}
+	}
+	if((S.s_type == Fs2b && result == -1) || S.s_type != Fs2b) {
+	/* Unknown block size. If xflag not set we prompt, if */
+	/*  xflag is set we fall through and check as a 1K */
+		if (!xflag) {
+		    response = prmptbsize(argv[1]);
+		    if (response == Fs1b) {
+			close(fd);
+			argx = addx(argc + 1, argv);
+			if(execvp("/etc/fsdb1b", argx) == -1) {
+				perror("cannot exec /etc/fsdb1b");
+				exit(1);
+			}
+		    }
+		    if (response == Fs4b) {
+			close(fd);
+			argx = addx(argc + 1, argv);
+			if(execvp("/etc/fsdb", argv) == -1) {
+				perror("cannot exec /etc/fsdb");
+				exit(1);
+			}
+		    }
+		}
+	}
+#endif	/* end FsTYPE==4 */
+#if FsTYPE==2	/* we are in fsdb */
+	if(S.s_magic != FsMAGIC) {
+		if(xflag)
+			confused(argv[1]);
+		close(fd);
+		if(execvp("/etc/fsdb1b",argv) == -1) {
+			perror("cannot exec /etc/fsdb1b");
+			exit(1);
+		}
+	}
+	if(S.s_type == Fs1b) {
+		if(xflag)
+			confused(argv[1]);
+		close(fd);
+		if(execvp("/etc/fsdb1b",argv) == -1) {
+			perror("cannot exec /etc/fsdb1b");
+			exit(1);
+		}
+	}
+	if(S.s_type == Fs2b) {
+		result = s5bsize(fd);
+		if(result == Fs2b) {
+			if(xflag)
+				confused(argv[1]);
+			close(fd);
+			if(execvp("/etc/fsdb2b",argv)==-1) {
+				perror("cannot exec /etc/fsdb2b");
+				exit(1);
+			}
+		}
+	}
+	if((S.s_type == Fs2b && result == -1) ||
+	   (S.s_type != Fs2b && S.s_type != Fs4b)) {
+	/* Unknown block size. If xflag not set we prompt, if */
+	/*  xflag is set we fall through and check as a 2K */
+		if (!xflag) {
+		    response = prmptbsize(argv[1]);
+		    if (response == Fs1b) {
+			close(fd);
+			argx = addx(argc + 1, argv);
+			if(execvp("/etc/fsdb1b", argx) == -1) {
+				perror("cannot exec /etc/fsdb1b");
+				exit(1);
+			}
+		    }
+		    if (response == Fs2b) {
+			close(fd);
+			argx = addx(argc + 1, argv);
+			if(execvp("/etc/fsdb2b", argv) == -1) {
+				perror("cannot exec /etc/fsdb2b");
+				exit(1);
+			}
+		    }
+		}
+
+	}
+#endif	/* end FsTYPE==2 */
+#endif	/* end u3b15 */
+
+#if !u3b2 &&  !u3b15
 #if FsTYPE==2
 	/* check to see if this is a 1kb or 512b file system */
 	if (read(fd, &sblock, sizeof sblock) != sizeof sblock) {
@@ -171,24 +601,21 @@ printf("trying to make node %s %d %d %ld\n",devnam,maj,min,blk);
 		printf("%s(%s): 512 byte Block File System\n", argv[1], S.s_fname);
 		close(fd);
 		if (execvp("/etc/fsdb1b", argv) < 0) {
-			/*printf("%s: cannot exec fsdb1\n", argv[0]);*/
-			perror(argv[0]);
+			sprintf(errmsg, "%s: cannot exec fsdb1b\n", argv[0]);
+			perror(errmsg);
 			exit(1);
 		}
 		break;
 	case Fs2b:
-#ifdef u3b15
-		printf("%s(%s): 2K byte Block File System\n", argv[1], S.s_fname);
-#else
 		printf("%s(%s): 1K byte Block File System\n", argv[1], S.s_fname);
-#endif
 		break;
 	default:
 		printf("%s: Invalid File System Type\n", S.s_fname);
 		exit(1);
 	}
-#endif
-#endif
+#endif /* end FsTYPE==2 */
+#endif /* end !u3b2 && !u3b15 */
+#endif /* end for STANDALONE */
 
 	bhdr.fwd = bhdr.back = &bhdr;
 	for(i=0; i<NBUF; i++) {
@@ -1307,3 +1734,142 @@ bmap(bn)
 	}
 	return(nb);
 }
+#if u3b15 || u3b2
+
+/* Prompt user for block size and return block size identifier. */
+prmptbsize(fs)
+char	*fs;
+{
+	char	bsize[20];
+
+	printf("WARNING: SUPER BLOCK, ROOT INODE, OR ROOT DIRECTORY ON %s MAY\n", fs);
+	printf("BE CORRUPTED. fsdb CAN'T DETERMINE LOGICAL BLOCK SIZE OF %s\n", fs);
+	printf("BLOCK SIZE COULD BE 512, 1024, OR 2048 BYTES.\n\n");
+	printf("ENTER LOGICAL BLOCK SIZE OF %s IN BYTES.\n", fs);
+	printf("ENTER 512, 1024, OR 2048 OR ENTER q TO QUIT:  ");
+	gets(bsize);
+	while (strcmp(bsize, "q") != 0 &&
+	       strcmp(bsize, "512") != 0 &&
+	       strcmp(bsize, "1024") != 0 &&
+	       strcmp(bsize, "2048") != 0) {
+			printf("\nENTER 512, 1024, 2048, OR s: ");
+			gets(bsize);
+	}
+	if (strcmp(bsize, "q") == 0)
+		exit(0);
+	if (strcmp(bsize, "512") == 0)
+		return(Fs1b);
+	if (strcmp(bsize, "1024") == 0)
+		return(Fs2b);
+	if (strcmp(bsize, "2048") == 0)
+		return(Fs4b);
+}
+
+/* function inserts -x394 option into argument list */
+char	**
+addx(nargs, args)
+int	nargs;
+char	*args[];
+{
+	int	i;
+	static char	**arglist;
+
+	arglist = (char **)calloc(nargs, sizeof(char *));
+	arglist[0] = args[0];
+	arglist[1] = (char *)calloc(3, 1);
+	strcpy(arglist[1], "-x394");
+	for (i = 2; i < nargs; i++)
+		arglist[i] = args[i-1];
+	arglist[nargs] = NULL;
+
+	return(arglist);
+
+}
+
+/* Most likely way to get here is user using -x394 option  on command line
+ *  We will also come here if fsdb previously failed to identify the
+ *  block size and prompted the user but program now thinks it knows
+ *  the block size and user appears to be wrong
+ * Print error message and exit
+ */
+void
+confused(fs)
+char	*fs;
+{
+	char	fsname[40];
+
+	printf("fsdb FAILED FOR %s\n\n", fs);
+	printf("IF YOU INVOKED fsdb WITH AN UNDOCUMENTED OPTION\n", fsname);
+	printf("RE-RUN fsdb WITHOUT THIS OPTION.\n\n", fsname);
+	printf("IF YOU INVOKED fsdb CORRECTLY AND HAVE\n", fsname);
+	printf("BEEN PROMPTED FOR BLOCK SIZE YOU HAVE\n", fsname);
+	printf("SUPPLIED A BLOCK SIZE WHICH MAY BE WRONG.\n", fsname);
+	printf("RE-RUN fsdb FROM SCRATCH\n", fsname);
+
+	exit(1);
+}
+
+/* heuristic function to determine logical block size of System V file system */
+
+s5bsize(fd)
+int fd;
+{
+
+	int results[3];
+	int count;
+	long address;
+	long offset;
+	char *buf;
+	struct dinode *inodes;
+	struct direct *dirs;
+	char * p1;
+	char * p2;
+	
+	results[1] = 0;
+	results[2] = 0;
+
+	buf = (char *)malloc(PHYSBLKSZ);
+
+	for (count = 1; count < 3; count++) {
+
+		address = 2048 * count;
+		if (lseek(fd, address, 0) != address)
+			continue;
+		if (read(fd, buf, PHYSBLKSZ) != PHYSBLKSZ)
+			continue;
+		inodes = (struct dinode *)buf;
+		if ((inodes[1].di_mode & IFMT) != IFDIR)
+			continue;
+		if (inodes[1].di_nlink < 2)
+			continue;
+		if ((inodes[1].di_size % sizeof(struct direct)) != 0)
+			continue;
+	
+		p1 = (char *) &address;
+		p2 = inodes[1].di_addr;
+		*p1++ = 0;
+		*p1++ = *p2++;
+		*p1++ = *p2++;
+		*p1   = *p2;
+	
+		offset = address << (count + 9);
+		if (lseek(fd, offset, 0) != offset)
+			continue;
+		if (read(fd, buf, PHYSBLKSZ) != PHYSBLKSZ)
+			continue;
+		dirs = (struct direct *)buf;
+		if (dirs[0].d_ino != 2 || dirs[1].d_ino != 2 )
+			continue;
+		if (strcmp(dirs[0].d_name,".") || strcmp(dirs[1].d_name,".."))
+			continue;
+		results[count] = 1;
+		}
+	free(buf);
+	
+	if(results[1])
+		return(Fs2b);
+	if(results[2])
+		return(Fs4b);
+	return(-1);
+}
+#endif

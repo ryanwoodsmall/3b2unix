@@ -5,8 +5,8 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sa:sa.h	1.19"
-/*	sa.h 1.19 of 6/26/86 */
+#ident	"@(#)sa:sa.h	1.22"
+/*	sa.h 1.22 of 10/23/87 */
 /*	sa.h contains struct sa and defines variable used 
 		in sadc.c and sar.c.
 	The nlist setup table in sadc.c is arranged as follows:
@@ -102,22 +102,26 @@
 #define ID	0
 #define IF	1
 #define	SD00	2
-#define SINFO	3
-#define	MINFO	4
-#define INO	5
-#define FLE	6
-#define TXT	7
-#define PRO	8
-#define FLCK	9
-#define V	10
-#define IDEQ	11
-#define SERR	12
-#define DINFO	13
-#define	MINSERVE	14
-#define	MAXSERVE	15
-#define	SD00TC	16
-#define	SD00LU	17
-#define RCINFO	18
+#define SD01	3
+#define SINFO	4
+#define	MINFO	5
+#define INO	6
+#define FLE	7
+#define TXT	8
+#define PRO	9
+#define FLCK	10
+#define V	11
+#define IDEQ	12
+#define SERR	13
+#define DINFO	14
+#define	MINSERVE	15
+#define	MAXSERVE	16
+#define	SD00TC	17
+#define	SD00LU	18
+#define RCINFO	19
+#define SD01_D	20
+#define BPB_UT  21
+#define BINFO	22
 #endif
 
 #ifdef u3b
@@ -227,6 +231,7 @@ struct nlist setup[] = {
 	{"idtime"},
 	{"ifstat"},
 	{"sd00_tc_cnt"},
+	{"Sd01_diskcnt"},
 	{"sysinfo"},
 	{"minfo"},
 	{"inode"},
@@ -243,6 +248,9 @@ struct nlist setup[] = {
 	{"sd00_tc"},
 	{"sd00_lu_cnt"},
 	{"rcinfo"},
+	{"Sd01_d"},
+	{"bpb_utilize"},
+	{"bpbinfo"},
 	{0},
 };
 #endif
@@ -349,7 +357,8 @@ int iotbsz[SINFO] = {
 char devnm[SINFO][6] ={
 	"hdsk-",		/* integral hard disk */
 	"fdsk-",		/* integral floppy disk */
-	"sd00-"
+	"sd00-",
+	"sd01-"
 };
 #endif
 
@@ -406,6 +415,10 @@ struct sa {
 #endif
 	struct	dinfo	di;	/* defined in /usr/include/sys/sysinfo.h */
 	struct	rcinfo	rc;	/* defined in /usr/include/sys/sysinfo.h */
+#ifdef u3b2
+	struct bpbinfo bi[4];	/* defined in /usr/include/sys/sysinfo.h */
+	int	bpb_utilize;	/* Co-processor utilize flag */ 
+#endif
 	int	minserve;
 	int	maxserve;
 	int	szinode;	/* current size of inode table  */
@@ -464,5 +477,6 @@ struct sa {
 #define	IO_ACT	2  /* cumulative time in ticks when drive is active  */
 #define	IO_RESP	3  /* cumulative I/O response time in ticks since boot  */
 #define	IO_ID	4
+
 };
 extern struct sa sa;

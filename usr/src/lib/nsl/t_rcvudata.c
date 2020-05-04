@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/t_rcvudata.c	1.4.1.1"
+#ident	"@(#)libnsl:nsl/t_rcvudata.c	1.4.1.2"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/errno.h"
@@ -92,8 +92,8 @@ int *flags;
 					unitdata->udata.len = 0;
 					return(-1);
 				}
-				if ((pptr->unitdata_ind.SRC_length > (int)unitdata->addr.maxlen) ||
-				    (pptr->unitdata_ind.OPT_length > (int)unitdata->opt.maxlen)) {
+				if ((pptr->unitdata_ind.SRC_length > unitdata->addr.maxlen) ||
+				    (pptr->unitdata_ind.OPT_length > unitdata->opt.maxlen)) {
 					t_errno = TBUFOVFLW;
 					unitdata->udata.len = 0;
 					return(-1);

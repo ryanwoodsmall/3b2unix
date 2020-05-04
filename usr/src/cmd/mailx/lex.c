@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:lex.c	1.21"
+#ident	"@(#)mailx:lex.c	1.21.1.1"
 #
 
 #include <errno.h>
@@ -744,7 +744,7 @@ newfileinfo()
 		if (mp->m_flag & MSAVED)
 			s++;
 	}
-	ename = mailname;
+	ename=origname;
 	if (getfold(fname) >= 0) {
 		strcat(fname, "/");
 		if (strncmp(fname, mailname, strlen(fname)) == 0) {

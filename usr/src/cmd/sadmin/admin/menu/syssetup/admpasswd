@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:admin/menu/syssetup/admpasswd	2.3"
+#ident	"@(#)sadmin:admin/menu/syssetup/admpasswd	2.6"
 #menu# assign or change administrative passwords
 #help# 
 #help#	Admpasswd lets you set or make changes to passwords for
@@ -22,8 +22,8 @@ if  checkyn ${flags} -H'
 then
 	for login in ${admlogins}
 	{
-		case `sed -n "/^${login}:/s/^${login}\(:[^:]*:\).*/\1/p" /etc/passwd` in
-		:: )
+		if /bin/passwd -s $login 2>/dev/null | grep "^${login}  *NP" 2>/dev/null 1>&2
+		then
 			if  checkyn ${flags} \
 			-H "!echo \"
 	What is '${login}' used for?\"
@@ -34,8 +34,7 @@ Do you want to give it one?"
 			then
 				/bin/passwd ${login}
 			fi
-			;;
-		:*: )
+		else
 			a=`checklist ${flags} -efp \
 			-H "!echo \"
 	What is '${login}' used for?\"
@@ -49,33 +48,35 @@ Do you want to change the password, delete it, or skip it? [c, d, s, q, ?]" \
 				/bin/passwd ${login}
 				;;
 			delete )
-				ed - /etc/passwd <<-!  ||  { admerr $0 'Cannot edit /etc/passwd.'; exit 1;}
-					H
-					/^${login}:[^:]*:/s//${login}::/
-					w
-				!
-				echo 'Password deleted.'
+				/bin/passwd -d ${login}
 				;;
 			skip )
 				echo 'Password unchanged.'
 			esac
-			;;
-		* )
-			admerr $0 "No login '${login}' in /etc/passwd."
-		esac
+		fi
 	}
 fi
-admlogins=`echo ${admlogins}  |  sed '	s/^/^/
-					s/ /::|^/g
-					s/$/::/'`
-egrep "${admlogins}" /etc/passwd  |  sort  |
+
+admlogins=`
+	for adm in $admlogins
+	do
+		if /bin/passwd -s $adm 2>/dev/null | grep "^$adm  *NP" >/dev/null
+		then
+			echo $adm
+		fi
+	done`
+
+if [ -n "${admlogins}" ]
+then
+	echo "${admlogins}" | sort  |
 	sed '1i\
-echo "\\nThe following administrative logins still do not have passwords:"\
-pr -t -5 -o5 -w75 <<!
-	s/:.*//
+	echo "\\nThe following administrative logins still do not have passwords:"\
+	pr -t -5 -o5 -w75 <<!
 	$a\
 !
 	'  |  sh
+fi
+
 echo '\nFor more information about passwords and their use,
 read the SECURITY chapter of the Owner/Operator Manual.
 For more about assigning passwords,

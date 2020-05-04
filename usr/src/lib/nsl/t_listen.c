@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)libnsl:nsl/t_listen.c	1.4.1.1"
+#ident	"@(#)libnsl:nsl/t_listen.c	1.4.1.2"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/errno.h"
@@ -97,7 +97,7 @@ struct t_call *call;
 				errno = EPROTO;
 				return(-1);
 			}
-			if ((rcvbuf.len > (int)call->udata.maxlen) ||
+			if ((rcvbuf.len > call->udata.maxlen) ||
 			    (pptr->conn_ind.SRC_length > call->addr.maxlen) ||
 			    (pptr->conn_ind.OPT_length > call->opt.maxlen)) {
 				t_errno = TBUFOVFLW;
@@ -116,7 +116,7 @@ struct t_call *call;
 			call->opt.len = pptr->conn_ind.OPT_length;
 			memcpy(call->udata.buf, rcvbuf.buf, (int)rcvbuf.len);
 			call->udata.len = rcvbuf.len;
-			call->sequence = pptr->conn_ind.SEQ_number;
+			call->sequence = (long) pptr->conn_ind.SEQ_number;
 
 			tiptr->ti_ocnt++;
 			tiptr->ti_state = TLI_NEXTSTATE(T_LISTN, tiptr->ti_state);

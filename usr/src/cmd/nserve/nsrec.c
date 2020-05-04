@@ -9,11 +9,12 @@
  * nsrec.c contains name server recovery functions and
  * other related functions.
  */
-#ident	"@(#)nserve:nsrec.c	1.21"
+#ident	"@(#)nserve:nsrec.c	1.21.3.1"
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
 #include <sys/utsname.h>
+#include <sys/types.h>
 #include <errno.h>
 #include <fcntl.h>
 #include "nsdb.h"
@@ -396,6 +397,7 @@ setrstate()
 	int	pd = -1;
 	struct request	*req=NULL;
 	int	savetime = R_TIMEOUT;
+	time_t	starttime;
 
 	LOG4(L_ALL,"(%5d) recovery: enter setrstate, Primary=%s, Recover=%s\n",
 		Logstamp, (Primary)?"TRUE":"FALSE", (Recover)?"TRUE":"FALSE");
@@ -443,6 +445,8 @@ setrstate()
 	sigset(SIGALRM,rst_alrm);
 	Rdone = FALSE;
 
+	starttime = time((time_t) 0);
+
 	while (Rdone == FALSE) {
 		/* is anything pending or unknown? if not, we are through */
 		for (i=0, np = Nsinfo; i < MAXNS; i++, np++) {
@@ -456,6 +460,9 @@ setrstate()
 		alarm(savetime);
 		ret = nswait(&pd);
 		if ((savetime = alarm(0)) == 0)
+			break;
+
+		if ((time((time_t) 0) - starttime) >= (time_t) R_TIMEOUT)
 			break;
 
 		np = pdtonp(pd);
@@ -769,7 +776,6 @@ int	pd;
 void
 rst_alrm()
 {
-	alarm(0);
 	Rdone = TRUE;
 }
 struct ns_info *

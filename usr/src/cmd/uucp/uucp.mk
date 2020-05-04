@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)uucp:uucp.mk	2.20"
+#ident	"@(#)uucp:uucp.mk	2.24.1.4"
 #
 # ***************************************************************
 # *	Copyright (c) 1984 AT&T Technologies, Inc.		*
@@ -44,6 +44,9 @@ LDFLAGS= -s ${IFLAG} ${S5LDFLAGS}
 #	NOTE - when DKLIB is to be used, define DATAKIT in parms.h
 # add dio.o to PROTOCOLS below
 # DKLIB = -ldk
+# Since release 3.2 (7/87), datakit files are included in uucp directory,
+# it is no longer a library. But we still define DATAKIT in parms.h and 
+# add dio.o to PROTOCOLS.
 # 	NOTE - some sites use -lbtl for compatibility
 # BTLLIB = -lbtl 
 #	NOTE - when TLI is defined in parms.h
@@ -52,9 +55,9 @@ TLILIB = -lnsl_s
 
 # PROTOCOLS= dio.o	# for datakit
 # PROTOCOLS =  		# if no datakit and no unet
-PROTOCOLS = eio.o	# TCP, TLI, or unet, no datakit
+PROTOCOLS = eio.o dio.o	# TCP, TLI, or unet, no datakit
 
-LIBS= -lc_s ${BTLLIB} ${DKLIB} ${UNETLIB} ${TLILIB}
+LIBS= -lc_s ${BTLLIB} ${UNETLIB} ${TLILIB}
 
 # some versions of unix don't have strpbrk in libc
 # STRPBRK = strpbrk.o
@@ -69,7 +72,7 @@ LIBS= -lc_s ${BTLLIB} ${DKLIB} ${UNETLIB} ${TLILIB}
 UUGETTY=uugetty
 
 OWNER=uucp
-GRP=daemon
+GRP=uucp
 BIN=$(ROOT)/usr/bin
 INSDIR=$(ROOT)/usr/lib/uucp
 UPATH=.
@@ -117,13 +120,15 @@ MAXUUSCHEDS=$(INSDIR)/Maxuuscheds
 CLEAN=
 LINTOP=
 COMMANDS=uucp uux uuxqt uucico uusched
-TOOLS=uuname uucheck uustat uucleanup $(UUGETTY)
+TOOLS=uuname uucheck uustat uucleanup remote.unknown nttysrv $(UUGETTY)
 OFILES=utility.o cpmv.o expfile.o gename.o getpwinfo.o \
 	ulockf.o xqt.o logent.o versys.o gnamef.o systat.o \
 	sysfiles.o strsave.o $(GETOPT)
 LFILES=utility.c cpmv.c expfile.c gename.c getpwinfo.c \
 	ulockf.c xqt.c logent.c versys.c gnamef.c systat.c \
 	sysfiles.c strsave.c $(GETOPTSRC)
+ODK=dkbreak.o dkdial.o dkminor.o dtnamer.o dkerr.o 
+LDK=dkbreak.c dkdial.c dkminor.c dtnamer.c dkerr.c
 OUUCP=uucpdefs.o uucp.o gwd.o permission.o getargs.o uucpname.o\
 	versys.o gtcfile.o $(STRPBRK) chremdir.o mailst.o
 LUUCP=uucpdefs.c uucp.c gwd.c permission.c getargs.c uucpname.c\
@@ -166,6 +171,10 @@ LUUCLEANUP=uucleanup.c gnamef.c expfile.c uucpdefs.c getpwinfo.c \
 	uucpname.c ulockf.c getargs.c cpmv.c utility.c
 OUUGETTY=uugetty.o ulockf.o uucpdefs.o
 LUUGETTY=uugetty.c ulockf.c uucpdefs.c
+OUNKNOWN=unknown.o
+LUNKNOWN=unknown.c
+ONTTYSRV=nttysrv.o
+LNTTYSRV=nttysrv.c
 
 INIT=init
 
@@ -180,14 +189,17 @@ shells:
 	echo 2 > $(MAXUUXQTS)
 	echo 2 > $(MAXUUSCHEDS)
 	$(CH)-chown $(OWNER) $(MAXUUXQTS)
+	$(CH)-chgrp $(GRP) $(MAXUUXQTS)
 	$(CH)-chmod 444 $(MAXUUXQTS)
 	$(CH)-chown $(OWNER) $(MAXUUSCHEDS)
+	$(CH)-chgrp $(GRP) $(MAXUUSCHEDS)
 	$(CH)-chmod 444 $(MAXUUSCHEDS)
 	$(INS) $(OLD) uudemon.poll $(INSDIR)/uudemon.poll 555 $(OWNER) $(GRP)
 	$(INS) $(OLD) uudemon.cleanup $(INSDIR)/uudemon.cleanup 555 $(OWNER) $(GRP)
 	$(INS) $(OLD) uudemon.hour $(INSDIR)/uudemon.hour 555 $(OWNER) $(GRP)
 	$(INS) $(OLD) uudemon.admin $(INSDIR)/uudemon.admin 555 $(OWNER) $(GRP)
-	$(INS) $(OLD) remote.unknown $(INSDIR)/remote.unknown 555 $(OWNER) $(GRP)
+	$(INS) $(OLD) remote.unknown $(INSDIR)/remote.unknown 4111 $(OWNER) $(GRP)
+	$(INS) $(OLD) nttysrv $(INSDIR)/nttysrv 4111 root sys
 	$(INS) $(OLD) Uutry $(INSDIR)/Uutry 555 $(OWNER) $(GRP)
 	$(INS) $(OLD) SetUp $(INSDIR)/SetUp 555 $(OWNER) $(GRP)
 	$(INS) $(OLD) uulog $(BIN)/uulog 555 $(OWNER) $(GRP)
@@ -318,26 +330,27 @@ copyright:
 	@echo "**********************************************\n\n"
 
 
-init:	copyright anlwrk.o permission.o cpmv.o expfile.o gename.o \
+init:	copyright anlwrk.o permission.o cpmv.o \
+	dkbreak.o dkdial.o dkerr.o dkminor.o dtnamer.o expfile.o gename.o \
 	getargs.o getprm.o getpwinfo.o gnamef.o \
 	gnxseq.o gwd.o imsg.o logent.o \
 	mailst.o shio.o \
 	systat.o ulockf.o uucpname.o versys.o xqt.o
 
-uucp:	$(OUUCP) $(OFILES)
-	$(CC) $(CFLAGS)  $(LDFLAGS) $(OUUCP) $(OFILES) $(LIBS) \
+uucp:	$(OUUCP) $(OFILES) $(ODK)
+	$(CC) $(CFLAGS)  $(LDFLAGS) $(OUUCP) $(OFILES) $(ODK) $(LIBS) \
 		-o $(ODIR)/uucp
 
-uux:	$(OUUX) $(OFILES)
-	$(CC) $(CFLAGS)  $(LDFLAGS) $(OUUX) $(OFILES) $(LIBS) \
+uux:	$(OUUX) $(OFILES) $(ODK)
+	$(CC) $(CFLAGS)  $(LDFLAGS) $(OUUX) $(OFILES) $(ODK) $(LIBS) \
 		-o $(ODIR)/uux
 
-uuxqt:	$(OUUXQT) $(OFILES)
-	$(CC) $(CFLAGS)  $(LDFLAGS) $(OUUXQT) $(OFILES) $(LIBS) \
+uuxqt:	$(OUUXQT) $(OFILES) $(ODK)
+	$(CC) $(CFLAGS)  $(LDFLAGS) $(OUUXQT) $(OFILES) $(ODK) $(LIBS) \
 		-o $(ODIR)/uuxqt
 
-uucico:	$(OUUCICO) $(OFILES)
-	$(CC) $(CFLAGS)  $(LDFLAGS) $(OUUCICO) $(OFILES) $(LIBS) \
+uucico:	$(OUUCICO) $(OFILES) $(ODK)
+	$(CC) $(CFLAGS)  $(LDFLAGS) $(OUUCICO) $(OFILES) $(ODK) $(LIBS) \
 		-o $(ODIR)/uucico
 
 uuname:	$(OUUNAME)
@@ -364,18 +377,29 @@ uugetty:	$(OUUGETTY)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(OUUGETTY) \
 		-o $(ODIR)/uugetty
  
+remote.unknown:	$(OUNKNOWN)
+	$(CC) $(CFLAGS) $(LDFLAGS) $(OUNKNOWN) \
+		-o $(ODIR)/remote.unknown
+ 
+nttysrv:	$(ONTTYSRV)
+	$(CC) $(CFLAGS) $(LDFLAGS) $(ONTTYSRV) \
+		-o $(ODIR)/nttysrv
+ 
 uucheck.o:	permission.c
+
+gio.o pk0.o pk1.o pkdefs.o:	pk.h
 
 sysfiles.o:	sysfiles.h
 
 utility.o permission.o cico.o conn.o callers.o cpmv.o\
-	anlwrk.o cntrl.o expfile.o gename.o\
+	anlwrk.o cntrl.o dkbreak.o dkdial.o dkerr.o dkminor.o dtnamer.o \
+        expfile.o gename.o\
 	getpwinfo.o gio.o xio.o gnamef.o gnxseq.o gwd.o imsg.o ioctl.o\
 	logent.o mailst.o sdmail.o line.o shio.o\
 	systat.o ulockf.o uucpdefs.o uucpname.o uuname.o\
 	uucleanup.o uucheck.o uusched.o  uucp.o uustat.o dio.o \
 	uux.o uuxqt.o versys.o xqt.o interface.o statlog.o \
-	strecpy.o:	uucp.h parms.h
+	strecpy.o:	uucp.h parms.h dk.h sysexits.h
 
 mkdirs:
 	-mkdir $(SPOOL)
@@ -387,7 +411,7 @@ mkdirs:
 	$(CH)-chown $(OWNER) $(INSDIR)
 	$(CH)-chgrp $(GRP) $(INSDIR)
 	-mkdir $(UUCPDIR)
-	$(CH)-chmod 777 $(UUCPDIR)
+	$(CH)-chmod 755 $(UUCPDIR)
 	$(CH)-chown $(OWNER) $(UUCPDIR)
 	$(CH)-chgrp $(GRP) $(UUCPDIR)
 	-mkdir $(PUBDIR)
@@ -395,43 +419,43 @@ mkdirs:
 	$(CH)-chown $(OWNER) $(PUBDIR)
 	$(CH)-chgrp $(GRP) $(PUBDIR)
 	-mkdir $(XQTDIR)
-	$(CH)-chmod 777 $(XQTDIR)
+	$(CH)-chmod 755 $(XQTDIR)
 	$(CH)-chown $(OWNER) $(XQTDIR)
 	$(CH)-chgrp $(GRP) $(XQTDIR)
 	-mkdir $(CORRUPT)
-	$(CH)-chmod 777 $(CORRUPT)
+	$(CH)-chmod 755 $(CORRUPT)
 	$(CH)-chown $(OWNER) $(CORRUPT)
 	$(CH)-chgrp $(GRP) $(CORRUPT)
 	-mkdir $(LOGDIR)
-	$(CH)-chmod 777 $(LOGDIR)
+	$(CH)-chmod 755 $(LOGDIR)
 	$(CH)-chown $(OWNER) $(LOGDIR)
 	$(CH)-chgrp $(GRP) $(LOGDIR)
 	-mkdir $(SEQDIR)
-	$(CH)-chmod 777 $(SEQDIR)
+	$(CH)-chmod 755 $(SEQDIR)
 	$(CH)-chown $(OWNER) $(SEQDIR)
 	$(CH)-chgrp $(GRP) $(SEQDIR)
 	-mkdir $(STATDIR)
-	$(CH)-chmod 777 $(STATDIR)
+	$(CH)-chmod 755 $(STATDIR)
 	$(CH)-chown $(OWNER) $(STATDIR)
 	$(CH)-chgrp $(GRP) $(STATDIR)
 	-mkdir $(LOGUUCP)
-	$(CH)-chmod 777 $(LOGUUCP)
+	$(CH)-chmod 755 $(LOGUUCP)
 	$(CH)-chown $(OWNER) $(LOGUUCP)
 	$(CH)-chgrp $(GRP) $(LOGUUCP)
 	-mkdir $(LOGUUX)
-	$(CH)-chmod 777 $(LOGUUX)
+	$(CH)-chmod 755 $(LOGUUX)
 	$(CH)-chown $(OWNER) $(LOGUUX)
 	$(CH)-chgrp $(GRP) $(LOGUUX)
 	-mkdir $(LOGUUXQT)
-	$(CH)-chmod 777 $(LOGUUXQT)
+	$(CH)-chmod 755 $(LOGUUXQT)
 	$(CH)-chown $(OWNER) $(LOGUUXQT)
 	$(CH)-chgrp $(GRP) $(LOGUUXQT)
 	-mkdir $(LOGCICO)
-	$(CH)-chmod 777 $(LOGCICO)
+	$(CH)-chmod 755 $(LOGCICO)
 	$(CH)-chown $(OWNER) $(LOGCICO)
 	$(CH)-chgrp $(GRP) $(LOGCICO)
 	-mkdir $(WORKSPACE)
-	$(CH)-chmod 777 $(WORKSPACE)
+	$(CH)-chmod 755 $(WORKSPACE)
 	$(CH)-chown $(OWNER) $(WORKSPACE)
 	$(CH)-chgrp $(GRP) $(WORKSPACE)
 	-mkdir $(LOCKS)
@@ -439,11 +463,11 @@ mkdirs:
 	$(CH)-chown $(OWNER) $(LOCKS)
 	$(CH)-chgrp $(GRP) $(LOCKS)
 	-mkdir $(ADMIN)
-	$(CH)-chmod 777 $(ADMIN)
+	$(CH)-chmod 755 $(ADMIN)
 	$(CH)-chown $(OWNER) $(ADMIN)
 	$(CH)-chgrp $(GRP) $(ADMIN)
 	-mkdir $(OLDLOG)
-	$(CH)-chmod 777 $(OLDLOG)
+	$(CH)-chmod 755 $(OLDLOG)
 	$(CH)-chown $(OWNER) $(OLDLOG)
 	$(CH)-chgrp $(GRP) $(OLDLOG)
 

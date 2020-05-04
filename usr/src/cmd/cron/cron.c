@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)cron:cron.c	1.17"
+#ident	"@(#)cron:cron.c	1.17.1.4"
 #include <sys/types.h>
 #include <sys/fs/s5param.h>
 #include <sys/stat.h>
@@ -686,6 +686,7 @@ badline:
 }
 
 
+
 mail(usrname,msg,format)
 char *usrname,*msg;
 int format;
@@ -694,28 +695,41 @@ int format;
 
 	FILE *pipe,*popen();
 	char *temp,*i,*strrchr();
+	struct passwd	*ruser_ids;
+	int fork_val;
+
 
 #ifdef TESTING
 	return;
 #endif
-	temp = xmalloc(strlen(MAIL)+strlen(usrname)+2);
-	pipe = popen(strcat(strcat(strcpy(temp,MAIL)," "),usrname),"w");
-	if (pipe!=NULL) {
-		if (format == 1) {
-			fprintf(pipe,"Your crontab file has an error in it.\n");
-			i = strrchr(line,'\n');
-			if (i != NULL) *i = ' ';
-			fprintf(pipe, "\t%s\n\t%s\n",line,msg);
-			fprintf(pipe, "This entry has been ignored.\n"); 
+	
+	
+	if ((fork_val = fork()) != -1) {
+		if (fork_val == 0) {
+			if ((ruser_ids = getpwnam(usrname)) == (struct passwd *)NULL)
+				exit(0);
+			setuid(ruser_ids->pw_uid);
+			temp = xmalloc(strlen(MAIL)+strlen(usrname)+2);
+			pipe = popen(strcat(strcat(strcpy(temp,MAIL)," "),usrname),"w");
+			if (pipe!=NULL) {
+				if (format == 1) {
+					fprintf(pipe,"Your crontab file has an error in it.\n");
+					i = strrchr(line,'\n');
+					if (i != NULL) *i = ' ';
+					fprintf(pipe, "\t%s\n\t%s\n",line,msg);
+					fprintf(pipe, "This entry has been ignored.\n"); 
+				}
+				else fprintf(pipe, "Cron: %s\n",msg);
+				pclose(pipe); 
+			}
+			free(temp);
+			exit(0);
 		}
-		else fprintf(pipe, "Cron: %s\n",msg);
-		/* dont want to do pclose because pclose does a wait */
-		fclose(pipe); 
-		/* decremented in idle() */
-		running++;
 	}
-	free(temp);
+	/* decremented in idle() */
+	running++;
 }
+
 
 
 char *next_field(lower,upper,u)
@@ -1316,6 +1330,7 @@ struct	runinfo	*pr;
 				sprintf(line,"%s %s < \"%s\"\n",
 					MAIL,p->name,pr->outfile);
 				if((pr->pid = fork()) == 0) {
+					setuid((pr->rusr)->uid);
 					execl("/bin/sh","sh","-c",line,0);
 					exit(127);
 				}

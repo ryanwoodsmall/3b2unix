@@ -32,6 +32,7 @@
 /usr/include/sys/erec.h
 /usr/include/sys/err.h
 /usr/include/sys/errno.h
+/usr/include/sys/extbus.h
 /usr/include/sys/fblk.h
 /usr/include/sys/fcntl.h
 /usr/include/sys/file.h
@@ -61,6 +62,7 @@
 /usr/include/sys/iu.h
 /usr/include/sys/jioctl.h
 /usr/include/sys/lboot.h
+/usr/include/sys/libxedt.h
 /usr/include/sys/lihdr.h
 /usr/include/sys/lla.h
 /usr/include/sys/lla_ppc.h

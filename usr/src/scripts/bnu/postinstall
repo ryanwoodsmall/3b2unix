@@ -1,4 +1,4 @@
-#ident	"@(#)bnu:postinstall	1.22"
+#ident	"@(#)bnu:postinstall	1.27"
 #	Post install for "Basic Networking Utilities"
 
 #	Carefully install new local uucp information files if non exist or
@@ -60,10 +60,11 @@ fi
 echo 1 > /usr/lib/uucp/Maxuuxqts
 echo 1 > /usr/lib/uucp/Maxuuscheds
 chown uucp /usr/lib/uucp/Maxuuxqts /usr/lib/uucp/Maxuuscheds 2>/dev/null
+chgrp uucp /usr/lib/uucp/Maxuuxqts /usr/lib/uucp/Maxuuscheds 2>/dev/null
 chmod 444 /usr/lib/uucp/Maxuuxqts /usr/lib/uucp/Maxuuscheds
 
 #In case there was a uugetty - this should remove it -- ignore errors
-rm -f /usr/lib/uucp/RM-THIS-* 2>/dev/null
+rm -f /usr/lib/uucp/RM_THIS_* 2>/dev/null
 
 #Restore inittab uugetty entries to preinstall state, if necessary
 if [ -f /usr/lib/uucp/inittab.save ]
@@ -77,7 +78,7 @@ fi
 #give the user the option of restore the files.
 #If they aren't restored they will be left in /usr/lib/uucp/OlD
 
-savefiles="Devices Dialers Systems Permissions Dialcodes Poll Maxuuxqts Maxuuscheds remote.unknown Sysfiles Devconfig"
+savefiles="Devices Dialers Systems Permissions Dialcodes Poll Maxuuxqts Maxuuscheds Sysfiles Devconfig"
 
 # If uucp is being installed for the first time on this machine the
 # following directory will NOT have been made by the preinstall script.
@@ -94,15 +95,21 @@ then
 			do
 				if [ -f /usr/lib/uucp/OlD/$i ]
 				then
-					mv /usr/lib/uucp/OlD/$i /usr/lib/uucp/$i
+					cp /usr/lib/uucp/OlD/$i /usr/lib/uucp/$i && rm /usr/lib/uucp/OlD/$i
+# If a specific update.$i file is included, executable and non-empty,
+# execute it. It may (should) allow user to bypass updates.
+					if [ -x update.$i ]
+					then
+						./update.$i
+					fi
 				fi
 			done
-			rmdir /usr/lib/uucp/OlD
+			rmdir /usr/lib/uucp/OlD 2>/dev/null
 		else
 			echo "The files were not restored and can be found in /usr/lib/uucp/OlD"
 		fi
 	else
-		rmdir /usr/lib/uucp/OlD
+		rmdir /usr/lib/uucp/OlD 2>/dev/null
 	fi
 fi
 

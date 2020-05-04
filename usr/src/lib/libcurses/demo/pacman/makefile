@@ -5,13 +5,13 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)curses:demo/pacman/makefile	1.2"
+#ident	"@(#)curses:demo/pacman/makefile	1.3"
 CC =	cc
 DFLAGS =
 CFLAGS =	-O
 LDFLAGS =
-CFILES =	pacman.c monster.c util.c movie.c getopt.c
-OFILES =	pacman.o monster.o util.o movie.o getopt.o
+CFILES =	pacman.c monster.c util.c movie.c
+OFILES =	pacman.o monster.o util.o movie.o
 
 pacman:	$(OFILES)
 	$(CC) $(LDFLAGS) -o pacman $(OFILES) -lcurses

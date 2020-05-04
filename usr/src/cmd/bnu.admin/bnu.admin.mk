@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)bnu.admin:bnu.admin.mk	2.4"
+#ident	"@(#)bnu.admin:bnu.admin.mk	2.5"
 #
 #	This makefile makes appropriate directories
 #	and copies the simple admin shells into
@@ -13,7 +13,7 @@
 #
 
 OWNER=uucp
-GRP=daemon
+GRP=sys
 MGMT=$(ROOT)/usr/admin/menu/packagemgmt/uucpmgmt
 
 
@@ -47,7 +47,7 @@ install:
 	cp _systemprint $(MGMT)/_systemprint
 	cp _deviceprint $(MGMT)/_deviceprint
 	$(CH)-chgrp $(GRP) $(MGMT)/*
-	$(CH)-chmod 555 $(MGMT)/[a-Z]*
+	$(CH)-chmod 555 $(MGMT)/*
 	$(CH)-chown $(OWNER) $(MGMT)/*
 	$(CH)-chmod 755 $(MGMT)
 	$(CH)-chgrp $(GRP) $(MGMT)

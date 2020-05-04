@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)kern-port:fs/du/du.mk	10.5.4.3"
+#ident	"@(#)kern-port:fs/du/du.mk	10.5.4.5"
 ROOT = 
 STRIP = strip
 INC = $(ROOT)/usr/include
@@ -13,12 +13,9 @@ MKBOOT = mkboot
 MASTERD = ../../master.d
 CC=cc
 
-DASHG = 
 DASHO = -O
 DUDEBUG = YES
-PFLAGS = $(DASHG) -DINKERNEL $(MORECPP)
-#CFLAGS= $(DASHO) -Uvax -Uu3b -Uu3b15 -Du3b2 $(PFLAGS)
-CFLAGS= $(DASHO) $(PFLAGS) -DDUDEBUG=$(DUDEBUG)
+CFLAGS= $(DASHO) -DDUDEBUG=$(DUDEBUG) -DINKERNEL $(MORECPP)
 DEFLIST=
 FRC =
 
@@ -47,6 +44,7 @@ clean:
 clobber:	clean
 	-rm -f dufst DUFST
 
+FRC:
 
 #
 # Header dependencies
@@ -56,8 +54,8 @@ duiget.o: duiget.c \
 	$(INC)/sys/types.h \
 	$(INC)/sys/sysmacros.h \
 	$(INC)/sys/param.h \
-	$(INC)/sys/fstyp.h \
 	$(INC)/sys/fs/s5param.h \
+	$(INC)/sys/fstyp.h \
 	$(INC)/sys/immu.h \
 	$(INC)/sys/systm.h \
 	$(INC)/sys/sysinfo.h \
@@ -90,9 +88,8 @@ durdwri.o: durdwri.c \
 	$(INC)/sys/types.h \
 	$(INC)/sys/sysmacros.h \
 	$(INC)/sys/param.h \
-	$(INC)/sys/fstyp.h \
 	$(INC)/sys/fs/s5param.h \
-	$(INC)/sys/fs/s5macros.h \
+	$(INC)/sys/fstyp.h \
 	$(INC)/sys/fs/s5inode.h \
 	$(INC)/sys/inode.h \
 	$(INC)/sys/mount.h \
@@ -114,7 +111,7 @@ durdwri.o: durdwri.c \
 	$(INC)/sys/sysinfo.h \
 	$(INC)/sys/sema.h \
 	$(INC)/sys/comm.h \
-	$(INC)/sys/buf.h \
+	$(INC)/sys/fs/s5macros.h \
 	$(INC)/sys/rbuf.h \
 	$(FRC)
 
@@ -123,11 +120,11 @@ dusubr.o: dusubr.c \
 	$(INC)/sys/sema.h \
 	$(INC)/sys/sysmacros.h \
 	$(INC)/sys/param.h \
+	$(INC)/sys/fs/s5param.h \
 	$(INC)/sys/fstyp.h \
 	$(INC)/sys/stream.h \
 	$(INC)/sys/comm.h \
 	$(INC)/sys/nserve.h \
-	$(INC)/sys/fs/s5param.h \
 	$(INC)/sys/systm.h \
 	$(INC)/sys/file.h \
 	$(INC)/sys/fs/s5inode.h \
@@ -159,13 +156,13 @@ dusys3.o: dusys3.c \
 	$(INC)/sys/sema.h \
 	$(INC)/sys/sysmacros.h \
 	$(INC)/sys/param.h \
+	$(INC)/sys/fs/s5param.h \
 	$(INC)/sys/fstyp.h \
 	$(INC)/sys/stream.h \
 	$(INC)/sys/comm.h \
 	$(INC)/sys/nserve.h \
 	$(INC)/sys/cirmgr.h \
 	$(INC)/sys/ustat.h \
-	$(INC)/sys/fs/s5param.h \
 	$(INC)/sys/systm.h \
 	$(INC)/sys/file.h \
 	$(INC)/sys/fs/s5inode.h \

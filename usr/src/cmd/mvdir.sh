@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)mvdir:mvdir.sh	1.3"
+#ident	"@(#)mvdir:mvdir.sh	1.4"
 if [ $# != 2 ]
 then
   echo "Usage: mvdir fromdir newname" 
@@ -13,7 +13,7 @@ then
 fi
 if [ $1 = . ]
 then
-	echo "mvdir: cannot move `.'"
+	echo "mvdir: cannot move '.'"
 	exit 2
 fi
 f=`basename $1`

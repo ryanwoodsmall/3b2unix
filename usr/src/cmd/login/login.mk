@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)login:login.mk	1.6"
+#ident	"@(#)login:login.mk	1.6.1.2"
 
 ROOT =
 
@@ -14,14 +14,14 @@ INSDIR = $(ROOT)/bin
 
 INC = $(ROOT)/usr/include
 
-CONS = -DCONSOLE='"/dev/console"'
+CONS = -DCONSOLE='"/dev/console"' -DSECURITY
 CFLAGS = $(CONS) -O -I$(INC)
 
 #	Common Libraries not found in /lib or /usr/lib.
 COMLIB = 
 
 #	Common Libraries and -l<lib> flags.
-LDFLAGS = -s $(COMLIB) -lcrypt $(LDLIBS)
+LDFLAGS = -s $(COMLIB) -lcrypt -lsec $(LDLIBS)
 
 STRIP = strip
 

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:hdr/glob.h	1.4"
+#ident	"@(#)mailx:hdr/glob.h	1.4.1.1"
 /*
  * mailx -- a modified version of a University of California at Berkeley
  *	mail program
@@ -53,6 +53,7 @@ extern int	intty;			/* True if standard input a tty */
 extern int	baud;			/* Output baud rate */
 extern char	homedir[];		/* Name of home directory */
 extern char	mailname[];		/* Name of system mailbox */
+extern char	origname[];		/* Original name of mail file */
 extern int	uid;			/* The invoker's user id */
 extern char	myname[];		/* My login id */
 extern off_t	mailsize;		/* Size of system mailbox */

@@ -1,10 +1,16 @@
 /etc/chroot
 /etc/crash
 /etc/dcopy
+/etc/dcopy512
+/etc/dcopy1K
+/etc/dcopy2K
 /etc/dfsck
 /etc/ff
 /etc/fsdb
 /etc/fsdb1b
+/etc/fsdb512
+/etc/fsdb1K
+/etc/fsdb2K
 /etc/fuser
 /etc/grpck
 /etc/ldsysdump

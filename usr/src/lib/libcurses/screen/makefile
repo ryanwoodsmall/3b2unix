@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)curses:screen/makefile	1.31.1.45"
+#ident	"@(#)curses:screen/makefile	1.38"
 
 #
 # cursor package maker
@@ -111,7 +111,8 @@ CFILES2=longname.c makenew.c memSset.c meta.c mvcur.c \
 	ring.c ripoffline.c savetty.c scanw.c scr_all.c \
 	scr_dump.c scr_ll_dump.c scr_reset.c scrollok.c setcurscreen.c \
 	setcurterm.c setecho.c setkeymap.c setnonl.c setqiflush.c \
-	setsyx.c setterm.c setupterm.c slk_clear.c slk_label.c \
+	setsyx.c setterm.c setupterm.c slk_atroff.c slk_atron.c \
+	slk_atrset.c slk_clear.c slk_label.c \
 	slk_noutref.c slk_refresh.c slk_restore.c slk_set.c slk_start.c \
 	slk_touch.c subwin.c syncok.c tcsearch.c termattrs.c \
 	termcap.c termerr.c termname.c tgetch.c tgoto.c \
@@ -126,7 +127,9 @@ CFILES2=longname.c makenew.c memSset.c meta.c mvcur.c \
 	winnstr.c winsch.c winsdelln.c winsnstr.c winstr.c \
 	wmove.c wnoutref.c wprintw.c wredrawln.c wrefresh.c \
 	wscanw.c wscrl.c wsetscrreg.c wsyncdown.c wsyncup.c \
-	wtimeout.c wtouchln.c wvline.c
+	wtimeout.c wtouchln.c wvline.c \
+	can_change.c color_cont.c init_color.c init_pair.c has_colors.c \
+	pair_cont.c start_col.c 
 
 all: date $(SLIB) llib-lcurses.ln tools
  

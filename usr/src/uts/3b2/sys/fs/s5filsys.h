@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/fs/s5filsys.h	10.1"
+#ident	"@(#)kern-port:sys/fs/s5filsys.h	10.2"
 /*
  *	Structure of the super-block.
  */
@@ -38,6 +38,7 @@ struct	filsys
 
 #define Fs1b	1	/* 512 byte block */
 #define Fs2b	2	/* 1024 byte block */
+#define Fs4b	3	/* 2048 byte block */
 
 #define	FsOKAY	0x7c269d38	/* s_state: clean */
 #define	FsACTIVE	0x5e72d81a	/* s_state: active */

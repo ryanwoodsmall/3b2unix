@@ -1,4 +1,4 @@
-*#ident	"@(#)kern-port:master.d/kernel	10.25.7.5"
+*#ident	"@(#)kern-port:master.d/kernel	10.25.7.9"
 *
 * KERNEL
 *
@@ -22,7 +22,7 @@ none	 -	  -	 -	  -	 -
 						hbuf[NHBUF] (%0x10)
 						file[NFILE] (%0xC)
 						inode[NINODE] (%0x4C)
-						s5inode[NS5INODE] (%0x40)
+						s5inode[NS5INODE] (%0x44)
 						proc[NPROC] (%0xB8)
 						region[NREGION] (%0x24)
 						callout[NCALL] (%0x10)
@@ -159,7 +159,7 @@ $$$
 
 SYS ="unix"
 NODE ="unix"
-REL  = "3.1"
+REL  = "3.2"
 VER  = "2"
 
 *

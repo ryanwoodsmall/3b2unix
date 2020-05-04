@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/flushinp.c	1.4.1.5"
+#ident	"@(#)curses:screen/flushinp.c	1.6"
 
 #include	"curses_inc.h"
 

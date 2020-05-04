@@ -1,4 +1,4 @@
-#ident	"@(#)bnu.admin:adddevice	2.19"
+#ident	"@(#)bnu.admin:adddevice	2.23"
 
 # This shell is used to construct Devices file entries
 #
@@ -87,68 +87,80 @@ ${devicelist}
 
 if [ "${TYPE}" != "${defdevice}" ]
 then
-	echo "\$0 ~ /^ *${TYPE}.*TLI network.*/ { printf \"TLIS\\\\n\";exit }\n\$1 ~ /^ *${TYPE}/	{ print \$2 }" >${AWKF}
+	echo "\$0 ~ /^ *${TYPE}	TLI network.*/ { printf \"TLIS\\\\n\";exit }\n\$1 ~ /^ *${TYPE}$/ { print \$2; exit}\n\$2 ~ /${TYPE}$/ { print \$2 }" >${AWKF}
 	TYPE="`echo "${devicelist}" | awk -F\	 -f ${AWKF}`"
 	rm ${AWKF}
 fi
 
+NAME=""
+SPEED=""
+DDEV="-"
+TOKEN="\\T"
 case "$TYPE" in
-rixon | penril | hayes | ventel | att2212c | att2224 | att4000 | TLIS)
-;;
 
+rixon | penril | hayes | ventel | att2212c | att2212C | att4000)
+	NAME=ACU
+	SPEED="1200 300"
+;;
+att2224 | att2224b | att2224ceo | att2224g |\
+att4024 | att2224B | att2224CEO | att2224G )
+	NAME=ACU
+	SPEED="2400 1200 300"
+;;
+att2248a | att2248A )
+	NAME=ACU
+	SPEED="4800"
+;;
+att2296a | att2296A )
+	NAME=ACU
+	SPEED="9600 4800"
+;;
+develcon)
+	NAME="Develcon"
+	TOKEN="\\D"
+;;
+micom)
+	NAME="Micom"
+	TOKEN="\\D"
+;;
+direct)
+	NAME="Direct"
+	TOKEN="\\D"
+;;
+uudirect)
+	NAME="Direct"
+	TOKEN="\\D"
+;;
+TLIS)
+	SPEED="-"
+	TOKEN="\\D"
+;;
 *)
-SPEED=`chkyn ${flags} -efc -D1200 "
-Enter the speed at which you want to call:
-1200 300 1800 2400 4800 9600 19200 38400
-(default 1200):  "  1200 300 1800 2400 4800 9600 19200 38400`
-;;
-
 esac
 
+if [ "$SPEED" = "" ]; then
+SPEED=`chkyn ${flags} -efc -D1200 "
+Enter the speed at which you want to call:
+1200 300 1800 2400 4800 9600 19200 34800
+(default 1200):  "  1200 300 1800 2400 4800 9600 19200 34800`
+fi
 
-case "$TYPE" in
-rixon | penril | hayes | ventel | att2212c | att4000)
-LINE="ACU $DEV - 1200 $TYPE \\T
-ACU $DEV - 300 $TYPE \\T"
-;;
-
-att2224 )
-LINE="ACU $DEV - 2400 $TYPE \\T
-ACU $DEV - 1200 $TYPE \\T
-ACU $DEV - 300 $TYPE \\T"
-;;
-
-801)
+if [ "$TYPE" = "801" ]; then
 DDEV=`chkyn ${flags} -fer "Enter the 801 dialer port name (for /dev/cua0 enter cua0) [q]:  "  \
 	'^[0-9a-z]\{1,14\}$' 'Port name is 1-8 lower case letters and digits '`
+fi
 
-LINE="ACU $DEV $DDEV $SPEED $TYPE \\T"
-;;
-
-develcon)
-LINE="Develcon $DEV - $SPEED develcon \\D"
-;;
-
-micom)
-LINE="Micom $DEV - $SPEED micom \\D"
-;;
-
-direct)
-LINE="Direct $DEV - $SPEED direct \\D"
-;;
-
-TLIS)
+if [ "$NAME" = "" -a "$TYPE" = "TLIS" ]; then
 NAME=`chkyn ${flags} -ref -h'?' -H"
 This is the name of the network associated with device '${DEV}'.
 This network must conform to the AT&T Transport Interface." \
 		"
 Enter the name of the TLI network associated with device '${DEV}'.
 Network name: [?]" \
-		'[a-zA-Z].*' 'The network name must begin with a letter.'`
+		'[a-zA-Z].*' 'The network name must begin with a letter.'`,eg
+fi
 
-LINE="$NAME,eg $DEV - - TLIS \\D" ;;
-
-*)
+if [ "$NAME" = "" ]; then
 if chkyn ${flags} -f -h'?' -H" 
 If this device dials a phone number, type 'yes'.
 Otherwise, type 'no'." \
@@ -156,14 +168,21 @@ Otherwise, type 'no'." \
 Is the device type '${TYPE}' an autodialer?" 
 	
 then
-	LINE="ACU $DEV - $SPEED $TYPE \\T"
+	NAME=ACU
 else
-	LINE="$TYPE $DEV - $SPEED $TYPE \\D"
+	NAME=$TYPE
+	TOKEN="\\D"
 fi
-;;
+fi
 
-esac
-
+for i in $SPEED
+do
+if [ "$LINE" != "" ]; then
+	LINE="$LINE
+"
+fi
+LINE="$LINE$NAME $DEV $DDEV $i $TYPE $TOKEN"
+done
 
 echo "\nThis is the Device entry generated for device '$DEV':"
 cat <<! | while read a; do /bin/sh _deviceprint $a; done
@@ -201,7 +220,7 @@ then
 	continue
 else
 	chown uucp /dev/$DEV 2>/dev/null
-	chmod 644 /dev/$DEV 2>/dev/null
+	chmod 600 /dev/$DEV 2>/dev/null
 	entry=`grep "[ 	]$DEV[ 	]" $INITTAB 2>/dev/null`
 	if [ $? -ne 0 ]; then
 	echo "\nThere is no entry for $DEV in $INITTAB.

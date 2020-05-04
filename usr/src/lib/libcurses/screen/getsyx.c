@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/getsyx.c	1.6"
+#ident	"@(#)curses:screen/getsyx.c	1.7"
 #include	"curses_inc.h"
 
 /*
@@ -31,7 +31,12 @@
 _getsyx(yp, xp)
 int	*yp, *xp;
 {
-    *yp = _virtscr->_cury - SP->Yabove;
-    *xp = _virtscr->_curx;
+    if (SP->virt_scr->_leave)
+	*yp = *xp = -1;
+    else
+    {
+	*yp = _virtscr->_cury - SP->Yabove;
+	*xp = _virtscr->_curx;
+    }
     return (OK);
 }

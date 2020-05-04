@@ -5,11 +5,11 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)vmkfs:vmkfs.mk	1.2.1.1"
+#ident	"@(#)vmkfs:vmkfs.mk	1.2.1.2"
 
 ROOT =
-INCRT = $(ROOT)/usr/include
-CFLAGS = -O -I$(INCRT) -Uu3b -Uvax -Updp11 -Uu3b15 -Du3b2
+INC = $(ROOT)/usr/include
+CFLAGS = -O -I$(INC)
 LDFLAGS = -s
 INS = install
 FRC =
@@ -35,12 +35,12 @@ FRC:
 #
 
 vmkfs: vmkfs.c \
-	$(INCRT)/errno.h \
-	$(INCRT)/fcntl.h \
-	$(INCRT)/sys/errno.h \
-	$(INCRT)/sys/id.h \
-	$(INCRT)/sys/stat.h \
-	$(INCRT)/sys/sysmacros.h \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/vtoc.h \
+	$(INC)/errno.h \
+	$(INC)/fcntl.h \
+	$(INC)/sys/errno.h \
+	$(INC)/sys/id.h \
+	$(INC)/sys/stat.h \
+	$(INC)/sys/sysmacros.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/vtoc.h \
 	$(FRC)

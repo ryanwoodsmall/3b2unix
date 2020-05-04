@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/rsc.c	10.19.6.4"
+#ident	"@(#)kern-port:nudnix/rsc.c	10.19.7.1"
 
 #include "sys/types.h"
 #include "sys/sema.h"

@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)kern-port:debug/debug.mk	10.11.1.1"
+#ident	"@(#)kern-port:debug/debug.mk	10.11.1.4"
 #
 # makefile for libc/m32
 #
@@ -13,14 +13,17 @@
 
 M4=m4 m4.defs
 CC=cc
-CFLAGS=-O $(MORECPP)
+DASHO = -O
+CFLAGS= $(DASHO) $(MORECPP)
 PROF=
 DEFLIST=
 INC=$(ROOT)/usr/include
 MKBOOT = mkboot
 MASTERD = ../master.d
+FRC=
 
 OBJECTS=\
+	arg.o \
 	ctype.o \
 	data.o \
 	disasm.o \
@@ -53,6 +56,12 @@ clean:
 
 clobber: clean
 	-rm -f debug DEBUG
+
+FRC:
+
+#
+# Header dependencies
+#
 
 ctype.o: ctype.c \
 	$(INC)/sys/ctype.h \
@@ -91,29 +100,30 @@ prtabs.o: prtabs.c \
 	$(INC)/sys/inline.h \
 	$(FRC)
 
-trace.o: trace.c \
-	$(INC)/sys/types.h \
-	$(INC)/sys/param.h \
-	$(INC)/sys/fs/s5param.h \
-	$(INC)/sys/fs/s5dir.h \
-	$(INC)/sys/immu.h \
-	$(INC)/sys/region.h \
-	$(INC)/sys/proc.h \
-	$(INC)/sys/signal.h \
-	$(INC)/sys/psw.h \
-	$(INC)/sys/pcb.h \
-	$(INC)/sys/user.h \
-	$(INC)/sys/cmn_err.h \
-	$(INC)/sys/sys3b.h \
-	$(INC)/sys/inline.h \
-	$(FRC)
-
 sprintf.o: sprintf.s \
 	$(FRC)
 
 tables.o: tables.c \
 	$(INC)/sys/types.h \
 	$(INC)/sys/disasm.h \
+	$(FRC)
+
+trace.o: trace.c \
+	$(INC)/sys/types.h \
+	$(INC)/sys/param.h \
+	$(INC)/sys/fs/s5param.h \
+	$(INC)/sys/immu.h \
+	$(INC)/sys/region.h \
+	$(INC)/sys/proc.h \
+	$(INC)/sys/signal.h \
+	$(INC)/sys/fs/s5dir.h \
+	$(INC)/sys/psw.h \
+	$(INC)/sys/pcb.h \
+	$(INC)/sys/user.h \
+	$(INC)/sys/cmn_err.h \
+	$(INC)/sys/sys3b.h \
+	$(INC)/sys/inline.h \
+	$(INC)/sys/var.h \
 	$(FRC)
 
 utils.o: utils.c \

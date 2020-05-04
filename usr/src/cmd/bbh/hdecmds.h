@@ -5,13 +5,14 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)bbh:hdecmds.h	1.3"
+#ident	"@(#)bbh:hdecmds.h	1.4"
 
 /* exit codes */
 #define NORMEXIT	0
 #define INVEXIT		1	/* invalid command invocation */
 #define ERREXIT		1	/* or fatal error incurred */
 #define BADBEXIT	2	/* bad block reports found in log(s) */
+#define	REBOOTEXIT	3	/* -n option; reboot should be performed */
 
 #define HDEDLVAL	0x4a11badb
 #define HDEDLVER	1

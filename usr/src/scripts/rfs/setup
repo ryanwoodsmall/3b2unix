@@ -1,4 +1,4 @@
-#ident	"@(#)pkg.rfs:rfs/setup	1.10.1.1"
+#ident	"@(#)pkg.rfs:rfs/setup	1.10.3.1"
 # Install RFS "drivers"
 #
 DRVPATH=/boot
@@ -87,3 +87,31 @@ for n in `$NLS -x | sed 's/	.*$//'`
 do
 	$NLS -a 105 -c"/usr/net/servers/rfs/rfsetup" -y"RFS server" $n >/dev/null 2>&1
 done
+
+# set up cron entry for rmnttry polling
+CRONDIR=/usr/spool/cron/crontabs
+CRONTAB=/usr/spool/cron/crontabs/root
+TEMPCRON=/usr/tmp/cron.$$
+
+POLL='10,25,40,55 * * * * /usr/nserve/rmnttry >/dev/null'
+
+if [ -d $CRONDIR ]; then
+	if [ ! -f $CRONTAB ]; then
+		> $CRONTAB
+		chown root $CRONTAB 2>/dev/null
+		chmod 644 $CRONTAB 2>/dev/null
+	fi
+else
+	echo "** WARNING **  ${PKGNAME} cannot install crontab entry"
+	echo "Daemon will not be running when installation is finished"
+fi
+
+if [ -f $CRONTAB ]; then
+	if grep "rmnttry" $CRONTAB >/dev/null 2>&1 ; then :
+	else
+		crontab -l >$TEMPCRON 2>/dev/null
+		echo "$POLL" >> $TEMPCRON
+		crontab $TEMPCRON 2>/dev/null
+		/bin/rm -f $TEMPCRON
+	fi
+fi

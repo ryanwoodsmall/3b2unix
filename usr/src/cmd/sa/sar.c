@@ -5,8 +5,8 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sa:sar.c	1.28"
-/*	sar.c 1.28 of 6/26/86	*/
+#ident	"@(#)sa:sar.c	1.33"
+/*	sar.c 1.33 of 1/21/88	*/
 /*
 	sar.c - It generates a report either
 		from an input data file or
@@ -51,7 +51,7 @@ int recsz,tblmap[10];	/*tblmap is a kludge for the 370 - not really used */
 #endif
 int	j,i;
 int	tabflg;
-char	options[15],fopt[15];
+char	options[16],fopt[16];
 char	cc;
 float	tdiff;
 float	stime, etime, isec;
@@ -74,6 +74,7 @@ int	argc;
 	float	convtm();
 	long	lseek();
 	extern time_t time();
+	int k;
 
 /*      process options with arguments and pack options 
 	without arguments  */
@@ -125,6 +126,10 @@ int	argc;
 			fprintf(stderr,"       sar [-ubdycwaqvmprACDS][-s hh:mm][-e hh:mm][-i ss][-f file]\n");
 			exit(2);
 			break;
+		case 'u':
+			strncat (options,&ccc,1);
+			strncat (options,"U",1);
+			break;
 		default:
 			strncat (options,&ccc,1);
 			break;
@@ -163,16 +168,17 @@ int	argc;
 
 	/*	"u" is default option to display cpu utilization   */
 	if(strlen(options) == 0)
-		strcpy(options, "u");
+		strcpy(options, "uU");
 	/*    'A' means all data options   */
+
 	if(strchr(options, 'A') != NULL) {
-		strcpy(options, "udqbwcayvmprCS");
+		strcpy(options, "uUdqbwcayvmprCS");
 		dflg++;
 	}
 	else if ( (dflg)
-	     && (strchr(options,'u') == NULL)
+	     && (strchr(options,"uU") == NULL)
 	     && (strchr(options,'b') == NULL)
-	     && (strchr(options,'c') == NULL) ) strcat(options,"u");
+	     && (strchr(options,'c') == NULL) ) strcat(options,"uU");
 
 	if(realtime) {
 	/*	Get input data from sadc via pipe   */
@@ -342,7 +348,14 @@ prthdg()
 	char	ccc;
 
 	printf("\n");
+	/* Stop prttim for opt U if not utilized */
+	if(fopt[jj] == 'U') {
+		if(nx.bpb_utilize)
+			prttim();
+	}
+	else {
 	prttim();
+	}
 	while((ccc = fopt[jj++]) != NULL)
 	switch(ccc){
 	case 'u':
@@ -375,6 +388,17 @@ prthdg()
 				"%tss",
 				"%idle");
 #endif
+		break;
+	case 'U':
+		if(!nx.bpb_utilize) 
+			break;
+		tsttab();
+		printf(" %7s %7s %7s %7s %7s\n",
+			"%co-usr",
+			"%co-sys",
+			"",
+			"%co-idle",
+			"scall/s");
 		break;
 	case 'y':
 		tsttab();
@@ -559,7 +583,14 @@ prtopt()
 	char	ccc;
 
 	if(strcmp(fopt, "d") == 0)   printf("\n");
+	/* Stop prttim for opt U if not utilized */
+	if(fopt[jj] == 'U'){
+		if(nx.bpb_utilize)
+			prttim();
+	}
+	else {
 	prttim();
+	}
 #ifndef u370
 	for(ii=0;ii<4;ii++)
 		ax.si.cpu[ii] += nx.si.cpu[ii] - ox.si.cpu[ii];
@@ -612,6 +643,7 @@ prtopt()
 		(float)(nx.si.cpu[2] - ox.si.cpu[2])/tdiff * 100.0,
 		(float)(nx.si.cpu[3] - ox.si.cpu[3])/tdiff * 100.0,
 		(float)(nx.si.cpu[0] - ox.si.cpu[0])/tdiff * 100.0);
+
 #endif
 #ifdef u370
 		printf(" %7.0f %7.0f %7.0f %7.0f\n",
@@ -632,6 +664,25 @@ prtopt()
 		ax.vmtm += nx.vmtm - ox.vmtm;
 #endif
 
+		break;
+	case 'U':
+		if (nx.bpb_utilize) {
+			for (i=0; i<nx.bpb_utilize; i++) {
+				tsttab();
+				printf(" %7.0f %7.0f %7s %7.0f %7.0f\n",
+				(float)(nx.bi[i].usr - ox.bi[i].usr)/tdiff * 100.0,
+				(float)(nx.bi[i].sys - ox.bi[i].sys)/tdiff * 100.0,
+				"",
+				(float)(nx.bi[i].idle - ox.bi[i].idle)/tdiff * 100.0,
+				(float)(nx.bi[i].syscall - ox.bi[i].syscall)/tdiff * HZ);
+	
+				ax.bi[i].usr += nx.bi[i].usr - ox.bi[i].usr;
+				ax.bi[i].sys += nx.bi[i].sys - ox.bi[i].sys;
+				ax.bi[i].idle += nx.bi[i].idle - ox.bi[i].idle;
+				ax.bi[i].syscall += nx.bi[i].syscall - ox.bi[i].syscall;
+			}
+		
+		}
 		break;
 	case 'y':
 		tsttab();
@@ -670,11 +721,13 @@ prtopt()
 			printf("\n   local  %4.0f %7.0f %7.0f %7.0f %7.0f %7.0f %7.0f %7.0f\n",
 				(float)(nx.si.bread - ox.si.bread)/tdiff * HZ,
 				(float)(nx.si.lread - ox.si.lread)/tdiff * HZ,
+				((nx.si.lread - ox.si.lread) <= 0) ? 100 :
 				(((float)(nx.si.lread - ox.si.lread) -
 				  (float)(nx.si.bread - ox.si.bread))/
 				  (float)(nx.si.lread - ox.si.lread) * 100.0),
 				(float)(nx.si.bwrite - ox.si.bwrite)/tdiff * HZ,
 				(float)(nx.si.lwrite - ox.si.lwrite)/tdiff * HZ,
+				((nx.si.lwrite - ox.si.lwrite) <= 0) ? 100 :
 				(((float)(nx.si.lwrite - ox.si.lwrite) -
 				  (float)(nx.si.bwrite - ox.si.bwrite))/
 				  (float)(nx.si.lwrite - ox.si.lwrite) * 100.0),
@@ -710,11 +763,13 @@ prtopt()
 		printf(" %7.0f %7.0f %7.0f %7.0f %7.0f %7.0f %7.0f %7.0f\n",
 			(float)(nx.si.bread - ox.si.bread)/tdiff * HZ,
 			(float)(nx.si.lread - ox.si.lread)/tdiff * HZ,
+			((nx.si.lread - ox.si.lread) <= 0) ? 100 :
 			(((float)(nx.si.lread - ox.si.lread) -
 			  (float)(nx.si.bread - ox.si.bread))/
 			  (float)(nx.si.lread - ox.si.lread) * 100.0),
 			(float)(nx.si.bwrite - ox.si.bwrite)/tdiff * HZ,
 			(float)(nx.si.lwrite - ox.si.lwrite)/tdiff * HZ,
+			((nx.si.lwrite - ox.si.lwrite) <= 0) ? 100 :
 			(((float)(nx.si.lwrite - ox.si.lwrite) -
 			  (float)(nx.si.bwrite - ox.si.bwrite))/
 			  (float)(nx.si.lwrite - ox.si.lwrite) * 100.0),
@@ -758,7 +813,7 @@ prtopt()
 		}
 #endif /* u3b15 */
 #ifdef	u3b2
-		else if ( j == SD00 ){
+		else if ( j == SD00 || j == SD01){
 			printf(" %4s%-3d", devnm[j], nx.devio[ii][4]);
 			hz = 1000;
 		}
@@ -1133,6 +1188,7 @@ prtavg()
 				(float)(ax.di.serve)/tdiff * 100.0,
 				(float)ax.si.cpu[3]/tdiff * 100.0,
 				(float)ax.si.cpu[0]/tdiff * 100.0);
+
 		break;
 		}
 		if(nx.apstate)
@@ -1147,6 +1203,8 @@ prtavg()
 			(float)ax.si.cpu[2]/tdiff * 100.0,
 			(float)ax.si.cpu[3]/tdiff * 100.0,
 			(float)ax.si.cpu[0]/tdiff * 100.0);
+	
+ 
 #endif
 #ifdef u370
 		printf("Average  %7.0f %7.0f %7.0f %7.0f\n",
@@ -1156,6 +1214,20 @@ prtavg()
 				((ax.tmelps)  * (double) ax.nap) * 100.0,
 			(float) (ax.idletm)/(ax.tmelps * (double)nx.nap) * 100.0);
 #endif
+		break;
+	case 'U':
+		if (nx.bpb_utilize) {
+			printf("Average\n");
+			for (i=0; i<nx.bpb_utilize; i++) {
+				tsttab();
+				printf(" %7.0f %7.0f %7s %7.0f %7.0f\n",
+				(float)ax.bi[i].usr/tdiff * 100.0,
+				(float)ax.bi[i].sys/tdiff * 100.0,
+				"",
+				(float)ax.bi[i].idle/tdiff * 100.0,
+				(float)ax.bi[i].syscall/tdiff * HZ);
+			}
+		}
 		break;
 	case 'y':
 #ifndef u370
@@ -1244,7 +1316,7 @@ prtavg()
 				}
 #endif /* u3b15 */
 #ifdef	u3b2
-				else if ( j == SD00 ){
+				else if ( j == SD00 || j == SD01){
 					printf(" %4s%-3d", devnm[j], nx.devio[ii][4]);
 					hz = 1000;
 				}

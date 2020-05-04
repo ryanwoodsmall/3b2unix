@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/sys3.c	10.13.2.2"
+#ident	"@(#)kern-port:os/sys3.c	10.13.2.3"
 #include "sys/types.h"
 #include "sys/sysmacros.h"
 #include "sys/param.h"
@@ -459,7 +459,7 @@ sumount()
 
 	u.u_error = EINVAL;
 	iput(bip);
-	goto out;
+	return;
 
 found:
 	iput(bip);

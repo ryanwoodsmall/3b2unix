@@ -1,4 +1,4 @@
-!#ident	"@(#)curses:screen/curses.ed	1.31"
+!#ident	"@(#)curses:screen/curses.ed	1.33"
 e keycaps
 H
 g/.*KEY_/s//KEY_/
@@ -181,7 +181,7 @@ struct _win_st
 
 /* common external variables */
 
-extern	int	LINES, COLS, TABSIZE;
+extern	int	LINES, COLS, TABSIZE, COLORS, COLOR_PAIRS;
 
 extern	short	curs_errno;
 
@@ -335,7 +335,7 @@ extern	void	bkgdset(), timeout();
 #define	attron(at)	wattron(stdscr,at)
 #define	attrset(at)	wattrset(stdscr,at)
 #define	bkgd(c)		wbkgd(stdscr,c)
-#define	border(lc,rc,tc,bc)	wborder(stdscr,lc,rc,tc,bc)
+#define	border(ls, rs, ts, bs, tl, tr, bl, br)	wborder(stdscr, ls, rs, ts, bs, tl, tr, bl, br)	
 #define	clear()		wclear(stdscr)
 #define	clrtobot()	wclrtobot(stdscr)
 #define	clrtoeol()	wclrtoeol(stdscr)
@@ -383,19 +383,6 @@ extern	void	bkgdset(), timeout();
 				     ((line) < 0)) ? ERR : \
 				    (((win)->_firstch[(line)] == _INFINITY) ? \
 								  FALSE : TRUE))
-#endif	/* PERFORMANCE */
-
-/* functions for handling video attributes */
-
-#ifdef	PERFORMANCE
-#if	defined(_VR3_COMPAT_CODE)
-#undef	wattroff
-#undef	wattron
-#undef	wattrset
-#endif	/* _VR3_COMPAT_CODE */
-#define wattroff(w,a)	((w)->_attrs &= ((~(a) | (w)->_bkgd) & A_ATTRIBUTES))
-#define wattron(w,a)	((w)->_attrs |= ((a) & A_ATTRIBUTES))
-#define wattrset(w,a)	((w)->_attrs = ((a) | (w)->_bkgd) & A_ATTRIBUTES)
 #endif	/* PERFORMANCE */
 
 /* functions for move and update */
@@ -505,6 +492,10 @@ extern	void	bkgdset(), timeout();
 /* functions for setting time-out length on inputs */
 #ifdef	PERFORMANCE
 #define wtimeout(win,tm)	((win)->_delay = (tm))
+
+/* functions for accessing selected TERMINAL fields	*/
+#define	can_change_color()	can_change
+#define has_colors()		((max_pairs == -1) ? FALSE : TRUE)
 #endif	/* PERFORMANCE */
 
 #define set_term		setcurscreen
@@ -596,12 +587,25 @@ $a
 #define A_NORMAL	000000000000L
 #define A_ATTRIBUTES	037777600000L	/* 0xFFFF0000 */
 #define A_CHARTEXT	000000177777L	/* 0x0000FFFF */
+#define A_COLOR		017600000000L
 
+#define COLOR_PAIR(n)	((n) << 25)
+#define PAIR_NUMBER(n)	(((n) & A_COLOR) >> 25)
+
+/* definition of 8 basic color	*/
+#define COLOR_BLACK	0
+#define COLOR_BLUE	1
+#define COLOR_GREEN	2
+#define COLOR_CYAN	3
+#define COLOR_RED	4
+#define COLOR_MAGENTA	5
+#define COLOR_YELLOW	6
+#define COLOR_WHITE	7
 #endif /* CURSES_H */
 .
 0r copyright.h
 /screen\/copyright\.h/d
 1i
-#ident	"@(#)curses:screen/curses.ed	1.31"
+#ident	"@(#)curses:screen/curses.ed	1.33"
 .
 w curses.h

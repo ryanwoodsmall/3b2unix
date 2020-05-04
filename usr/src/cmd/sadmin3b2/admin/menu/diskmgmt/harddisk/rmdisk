@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin3b2:admin/menu/diskmgmt/harddisk/rmdisk	1.7"
+#ident	"@(#)sadmin3b2:admin/menu/diskmgmt/harddisk/rmdisk	1.9"
 #menu# remove a hard disk
 #help# 
 #help#	Remove one or more hard disks from the system configuration. They
@@ -141,8 +141,13 @@ cp /tmp/$$.keep /etc/fstab
 eval rm /dev/dsk/${dskname}? /dev/SA/${bdrive} \
 	/dev/rdsk/${dskname}? /dev/rSA/${bdrive}
 
-echo "
-The ${ndrive} (hardware slot ${slot} drive ${drv}) has been
-removed from the configuration."
+if [ -n "${havet}" ] #if SCSI disks
+then
+	echo "\nThe ${ndrive} (hardware slot ${slot}, target controller"
+	echo "${tc}, drive ${drv}) has been removed from the configuration."
+else
+	echo "\nThe ${ndrive} (hardware slot ${slot} drive ${drv}) has been"
+	echo "removed from the configuration."
+fi
 
 exec sh ${myname} ${args}

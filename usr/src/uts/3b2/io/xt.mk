@@ -5,14 +5,16 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)kern-port:io/xt.mk	10.8.1.1"
+#ident	"@(#)kern-port:io/xt.mk	10.8.2.3"
 ROOT =
 STRIP= strip
 DBO = -DDBO
-MAKE = make "AS=$(AS)" "CC=$(CC)" "LD=$(LD)"
+MAKE = make
+MAKE = $(MAKE) "AS=$(AS)" "CC=$(CC)" "LD=$(LD)"
 INC = $(ROOT)/usr/include
 NOFLEX = -Wp,-T -W0,-XT
-CFLAGS = -I$(INC) -Uvax -Uu3b -Uu3b15 -Du3b2 -DINKERNEL -Updp11 $(DBO)
+DASHO = -O
+CFLAGS = $(DASHO) -I$(INC) -Uvax -Uu3b -Uu3b15 -Du3b2 -DINKERNEL -Updp11 $(DBO)
 FRC =
 
 DFILES =\
@@ -40,7 +42,8 @@ FRC:
 # Header dependencies
 #
 
-xt.o: \
+xt.o: xt.c \
+	$(INC)/sys/sccsid.h \
 	$(INC)/sys/param.h \
 	$(INC)/sys/fs/s5param.h \
 	$(INC)/sys/types.h \

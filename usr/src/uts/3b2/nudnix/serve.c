@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/serve.c	10.45.10.13"
+#ident	"@(#)kern-port:nudnix/serve.c	10.45.10.18"
 /*
  *	JAMES - remote file server for unix
  *
@@ -51,6 +51,8 @@
 #include "sys/recover.h"
 #include "sys/buf.h"
 #include "sys/rbuf.h"
+#include "sys/hetero.h"
+#include "sys/statfs.h"
 
 #define TERMSIG	(1L << (SIGTERM-1))
 #define USR1SIG	(1L << (SIGUSR1-1))
@@ -393,7 +395,15 @@ serve ()
 			chkrsig ();
 			if (!u.u_error) {
 			 	register struct inode *ip;
+
 				ip = (u.u_ofile[0])->f_inode;
+				/* don't allow streams devices */
+				if ((ip->i_ftype == IFCHR) && (ip->i_sptr != NULL)) {
+						closef(u.u_ofile[0]);
+						u.u_error = ENOSTR;
+						break;
+				}
+
 				if(gift = make_gift(ip, FILE_QSIZE, sdp)) {
 					srmount[u.u_mntindx].sr_refcnt++;
 					unfalloc (u.u_ofile[0]);
@@ -446,60 +456,8 @@ serve ()
 			break;
 		}
 		case DUFCNTL:
-		{
-			int cmd, arg, flag, offset;
-			register struct inode *ip;
-			struct request stkmsg;
-
-			queue = setrsig (msig, queue);
-			ip = queue->rd_inode;
-			cmd = msg_in->rq_cmd;
-			arg = msg_in->rq_fcntl;
-			flag = msg_in->rq_fflag;
-			offset = msg_in->rq_foffset;
-			if ( !FS_ACCESS(ip,IMNDLCK) && msig->m_stat & VER1 
-					&& !(msg_in->rq_flags & RQ_MNDLCK)
-					&& cmd == F_FREESP) {
-				mand_chg = 1;
-				break;
-			}
-			if (flag & FRCACH) {	/* is lock cached */
-				switch (cmd) {
-				case F_GETLK:
-				case F_SETLK:
-				case F_SETLKW:
-				case F_CHKFL:
-				case F_FREESP:
-					if (msg_in->rq_prewrite > 0){
-						stkmsg.rq_prewrite = msg_in->rq_prewrite;
-						stkmsg.rq_sofar = 0;
-						bcopy ( msg_in->rq_data, stkmsg.rq_data, msg_in->rq_prewrite);
-						freemsg(bp);
-						u.u_gift->sd_temp = NULL;
-						u.u_copybp = (mblk_t  *)&stkmsg;
-					}
-					break;
-				}
-				flag &= ~FRCACH;
-			}
-			else {
-				freemsg(bp);
-				u.u_gift->sd_temp = NULL;
-			}	
-			if(setjmp(u.u_qsav)) 
-				u.u_error = EINTR;
-			else if (cmd == F_SETFL)
-				FS_FCNTL(ip, F_CHKFL, arg, flag, offset);
-			else if (cmd == F_FREESP) {
-				plock(ip);
-				FREESP(ip, arg, flag, offset);
-				prele(ip);
-			} else
-				FS_FCNTL(ip, cmd, arg, flag, offset); 
-			chkrsig ();
-			ret_val = cmd;
+			ret_val = rfs_fcntl(bp, msig, msg_in, queue, &mand_chg);
 			break;
-		}
 		case DUFSTAT:
 		{
 			long lrq_bufptr;
@@ -611,8 +569,11 @@ serve ()
 
 			u.u_arg[0] = (int) msg_in->rq_data;
 			set_dir (msg_in, queue);
-			if ((tmp = msg_in->rq_link) != 0) 
+			if ((tmp = msg_in->rq_link) != 0) {
 				ip = rcvd[tmp].rd_inode;
+				if (ip->i_ftype == IFDIR && !suser())
+					break;
+			}
 			else
 				ip = NULL;
 			nmarg.cmd = NI_LINK;
@@ -652,7 +613,15 @@ serve ()
 			chkrsig ();
 			if (!u.u_error) {
 				register struct inode *ip;
+
 				ip = (u.u_ofile[0])->f_inode;
+				/* don't allow a remote streams device */
+				if ((ip->i_ftype == IFCHR) && (ip->i_sptr != NULL)) {
+						closef(u.u_ofile[0]);
+						u.u_error = ENOSTR;
+						break;
+				}
+
 				if(gift = make_gift (ip, FILE_QSIZE, sdp)) {
 					srmount[u.u_mntindx].sr_refcnt++;
 					unfalloc (u.u_ofile[0]);
@@ -836,7 +805,7 @@ serve ()
 		case DUSTATFS:
 			u.u_arg[0] = (int) msg_in->rq_data;
 			u.u_arg[1] = msg_in->rq_bufptr;
-			u.u_arg[2] = msg_in->rq_len;
+			u.u_arg[2] = sizeof (struct statfs);
 			u.u_arg[3] = msg_in->rq_fstyp;
 			set_dir(msg_in, queue);
 			statfs();
@@ -860,6 +829,9 @@ serve ()
 					u.u_error = EFAULT;
 					break;
 				} else {
+					if (gdpp->hetero != NO_CONV) {
+						fcanon("ll", (char *)stv, (char *)stv);
+					}
 					stv[0] -= GDP(qp)->time;
 					stv[1] -= GDP(qp)->time;
 					u.u_arg[1] = (int) stv;
@@ -898,135 +870,11 @@ serve ()
 		}
 
 		case DUWRITE:
-		{
-			int offset, rqoffset;
-			register int type;
-			register struct inode *ip;
-			struct request stkmsg;
-			/*******WARNING***********	
-			  If you get the urge to remove stkmsg, think twice.
-			  It is placed here to allow early streams buf. release.
-			  The stkmsg is sizeof struct request + DATASIZE large 
-			  This variable is being placed on the stack
-			  within the scope of this case statement. 
-			  For future development Care
-			  should be taken that call is NOT made to any other
-			  functions with large stack vasriables.  Also
-			  If datasize should increase to a much larger value
-			  4k, then you might blow your stack.
-			 */
-
-			dinfo.isyswrite++;	/* incoming write's */
-			sysinfo.syswrite++;
-			queue = setrsig (msig, queue);
-			ip = queue->rd_inode;
-			type = ip->i_ftype;
-			u.u_base = (caddr_t) msg_in->rq_base;
-			u.u_count = msg_in->rq_count;
-			u.u_fmode = msg_in->rq_fmode;
-			rqoffset = msg_in->rq_offset;
-			if ( !FS_ACCESS(ip,IMNDLCK) && msig->m_stat & VER1 
-					&& !(msg_in->rq_flags & RQ_MNDLCK)) {
-				mand_chg = 1;
-				break;
-			}
-			if (type == IFCHR || ip->i_flag & ILOCK ||
-			    (queue->rd_user_list->ru_next !=NULL &&
-			     type == IFREG && rcacheinit)
-			     && msg_in->rq_prewrite > 0){
-				stkmsg.rq_prewrite = msg_in->rq_prewrite;
-				stkmsg.rq_sofar = 0;
-				bcopy ( msg_in->rq_data, stkmsg.rq_data, msg_in->rq_prewrite);
-				freemsg(bp);
-				u.u_gift->sd_temp = NULL;
-				u.u_copybp = (mblk_t *)&stkmsg;
-			}
-			else if (msg_in->rq_prewrite > 0) {
-				msg_in->rq_sofar = 0;
-				u.u_copybp = (mblk_t *)msg_in;
-			}
-			if (type == IFREG || type == IFDIR || type== IFIFO){
-				plock (ip);
-			} 
-			if(u.u_fmode & FAPPEND) {
-				u.u_offset = ip->i_size;
-				offset = u.u_offset;
-			} else
-				u.u_offset = rqoffset;
-			u.u_segflg = 0;
-			ocount = u.u_count;
-			if(setjmp(u.u_qsav)) 
-				u.u_error = EINTR;
-			else {
-				WRITEI(ip);
-				if (type == IFREG || type == IFDIR || type== IFIFO)
-					prele (ip);
-			}
-			/* free before allocating another */
-			if (u.u_gift->sd_temp) {  /* safety valve */
-				freemsg((mblk_t *)u.u_gift->sd_temp);
-				u.u_gift->sd_temp = NULL;
-				u.u_copybp = NULL;
-			}
-			if(!u.u_copymsg) {
-				while ((nbp = alocbuf(sizeof (struct response)-DATASIZE, BPRI_MED)) == NULL);
-				u.u_copymsg = (struct response *)PTOMSG(nbp->b_rptr);
-				u.u_copymsg->rp_type = RESP_MSG;
-				u.u_msgend = u.u_copymsg->rp_data;
-				u.u_copymsg->rp_bp = (long)nbp;
-			}
-			if (u.u_fmode & FAPPEND)
-				u.u_copymsg->rp_isize = offset;
-			else
-				u.u_copymsg->rp_isize = ip->i_size;
-			srmount[u.u_mntindx].sr_bcount += (ocount - u.u_count)/1024;
-			ret_val = u.u_count;
-			dinfo.iwritech += ocount - u.u_count;	/* incoming ch's written */
-			sysinfo.writech += ocount - u.u_count;
-			chkrsig ();
+			ret_val = rfs_write(bp, msig, msg_in, queue, &mand_chg);
 			break;
-		}
 		case DUWRITEI:
-		{	
-			register struct inode *ip;
-			struct request stkmsg;
-			dinfo.isyscall--;
-			sysinfo.syscall--;
-			u.u_base = (caddr_t) msg_in->rq_base;
-			u.u_count = msg_in->rq_count;
-			u.u_fmode = msg_in->rq_fmode;
-			ip = queue->rd_inode;
-			if ( !FS_ACCESS(ip,IMNDLCK) && msig->m_stat & VER1 
-					&& !(msg_in->rq_flags & RQ_MNDLCK)) {
-				mand_chg = 1;
-				break;
-			}
-			if ((u.u_offset = msg_in->rq_offset) < 0)
-				u.u_offset = queue->rd_inode->i_size;
-			u.u_segflg = 0;
-			ocount = u.u_count;
-			if (ip->i_ftype == IFCHR || ip->i_flag & ILOCK ||
-			    (queue->rd_user_list->ru_next !=NULL &&
-			     ip->i_ftype == IFREG && rcacheinit)
-			     && msg_in->rq_prewrite > 0){
-				stkmsg.rq_prewrite = msg_in->rq_prewrite;
-				stkmsg.rq_sofar = 0;
-				bcopy ( msg_in->rq_data, stkmsg.rq_data, msg_in->rq_prewrite);
-				freemsg(bp);
-				u.u_gift->sd_temp = NULL;
-				u.u_copybp = (mblk_t *)&stkmsg;
-			}
-			else if (msg_in->rq_prewrite > 0) {
-				msg_in->rq_sofar = 0;
-				u.u_copybp = (mblk_t *)msg_in;
-			}
-			plock(ip);
-			WRITEI(ip);
-			prele(ip);
-			srmount[u.u_mntindx].sr_bcount += (ocount - u.u_count)/1024;
-			ret_val = u.u_count;
+			ret_val=rfs_writei(bp, msig, msg_in, queue, &mand_chg);
 			break;
-		}
 		default:
 		   	DUPRINT2(DB_SERVE, "Server: Illegal msg %x\n", 
 				u.u_syscall);
@@ -1436,4 +1284,208 @@ queue_t *qp;
 	statbuf->st_atime += gdp_time;
 	statbuf->st_ctime += gdp_time;
 	statbuf->st_mtime += gdp_time;
+}
+
+/* This is the rfs_fcntl routine called from the DUFCNTL case statement of 
+ * serve.
+ */
+int
+rfs_fcntl(bp, msig, msg_in, queue, mand_chgp)
+mblk_t *bp;
+struct message *msig;
+struct request *msg_in;
+rcvd_t queue;
+int *mand_chgp;
+{
+	int cmd, arg, flag, offset;
+	register struct inode *ip;
+	struct request stkmsg;
+
+	queue = setrsig (msig, queue);
+	ip = queue->rd_inode;
+	cmd = msg_in->rq_cmd;
+	arg = msg_in->rq_fcntl;
+	flag = msg_in->rq_fflag;
+	offset = msg_in->rq_foffset;
+
+	if ( !FS_ACCESS(ip,IMNDLCK) && msig->m_stat & VER1 
+			&& !(msg_in->rq_flags & RQ_MNDLCK)
+			&& cmd == F_FREESP) {
+		*mand_chgp = 1;
+		return (0);;
+	}
+	if (flag & FRCACH) {	/* is lock cached */
+		switch (cmd) {
+		case F_GETLK:
+		case F_SETLK:
+		case F_SETLKW:
+		case F_CHKFL:
+		case F_FREESP:
+			if (msg_in->rq_prewrite > 0){
+				stkmsg.rq_prewrite = msg_in->rq_prewrite;
+				stkmsg.rq_sofar = 0;
+				bcopy ( msg_in->rq_data, stkmsg.rq_data, msg_in->rq_prewrite);
+				freemsg(bp);
+				u.u_gift->sd_temp = NULL;
+				u.u_copybp = (mblk_t  *)&stkmsg;
+			}
+			break;
+		}
+		flag &= ~FRCACH;
+	}
+	else {
+		freemsg(bp);
+		u.u_gift->sd_temp = NULL;
+	}	
+	if(setjmp(u.u_qsav)) 
+		u.u_error = EINTR;
+	else if (cmd == F_SETFL)
+		FS_FCNTL(ip, F_CHKFL, arg, flag, offset);
+	else if (cmd == F_FREESP) {
+		plock(ip);
+		FREESP(ip, arg, flag, offset);
+		prele(ip);
+	} else
+		FS_FCNTL(ip, cmd, arg, flag, offset); 
+	chkrsig ();
+	return(cmd);
+}
+
+/* The rfs_write function is called from the DUWRITE case statement of 
+ * serve.c .  
+ */
+int
+rfs_write(bp, msig, msg_in, queue, mand_chgp)
+mblk_t *bp;
+struct message *msig;
+struct request *msg_in;
+rcvd_t queue;
+int *mand_chgp;
+{
+	int offset, rqoffset;
+	int ocount;
+	register int type;
+	register struct inode *ip;
+	mblk_t *nbp;
+	struct request stkmsg;
+
+	dinfo.isyswrite++;	/* incoming write's */
+	sysinfo.syswrite++;
+	queue = setrsig (msig, queue);
+	ip = queue->rd_inode;
+	type = ip->i_ftype;
+	u.u_base = (caddr_t) msg_in->rq_base;
+	u.u_count = msg_in->rq_count;
+	u.u_fmode = msg_in->rq_fmode;
+	rqoffset = msg_in->rq_offset;
+	if ( !FS_ACCESS(ip,IMNDLCK) && msig->m_stat & VER1 
+			&& !(msg_in->rq_flags & RQ_MNDLCK)) {
+		*mand_chgp = 1;
+		return(0);
+	}
+	if (type == IFCHR || ip->i_flag & ILOCK ||
+	    (queue->rd_user_list->ru_next !=NULL &&
+	     type == IFREG && rcacheinit)
+	     && msg_in->rq_prewrite > 0){
+		stkmsg.rq_prewrite = msg_in->rq_prewrite;
+		stkmsg.rq_sofar = 0;
+		bcopy ( msg_in->rq_data, stkmsg.rq_data, msg_in->rq_prewrite);
+		freemsg(bp);
+		u.u_gift->sd_temp = NULL;
+		u.u_copybp = (mblk_t *)&stkmsg;
+	}
+	else if (msg_in->rq_prewrite > 0) {
+		msg_in->rq_sofar = 0;
+		u.u_copybp = (mblk_t *)msg_in;
+	}
+	if (type == IFREG || type == IFDIR || type== IFIFO){
+		plock (ip);
+	} 
+	if(u.u_fmode & FAPPEND) {
+		u.u_offset = ip->i_size;
+		offset = u.u_offset;
+	} else
+		u.u_offset = rqoffset;
+	u.u_segflg = 0;
+	ocount = u.u_count;
+	if(setjmp(u.u_qsav)) 
+		u.u_error = EINTR;
+	else {
+		WRITEI(ip);
+		if (type == IFREG || type == IFDIR || type== IFIFO)
+			prele (ip);
+	}
+	/* free before allocating another */
+	if (u.u_gift->sd_temp) {  /* safety valve */
+		freemsg((mblk_t *)u.u_gift->sd_temp);
+		u.u_gift->sd_temp = NULL;
+		u.u_copybp = NULL;
+	}
+	if(!u.u_copymsg) {
+		while ((nbp = alocbuf(sizeof (struct response)-DATASIZE, BPRI_MED)) == NULL);
+		u.u_copymsg = (struct response *)PTOMSG(nbp->b_rptr);
+		u.u_copymsg->rp_type = RESP_MSG;
+		u.u_msgend = u.u_copymsg->rp_data;
+		u.u_copymsg->rp_bp = (long)nbp;
+	}
+	if (u.u_fmode & FAPPEND)
+		u.u_copymsg->rp_isize = offset;
+	else
+		u.u_copymsg->rp_isize = ip->i_size;
+	srmount[u.u_mntindx].sr_bcount += (ocount - u.u_count)/1024;
+	dinfo.iwritech += ocount - u.u_count;	/* incoming ch's written */
+	sysinfo.writech += ocount - u.u_count;
+	chkrsig ();
+	return (u.u_count);
+}
+/*
+ *The rfs_writei() function is called from the DUWRITEI case statement of 
+ *serve.c
+ */
+rfs_writei(bp, msig, msg_in, queue, mand_chgp)
+mblk_t *bp;
+struct message *msig;
+struct request *msg_in;
+rcvd_t queue;
+int *mand_chgp;
+{	
+	register struct inode *ip;
+	int ocount;
+	struct request stkmsg;
+
+	dinfo.isyscall--;
+	sysinfo.syscall--;
+	u.u_base = (caddr_t) msg_in->rq_base;
+	u.u_count = msg_in->rq_count;
+	u.u_fmode = msg_in->rq_fmode;
+	ip = queue->rd_inode;
+	if ( !FS_ACCESS(ip,IMNDLCK) && msig->m_stat & VER1 
+			&& !(msg_in->rq_flags & RQ_MNDLCK)) {
+		*mand_chgp = 1;
+		return(0);
+	}
+	if ((u.u_offset = msg_in->rq_offset) < 0)
+		u.u_offset = queue->rd_inode->i_size;
+	u.u_segflg = 0;
+	ocount = u.u_count;
+	if (ip->i_ftype == IFCHR || ip->i_flag & ILOCK ||
+	    (queue->rd_user_list->ru_next !=NULL &&
+	     ip->i_ftype == IFREG && rcacheinit)
+	     && msg_in->rq_prewrite > 0){
+		stkmsg.rq_prewrite = msg_in->rq_prewrite;
+		stkmsg.rq_sofar = 0;
+		bcopy ( msg_in->rq_data, stkmsg.rq_data, msg_in->rq_prewrite);
+		freemsg(bp);
+		u.u_gift->sd_temp = NULL;
+		u.u_copybp = (mblk_t *)&stkmsg;
+	}
+	else if (msg_in->rq_prewrite > 0) {
+		msg_in->rq_sofar = 0;
+		u.u_copybp = (mblk_t *)msg_in;
+	}
+	plock(ip);
+	WRITEI(ip);
+	prele(ip);
+	srmount[u.u_mntindx].sr_bcount += (ocount - u.u_count)/1024;
+	return(u.u_count);
 }

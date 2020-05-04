@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:collect.c	1.16"
+#ident	"@(#)mailx:collect.c	1.17"
 
 /*
  * mailx -- a modified version of a University of California at Berkeley
@@ -297,8 +297,6 @@ collect(hp)
 		case '<':
 		case 'r': {
 			int	ispip;
-			int	savegid, setgid();
-			unsigned short	getegid();
 			/*
 			 * Invoke a file:
 			 * Search for the file name,
@@ -307,7 +305,6 @@ collect(hp)
 			 * if name begins with '!', read from a command
 			 */
 
-			savegid=getegid();
 			cp = &linebuf[2];
 			while (any(*cp, " \t"))
 				cp++;
@@ -331,10 +328,12 @@ collect(hp)
 					printf("%s: directory\n",cp);
 					break;
 				}
-				setgid(getgid());
+				if (access(cp, 4) != 0) {
+					perror("");
+					break;
+				}
 				if ((fbuf = fopen(cp, "r")) == NULL) {
 					perror(cp);
-					setgid(savegid);
 					break;
 				}
 			}
@@ -349,7 +348,6 @@ collect(hp)
 						pclose(fbuf);
 					else
 						fclose(fbuf);
-					setgid(savegid);
 					goto err;
 				}
 				cc += t;
@@ -360,7 +358,6 @@ collect(hp)
 				fclose(fbuf);
 			printf("%d/%d\n", lc, cc);
 			fflush(obuf);
-			setgid(savegid);
 			break;
 			}
 
@@ -712,6 +709,7 @@ mespipe(ibuf, obuf, cmd)
 		 */
 
 		sigchild();
+		setgid(getgid());
 		close(0);
 		dup(fileno(ibuf));
 		close(1);

@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)kern-port:nudnix/nudnix.mk	10.15.6.3"
+#ident	"@(#)kern-port:nudnix/nudnix.mk	10.15.6.5"
 #
 #		Copyright 1984 AT&T
 #
@@ -15,12 +15,10 @@ STRIP = strip
 INC = $(ROOT)/usr/include
 MKBOOT = mkboot
 MASTERD = ../master.d
-DASHG = 
 VER = mip
 DASHO = -O
 DUDEBUG = YES
-CFLAGS= -I$(INC) -DINKERNEL $(MORECPP) $(DASHG) $(DASHO) -Du3b2 -DDUDEBUG=$(DUDEBUG)
-PFLAGS= -I$(INC) -DINKERNEL $(MORECPP) $(DASHG)
+CFLAGS= -I$(INC) -DINKERNEL $(MORECPP) $(DASHO) -Du3b2 -DDUDEBUG=$(DUDEBUG)
 FRC =
 
 DFILES =\
@@ -83,6 +81,7 @@ adv.o:\
 	$(INC)/sys/types.h\
 	$(INC)/sys/sema.h\
 	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5param.h\
 	$(INC)/sys/fs/s5dir.h\
 	$(INC)/sys/signal.h\
 	$(INC)/sys/psw.h\
@@ -95,6 +94,7 @@ adv.o:\
 	$(INC)/sys/adv.h\
 	$(INC)/sys/nserve.h\
 	$(INC)/sys/debug.h\
+	$(INC)/sys/cirmgr.h\
 	$(INC)/sys/rdebug.h\
 	$(INC)/sys/inline.h\
 	$(FRC)
@@ -104,6 +104,7 @@ auth.o:\
 	$(INC)/sys/sema.h\
 	$(INC)/sys/sysmacros.h\
 	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5param.h\
 	$(INC)/sys/fs/s5dir.h\
 	$(INC)/sys/inode.h\
 	$(INC)/sys/errno.h\
@@ -125,37 +126,45 @@ auth.o:\
 cache.o:\
 	$(INC)/sys/types.h\
 	$(INC)/sys/sema.h\
-	$(INC)/sys/param.h\
-	$(INC)/sys/fs/s5dir.h\
-	$(INC)/sys/errno.h\
+	$(INC)/sys/sysmacros.h\
 	$(INC)/sys/signal.h\
-	$(INC)/sys/immu.h\
+	$(INC)/sys/file.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5param.h\
 	$(INC)/sys/stream.h\
 	$(INC)/sys/comm.h\
+	$(INC)/sys/message.h\
 	$(INC)/sys/psw.h\
 	$(INC)/sys/pcb.h\
 	$(INC)/sys/user.h\
 	$(INC)/sys/inode.h\
-	$(INC)/sys/message.h\
-	$(INC)/sys/region.h\
-	$(INC)/sys/proc.h\
+	$(INC)/sys/var.h\
+	$(INC)/sys/errno.h\
 	$(INC)/sys/nserve.h\
+	$(INC)/sys/recover.h\
 	$(INC)/sys/cirmgr.h\
 	$(INC)/sys/debug.h\
+	$(INC)/sys/rfsys.h\
 	$(INC)/sys/rdebug.h\
-	$(INC)/sys/sysinfo.h\
+	$(INC)/sys/immu.h\
+	$(INC)/sys/region.h\
+	$(INC)/sys/proc.h\
 	$(INC)/sys/buf.h\
-	$(INC)/sys/rbuf.h\
-	$(INC)/sys/fcntl.h\
-	$(INC)/sys/flock.h\
+	$(INC)/sys/cmn_err.h\
+	$(INC)/sys/sysinfo.h\
 	$(FRC)
 
 canon.o:\
 	$(INC)/sys/types.h\
 	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5param.h\
+	$(INC)/sys/sysmacros.h\
 	$(FRC)
 
 cirmgr.o:\
+	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5param.h\
 	$(INC)/sys/types.h\
 	$(INC)/sys/sema.h\
 	$(INC)/sys/signal.h\
@@ -176,6 +185,9 @@ cirmgr.o:\
 	$(INC)/sys/inode.h\
 	$(INC)/sys/cirmgr.h\
 	$(INC)/sys/tihdr.h\
+	$(INC)/sys/message.h\
+	$(INC)/sys/hetero.h\
+	$(INC)/sys/debug.h\
 	$(FRC)
 
 comm.o:\
@@ -183,6 +195,7 @@ comm.o:\
 	$(INC)/sys/sema.h\
 	$(INC)/sys/sysmacros.h\
 	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5param.h\
 	$(INC)/sys/fs/s5dir.h\
 	$(INC)/sys/errno.h\
 	$(INC)/sys/signal.h\
@@ -197,6 +210,7 @@ comm.o:\
 	$(INC)/sys/stream.h\
 	$(INC)/sys/message.h\
 	$(INC)/sys/comm.h\
+	$(INC)/sys/mount.h\
 	$(INC)/sys/nserve.h\
 	$(INC)/sys/cirmgr.h\
 	$(INC)/sys/debug.h\
@@ -210,6 +224,7 @@ fileop.o:\
 	$(INC)/sys/sema.h\
 	$(INC)/sys/sysmacros.h\
 	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5param.h\
 	$(INC)/sys/systm.h\
 	$(INC)/sys/fs/s5dir.h\
 	$(INC)/sys/errno.h\
@@ -223,6 +238,7 @@ fileop.o:\
 	$(INC)/sys/pcb.h\
 	$(INC)/sys/user.h\
 	$(INC)/sys/inode.h\
+	$(INC)/sys/fcntl.h\
 	$(INC)/sys/nserve.h\
 	$(INC)/sys/cirmgr.h\
 	$(INC)/sys/message.h\
@@ -235,6 +251,8 @@ fileop.o:\
 	$(INC)/sys/debug.h\
 	$(INC)/sys/rdebug.h\
 	$(INC)/sys/buf.h\
+	$(INC)/sys/fs/s5param.h\
+	$(INC)/sys/fs/s5macros.h\
 	$(INC)/sys/rbuf.h\
 	$(FRC)
 
@@ -242,6 +260,7 @@ fumount.o:\
 	$(INC)/sys/types.h\
 	$(INC)/sys/sema.h\
 	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5param.h\
 	$(INC)/sys/fs/s5dir.h\
 	$(INC)/sys/errno.h\
 	$(INC)/sys/signal.h\
@@ -259,6 +278,7 @@ fumount.o:\
 	$(INC)/sys/adv.h\
 	$(INC)/sys/debug.h\
 	$(INC)/sys/rdebug.h\
+	$(INC)/sys/cmn_err.h\
 	$(INC)/sys/recover.h\
 	$(FRC)
 
@@ -266,16 +286,19 @@ netboot.o:\
 	$(INC)/sys/types.h\
 	$(INC)/sys/sema.h\
 	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5param.h\
 	$(INC)/sys/fs/s5dir.h\
 	$(INC)/sys/errno.h\
 	$(INC)/sys/signal.h\
 	$(INC)/sys/immu.h\
+	$(INC)/sys/stream.h\
 	$(INC)/sys/comm.h\
 	$(INC)/sys/psw.h\
 	$(INC)/sys/pcb.h\
 	$(INC)/sys/user.h\
 	$(INC)/sys/inode.h\
 	$(INC)/sys/mount.h\
+	$(INC)/sys/message.h\
 	$(INC)/sys/var.h\
 	$(INC)/sys/region.h\
 	$(INC)/sys/proc.h\
@@ -295,6 +318,7 @@ queue.o:\
 	$(INC)/sys/sema.h\
 	$(INC)/sys/sysmacros.h\
 	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5param.h\
 	$(INC)/sys/systm.h\
 	$(INC)/sys/fs/s5dir.h\
 	$(INC)/sys/errno.h\
@@ -321,6 +345,8 @@ rbio.o:\
 	$(INC)/sys/sysmacros.h\
 	$(INC)/sys/sbd.h\
 	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5param.h\
+	$(INC)/sys/fs/s5macros.h\
 	$(INC)/sys/psw.h\
 	$(INC)/sys/pcb.h\
 	$(INC)/sys/immu.h\
@@ -332,7 +358,6 @@ rbio.o:\
 	$(INC)/sys/errno.h\
 	$(INC)/sys/signal.h\
 	$(INC)/sys/user.h\
-	$(INC)/sys/rbuf.h\
 	$(INC)/sys/buf.h\
 	$(INC)/sys/iobuf.h\
 	$(INC)/sys/conf.h\
@@ -340,7 +365,10 @@ rbio.o:\
 	$(INC)/sys/cmn_err.h\
 	$(INC)/sys/inline.h\
 	$(INC)/sys/comm.h\
+	$(INC)/sys/debug.h\
+	$(INC)/sys/rdebug.h\
 	$(INC)/sys/message.h\
+	$(INC)/sys/rbuf.h\
 	$(FRC)
 
 rdebug.o:\
@@ -363,6 +391,7 @@ recover.o:\
 	$(INC)/sys/file.h\
 	$(INC)/sys/fs/s5dir.h\
 	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5param.h\
 	$(INC)/sys/stream.h\
 	$(INC)/sys/comm.h\
 	$(INC)/sys/psw.h\
@@ -393,6 +422,7 @@ remcall.o:\
 	$(INC)/sys/sema.h\
 	$(INC)/sys/sysmacros.h\
 	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5param.h\
 	$(INC)/sys/systm.h\
 	$(INC)/sys/fs/s5dir.h\
 	$(INC)/sys/errno.h\
@@ -420,14 +450,16 @@ remcall.o:\
 	$(INC)/sys/rdebug.h\
 	$(INC)/sys/nami.h\
 	$(INC)/sys/fstyp.h\
-	$(INC)/sys/rbuf.h\
+	$(INC)/sys/fs/s5macros.h\
 	$(INC)/sys/buf.h\
+	$(INC)/sys/rbuf.h\
 	$(FRC)
 
 rfadmin.o:\
 	$(INC)/sys/types.h\
 	$(INC)/sys/sema.h\
 	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5param.h\
 	$(INC)/sys/immu.h\
 	$(INC)/sys/region.h\
 	$(INC)/sys/signal.h\
@@ -457,20 +489,40 @@ rfadmin.o:\
 rfcanon.o:\
 	$(INC)/sys/types.h\
 	$(INC)/sys/sema.h\
+	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5param.h\
+	$(INC)/sys/fs/s5dir.h\
+	$(INC)/sys/errno.h\
+	$(INC)/sys/signal.h\
+	$(INC)/sys/immu.h\
 	$(INC)/sys/stream.h\
 	$(INC)/sys/comm.h\
+	$(INC)/sys/psw.h\
+	$(INC)/sys/pcb.h\
+	$(INC)/sys/user.h\
+	$(INC)/sys/inode.h\
 	$(INC)/sys/message.h\
+	$(INC)/sys/region.h\
+	$(INC)/sys/proc.h\
+	$(INC)/sys/nserve.h\
+	$(INC)/sys/cirmgr.h\
+	$(INC)/sys/debug.h\
+	$(INC)/sys/rdebug.h\
+	$(INC)/sys/fs/s5macros.h\
+	$(INC)/sys/buf.h\
+	$(INC)/sys/rbuf.h\
+	$(INC)/sys/sysinfo.h\
 	$(INC)/sys/dirent.h\
 	$(INC)/sys/hetero.h\
 	$(INC)/sys/fcntl.h\
 	$(INC)/sys/file.h\
-	$(INC)/sys/rdebug.h\
 	$(FRC)
 
 rfsys.o:\
 	$(INC)/sys/types.h\
 	$(INC)/sys/sema.h\
 	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5param.h\
 	$(INC)/sys/fs/s5dir.h\
 	$(INC)/sys/errno.h\
 	$(INC)/sys/signal.h\
@@ -498,6 +550,7 @@ rmount.o:\
 	$(INC)/sys/sema.h\
 	$(INC)/sys/sysmacros.h\
 	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5param.h\
 	$(INC)/sys/fs/s5dir.h\
 	$(INC)/sys/errno.h\
 	$(INC)/sys/signal.h\
@@ -520,7 +573,9 @@ rmount.o:\
 	$(INC)/sys/rdebug.h\
 	$(INC)/sys/inline.h\
 	$(INC)/sys/sysinfo.h\
+	$(INC)/sys/fs/s5macros.h\
 	$(INC)/sys/buf.h\
+	$(INC)/sys/rbuf.h\
 	$(FRC)
 
 rmove.o:\
@@ -535,8 +590,11 @@ rmove.o:\
 	$(INC)/sys/pcb.h\
 	$(INC)/sys/user.h\
 	$(INC)/sys/inode.h\
+	$(INC)/sys/dirent.h\
 	$(INC)/sys/message.h\
-	$(INC)/sys/mount.h\
+	$(INC)/sys/hetero.h\
+	$(INC)/sys/nserve.h\
+	$(INC)/sys/cirmgr.h\
 	$(INC)/sys/rdebug.h\
 	$(FRC)
 
@@ -545,6 +603,7 @@ rnami.o:\
 	$(INC)/sys/sema.h\
 	$(INC)/sys/sysmacros.h\
 	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5param.h\
 	$(INC)/sys/systm.h\
 	$(INC)/sys/fs/s5dir.h\
 	$(INC)/sys/errno.h\
@@ -553,7 +612,9 @@ rnami.o:\
 	$(INC)/sys/psw.h\
 	$(INC)/sys/pcb.h\
 	$(INC)/sys/user.h\
+	$(INC)/sys/stream.h\
 	$(INC)/sys/comm.h\
+	$(INC)/sys/message.h\
 	$(INC)/sys/inode.h\
 	$(INC)/sys/file.h\
 	$(INC)/sys/mount.h\
@@ -568,6 +629,7 @@ rsc.o:\
 	$(INC)/sys/types.h\
 	$(INC)/sys/sema.h\
 	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5param.h\
 	$(INC)/sys/fs/s5dir.h\
 	$(INC)/sys/errno.h\
 	$(INC)/sys/signal.h\
@@ -585,9 +647,11 @@ rsc.o:\
 	$(INC)/sys/cirmgr.h\
 	$(INC)/sys/debug.h\
 	$(INC)/sys/rdebug.h\
-	$(INC)/sys/sysinfo.h\
-	$(INC)/sys/rbuf.h\
+	$(INC)/sys/fs/s5macros.h\
 	$(INC)/sys/buf.h\
+	$(INC)/sys/rbuf.h\
+	$(INC)/sys/sysinfo.h\
+	$(INC)/sys/hetero.h\
 	$(FRC)
 
 serve.o:\
@@ -596,6 +660,7 @@ serve.o:\
 	$(INC)/sys/inode.h\
 	$(INC)/sys/sysmacros.h\
 	$(INC)/sys/param.h\
+	$(INC)/sys/fs/s5param.h\
 	$(INC)/sys/systm.h\
 	$(INC)/sys/fs/s5dir.h\
 	$(INC)/sys/errno.h\
@@ -625,10 +690,13 @@ serve.o:\
 	$(INC)/sys/rdebug.h\
 	$(INC)/sys/cmn_err.h\
 	$(INC)/sys/conf.h\
+	$(INC)/sys/recover.h\
 	$(INC)/sys/buf.h\
 	$(INC)/sys/rbuf.h\
+	$(INC)/sys/hetero.h\
+	$(INC)/sys/statfs.h\
 	$(FRC)
 
 string.o:\
+	$(INC)/sys/types.h\
 	$(FRC)
-

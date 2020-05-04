@@ -1,4 +1,4 @@
-#ident	"@(#)rfs.admin:resrcmgmt/advmgmt/advauto	1.13"
+#ident	"@(#)rfs.admin:resrcmgmt/advmgmt/advauto	1.14"
 #menu# add local resources to automatic advertise list
 
 #help#  
@@ -129,6 +129,9 @@ do
         '^/.*$' 'You must specify a full pathname starting with /.'     \
         '^[^ ]*$' 'The pathname must not contain a space.'`
 
+	#remove special function of "."
+	path2=`echo $path | /bin/sed 's/\./\\\./g'`
+
         ADV=OK
         if [ ! -d $path ]
         then
@@ -229,7 +232,7 @@ do
         # ask the user as to whether or not to replace the info in /etc/rstab with the
         # new information.  Else, add the info to /etc/rstab.  Respond as to what
         # was decided.
-        t=`/usr/bin/egrep "[ \t]$res[ \t]|[ \t]$path[ \t]*$|[ \t]$path[ \t]+" /etc/rstab 2>/dev/null`
+        t=`/usr/bin/egrep "[ 	]$res[ 	]|[ 	]$path2[ 	]*$|[ 	]$path2[ 	]+" /etc/rstab 2>/dev/null`
         if [ "$t" = "" ]
         then
                 echo "/usr/bin/adv $rw -d \"$desc\" $res $path $clist" >>/etc/rstab
@@ -240,7 +243,7 @@ do
                 echo "$t\n"
                 if /usr/lbin/checkyn $cflags -f "Do you want your new advertisement to replace the old information?"
                 then
-                        /usr/bin/egrep -v "[ \t]$res[ \t]|[ \t]$path[ \t]*$|[ \t]$path[ \t]+" /etc/rstab  >/usr/tmp/$$.rstab
+                        /usr/bin/egrep -v "[ 	]$res[ 	]|[ 	]$path2[ 	]*$|[ 	]$path2[ 	]+" /etc/rstab  >/usr/tmp/$$.rstab
                         if [ 2 -gt $? ]
                         then
                                 /bin/mv /usr/tmp/$$.rstab /etc/rstab

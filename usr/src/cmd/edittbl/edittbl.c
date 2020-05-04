@@ -5,8 +5,10 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)edittbl:edittbl.c	1.6"
+#ident	"@(#)edittbl:edittbl.c	1.11"
+
 #include <stdio.h>
+#include <errno.h>
 
 #ifdef m32
 
@@ -52,7 +54,9 @@ struct dev_code {
 				/* one = intelligent board */
 	unsigned cons_cap:1;	/* set =1 if can support console */
 	unsigned cons_file:1;	/* set =1 if cons pump file needed */
-	unsigned pad:26;
+	unsigned indir_dev:1;	/* set =1 if device has multiple */
+				/* subdevice levels */
+	unsigned pad:25;
 	unsigned char dev_name[E_NAMLEN];	/* ASCII name for device */
 	unsigned char diag_file[E_NAMLEN];	/* diagnostic file name */
 };
@@ -96,6 +100,12 @@ SBDEV_TAB p_sbdevt;
 
 FILE *fopen(), *fp;
 
+extern  void  perror();  	/* to merge multiple edittbl commands */
+extern  void  exit();  		/* to merge multiple edittbl commands */
+char   xbus_on=OFF;		/* flag for extended bus access       */
+char   xbusname[10];		/* xbus name such as scsi,vme,.... etc. */
+char   xbus_name[8*E_NAMLEN];	/* pathname for xbusname edittbl command. */
+
 char filename[8*E_NAMLEN];
 char install,remove,list,dev,sbdev,gen,terse;
 int opt_code,rq_size,cq_size,boot_dev,word_size,brd_size,smrt_brd,cons_cap,cons_file;
@@ -105,12 +115,12 @@ main(argc,argv)
 
 int argc;
 char *argv[];
+
 {
-	int i,j;
+	int i,j,pf,pt;
 	char openmode[E_NAMLEN];
 	DEV_TAB *P_DEVT;
 	SBDEV_TAB *P_SBDEVT;
-
 
 	if (argc == 1)
 		{
@@ -118,7 +128,11 @@ char *argv[];
 		exit(0);
 		}
 
-	for (i = 1; i < argc; i++)
+/* command line parsing   */
+ 
+	j = 0;    /*temporary flag used to parse extended bus name */
+
+	for (i = 1; i < argc; )  /* i is incremented at the end of the loop */
 		{
 		if ( argv[i][0] != '-')
 			strcpy(filename,argv[i]);
@@ -144,11 +158,50 @@ char *argv[];
 		else if ( !strcmp(argv[i], "-t") )
 			terse = ON;
 
+		/*to merge multiple edittbl commands */
+ 
+		else if ( argv[i][0] == '-' && argv[i][1] == 'B' ) 
+			{
+			pf = i+1;
+			if ( argv[i][2] != '\0')
+				strcpy(xbusname,&argv[i][2]); /* -Bxxxxx case */
+			else if(argv[i+1][0] !='-' 
+				&& (i < argc-1 ))    /* -B xxxx case */
+                	     {
+				strcpy(xbusname,argv[pf++]);
+				j++;
+			     }
+		             else    /* missing xxxx but -B specified */
+		             {
+				fprintf(stderr,"usage: bus type option required an argument\n");
+				exit(-2);	/* missing option argument*/
+			     }
+			for ( pt=i; pf <=argc ; pf++,pt++ )
+				argv[pt] = argv[pf];
+			argc--;
+			if (j)   argc--;
+			xbus_on=ON;
+			continue;
+			} 
+		/* the end of new stuff to merge multiple commands.*/
 		else	{
 			printf ("invalid argument\n");
 			exit(1);
 			}
+		i++;	/*i is incremented here now 07-22-87 */
 		}
+
+/* check unsupported extended bus type and execute the appropriate command  */
+ 
+	if(xbus_on)
+	{
+		sprintf(xbus_name,"%s/%s/%s","/etc",xbusname,"edittbl");
+		if(execv(xbus_name,argv) ==-1)
+		perror(xbus_name);
+		exit(1);
+	}
+	
+/* the beginning of the /etc/edittbl command */
 
 	if (terse != ON)
 			printf("utility program for edt_data\n\n");
@@ -265,6 +318,9 @@ char *argv[];
 	exit(0);
 }
 
+#define ID_CODE 0xffff		/* mask to extract device ID codes from opt_code entry */
+#define INDIRECT 0x10000	/* mask to extract indirect, multi-level subdevice */
+				/* information from opt_code entry */
 
 instdev()
 {
@@ -298,12 +354,12 @@ while ((s = dv_in()) != EOF && s != 0)
 
 	for (i = 0; i < P_DEVT->num_dev; i++)
 		{
-		if (P_DEVT->dev_code[i].opt_code == opt_code)
+		if (P_DEVT->dev_code[i].opt_code == (opt_code & ID_CODE))
 			break;
 
 		if (i ==  P_DEVT->num_dev -1)
 			{
-			(P_DEVT->dev_code[P_DEVT->num_dev]).opt_code = opt_code;
+			(P_DEVT->dev_code[P_DEVT->num_dev]).opt_code = opt_code & ID_CODE;
 			(P_DEVT->dev_code[P_DEVT->num_dev]).rq_size = rq_size;
 			(P_DEVT->dev_code[P_DEVT->num_dev]).cq_size = cq_size;
 			(P_DEVT->dev_code[P_DEVT->num_dev]).boot_dev = boot_dev;
@@ -312,6 +368,7 @@ while ((s = dv_in()) != EOF && s != 0)
 			(P_DEVT->dev_code[P_DEVT->num_dev]).smrt_brd = smrt_brd;
 			(P_DEVT->dev_code[P_DEVT->num_dev]).cons_cap = cons_cap;
 			(P_DEVT->dev_code[P_DEVT->num_dev]).cons_file = cons_file;
+			(P_DEVT->dev_code[P_DEVT->num_dev]).indir_dev = (INDIRECT & opt_code) >> 16;
 
 			strcpy((P_DEVT->dev_code[P_DEVT->num_dev]).dev_name,dev_name);
 			P_DEVT->num_dev++;
@@ -382,7 +439,7 @@ P_SBDEVT = &p_sbdevt;
 
 /* list assigned values */
 
-printf("num_dev: 0x%x\n",P_DEVT->num_dev);
+printf("\nnum_dev: 0x%x\n",P_DEVT->num_dev);
 
 
 for (i = 0; i < P_DEVT->num_dev; i++)
@@ -396,6 +453,7 @@ for (i = 0; i < P_DEVT->num_dev; i++)
 	printf("brd_size: %x\t", (P_DEVT->dev_code[i]).brd_size);
 	printf("smrt_brd: %x\t", (P_DEVT->dev_code[i]).smrt_brd);
 	printf("cons_cap: %x\t", (P_DEVT->dev_code[i]).cons_cap);
+	printf("indir_dev: %x\t", (P_DEVT->dev_code[i]).indir_dev);
 	printf("cons_file: %x\n", (P_DEVT->dev_code[i]).cons_file);
 	}
 }
@@ -425,7 +483,7 @@ help()
 
 printf("         edt_data editor\n\n");
 printf("Use:\n");
-printf("edittbl [-i] [-r] [-l] [-g] [-t] [file] -d | s\n\n");
+printf("edittbl [-i] [-r] [-l] [-g] [-t] [-B bus_type] [file] -d | s\n\n");
 printf(" Option     Description\n");
 printf(" ======     ==========================\n");
 printf("   -i       Install data in a table\n");
@@ -433,6 +491,7 @@ printf("   -r       Remove data in a table\n");
 printf("   -l       List data in a table\n");
 printf("   -g       Generate a basic table\n");
 printf("   -t       Suppress user prompts\n");
+printf("   -B       Extended bus type such as scsi\n");
 printf("  file      Full pathname for file\n\n");
 printf("   -d       Select the device table\n");
 printf("   -s       Select the subdevice table\n");
@@ -460,6 +519,7 @@ while ((s = dv_in ()) != EOF && s != 0)
 
 	for (i = 0; i < P_DEVT->num_dev; i++)
 		{
+		opt_code &= ID_CODE;	/* mask indirect bit, if present */
 		if (P_DEVT->dev_code[i].opt_code == opt_code && (scan_flag &= dev_scan()) == ON)
 			{
 			temp_num--;
@@ -491,6 +551,9 @@ while ((s = dv_in ()) != EOF && s != 0)
 					(P_DEVT->dev_code[j]).cons_file =
 						(P_DEVT->dev_code[j + 1]).cons_file;
 
+					(P_DEVT->dev_code[j]).indir_dev =
+						(P_DEVT->dev_code[j + 1]).indir_dev;
+
 					(P_DEVT->dev_code[j]).smrt_brd =
 						(P_DEVT->dev_code[j + 1]).smrt_brd;
 					strcpy((P_DEVT->dev_code[j]).dev_name,
@@ -507,6 +570,7 @@ while ((s = dv_in ()) != EOF && s != 0)
 				(P_DEVT->dev_code[i]).smrt_brd = 0;
 				(P_DEVT->dev_code[i]).cons_cap = 0;
 				(P_DEVT->dev_code[i]).cons_file = 0;
+				(P_DEVT->dev_code[i]).indir_dev = 0;
 
 				strcpy((P_DEVT->dev_code[i]).dev_name,"");
 				}
@@ -809,6 +873,7 @@ gendev()
 			(P_DEVT->dev_code[i]).smrt_brd = 0;
 			(P_DEVT->dev_code[i]).cons_cap = 0;
 			(P_DEVT->dev_code[i]).cons_file = 0;
+			(P_DEVT->dev_code[i]).indir_dev = 0;
 
 			strcpy((P_DEVT->dev_code[i]).dev_name,"");
 			}
@@ -829,6 +894,7 @@ gendev()
 		(P_DEVT->dev_code[i]).smrt_brd = 1;
 		(P_DEVT->dev_code[i]).cons_cap = 1;
 		(P_DEVT->dev_code[i]).cons_file = 0;
+		(P_DEVT->dev_code[i]).indir_dev = 0;
 		strcpy((P_DEVT->dev_code[i++]).dev_name,"SBD");
 
 		/* ports board */
@@ -842,6 +908,7 @@ gendev()
 		(P_DEVT->dev_code[i]).smrt_brd = 1;
 		(P_DEVT->dev_code[i]).cons_cap = 1;
 		(P_DEVT->dev_code[i]).cons_file = 1;
+		(P_DEVT->dev_code[i]).indir_dev = 0;
 		strcpy((P_DEVT->dev_code[i++]).dev_name,"PORTS");
 
 		/* device entry count */
@@ -932,7 +999,7 @@ dv_in()
 int s;
 
 if (terse != ON)
-	printf("\nEnter device ID code: 0x");
+	printf("\nEnter device ID code (0-0xffff;plus 0x10000, if indirect): 0x");
 if ((s = scanf ("%x",&opt_code)) == EOF || s == 0)
 	return(s);
 if (terse != ON)

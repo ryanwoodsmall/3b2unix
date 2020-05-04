@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/doscan.c	1.6.1.1"
+#ident	"@(#)curses:screen/doscan.c	1.7"
 
 /*
  * Alas, doscan is not documented, so people feel they have license to

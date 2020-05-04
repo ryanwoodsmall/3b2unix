@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/sig.c	10.15.4.14"
+#ident	"@(#)kern-port:os/sig.c	10.15.4.15"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/psw.h"
@@ -150,7 +150,7 @@ findsig:
 		 * leave it in p->p_cursig.
 		 */
 		if ((n = p->p_cursig) && u.u_signal[n-1] != SIG_IGN
-		  && ((n!=SIGCLD && n!=SIGPWR) || u.u_signal[n-1]!=SIG_DFL)) {
+		  && ((n!=SIGCLD && n!=SIGPWR && n!=SIGWINCH) || u.u_signal[n-1]!=SIG_DFL)) {
 			if (p->p_hold & sigbit(n))
 				p->p_sig |= sigbit(n);
 			else
@@ -170,9 +170,9 @@ findsig:
 						freeproc(q, 0);
 			} else if (u.u_signal[SIGCLD-1])
 				break;
-		} else if (n == SIGPWR) {
-			if (u.u_signal[SIGPWR-1]
-			  && u.u_signal[SIGPWR-1] != SIG_IGN)
+		} else if (n == SIGPWR || n == SIGWINCH) {
+			if (u.u_signal[n-1]
+			  && u.u_signal[n-1] != SIG_IGN)
 				break;
 		} else if ((u.u_signal[n-1] != SIG_IGN)
 		  || (p->p_flag & STRC)
@@ -221,7 +221,7 @@ findsig:
 		 * return the specified signal.
 		 */
 		if ((n = p->p_cursig) == 0 || u.u_signal[n-1] == SIG_IGN
-		  || ((n==SIGCLD || n==SIGPWR) && u.u_signal[n-1]==SIG_DFL)
+		  || ((n==SIGCLD || n==SIGPWR || n==SIGWINCH) && u.u_signal[n-1]==SIG_DFL)
 		  || (p->p_hold & sigbit(n))) {
 			if (n && (p->p_hold & sigbit(n)))
 				p->p_sig |= sigbit(n);

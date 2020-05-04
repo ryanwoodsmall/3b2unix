@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:cmd3.c	1.11"
+#ident	"@(#)mailx:cmd3.c	1.11.1.2"
 #
 
 #include "rcv.h"
@@ -639,6 +639,7 @@ file(argv)
  */
 
 char	prevfile[PATHSIZE];
+char	origprevfile[PATHSIZE];
 
 char *
 getfilename(name, aedit)
@@ -648,6 +649,7 @@ getfilename(name, aedit)
 	register char *cp;
 	char savename[BUFSIZ];
 	char oldmailname[BUFSIZ];
+	char tmp[BUFSIZ];
 
 	/*
 	 * Assume we will be in "edit file" mode, until
@@ -658,6 +660,7 @@ getfilename(name, aedit)
 	case '%':
 		*aedit = 0;
 		strcpy(prevfile, mailname);
+		strcpy(origprevfile, origname);
 		if (name[1] != 0) {
 			strcpy(savename, myname);
 			strcpy(oldmailname, mailname);
@@ -665,6 +668,7 @@ getfilename(name, aedit)
 			myname[PATHSIZE-1] = 0;
 			findmail();
 			cp = savestr(mailname);
+			strcpy(origname, cp);
 			strcpy(myname, savename);
 			strcpy(mailname, oldmailname);
 			return(cp);
@@ -673,6 +677,7 @@ getfilename(name, aedit)
 		findmail();
 		cp = savestr(mailname);
 		strcpy(mailname, oldmailname);
+		strcpy(origname, cp);
 		return(cp);
 
 	case '#':
@@ -684,18 +689,38 @@ getfilename(name, aedit)
 		}
 		cp = savestr(prevfile);
 		strcpy(prevfile, mailname);
+		strcpy(tmp, origname);
+		strcpy(origname, origprevfile);
+		strcpy(origprevfile, tmp);
 		return(cp);
 
 	case '&':
 		strcpy(prevfile, mailname);
-		if (name[1] == 0)
-			return(Getf("MBOX"));
+		strcpy(origprevfile, origname);
+		if (name[1] == 0) {
+			char *tmp;
+			tmp=Getf("MBOX");
+			strcpy(origname, tmp);
+			return(tmp);
+		}
 		/* Fall into . . . */
 
 	default:
 regular:
 		strcpy(prevfile, mailname);
+		strcpy(origprevfile, origname);
 		cp = expand(name);
+		strcpy(origname, cp);
+		if ( cp[0] != '/' ) {
+			char *ename, *tmp;
+			tmp=(char *)malloc(PATHSIZE);
+			curdir(tmp);
+			name=(char *)calloc(1, strlen(cp)+strlen(tmp)+2);
+			strcpy(name, tmp);
+			strcat(name, "/");
+			strcat(name, cp);
+			cp = name;
+		}
 		return(cp);
 	}
 }

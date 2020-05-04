@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)cron:crontab.c	1.8"
+#ident	"@(#)cron:crontab.c	1.8.1.4"
 /**************************************************************************
  ***			C r o n t a b . c				***
  **************************************************************************

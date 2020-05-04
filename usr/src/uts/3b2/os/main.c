@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/main.c	10.7.3.3"
+#ident	"@(#)kern-port:os/main.c	10.7.3.4"
 #include "sys/types.h"
 #include "sys/param.h"
 #include "sys/psw.h"
@@ -75,7 +75,7 @@ main()
 	prt_where = PRW_CONS;
 
 	printf("***********************************************************************\n\n");
-	printf("Copyright (c) 1984 AT&T - All Rights Reserved\n\n");
+	printf("Copyright (c) 1984, 1986, 1987, 1988  AT&T - All Rights Reserved\n\n");
 	printf("THIS IS UNPUBLISHED PROPRIETARY SOURCE CODE OF AT&T INC.\n");
 	printf("The copyright notice above does not evidence any actual or\n");
 	printf("intended publication of such source code.\n\n");

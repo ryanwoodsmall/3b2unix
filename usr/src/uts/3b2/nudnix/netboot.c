@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/netboot.c	10.21.5.3"
+#ident	"@(#)kern-port:nudnix/netboot.c	10.21.5.4"
 /*  System call to start file sharing.
  */
 
@@ -103,8 +103,8 @@ rfstart ()
 			u.u_cstime = u.u_stime = u.u_cutime = u.u_utime = 0;
 			rec_proc = u.u_procp;
 			netmemfree();
-			bcopy ("recovery", u.u_comm, 8);
-			bcopy ("recovery", u.u_psargs, 8);
+			bcopy ("recovery", u.u_comm, 9);
+			bcopy ("recovery", u.u_psargs, 9);
 			recovery ();
 			return;
 		default:
@@ -127,8 +127,8 @@ rfstart ()
 			rfsdp = u.u_procp;
 			netmemfree();
 			rfs_cdir = u.u_cdir;
-			bcopy ("rfdaemon", u.u_comm, 8);
-			bcopy ("rfdaemon", u.u_psargs, 8);
+			bcopy ("rfdaemon", u.u_comm, 9);
+			bcopy ("rfdaemon", u.u_psargs, 9);
 			rfdaemon ();
 			return;
 		default:

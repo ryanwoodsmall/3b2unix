@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/sysinfo.h	10.4.4.1"
+#ident	"@(#)kern-port:sys/sysinfo.h	10.4.4.3"
 
 /*
  *	System Information.
@@ -158,3 +158,13 @@ struct shlbinfo {
 };
 
 extern struct shlbinfo shlbinfo;
+
+struct bpbinfo {
+	long	usr;		/* usr time for the co-processor	*/
+	long	sys;		/* system time for the co-processor	*/
+	long	idle;		/* idle time for the co-processor	*/
+	long	syscall;	/* # of system calls since boot on the  */
+				/*	co-processor			*/
+};
+
+extern struct bpbinfo bpbinfo[];

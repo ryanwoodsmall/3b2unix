@@ -5,13 +5,15 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)kern-port:boot/olboot/makefile	10.5.1.1"
+#ident	"@(#)kern-port:boot/olboot/makefile	10.5.1.4"
 
 
 ROOT =
 INC = $(ROOT)/usr/include
+UINC = $(ROOT)/usr/include
 INCLOC = ..
-CFLAGS = -I$(INCLOC) -I$(INC) -Uu3b -Uvax -Du3b2 -Updp11 $(DBO)
+DASHO = -O
+CFLAGS = $(DASHO) -I$(INCLOC) -I$(INC) -I$(UINC) -Uu3b -Uvax -Du3b2 -Updp11 $(DBO)
 STRIP = strip
 MAKE = make "AS=$(AS)" "CC=$(CC)" "LD=$(LD)"
 LIBNAME = libfm.a
@@ -70,21 +72,22 @@ FRC:
 #
 
 lboot.o: lboot.c \
-	$(INC)/a.out.h \
-	$(INC)/aouthdr.h \
-	$(INC)/filehdr.h \
-	$(INC)/linenum.h \
-	$(INC)/nlist.h \
-	$(INC)/reloc.h \
-	$(INC)/scnhdr.h \
-	$(INC)/storclass.h \
-	$(INC)/syms.h \
+	$(UINC)/a.out.h \
+	$(UINC)/aouthdr.h \
+	$(UINC)/filehdr.h \
+	$(UINC)/linenum.h \
+	$(UINC)/nlist.h \
+	$(UINC)/reloc.h \
+	$(UINC)/scnhdr.h \
+	$(UINC)/storclass.h \
+	$(UINC)/syms.h \
 	$(INC)/sys/boot.h \
 	$(INC)/sys/csr.h \
 	$(INC)/sys/elog.h \
 	$(INC)/sys/firmware.h \
 	$(INC)/sys/id.h \
 	$(INC)/sys/immu.h \
+	$(INC)/sys/ino.h \
 	$(INCLOC)/sys/inode.h \
 	$(INCLOC)/sys/iobuf.h \
 	$(INC)/sys/lboot.h \
@@ -93,6 +96,7 @@ lboot.o: lboot.c \
 	$(INC)/sys/sbd.h \
 	$(INC)/sys/types.h \
 	$(INC)/sys/psw.h \
+	$(INC)/sys/vtoc.h \
 	$(FRC)
 
 $(LIBNAME)(basicio.o): basicio.c \
@@ -130,15 +134,15 @@ $(LIBNAME)(findfs.o): findfs.c \
 	$(FRC)
 
 $(LIBNAME)(loadfile.o): loadfile.c \
-	$(INC)/a.out.h \
-	$(INC)/aouthdr.h \
-	$(INC)/filehdr.h \
-	$(INC)/linenum.h \
-	$(INC)/nlist.h \
-	$(INC)/reloc.h \
-	$(INC)/scnhdr.h \
-	$(INC)/storclass.h \
-	$(INC)/syms.h \
+	$(UINC)/a.out.h \
+	$(UINC)/aouthdr.h \
+	$(UINC)/filehdr.h \
+	$(UINC)/linenum.h \
+	$(UINC)/nlist.h \
+	$(UINC)/reloc.h \
+	$(UINC)/scnhdr.h \
+	$(UINC)/storclass.h \
+	$(UINC)/syms.h \
 	$(INC)/sys/firmware.h \
 	$(INCLOC)/sys/inode.h \
 	$(INC)/sys/lboot.h \
@@ -147,15 +151,15 @@ $(LIBNAME)(loadfile.o): loadfile.c \
 	$(FRC)
 
 $(LIBNAME)(loadprog.o): loadprog.c \
-	$(INC)/a.out.h \
-	$(INC)/aouthdr.h \
-	$(INC)/filehdr.h \
-	$(INC)/linenum.h \
-	$(INC)/nlist.h \
-	$(INC)/reloc.h \
-	$(INC)/scnhdr.h \
-	$(INC)/storclass.h \
-	$(INC)/syms.h \
+	$(UINC)/a.out.h \
+	$(UINC)/aouthdr.h \
+	$(UINC)/filehdr.h \
+	$(UINC)/linenum.h \
+	$(UINC)/nlist.h \
+	$(UINC)/reloc.h \
+	$(UINC)/scnhdr.h \
+	$(UINC)/storclass.h \
+	$(UINC)/syms.h \
 	$(INC)/sys/firmware.h \
 	$(INCLOC)/sys/inode.h \
 	$(INC)/sys/lboot.h \

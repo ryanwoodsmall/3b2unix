@@ -1,6 +1,11 @@
-#ident	"@(#)sadmin:admin/unixadmin	2.3"
+#ident	"@(#)sadmin:admin/unixadmin	2.3.1.1"
 #	General purpose hook into administrative logins used as commands,
 #	so that the commands can have passwords on them.
+
+# WARNING: THIS FILE IS NO LONGER USED
+#          Due to changes within "sysadm", this file is no longer used
+#	   by any sysadm routine.  This file may be removed in a
+#	   future release.
 
 set -f
 PATH=${PATH:-/bin:/usr/bin}:/usr/lbin

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/wrefresh.c	1.29"
+#ident	"@(#)curses:screen/wrefresh.c	1.33"
 #include	"curses_inc.h"
 
 /*
@@ -17,12 +17,20 @@
 extern int	outchcount;
 
 void	_updateln();
+/* SS: color */
+void    _turn_off_background();
 
 static	short	cy, cx,		/* current cursor coord */
 		scrli,		/* actual screen lines */
 		scrco;		/* actual screen columns */
 static	char	**marks;	/* the mark table for cookie terminals */
+static	char	**color_marks;	/* color mark table for cookie terminals */
+
 #define	_ISMARK1(y, x)	(marks[y][x / BITSPERBYTE] & (1 << (x % BITSPERBYTE)))
+#define	_ISMARK2(y, x)	(color_marks ? (color_marks[y][x / BITSPERBYTE] & (1 << (x % BITSPERBYTE))) : FALSE)
+
+#define	_VIDEO(c)	((c) & A_ATTRIBUTES & ~A_COLOR)
+#define	_COLOR(c)	((c) & A_COLOR)
 
 #ifdef	_VR2_COMPAT_CODE
 extern	char	_endwin;
@@ -32,6 +40,7 @@ wrefresh(win)
 WINDOW	*win;
 {
     extern	int	_outch();
+    extern	void	_change_color();
     register	short	*bnsch, *ensch;
     register	SLK_MAP	*slk;
     int		wx, wy, nc, boty, clby, idby, *hs, curwin;
@@ -64,6 +73,7 @@ WINDOW	*win;
 
     /* to simplify code in some cases */
     marks = _MARKS;
+    color_marks = _COLOR_MARKS;
     scrli = curscr->_maxy;
     scrco = curscr->_maxx;
     slk = SP->slk;
@@ -90,7 +100,7 @@ WINDOW	*win;
 	tputs(ena_acs, 1, _outch);
 
 	if (exit_attribute_mode)
-	    _PUTS(exit_attribute_mode, 1);
+	    _PUTS(tparm(exit_attribute_mode), 1);
 	else
 	    /*
 	     * If there is no exit_attribute mode, then vidupdate
@@ -109,6 +119,10 @@ WINDOW	*win;
     /* clear the screen if required */
     if (_virtscr->_clear)
     {
+/* SS: colors */
+	if (back_color_erase)
+	    _turn_off_background();
+
 	_PUTS(clear_screen, scrli);
 	cy = cx = curscr->_curx = curscr->_cury = 0;
 
@@ -331,9 +345,10 @@ int	wy;
     extern	int	_outch();
     register	chtype	*wcp, *scp, *wp, *sp;
     register	int	wx, lastx, x;
-    int			mtch, idch, blnkx, idcx, attrx, maxi, endns, begns;
-    bool		redraw, changed, didattr;
-    chtype		wc, sc, sa;
+    int			mtch, idch, blnkx, idcx, video_attrx, color_attrx,
+			maxi, endns, begns;
+    bool		redraw, changed, didcolor, didvideo;
+    chtype		wc, sc;
 
     redraw = (_virtscr->_firstch[wy] == _REDRAW);
     endns = _ENDNS[wy];
@@ -397,21 +412,38 @@ int	wy;
     /* on cookie terminals, we may need to do more work */
     if (marks)
     {
-	if (blnkx < scrco)
-	    attrx = blnkx + 1;
-	else
-	{
-	    attrx = scrco;
-	    wp = wcp + attrx - 1;
-	    for (; attrx > lastx; --attrx, --wp)
-		if (_ATTR(*wp) != A_NORMAL)
+	    /* video_attrx = color_attrx = scrco; */
+	    video_attrx = color_attrx = (lastx >= scrco) ? lastx - 1 : lastx;
+
+	    /* find the last video attribute on the line	*/
+
+	    wp = wcp + video_attrx;
+	    for (; video_attrx >= wx; --video_attrx, --wp) 
+		if (_VIDEO(*wp) != A_NORMAL)
 		    break;
-	    lastx = attrx;
-	    if (attrx >= scrco)
-		--attrx;
-	    if (magic_cookie_glitch > 0 && wy == scrli - 1 && attrx == scrco - 1)
-		--attrx;
-	}
+
+	    /* find the last color attribute on the line	*/
+
+	    if (color_marks)
+	    {
+	        wp = wcp + color_attrx;
+	        for (; color_attrx >= wx; --color_attrx, --wp)
+		    if (_COLOR(*wp) != A_NORMAL)
+		        break;
+		if (color_attrx < lastx)
+		    color_attrx++;
+	    }
+	    if (video_attrx < lastx)
+		video_attrx++;
+
+	    if (video_attrx >= scrco)
+		--video_attrx;
+	    if (color_marks && color_attrx >= scrco)
+		--color_attrx;
+	    if (magic_cookie_glitch > 0 && wy == scrli - 1 && video_attrx == scrco - 1)
+		--video_attrx;
+	    if (color_marks && magic_cookie_glitch > 0 && wy == scrli - 1 && color_attrx == scrco - 1)
+		--color_attrx;
     }
 
     /* place for insert/delete chars */
@@ -428,7 +460,7 @@ int	wy;
 	{
 	    /* on cookie term, only do idch where no attrs are used */
 	    for (idcx = scrco - 1, wp = wcp + idcx; idcx >= wx; --idcx, --wp)
-		if (_ATTR(*wp) || _ISMARK1(wy, idcx))
+		if (_ATTR(*wp) || _ISMARK1(wy, idcx) || _ISMARK2(wy, idcx))
 		    break;
 	    if (idcx >= scrco - SLACK)
 		idcx = scrco;
@@ -449,7 +481,8 @@ int	wy;
     /* go */
     wcp += wx;
     scp += wx;
-    didattr = changed = FALSE;
+    didvideo = changed = FALSE;
+    didcolor = (color_marks) ? FALSE : TRUE;
 
     while (wx < lastx)
     {
@@ -474,6 +507,12 @@ int	wy;
 	    if ((x - (redraw ? 0 : begns)) > _COST(Clr_bol))
 	    {
 		(void) mvcur(cy, cx, wy, x);
+/* MORE?: colors - mvcur will shuts of colors when msgr is not defined */
+
+/* SS: colors */
+		if (back_color_erase)
+	    	    _turn_off_background();
+
 		_PUTS(clr_bol, 1);
 		cy = wy;
 		cx = x;
@@ -511,6 +550,10 @@ int	wy;
 	    /* blanks only */
 	    if (wx > blnkx)
 	    {
+/* SS: colors */
+		if (back_color_erase)
+	   	    _turn_off_background();
+
 		_PUTS(clr_eol, 1);
 		curscr->_curx = wx;
 		curscr->_cury = wy;
@@ -519,7 +562,10 @@ int	wy;
 		if (marks && wx > 0 && _ATTR(*(scp - 1)) != A_NORMAL)
 		{
 		    _VIDS(A_NORMAL, _ATTR(*(scp - 1)));
-		    _setmark(wy, wx, NULL);
+		    if (_VIDEO(*scp - 1))
+		        _setmark1(wy, wx, NULL);
+		    if (_COLOR(*scp - 1))
+		        _setmark2(wy, wx, NULL);
 		}
 		goto done;
 	    }
@@ -538,33 +584,75 @@ int	wy;
 	    if (SP->phys_irm)
 		_OFFINSERT();
 
-	    /* video attributes */
+	    /* color and video attributes */
 	    if (_ATTR(wc) != curscr->_attrs)
 	    {
+		register bool  color_change = FALSE;
+		register bool  video_change = FALSE;
+		
+		if (marks)
+		    if (_VIDEO(wc) != _VIDEO(curscr->_attrs))
+			video_change = TRUE;
+		if (color_marks)
+		    if (_COLOR(wc) != _COLOR(curscr->_attrs))
+			color_change = TRUE;
+
+		/* the following may occurs when, for example the application */
+		/* is written for color terminal and then run on a monocrome  */
+
+		if (marks && !video_change && !color_change)
+		    goto no_change;
+
 		/* prevent spilling out of line */
-		if (marks && !didattr)
+		if (marks && !(didcolor && didvideo))
 		{
-		    didattr = TRUE;
-		    if (!_ISMARK1(wy, attrx))
+		    if ((video_change && !_ISMARK1(wy, video_attrx)) ||
+			(color_change && !_ISMARK2(wy, color_attrx)))
 		    {
-			(void) mvcur(wy, wx, wy, attrx);
-			sc = _ATTR(curscr->_y[wy][attrx]);
-			sa = curscr->_attrs;
-			_VIDS(sc, ~sc);
-			_setmark(wy, attrx, NULL);
-			(void) mvcur(wy, attrx, wy, wx);
+			int    tempx;
+			chtype sa = curscr->_attrs;
+			bool   first  = FALSE;
+			bool   second = FALSE;
+
+		    	if (!didvideo && video_change && !_ISMARK1(wy, video_attrx))
+		    	{
+		    	    didvideo = TRUE;
+			    (void) mvcur(wy, wx, wy, video_attrx);
+			    _VIDS (_VIDEO(_virtscr->_y[wy][video_attrx]),
+				   _VIDEO(_virtscr->_y[wy][video_attrx-1]));
+			    _setmark1(wy, video_attrx, NULL);
+			    first = TRUE;
+		    	}
+
+		        if (!didcolor && color_change && !_ISMARK2(wy, color_attrx))
+		        {
+		    	    didcolor = TRUE;
+			    tempx = first ? video_attrx : wx;
+			    if (tempx != color_attrx)
+			        (void) mvcur(wy, tempx, wy, color_attrx);
+			    /* sc = _COLOR(curscr->_y[wy][color_attrx]);
+			       _VIDS(sc, (~sc & A_COLOR)); */
+			    _VIDS (_COLOR(_virtscr->_y[wy][color_attrx]),
+				   _COLOR(_virtscr->_y[wy][color_attrx-1]));
+			    _setmark2(wy, color_attrx, NULL);
+			    second = TRUE;
+		        }
+			(void) mvcur(wy, (second ? color_attrx : video_attrx), wy, wx);
 			curscr->_attrs = sa;
 		    }
 		}
 
 		_VIDS(_ATTR(wc), curscr->_attrs);
 
-		/* mark the interval */
-		if (marks)
-		    _setmark(wy, wx, scp);
+		/* on cookie terminals mark the interval */
+		if (video_change)
+		    _setmark1(wy, wx, scp);
+		if (color_change)
+		    _setmark2(wy, wx, scp);
 	    }
 
 	    /* end-of-line */
+no_change:
 	    if (wx == scrco - 1)
 	    {
 		_rmargin(wc);
@@ -651,6 +739,10 @@ int	length, maxi, *id;
 
 	if (match >= cost)
 	{
+/* SS: colors */
+	    if (back_color_erase)
+	    	_turn_off_background();
+
 	    if (SP->dmode)
 	    {
 		if (SP->sid_equal)
@@ -729,6 +821,11 @@ int	length, maxi, *id;
 	return (0);
 
     /* perform the insertions */
+
+/* SS: colors */
+    if (back_color_erase)
+	_turn_off_background();
+
     if (SP->imode)
     {
 	if (!SP->phys_irm)
@@ -823,10 +920,10 @@ done:
     return (n);
 }
 
-/* Set markers for cookie terminal. */
+/* Set video markers for cookie terminal. */
 
 static
-_setmark(y, x, s)
+_setmark1(y, x, s)
 int	y, x;
 chtype	*s;
 {
@@ -837,20 +934,50 @@ chtype	*s;
 
     if (s)
     {
-	a  = _ATTR(curscr->_attrs);
+	a  = _VIDEO(curscr->_attrs);
 
 	/* set the video attr of the first char here */
-	*s = _CHAR(*s) | a;
+	*s = _CHAR(*s) | _COLOR(*s) | a;
 
 	/* now the video attr of the rest of the affected interval */
 	for (x += 1, s += 1; x < scrco; ++x, ++s)
 	    if (_ISMARK1(y, x))
 		break;
 	    else
-		*s = _CHAR(*s) | a;
+		*s = _CHAR(*s) | _COLOR(*s) | a;
     }
 }
 
+/* Set color markers for cookie terminal. */
+
+static
+_setmark2(y, x, s)
+int	y, x;
+chtype	*s;
+{
+    register	int	a;
+
+    /* set the mark map */
+    color_marks[y][x / BITSPERBYTE] |= (1 << (x % BITSPERBYTE));
+
+    if (s)
+    {
+	a  = _COLOR(curscr->_attrs);
+
+	/* set the video attr of the first char here */
+	*s = _CHAR(*s) | _VIDEO(*s) | a;
+
+	/* now the video attr of the rest of the affected interval */
+	for (x += 1, s += 1; x < scrco; ++x, ++s)
+	    if (_ISMARK2(y, x))
+		break;
+	    else
+		*s = _CHAR(*s) | _VIDEO(*s) | a;
+    }
+}
+
+
+/* At the right margin various weird things can happen.  We treat them here. */
 
 /* At the right margin various weird things can happen.  We treat them here. */
 
@@ -875,10 +1002,16 @@ chtype	wc;
 	sc = curscr->_y[cy][x - 1];
 
 	(void) mvcur(cy, cx, cy, x - 1);
+	if (_ATTR(wc) != curscr->_attrs)
+	    _VIDS(_ATTR(wc), curscr->_attrs);
 	_outch(tilde_glitch && _CHAR(wc) == '~' ? '`' : wc);
 
 	/* insert sc back in and push wc right */
 	(void) mvcur(cy, x, cy, x - 1);
+/* SS: colors */
+	if (back_color_erase)
+	    _turn_off_background();
+
 	if (SP->imode && !SP->phys_irm)
 	    _ONINSERT();
 	if (insert_character)
@@ -986,6 +1119,10 @@ int	topy, boty;
     /* use clear-screen if appropriate */
     if (topy == 0)
     {
+/* SS: colors */
+	if (back_color_erase)
+	    _turn_off_background();
+
 	_PUTS(clear_screen, scrli);
 	cy = 0; cx = 0;
 	(void) werase(curscr);
@@ -998,6 +1135,9 @@ int	topy, boty;
 	    (void) mvcur(cy, cx, topy, 0);
 	    cy = topy;
 	    cx = 0;
+/* SS: colors */
+	    if (back_color_erase)
+		_turn_off_background();
 	    _PUTS(clr_eos ? clr_eos : tparm(parm_delete_line, scrli - topy),
 		    scrli - topy);
 
@@ -1012,4 +1152,21 @@ int	topy, boty;
 
     /* correct the update structure */
     (void) wtouchln(_virtscr, topy, scrli, FALSE);
+}
+
+
+void
+_turn_off_background()
+{
+    /* this routine turn the background color to zero.  This need to be done */
+    /* only in forllowing cases:					     */
+    /*  1) We are using Tek type terminal (which has bce terminfo variable)  */
+    /*  2) The current background is not already zero			     */
+ 
+    if (set_background && SP->_cur_pair.background > 0)
+    {   _PUTS (orig_pair, 1);
+ 	SP->_cur_pair.foreground = -1;
+ 	SP->_cur_pair.background = -1;
+	curscr->_attrs &= ~A_COLOR;
+    }  
 }

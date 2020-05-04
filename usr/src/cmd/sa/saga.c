@@ -5,8 +5,8 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sa:saga.c	1.8.2.2"
-/*	saga.c 1.8.2.2 of 8/12/85	*/
+#ident	"@(#)sa:saga.c	1.8.2.3"
+/*	saga.c 1.8.2.3 of 5/20/87	*/
 #include "saghdr.h"
 
 char	fld[NFLD][10];
@@ -145,7 +145,7 @@ sard = fopen(sardfile, "r");
 if((n = getfld()) == EOF)
 	{
 	fprintf(stderr, "No sar data!\n");
-	exit(-1);
+	exit(2);
 	}
 sardoff = ftell(sard);
 for(i=0; i<n; i++)
@@ -158,7 +158,7 @@ for(i=0; i<=nplot; i++)
 	if(reduce(&p[i]) < 0)
 		{
 		fprintf(stderr, "Can't reduce %s\n", p[i].spec);
-		exit(-1);
+		exit(2);
 		}
 	else
 		if(DEBUG>1)  printar(p[i].c[0].dptr);

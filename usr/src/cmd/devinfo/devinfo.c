@@ -5,13 +5,14 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)devinfo:devinfo.c	1.2"
+#ident	"@(#)devinfo:devinfo.c	1.3"
 #include <stdio.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/vtoc.h>
 #include <sys/id.h>
+#include <sys/sysmacros.h>
  
 #define BLKSIZE 512
 #define DEFECTSZ 64
@@ -104,12 +105,10 @@ char *device;
 int ofd;
 {
 	int i;
-	unsigned int startblock, noblocks, flag, tag, major, slice;
+	unsigned int startblock, noblocks, flag, tag, maj, min, slice;
 	struct vtoc vtdata;
 	struct stat statbuf;
 
-	major = 0;
-	slice = 0;
 	startblock = 0;
 	noblocks = 0;
 
@@ -132,13 +131,14 @@ int ofd;
 	i = stat(device, &statbuf);
 	if(i < 0)
 		exit(DRERR);
-	major = (statbuf.st_rdev >> 4) & 0xf;
-	slice = statbuf.st_rdev & 0xf;
+	maj = major(statbuf.st_rdev);
+	min = minor(statbuf.st_rdev);
+	slice = idslice(statbuf.st_rdev);
 	startblock = vtdata.v_part[slice].p_start;
 	noblocks = vtdata.v_part[slice].p_size;
 	flag = vtdata.v_part[slice].p_flag;
 	tag = vtdata.v_part[slice].p_tag;
-	printf("%s	%0x	%0x	%d	%d	%x	%x\n", device, major, slice, startblock, noblocks, flag, tag);
+	printf("%s	%0x	%0x	%d	%d	%x	%x\n", device, maj, min, startblock, noblocks, flag, tag);
 }
 
 devinfo(osect0, ofd, device)

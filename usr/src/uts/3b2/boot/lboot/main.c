@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:boot/lboot/main.c	10.7.1.1"
+#ident	"@(#)kern-port:boot/lboot/main.c	10.7.1.3"
 
 #include <sys/types.h>
 #include <a.out.h>
@@ -79,6 +79,14 @@ boolean MagicMode = FALSE;
 */
 
 boolean DebugMode = FALSE;
+
+/*
+ * LoadMap flag added to get rid of annoying load map. Don't really need
+ * anymore since we have symbolic debugging.
+ *
+ */
+
+boolean LoadMap = FALSE;
 
 /*
  * Quiet mode flag; it will be set TRUE if the BREAK key is hit on the CC console
@@ -665,6 +673,14 @@ error_action(msg)
 
 	switch (msg)
 		{
+ 		/* BOOT HA/TC has been excluded, driver is missing,
+		 * TC configuration change, or bad HA was found.
+ 		 */
+	case ER91:
+	case ER92:
+	case ER93:
+	case ER94:
+
 		/* Configured for more memory than available. */
 	case ER77:
 		/* Device <name> previously configured on LBE (board code <n>) at ELB board code <n> */
@@ -682,6 +698,11 @@ error_action(msg)
 		else
 			/* go back to system file prompt */
 			return(_RETURNTRUE_);
+ 	case ER84:
+ 	case ER86:
+ 	case ER87:
+ 	case ER88:
+ 	case ER89:
 
 		/* Configured for less memory than available. */
 	case ER78:

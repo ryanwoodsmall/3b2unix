@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/mvwscanw.c	1.4.1.4"
+#ident	"@(#)curses:screen/mvwscanw.c	1.6"
 # include	"curses_inc.h"
 # include	<varargs.h>
 

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/id.c	10.10"
+#ident	"@(#)kern-port:io/id.c	10.12"
 /*
  * 3B2 UNIX Integral Winchester Disk Driver
  */
@@ -90,7 +90,7 @@ struct	iobuf	idtab[IDNDRV];		/* drive information */
 struct	iotime	idtime[IDNDRV];		/* drive status information */
 extern time_t	time;			/* system time in seconds */
 
-int	idspurintr;		/* spurious interrupt counter */
+int	idspurintr[10];		/* spurious interrupt counter */
 extern	paddr_t id_addr[];	/* local bus base address of disk controller */
 extern unsigned ifstate;	/* floppy driver state register */
 
@@ -114,18 +114,27 @@ unsigned int count;
 		*tptr++ = *fptr++;
 }
 
-unsigned char idscanflag;
+unsigned char idscanflag[IDNDRV];
 unsigned char idnoscan;
+unsigned int idscancnt[IDNDRV];
 idscan ()
 {
 	int s;
+	register i;
 	s = spl6();
-	if ((idtab[0].b_actf != IDNULL) || (idtab[1].b_actf != IDNULL)) {
-		if (idscanflag == IDNULL)
-			idrecal (IDNOUNIT);
-		else
-			idscanflag = IDNULL;
-	}
+	for(i = 0 ; i < IDNDRV ; i++)
+	{				
+		if(idtab[i].b_actf != IDNULL)
+			if (idscanflag[i] == IDNULL)
+			{			
+				idscancnt[i]++;
+				if(idscancnt[i] % 30 == 0)
+					cmn_err(CE_WARN,"IDRECAL called %d times for drive %d\n",idscancnt[i],i);
+				idrecal (IDNOUNIT);
+			}	
+			else 
+				idscanflag[i] = IDNULL;
+	} 				
 	splx (s);
 	timeout (idscan, 0, (10*HZ));
 }
@@ -313,7 +322,8 @@ idinit()
 	}
 	idrecal (IDNOUNIT);
 	idnoscan = IDSET;
-	idscanflag = IDSET;
+	idscanflag[0] = IDSET;
+	idscanflag[1] = IDSET;
 	/* EXIT CRITICAL REGION */
 	splx (iplsave);
  	for (j = 0; j < 128; j++)
@@ -405,7 +415,7 @@ register struct buf *bufhead;
 	/* link buffer header to drive worklist */
 	bufhead->av_forw = IDNULL;
 	if (drvtab->b_actf == IDNULL) {
-		idscanflag = IDSET;
+		idscanflag[unit] = IDSET;
 		drvtab->b_actf = bufhead;
 		drvtab->b_actl = bufhead;
 		drvtab->acts = (int)bufhead;
@@ -555,7 +565,7 @@ unsigned int unit;
 	lastsect.part.phn = (sectno+blkcnt-1)/(idsect0[unit].pdinfo.sectors);
 	lastsect.part.psn = (sectno+blkcnt-1)%(idsect0[unit].pdinfo.sectors);
 
-	if (lastsect.full >= deftab->bad.full) {
+	if (defcnt < (IDDEFSIZ/8) && lastsect.full >= deftab->bad.full) {
 		if (daddress.full == deftab->bad.full) {
 			daddress.full = deftab->good.full;
 			blkcnt=1;
@@ -812,12 +822,11 @@ unsigned int fromaddr;
 int i, bytes;
 
 statreg = ID->statcmd;
-idscanflag = IDSET;
 
 /* check spurious interrupt */
 if ((statreg & (IDSINTRQ|IDENDMASK)) == 0) {
 	/* increment spurious interrupt count */
-	idspurintr++; return;
+	idspurintr[0]++; return;
 }
 
 /* establish unit for command end interrupt */
@@ -827,10 +836,11 @@ if ((statreg & IDENDMASK) != 0) {
 	else if ((idstatus[1].state & IDBUSY) == IDBUSY)
 		unit = 1;
 	else {
-		idspurintr++;
+		idspurintr[1]++;
 		ID->statcmd = IDCLCMNDEND;
 		return;
 	}
+	idscanflag[unit] = IDSET;
 }
 if ((statreg & IDSINTRQ) == IDSINTRQ) {
 	/* if the controller is busy, mask the interrupt */
@@ -839,19 +849,7 @@ if ((statreg & IDSINTRQ) == IDSINTRQ) {
 			ID->statcmd = IDMASKSRQ;
 		return;
 	}
-	if ((idstatus[0].state & IDBUSY) && (idstatus[1].state & IDSEEK1)) {
-		idstatus[1].state |= IDWAITING;
-		if ((statreg & IDENDMASK) == 0) {
-			ID->statcmd = IDMASKSRQ; return;
-		}
-	}
-	else if ((idstatus[1].state & IDBUSY) && (idstatus[0].state & IDSEEK1)) {
-		idstatus[0].state |= IDWAITING;
-		if ((statreg & IDENDMASK) == 0) {
-			ID->statcmd = IDMASKSRQ; return;
-		}
-	}
-	else if ((idstatus[0].state & IDBUSY) || (idstatus[1].state & IDBUSY)) {
+	if ((idstatus[0].state & IDBUSY) || (idstatus[1].state & IDBUSY)) {
 		if ((statreg & IDENDMASK) == 0) {
 			ID->statcmd = IDMASKSRQ; return;
 		}
@@ -863,14 +861,14 @@ if ((statreg & IDSINTRQ) == IDSINTRQ) {
 		istbyte = ID->fifo;
 		unit = istbyte & IDUNITADD;
 		if (unit >= IDNDRV) {
-			idspurintr++; return;
+			idspurintr[2]++; return;
 		}
 		idstatus[unit].istbyte = istbyte;
 		if ((idstatus[unit].istbyte & IDSEEKMSK) != IDSEEKEND) {
 			idrecal (unit); return;
 		}
 		if ((idstatus[unit].state & IDSEEK1) != IDSEEK1) {
-			idspurintr++; return;
+			idspurintr[3]++; return;
 		}
 	}
 }
@@ -887,20 +885,6 @@ if ((statreg & IDSINTRQ) == IDSINTRQ) {
 		if ((idstatus[other].state & IDWAITING) == IDWAITING) {
 			if ((idstatus[other].state & IDSEEK0) == IDSEEK0) {
 				idseek (other); return;
-			}
-			if ((idstatus[other].state & IDSEEK1) == IDSEEK1) {
-				if (idldcmd(IDSENSEINT,&idnoparam,IDNOPARAMCNT,IDINTOFF)==IDFAIL) {
-					idrecal(other); return;
-				}
-				istbyte = ID->fifo;
-				if ((istbyte & IDUNITADD) != other) {
-					idspurintr++; return;
-				}
-				idstatus[other].istbyte = istbyte;
-				if ((idstatus[other].istbyte & IDSEEKMSK) != IDSEEKEND) {
-					idrecal (other); return;
-				}
-				idxfer (other); return;
 			}
 			if ((idstatus[other].state & IDXFER) == IDXFER) {
 				idxfer (other); return;
@@ -958,22 +942,13 @@ if ((statreg & IDSINTRQ) == IDSINTRQ) {
 				idseek (other); goto wrapup;
 			}
 			if ((idstatus[other].state & IDSEEK1) == IDSEEK1) {
-				if (idldcmd(IDSENSEINT,&idnoparam,IDNOPARAMCNT,IDINTOFF)==IDFAIL) {
-					idrecal(other); return;
-				}
-				istbyte = ID->fifo;
-				if ((istbyte & IDUNITADD) != other) {
-					idspurintr++; goto wrapup;
-				}
-				idstatus[other].istbyte = istbyte;
-				if ((idstatus[other].istbyte & IDSEEKMSK) != IDSEEKEND) {
-					idrecal (other); return;
-				}
-				idxfer (other);
 				goto wrapup;
 			}
 			idxfer (other);
 		}
+		break;
+	default:
+		cmn_err(CE_WARN,"ID didn't get IDSEEK0, IDSEEK1, or IDXFER!"); 
 	}
 
 wrapup:

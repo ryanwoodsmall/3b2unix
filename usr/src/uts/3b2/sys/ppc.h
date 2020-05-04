@@ -5,7 +5,8 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/ppc.h	10.2.2.1"
+#ident	"@(#)kern-port:sys/ppc.h	10.2.2.2"	/* modified by gwb 10/14/87	*/
+
 /*
  * b_state (board state) flags
  *
@@ -48,6 +49,10 @@
  *	DEFAULTVER	default version number for boards without one
  *	HIPORTS		rom version number of the HIPORT board
  */
+
+#define PPC_SETPGRP 987		/* ppc ioctl cmd for resetting pgrp of
+				 * ports tty after a SIGHUP clears it
+				 * gwb 10/14/87	*/
 
 #define PPC_VERS (('v'<<8)|1)   
 #define O_VERS  0200	       

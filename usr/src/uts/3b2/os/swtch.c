@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/swtch.c	10.11"
+#ident	"@(#)kern-port:os/swtch.c	10.11.1.2"
 #include "sys/types.h"
 #include "sys/param.h"
 #include "sys/psw.h"
@@ -81,7 +81,7 @@ pswtch()
 			 *	the u-block and the sdt's.
 			 */
 
-			ubfree(p);
+			ubfree(p,1);
 			break;
 
 		case SONPROC:
@@ -97,13 +97,15 @@ loop:
 	 * If no process is runnable, idle.
 	 */
 	runrun = 0;
-	if ((p = disp()) == NULL) {
+	while ((p = disp()) == NULL) {
 		if (qrunflag)
 			runqueues();
-		curpri = PIDLE;
-		curproc = &proc[0];
-		idle();
-		goto loop;
+		else {
+			curpri = PIDLE;
+			curproc = &proc[0];
+			idle();
+			goto loop;
+		}
 	}
 
 	

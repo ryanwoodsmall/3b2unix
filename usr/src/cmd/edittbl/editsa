@@ -1,4 +1,4 @@
-#ident	"@(#)edittbl:editsa	1.2"
+#ident	"@(#)edittbl:editsa	1.4"
 
 # Editsa - a program which updates the data table read by filledt
 #          to map hardware board names to software application

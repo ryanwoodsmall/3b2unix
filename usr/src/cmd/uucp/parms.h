@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:parms.h	2.9"
+#ident	"@(#)uucp:parms.h	2.14"
 
 /* go through this carefully, configuring for your site */
 
@@ -76,14 +76,14 @@
 #define GRPCHK(gid)	( gid >= GRPMIN && gid <= GRPMAX ? 1 : 0 )	/* */
 /* #define GRPCHK(gid)	1	/* Systems info is not protected from DEBUG */
 
-#ifndef STANDALONE
-
 /* definitions for the types of networks and dialers that are available */
-/* #define DATAKIT	/* define DATAKIT if datakit is available */
+#define DATAKIT		/* define DATAKIT if datakit is available.  Datakit
+			 * can also be used by cu.  Thus it is defined
+			 * outside of STANDALONE. */
+#ifndef STANDALONE
 /* #define UNET		/* define UNET if you have 3com ethernet software */
 /* #define TCP		/* TCP (bsd systems) */
 /* #define SYTEK	/* for sytek network */
-
 #endif /* ! STANDALONE */
 
 #if	defined ( ATTSVR3 ) && ! defined ( DIAL )
@@ -108,9 +108,9 @@
 #define DEFAULT_BAUDRATE "9600"	/* */
 
 /*define permission modes for the device */
-#define M_DEVICEMODE 0640	/* MASTER device mode */
-#define S_DEVICEMODE 0666	/* SLAVE device mode */
-#define R_DEVICEMODE 0644	/* default mode to restore */
+#define M_DEVICEMODE 0600	/* MASTER device mode */
+#define S_DEVICEMODE 0600	/* SLAVE device mode */
+#define R_DEVICEMODE 0600	/* default mode to restore */
 
 /* NO_MODEM_CTRL - define this if you have very old hardware
  * that does not know how to correctly handle modem control
@@ -190,6 +190,9 @@
 
 /* define USRSPOOLLOCKS if you like your lock files in /usr/spool/locks
  * be sure other programs such as 'cu' and 'ct' know about this
+ *
+ * WARNING: if you do not define USRSPOOLLOCKS, then $LOCK in 
+ * uudemon.cleanup must be changed.
  */
 #define USRSPOOLLOCKS  /* define to use /usr/spool/locks for LCK files */
 

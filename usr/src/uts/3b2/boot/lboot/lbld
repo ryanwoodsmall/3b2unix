@@ -1,8 +1,8 @@
-/* #ident	"@(#)kern-port:boot/lboot/lbld	10.7" */
+/* #ident	"@(#)kern-port:boot/lboot/lbld	10.8" */
 
 MEMORY	{
-	lbcode:	origin = 0x020ef000, length = 0xd400
-	lbbss: origin  = 0x020fc400, length = 0x3c00
+	lbcode:	origin = 0x020ef000, length = 0xf000
+	lbbss: origin  = 0x020fe000, length = 0x3c00
 	lbstack:origin = 0x020ed000, length = 0x2000
 	}
 SECTIONS {

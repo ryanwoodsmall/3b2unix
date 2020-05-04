@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)fmthard:fmthard.c	1.5.2.3"
+#ident	"@(#)fmthard:fmthard.c	1.5.2.8"
 #include <stdio.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -14,6 +14,8 @@
 #include <sys/vtoc.h>
 #include <sys/id.h>
 #include <sys/open.h>
+
+struct vtoc	boot_vtoc;	/* Save current vtoc boot data */
 
 #define	nel(a)	(sizeof(a)/sizeof(*(a)))	/* Number of array elements */
 
@@ -171,6 +173,13 @@ char	**argv;
 
 	/* READ SECTOR 0 */
 	pread(fd, PDBLKNO, BLKSZ, (char *) &datastruct);
+	/*
+	 *  Verify the PD sector sanity.
+	 */
+	if (datastruct.sect0.pdinfo.sanity != VALID_PD) {
+		(void) fprintf(stderr, "%s: Invalid PD Sector\n", argv[optind]);
+		exit(1);
+	}
 
 	if (qflag)
 		exit(datastruct.o_sect0.reserved == 0xfeedbeef ? 0 : 1);
@@ -213,6 +222,20 @@ char	**argv;
 	}
 	if (tflag) {
 		tinyvtoc(size_newdsk, &bufvtoc);
+
+		/*
+		*  Read the current VTOC. If SANE, copy the boot
+		*  information from the first three words into
+		*  the new VTOC information.
+		*/
+		pread(fd, logical + 1, sizeof(struct vtoc), (char *) &boot_vtoc);
+		if (boot_vtoc.v_sanity == VTOC_SANE)
+		{
+			bufvtoc.v_bootinfo[0] = boot_vtoc.v_bootinfo[0];
+			bufvtoc.v_bootinfo[1] = boot_vtoc.v_bootinfo[1];
+			bufvtoc.v_bootinfo[2] = boot_vtoc.v_bootinfo[2];
+		}
+
 		validate(&datastruct.sect0.pdinfo, &bufvtoc);
 		pwrite(fd, logical + 1, sizeof(struct vtoc), (char *) &bufvtoc);
 		exit(0);
@@ -239,11 +262,26 @@ char	**argv;
 		values();
 		exit(0);
 	}
+
+	/*
+	*  Read the current VTOC. If SANE, copy the boot
+	*  information from the first three words into
+	*  the new VTOC information.
+	*/
+	pread(fd,logical + 1, sizeof(struct vtoc), (char *) &boot_vtoc);
+	if (boot_vtoc.v_sanity == VTOC_SANE)
+	{
+		bufvtoc.v_bootinfo[0] = boot_vtoc.v_bootinfo[0];
+		bufvtoc.v_bootinfo[1] = boot_vtoc.v_bootinfo[1];
+		bufvtoc.v_bootinfo[2] = boot_vtoc.v_bootinfo[2];
+	}
+
 	validate(&datastruct.sect0.pdinfo, &bufvtoc);
 	pwrite(fd, logical + 1, sizeof(struct vtoc), (char *) &bufvtoc);
 	(void) printf("fmthard:  New volume table of contents now in place.\n");
 	if (mflag)
 		mkfs(argv[optind], bufvtoc.v_part,
+		  datastruct.sect0.gapsz,
 		  datastruct.sect0.pdinfo.sectors
 		    * datastruct.sect0.pdinfo.tracks);
 	exit(0);
@@ -277,8 +315,8 @@ struct vtoc	*vtoc;
 		exit(1);
 	}
 	else if (size_newdsk > SIZE_72) {
-		swap = SWAP_72 * size_newdsk / SIZE_72;
-		root = ROOT_72 * size_newdsk / SIZE_72;
+		swap = SWAP_72 * (size_newdsk / SIZE_72);
+		root = ROOT_72 * (size_newdsk /	SIZE_72);
 	}
 	else {
 		if (size_newdsk >= SIZE_10 && size_newdsk < 
@@ -570,6 +608,8 @@ struct vtoc	*vtoc;
 		(void) fprintf(stderr, "I/O error reading datafile %s\n", dfile);
 		exit(1);
 	}
+	for (part=0; part < V_NUMPAR; part++)
+		vtoc->timestamp[part] = (time_t)0;
 }
 
 /*
@@ -590,9 +630,10 @@ minval()
  * Make a filesystem on each viable partition.
  */
 static void
-mkfs(devname, part, cylsize)
+mkfs(devname, part, gap_size, cylsize)
 char *				devname;
 register struct partition	*part;
+unsigned long			gap_size;
 unsigned long			cylsize;
 {
 	register int	idx;
@@ -606,8 +647,9 @@ unsigned long			cylsize;
     		part[idx].p_size) {
 			devname[partno] = "0123456789abcdef"[idx];
 			(void) sprintf(cmd,
-			    "mkfs %s %ld 9 %lu",
-			    devname, part[idx].p_size, cylsize);
+			    "mkfs %s %ld %lu %lu",
+			    devname, part[idx].p_size,
+			    gap_size ? gap_size : 10, cylsize);
 			if (vflag)
 				(void) printf("+(fmthard) %s\n", cmd);
 			if (system(cmd)) {

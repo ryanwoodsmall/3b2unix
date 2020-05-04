@@ -120,14 +120,14 @@ d--775 0 3
 		mkdir		---555 2 2	../bin/mkdir
 		rm		---555 2 2	../bin/rm
 		rmdir		---555 2 2	../bin/rmdir
-		sh		---555 2 0	../bin/sh
+		sh		---555 2 0	../usr/adm/sh.sec
 		sync		---555 2 2	../bin/sync
 		true		---555 2 2	../bin/true
 		$
 	etc	d--775 0 3
 		TIMEZONE	---444 0 3	../etc/TIMEZONE
 		fmthard		---555 0 0	../etc/fmthard
-		fsck		---555 0 0	../etc/fsck
+		fsck1K		---555 0 0	../etc/fsck1K
 		group		---644 0 3	../etc/group
 		init		---555 0 2	../etc/init
 		inittab		---444 2 2	inst/etc/inittabf
@@ -199,4 +199,4 @@ d--775 0 3
 		libc_s		---555 0 0	../shlib/libc_s
 	$
 $
-:#ident	"@(#)core:proto.core1	1.15.1.4"
+:#ident	"@(#)core:proto.core1	1.15.1.8"

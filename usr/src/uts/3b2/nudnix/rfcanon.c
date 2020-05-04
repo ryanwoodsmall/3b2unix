@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/rfcanon.c	10.5.2.6"
+#ident	"@(#)kern-port:nudnix/rfcanon.c	10.5.3.2"
 
 #include "sys/types.h"
 #include "sys/sema.h"
@@ -106,7 +106,10 @@ register int hetero;
 					msg->rp_count = i;
 			}
 			break;
-
+		case DUCOPYIN:
+			if (u.u_syscall == DUUTIME) 
+				i = tcanon("ll",msg->rp_data,msg->rp_data,1);
+			break;
 		default:
 			break;
 		}

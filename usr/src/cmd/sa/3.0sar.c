@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)sa:3.0sar.c	1.2"
+#ident	"@(#)sa:3.0sar.c	1.5"
 /*	sar.c 1.27 of 6/18/86	*/
 /*
 	sar.c - It generates a report either
@@ -20,11 +20,11 @@
 #include <ctype.h>
 #include <time.h>
 #include <sys/types.h>
-#include <sys/sysinfo.h>
+#include "sys/sysinfo.h"
 #include <sys/utsname.h>
 #include <sys/fcntl.h>
 #include <sys/flock.h>
-#include "sa.h"
+#include "3.1sa.h"
 
 struct sa nx,ox,ax,bx;
 struct tm *localtime(), *curt,args,arge;
@@ -658,11 +658,13 @@ prtopt()
 		printf(" %7.0f %7.0f %7.0f %7.0f %7.0f %7.0f %7.0f %7.0f\n",
 			(float)(nx.si.bread - ox.si.bread)/tdiff * HZ,
 			(float)(nx.si.lread - ox.si.lread)/tdiff * HZ,
+			((nx.si.lread - ox.si.lread) <= 0) ? 100 :
 			(((float)(nx.si.lread - ox.si.lread) -
 			  (float)(nx.si.bread - ox.si.bread))/
 			  (float)(nx.si.lread - ox.si.lread) * 100.0),
 			(float)(nx.si.bwrite - ox.si.bwrite)/tdiff * HZ,
 			(float)(nx.si.lwrite - ox.si.lwrite)/tdiff * HZ,
+			((nx.si.lwrite - ox.si.lwrite) <= 0) ? 100 :
 			(((float)(nx.si.lwrite - ox.si.lwrite) -
 			  (float)(nx.si.bwrite - ox.si.bwrite))/
 			  (float)(nx.si.lwrite - ox.si.lwrite) * 100.0),
@@ -706,7 +708,7 @@ prtopt()
 		}
 #endif /* u3b15 */
 #ifdef	u3b2
-		else if ( j == SD00 ){
+		else if ( j == SD00 || j == SD01){
 			printf(" %4s%-3d", devnm[j], nx.devio[ii][4]);
 			hz = 1000;
 		}
@@ -1151,7 +1153,7 @@ prtavg()
 				}
 #endif /* u3b15 */
 #ifdef	u3b2
-				else if ( j == SD00 ){
+				else if ( j == SD00 || j == SD01){
 					printf(" %4s%-3d", devnm[j], nx.devio[ii][4]);
 					hz = 1000;
 				}

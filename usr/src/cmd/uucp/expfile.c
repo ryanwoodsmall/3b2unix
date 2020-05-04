@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:expfile.c	2.4"
+#ident	"@(#)uucp:expfile.c	2.6"
 
 #include "uucp.h"
 
@@ -171,24 +171,24 @@ register int	mask;
 	    }
 	}
 
-	if (Uid != 0) {
-		if (setuid(Uid) != 0) {
-		    DEBUG(5, "CAN'T SETUID %d\n", Uid);
-		    return(FAIL);
-		}
-		if ( chmod(name, (mask ^ 0777) & 0777) != 0) {
-		    errent(Ct_CHMOD, name, errno, __FILE__, __LINE__);
-		    return(FAIL);
-		};
-		if (chown(name, UUCPUID, getgid()) != 0) {
-	            DEBUG(5, "CHOWN FAILED %s  ", name);
-		    DEBUG(5, "errno %d\n", errno);
-		    errent(Ct_CHOWN, name, errno, __FILE__, __LINE__);
-		    setuid(Euid);
-		    return(FAIL);
-		}
+	if (setuid(Uid) != 0) {
+		DEBUG(5, "CAN'T SETUID %d\n", Uid);
+		return(FAIL);
+	}
+	if ( chmod(name, (mask ^ 0777) & 0777) != 0) {
+		errent(Ct_CHMOD, name, errno, __FILE__, __LINE__);
 		setuid(Euid);
-    	}
+		return(FAIL);
+	};
+	if (chown(name, UUCPUID, getgid()) != 0) {
+		DEBUG(5, "CHOWN FAILED %s  ", name);
+		DEBUG(5, "errno %d\n", errno);
+		errent(Ct_CHOWN, name, errno, __FILE__, __LINE__);
+		setuid(Euid);
+		return(FAIL);
+	}
+	setuid(Euid);
+
 	return(0);
 }
 #endif /* ATTSV */

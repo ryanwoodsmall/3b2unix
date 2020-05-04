@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)file:file.c	1.17"
+#ident	"@(#)file:file.c	1.17.1.1"
 
 #include	<ctype.h>
 #include	<fcntl.h>
@@ -560,7 +560,6 @@ ckmtab()				/* ChecK for Magic Table entries in the file */
 		}
 		switch(ep->e_opcode & ~SUB) {
 		case EQ:
-#ifdef u3b
 			if(val.l != ep->e_value.num)
 				if(ep->e_type == SHORT) {
 					/* reverse bytes */
@@ -576,11 +575,6 @@ ckmtab()				/* ChecK for Magic Table entries in the file */
 				else	continue;
 			else
 				break;
-#else
-			if(val.l != ep->e_value.num)
-				continue;
-			break;
-#endif
 		case GT:
 			if(val.l <= ep->e_value.num)
 				continue;

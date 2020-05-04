@@ -1,4 +1,4 @@
-#ident	"@(#)terminfo:pc.ti	1.12"
+#ident	"@(#)terminfo:pc.ti	1.14"
 # # PC - Personal Computers and Workstations emulating terminals.
 #
 # Manufacturer:	PERSONAL COMPUTER TERMINALS
@@ -568,3 +568,165 @@ x820|Xerox 820,
 	cup=\E=%p1%' '%+%c%p2%' '%+%c,
 	clear=1^Z, ed=^Q, el=^X, cols#80, home=^^, lines#24,
 	cuf1=^L, cuu1=^K,
+
+# COLOR EMULATORS
+
+gs6300|emots|AT&T PC6300 with EMOTS Terminal Emulator,
+
+# background color erase
+
+	am, msgr, xon, bce,
+	cols#80, it#8, lines#24, colors#8, pairs#64,
+	acsc=\,\,..--++``aaffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz{{||}}~~,
+	bel=^G, blink=\E[5m, bold=\E[1m, clear=\E[H\E[J,
+	cr=\r, cub=\E[%p1%dD, cub1=\b, cud=\E[%p1%dB, cud1=\n,
+	cuf=\E[%p1%dC, cuf1=\E[C, cup=\E[%i%p1%d;%p2%dH,
+	cuu=\E[%p1%dA, cuu1=\E[A, dch=\E[%p1%dP, dch1=\E[P,
+	dl=\E[%p1%dM, dl1=\E[M, ed=\E[J, el=\E[K, .el1=\E[1K,
+	home=\E[H, ht=\t, ich=\E[%p1%d@, ich1=\E[@,
+	il=\E[%p1%dL, il1=\E[L, ind=\n, is2=\E[0m, kbs=\b,
+	kcbt=^R\t, kcub1=\E[D, kcud1=\E[B, kcuf1=\E[C,
+	kcuu1=\E[A, kf1=\E[0s, kf2=\E[24s, kf3=\E[1s,
+	kf4=\E[23s, kf5=\E[2s, kf6=\E[22s, kf7=\E[3s,
+	kf8=\E[21s, khome=\E[H, mc4=\E[4i, mc5=\E[5i,
+	rev=\E[7m, ri=\E[L, rmacs=\E[10m, rmln=\E|, rs1=\Ec,
+	sgr0=\E[m\E[10m, smacs=\E[11m, smso=\E[1m, smul=\E[4m,
+
+#	color information.  blue foreground is simulated with cyan
+
+	op=\E[?;m,
+	setf=\E[?%?%p1%{0}%=%t0
+		 %e%p1%{1}%=%t2
+		 %e%p1%{1}%-%d%;m,
+	setb=\E[?;%p1%dm,
+
+
+pc52|dec vt52 for PC,
+
+#	background color erase
+
+	am, msgr, bce,
+	cols#80, it#8, lines#25,
+
+# 	bold means: white on black bold, so it not allowed with colors
+# 	rev meand: black on white, also not allowed
+#	smso and dim are simulated with colors, ditto
+#	smul is allowed, even though it always means white foreground:
+#	it is too important.
+
+	colors#8, pairs#64, ncv#53,
+	bel=^G, blink=\Eo, bold=\Ebo\Ec0, clear=\EH\EJ, cr=\r,
+	cub1=\b, cud1=\n, cuf1=\EC,
+	cup=\EY%p1%'\s'%+%c%p2%'\s'%+%c, cuu1=\EA,
+	dim=\Eb3\Ec0, dl1=\EM, ed=\EJ, el=\EK, ht=\t, il1=\EL,
+	ind=\n, kbs=\b, kcub1=\EL, kcud1=\ED, kcuf1=\ER,
+	kcuu1=\EU, kf1=\Ea, kf10=\Ej, kf2=\Eb, kf3=\Ec,
+	kf4=\Ed, kf5=\Ee, kf6=\Ef, kf7=\Eg, kf8=\Eh, kf9=\Ei,
+	rev=\Ep, ri=\EI, rmso=\Eb7\Ec0, sgr0=\Eb7\Ec0\Et, smso=\Eb6\Ec4,
+	smul=\Es,
+
+#	color information.  blue foreground is simulated with cyan
+
+	op=\Eb7\Ec0,
+	setf=\Eb%?%p1%{1}%=%t3
+	        %e%p1%d%;,
+	setb=\Ec%p1%d,
+
+
+# CTRM terminal emulator
+
+ctrm|C terminal emulator,
+
+	am, xon,
+
+# back_color_erase
+# underlining is not allowed with colors: first, is is simulated by 
+# black on white, second, it disables background color manipulations.
+
+	bce,
+	cols#80, lh#0, lines#24, lm#0, lw#0, nlab#0, colors#8, pairs#64,
+	pb#19200, vt#6, ncv#2,
+	bel=^G, cbt=\Ei, clear=\EH\EJ, cr=\r, cub1=\b,
+	cud1=\n, cuf1=\EC, cup=\E&a%p2%dc%p1%dY, cuu1=\EA,
+	dch1=\EP$<2>, dl1=\EM, ed=\EJ, el=\EK, hpa=\E&a%p1%dC,
+	ht=\t$<2>, hts=\E1, il1=\EL, ind=\n, ip=$<2>,
+	is2=\E&jA\r, kbs=\b, kcub1=\Eu\r, kcud1=\Ew\r,
+	kcuf1=\Ev\r, kcuu1=\Et\r, kf1=\Ep\r, kf2=\Eq\r,
+	kf3=\Er\r, kf4=\Es\r, kf5=\Et\r, kf6=\Eu\r, kf7=\Ev\r,
+	kf8=\Ew\r, khome=\Ep\r, rmir=\ER, rmkx=\E&jA, smir=\EQ,
+	smkx=\E&jB, smso=\E&dD, smul=\E&dD, tbc=\E3,
+	vpa=\E&a%p1%dY,
+
+# BLINKING, REVERSE and BOLD are allowed with colors,
+# so we have to save their status in the static registers A, B and H
+# respectively, to be able to restore them when color changes
+# (because any color change turns off ALL attributes)
+
+	blink=\E&dA%{1}%PA,
+
+# "enter_bold_mode" and "enter_reverse_mode" sequences alternates modes,
+# rather then simply  entering them.  Thus we have to check the
+# static register B and H to determine the status, before sending the 
+# escape sequence.
+
+	rev=%?%gB%{0}%=%t\E&dB%{1}%PB%;,
+	bold=%?%gH%{0}%=%t\E&dH%{1}%PH%;,
+
+	smul=\E&dD,
+
+# sgr0 now must set the status of all 3 register (A,B,H) to zero
+# and then reset colors
+
+	sgr0=\E&d@%{0}%PA%{0}%PB%{0}%PH,
+
+# implementation of the protect mode would badly penalize the performance.
+# we would have to use \E&bn sequence to turn off colors (as well as all
+# other attributes), and keep the status of protect mode in yet another
+# static variable.  If someone really need this mode, they would have to
+# create another terminfo entry.
+
+	sgr=\E&d@%{0}%PA%{0}%PB%{0}%PD%{0}%PH
+		 %?%p1%p3%p5%|%|%t\E&dB%{1}%PB%;
+		 %?%p4%t\E&dA%{1}%PA%;
+		 %?%p6%t\E&dH%{1}%PH%;
+		 %?%p2%t\E&dD%;,
+
+# original color-pair: white on black.
+# store the information about colors into static registers
+
+	op=\E&bn\E&bB\E&bG\E&bR
+	    %{0}%PX%{0}%PY%{0}%PZ
+	    %{1}%PW%{1}%PV%{1}%PU,
+
+# set foreground color.  it performs the following steps.
+#   1) turn off all attributes
+#   2) turn on the background and video attribues that have been turned
+#      on before (this information is stored in static registers X,Y,Z,A,B,H,D).
+#   3) turn on foreground attributes
+#   4) store information about foreground into U,V,W static registers
+
+	setf=\E&bn
+		%?%gA%t\E&dA%;
+		%?%gB%t\E&dB%;
+		%?%gH%t\E&dH%;
+		%?%gX%t\E&br%;
+		%?%gY%t\E&bg%;
+		%?%gZ%t\E&bb%;
+
+		%?%p1%{1}%&%t\E&bB%{1}%e%{0}%;%PW
+		%?%p1%{2}%&%t\E&bG%{1}%e%{0}%;%PV
+		%?%p1%{4}%&%t\E&bR%{1}%e%{0}%;%PU,
+
+# turn on background: similar to turn on foreground above
+
+	setb=\E&bn
+		%?%gA%t\E&dA%;
+		%?%gB%t\E&dB%;
+		%?%gH%t\E&dH%;
+		%?%gU%t\E&bR%;
+		%?%gV%t\E&bG%;
+		%?%gW%t\E&bB%;
+
+		%?%p1%{1}%&%t\E&bb%{1}%e%{0}%;%PZ
+		%?%p1%{2}%&%t\E&bg%{1}%e%{0}%;%PY
+		%?%p1%{4}%&%t\E&br%{1}%e%{0}%;%PX,

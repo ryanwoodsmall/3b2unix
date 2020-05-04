@@ -1,4 +1,4 @@
-#ident "@(#)rfs.admin:setuprfs	1.23"
+#ident	"@(#)rfs.admin:setuprfs	1.29"
 #menu#	set up your machine to run RFS
 
 #help#
@@ -316,6 +316,7 @@ a non-primary?"
 #initialization
 cflag="-qq -k$$"
 SERV_CODE=105
+STATE=`/bin/grep ":initdefault:" /etc/inittab 2>/dev/null | /usr/bin/cut -d":" -f2`
 
 #Check to see if RFS is currently running
 if  /usr/lbin/rfsrunning 
@@ -510,8 +511,8 @@ case $R1 in
                         P_NAME=`/usr/lbin/checkre $cflag -fe \
                         -H"${DEF_PNAME}" \
                         "$OQ2" \
-                        '^[^ \/\.:]*$'  'The machine name must not contain a space, ":", "/", or ".".'     \
-                        -r '.' 'You must enter a primary machine name.'`
+                        '^[^ \\\.:]*$'  'The machine name must not contain a space, ":", "\", or ".".'     \
+                        '^.\{1,8\}$' 'The primary machine name must be 1 to 8 printable characters.'`
                 fi
 
                 if [ "$NEW_P" = "yes" -o "$NEW" = "yes" -o "$OP_NAME" = "" ]
@@ -638,7 +639,16 @@ case $R1 in
         if [ $? -ne 0 ]
         then
                 echo "$P_SECURITY"
-                /usr/bin/rfadmin -a ${D_NAME}.${NODENAME}
+		while /bin/true
+		do
+                	/usr/bin/rfadmin -a ${D_NAME}.${NODENAME}
+			if [ $? -eq 0 ]
+			then
+				break
+			else
+				echo "$P_SECURITY"
+			fi
+		done
                 /bin/rm -f /usr/nserve/loc.passwd
                 echo "\n${NODENAME} has been added as a member of ${D_NAME}."
         fi
@@ -676,7 +686,7 @@ case $R1 in
                 /bin/sed "s/:.*//
                         s/^/    /" /usr/tmp/mem$$ | /usr/bin/pg -e -p"Enter <RETURN> to continue:"
                 echo
-                if /usr/lbin/checkyn $cflag -f "Do you want to keep these members in domain $D_NAME?"
+                if /usr/lbin/checkyn $cflag -f "Do you want to move these members in domain $D_NAME?"
                 then
                         /bin/cat /usr/tmp/mem$$ >> /usr/nserve/auth.info/$D_NAME/passwd 2>/dev/null
                         /bin/sort -o /usr/nserve/auth.info/$D_NAME/passwd -u /usr/nserve/auth.info/$D_NAME/passwd
@@ -741,7 +751,7 @@ case $R1 in
         NEWINFO=
         if [ "$sec" != "" ]
         then
-                echo "\nThe following secondary name servers are now defined:\n"
+                echo "\nThe following are secondary name servers defined in $OD_NAME:\n"
                 /usr/bin/awk '{printf "\t%s with address %s\n", $1, $2}' /usr/tmp/sec$$
                 echo
                 if /usr/lbin/checkyn $cflag -f "Do you want these to be the secondaries for domain $D_NAME?"
@@ -773,8 +783,8 @@ case $R1 in
                                 S_NAME=`/usr/lbin/checkre $cflag -fe \
                                 -H "${DEF_SECONDARY}" \
                                 "$PQ3" \
-                                '^[^ \/\.:]*$'  'The machine name must not contain a space, ":", "/", or ".".'     \
-                                -r '.' 'You must enter a secondary machine name.'`
+                                '^[^ \\\.:]*$'  'The machine name must not contain a space, ":", "\", or ".".'     \
+                                '^.\{1,8\}$' 'The secondary machine name must be 1 to 8 printable characters.'`
 
                                 if [ "$S_NAME" = "$NODENAME" ]
                                 then
@@ -811,7 +821,17 @@ case $R1 in
                                 then
                                         echo "Adding $S_NAME as a secondary name server."
 					echo "If it was not already a member of the domain it will be added now."
-                                        /usr/bin/rfadmin -a ${D_NAME}.${S_NAME}
+					while /bin/true
+					do
+                                        	/usr/bin/rfadmin -a ${D_NAME}.${S_NAME}
+						if [ $? -eq 0 ]
+						then
+							break
+						else
+                                        		echo "\nAdding $S_NAME as a secondary name server."
+							echo "If it was not already a member of the domain it will be added now."
+						fi
+					done
                                 fi
                                 echo "\nYou should inform the administrator of machine \"$S_NAME\" that "
                                 echo "it has been designated as a secondary name server for domain ${D_NAME}"
@@ -835,7 +855,17 @@ case $R1 in
                         /bin/grep "^$S_NAME:" /usr/nserve/auth.info/${D_NAME}/passwd >/dev/null 2>&1
                         if [ "$?" != "0" ]
                         then
-                                /usr/bin/rfadmin -a ${D_NAME}.${S_NAME}
+                                echo "\nAttempting to add $S_NAME as a secondary name server."
+				while /bin/true
+				do
+                                	/usr/bin/rfadmin -a ${D_NAME}.${S_NAME}
+					if [ $? -eq 0 ]
+					then
+						break
+					else
+                                        	echo "\nAttempting to add $S_NAME as a secondary name server."
+					fi
+				done
                         fi
                 done
         else
@@ -900,21 +930,27 @@ fi
 
 echo "\nTo add remote resource to the Automatic Mount List in the future use "
 echo "the \"mntauto\" subcommand on the Mount Remote Resource Management Menu.\n"
-
-#Ask  do you want RFS started at system boot
+#Determine if is set up for auto start, if not, ask to start it.  If so, then
+#  report so.
 echo "$DEF_BOOT\n"
-if /usr/lbin/checkyn $cflag -f "$BOOTQ"
+if [ "$STATE" != "3" ]
 then
-        # grep for initdefault in /etc/inittab and change the setting to
-        # 3
+	#Ask  do you want RFS started at system boot
+	if /usr/lbin/checkyn $cflag -f "$BOOTQ"
+	then
+        	# grep for initdefault in /etc/inittab and change the setting to
+        	# 3
 
-        /bin/grep -v ":initdefault:" /etc/inittab >/usr/tmp/setauto$$
-        echo "is:3:initdefault:" >>/usr/tmp/setauto$$
-        /bin/mv /usr/tmp/setauto$$ /etc/inittab
-	echo "\nRFS auto-start is ON."
+        	/bin/grep -v ":initdefault:" /etc/inittab >/usr/tmp/setauto$$
+        	echo "is:3:initdefault:" >>/usr/tmp/setauto$$
+        	/bin/mv /usr/tmp/setauto$$ /etc/inittab
+		echo "\nRFS auto-start is ON."
 
+	else
+        	echo "\nRFS auto-start is OFF.\n"
+	fi
 else
-        echo "\nRFS auto-start is OFF.\n"
+	echo "\nRFS auto-start is ON."
 fi
 
 echo "\nTo turn on / off RFS auto-start in the future use the \"setauto\""

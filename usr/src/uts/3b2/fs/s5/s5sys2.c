@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:fs/s5/s5sys2.c	10.9"
+#ident	"@(#)kern-port:fs/s5/s5sys2.c	10.10"
 #include "sys/types.h"
 #include "sys/sysmacros.h"
 #include "sys/param.h"
@@ -71,6 +71,7 @@ int bufsz; /* the size of the user's buffer */
 			brelse(xbp);
 			goto fail;
 		}
+		ip->i_flag |= IACC;
 		s5dir = (struct direct *)(bp->b_un.b_addr + u.u_pboff);
 		dirent = (struct dirent *)xbp->b_un.b_addr;
 		m = 0;

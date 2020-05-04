@@ -5,14 +5,14 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/curses.c	1.9"
+#ident	"@(#)curses:screen/curses.c	1.10"
 
 /* Define global variables */
 
 #include	"curses_inc.h"
 
 WINDOW	*stdscr, *curscr, *_virtscr;
-int	LINES, COLS, TABSIZE;
+int	LINES, COLS, TABSIZE, COLORS, COLOR_PAIRS;
 short	curs_errno = -1;
 int	(*_setidln)(), (*_useidln)(), (*_quick_ptr)();
 int	(*_do_slk_ref)(), (*_do_slk_tch)(), (*_do_slk_noref)();

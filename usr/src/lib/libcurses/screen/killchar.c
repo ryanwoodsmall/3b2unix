@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/killchar.c	1.1.1.4"
+#ident	"@(#)curses:screen/killchar.c	1.3"
 /*
  * Routines to deal with setting and resetting modes in the tty driver.
  * See also setupterm.c in the termlib part.

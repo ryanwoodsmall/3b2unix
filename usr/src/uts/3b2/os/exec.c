@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/exec.c	10.20.5.6"
+#ident	"@(#)kern-port:os/exec.c	10.20.5.8"
 
 #include "sys/types.h"
 #include "sys/param.h"
@@ -638,12 +638,15 @@ short  dpregtyp;
 				goto out;
 			}
 		}
+		npgs = btoc(dbase + dsize + bsize) - btoc(dbase + dsize);
+	} else {
+		npgs = btoc(dbase + bsize) - btoct(dbase);
 	}
 
 	/*
 	 * Allocate bss as demand zero
 	 */
-	if (npgs = btoc(dbase + dsize + bsize) - btoc(dbase + dsize)) {
+	if (npgs) {
 		if (growreg(prp, npgs, DBD_DZERO) < 0) {
 			detachreg(prp, &u);
 			goto out;
@@ -655,7 +658,7 @@ short  dpregtyp;
 	/* set SUID/SGID protections, if no tracing */
 
 	if (tpregtyp == PT_TEXT) {
-		if (!PTRACED(u.u_procp)) {
+		if (( ! PTRACED(u.u_procp)) || (u.u_uid == 0)) {
 			if (!FS_ACCESS(ip, ISUID))
 				u.u_uid = ip->i_uid;
 			if (!FS_ACCESS(ip, ISGID))

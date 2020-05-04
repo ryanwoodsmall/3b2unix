@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/sys2.c	10.20.4.1"
+#ident	"@(#)kern-port:os/sys2.c	10.20.4.7"
 #include "sys/types.h"
 #include "sys/sysmacros.h"
 #include "sys/param.h"
@@ -351,7 +351,7 @@ retry:
 	if (rem <= 0)
 		goto pollout;
 
-	s = spl6();
+	s = splstr();
 	/*
 	 * If anything has happened on an fd since it was checked, it will
 	 * have turned off SPOLL.  Check this and rescan if so.
@@ -438,11 +438,14 @@ pollout:
  * Removes all event cells that refer to the current process in the
  * given stream's poll list.
  */
+
 pollreset(stp)
 register struct stdata *stp;
 {
 	register struct strevent *psep, *sep, *tmp;
+	register int s;
 	
+	s = splstr();
 	sep = stp->sd_pollist;
 	psep = NULL;
 	while (sep) {
@@ -453,6 +456,8 @@ register struct stdata *stp;
 			else
 				stp->sd_pollist = tmp;
 			sefree(sep);
+		} else {
+			psep = sep;
 		}
 		sep = tmp;
 	}
@@ -462,6 +467,7 @@ register struct stdata *stp;
 	stp->sd_pollflags = 0;
 	for (sep = stp->sd_pollist; sep; sep = sep->se_next)
 		stp->sd_pollflags |= sep->se_events;
+	splx(s);
 }
 
 /*
@@ -678,11 +684,11 @@ link()
 	if ((ip = namei(upath, 0)) == NULL)
 		return;
 	u.u_pdir = ip;
-	if (ip->i_ftype == IFDIR && !suser())
-		goto out;
-
 	if (server())
 		return;
+
+	if (ip->i_ftype == IFDIR && !suser())
+		goto out;
 	prele(ip);
 	u.u_dirp = (caddr_t)uap->linkname;
 	nmarg.cmd = NI_LINK;

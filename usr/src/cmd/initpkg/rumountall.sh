@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)initpkg:./rumountall.sh	1.12"
+#ident	"@(#)initpkg:./rumountall.sh	1.12.1.1"
 
 if u3b2
 then
@@ -35,13 +35,9 @@ do
 	esac
 	shift
 done
-#		kill outstanding rmount scripts
+#		kill queued mounts
  
-for pid in \`ps -ef | grep /etc/rmount | grep -v grep \\
-		   | sed -e 's/ *[^ ]*  *//' -e 's/ .*//'\`
-do
-	kill -9 \${pid} 
-done
+/bin/rm -f /usr/nserve/rmnttab
  
 if [ \${kill} ]
 then

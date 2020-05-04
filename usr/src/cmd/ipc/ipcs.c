@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)ipc:/ipcs.c	1.9"
+#ident	"@(#)ipc:/ipcs.c	1.12"
 /*
 **	ipcs - IPC status
 **	Examine and print certain things about message queues, semaphores,
@@ -88,6 +88,8 @@ int		bflg,		/* biggest size:
 		tflg,		/* times: atime, ctime, dtime on m;
 					ctime, rtime, stime on q;
 					ctime, otime on s */
+		Cflg,		/* user supplied corefile */
+		Nflg,		/* user supplied namelist */
 		err;		/* option error count */
 extern int	optind;		/* option index for getopt */
 
@@ -127,6 +129,7 @@ char	**argv;	/* arg vector */
 			break;
 		case 'C':
 			mem = optarg;
+			Cflg = 1;
 			break;
 		case 'm':
 #ifdef pdp11
@@ -136,6 +139,7 @@ char	**argv;	/* arg vector */
 			break;
 		case 'N':
 			name = optarg;
+			Nflg = 1;
 			break;
 		case 'o':
 			oflg = 1;
@@ -160,6 +164,14 @@ char	**argv;	/* arg vector */
 		fprintf(stderr,
 			"usage:  ipcs [-abcmopqst] [-C corefile] [-N namelist]\n");
 		exit(1);
+	}
+	/*
+	   If the user supplied either the corefile or namelist then
+	   reset the uid/gid to the user invoking this command.
+	*/
+	if (Cflg || Nflg) {
+		setuid(getuid());
+		setgid(getgid());
 	}
 	if((mflg + qflg + sflg) == 0)
 		mflg = qflg = sflg = 1;
@@ -386,4 +398,4 @@ time_t	time;	/* time to be displayed */
 		printf(" no-entry");
 }
 
-/* <@(#)ipc:/ipcs.c	1.9> */
+/* <@(#)ipc:/ipcs.c	1.12> */

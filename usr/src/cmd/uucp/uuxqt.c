@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:uuxqt.c	2.7"
+#ident	"@(#)uucp:uuxqt.c	2.12.1.1"
 
 #include "uucp.h"
 
@@ -33,6 +33,7 @@ int	_CargType;		/* argument type of next C argument */
 static void retosndr(), uucpst();
 static int chkFile();
 static int doFileChk();
+static  char	shchar[] = "`;&|^<>()\t\n ";
 
 main(argc, argv, envp)
 char	*argv[], *envp[];
@@ -127,6 +128,10 @@ char	*argv[], *envp[];
 	Uid = getuid();
 	Euid = geteuid();	/* this should be UUCPUID */
 	guinfo(Euid, User);
+
+	if (Uid == 0)
+		(void) setuid(UUCPUID);
+
 	setuucp(User);
 	DEBUG(4, "User - %s\n", User);
 	guinfo(Uid, Loginuser);
@@ -137,6 +142,14 @@ char	*argv[], *envp[];
 	ASSERT(fp1 != NULL, Ct_OPEN, Spool, errno);
 
 	if (dirname[0] != NULLCHAR) {
+ 	   if ( strpbrk(dirname, shchar) != NULL  )   
+						 /* ignore naughty name */
+	    {
+		DEBUG(4, "Bad remote name '%s'\n", dirname);
+		errent("BAD REMOTE NAME", dirname, 0, __FILE__, __LINE__);
+		closedir(fp1);
+		cleanup(101);
+	    }
 	    (void) sprintf(lockname, "%s.%s", X_LOCK, dirname);
 	    if (ulockf(lockname, (time_t)  X_LOCKTIME) == 0) {
 		xprocess(dirname);
@@ -145,6 +158,12 @@ char	*argv[], *envp[];
 	}
 	else {
 	    while (gdirf(fp1, dirname, Spool) == TRUE) {
+		if (strpbrk(dirname, shchar) != NULL )
+						/* skip naughty names */
+		{
+		    errent("BAD REMOTE NAME", dirname, 0, __FILE__, __LINE__);
+		    continue;
+		}
 	        (void) sprintf(lockname, "%s.%s", X_LOCK, dirname);
 	        if (ulockf(lockname, (time_t)  X_LOCKTIME) != 0)
 	    	    continue;
@@ -832,8 +851,9 @@ char *dirname;
 	    (void) strcpy(user, retaddr);	/* pick on this guy */
 
 	/* get rid of stuff that can be dangerous */
-	if ( (p = strpbrk(user, ";&|<>^`\\('\"{}\n")) != NULL) {
-	    *p = NULLCHAR;
+	if ( (p = strpbrk(user, shchar)) != NULL) {
+		logent(user, "BAD USER NAME");
+		goto rmfiles;
 	}
 
 	if (incmd[0] == NULLCHAR) {
@@ -1034,3 +1054,4 @@ char *prefix, *dir;
 	closedir(pdir);
 	return(i);
 }
+

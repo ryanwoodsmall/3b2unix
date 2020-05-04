@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/edt.h	10.1"
+#ident	"@(#)kern-port:sys/edt.h	10.2"
 /************************************************************/
 /*    Structures for the Equipped Device Table              */
 /************************************************************/
@@ -38,7 +38,8 @@ struct edt {
 					/* this board is		*/
 	unsigned rq_size:8;		/* request queue entry size	*/
 	unsigned cq_size:8;		/* completion queue entry size	*/
-	unsigned resrvd:14;		/* (reserved for future use)	*/
+	unsigned resrvd:13;		/* (reserved for future use)	*/
+	unsigned indir_dev:1;
 	unsigned cons_cap:1;		/* one = can support console	*/
 					/* zero = cannot support cons   */
 	unsigned cons_file:1;		/* zero = device has no pump    */

@@ -1,4 +1,4 @@
-#ident "@(#)lp:model/f450	1.2"
+#ident	"@(#)nlp:model/f450	1.5"
 # lp interface for DASI 450 terminal
 #
 #	All output is passed through the /usr/bin/450 filter

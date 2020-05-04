@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)initpkg:./mountall.sh	1.9"
+#ident	"@(#)initpkg:./mountall.sh	1.10"
 if u3b2
 then echo "#	Mount file systems according to file system table /etc/fstab.
 #	Note: written to depend on as few commands as possible.
@@ -75,6 +75,7 @@ cat \${fstab} |
 			;;
 		1)
 			rdev=\`basename \${dev}\`
+			rdevbase=\${rdev}
 			if [ -c /dev/rdsk/\${rdev} ]
 			then
 				rdev=/dev/rdsk/\${rdev}
@@ -85,7 +86,7 @@ cat \${fstab} |
 				rdev=\${dev}
 			fi
 			echo \"\${msg}\\n\\t \${rdev} is being checked.\"
-			/etc/fsck -y -D \${rdev}
+			/etc/fsck -y -t /tmp/tmp\${rdevbase} -D \${rdev}
 
 			/etc/mount \${fsflags} \${fstype} \${dev} \${fs}
 			;;

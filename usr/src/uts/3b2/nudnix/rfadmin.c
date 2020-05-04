@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:nudnix/rfadmin.c	1.23.3.9"
+#ident	"@(#)kern-port:nudnix/rfadmin.c	1.23.3.10"
 /*
  *	Kernel daemon for remote-file administration.
  */
@@ -322,7 +322,8 @@ int num;
 				DUPRINT1(DB_SERVE,"cannot create server \n");
 				/* post a signal to the last server so it 
 				 * won't go to sleep */
-				psignal(s_active, SIGUSR1);
+				if (s_active)
+					psignal(s_active, SIGUSR1);
 				return(FAILURE);
 				break;
 			}

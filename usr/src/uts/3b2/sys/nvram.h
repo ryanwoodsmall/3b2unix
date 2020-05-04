@@ -5,7 +5,14 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/nvram.h	10.4"
+/*	Copyright (c) 1984 AT&T	*/
+/*	  All Rights Reserved  	*/
+
+/*	THIS IS UNPUBLISHED PROPRIETARY SOURCE CODE OF AT&T	*/
+/*	The copyright notice above does not evidence any   	*/
+/*	actual or intended publication of such source code.	*/
+
+#ident	"@(#)kern-port:sys/nvram.h	10.5"
 /*
  *	Non-Volatile RAM
  */
@@ -98,6 +105,18 @@ struct xtra_nvr
 #define XTRA_OFSET (CHKS_OFSET + 2)
 #define XTRA_NVR ((struct xtra_nvr *)(ONVRAM + XTRA_OFSET))
 
+/* Panic auto reboot control */
+struct mtc_nvr {
+	char flags;                      /* status flags */
+	char dynamic_cnt;                /* current reboot counter */
+	char static_cnt;                 /* administrator set threshold */
+	char dynamic_timer;              /* current reboot timer */
+	char static_timer;               /* administrator set threshold */
+};
+
+#define MTC_OFSET (XTRA_OFSET + sizeof(struct xtra_nvr))
+#define MTC_NVR ((struct mtc_nvr *)(ONVRAM + MTC_OFSET))
+
 /* for fw chnvram routine only! */
 #define NVR_RD 0	/* only read checksum, don't recalculate it */
 #define NVR_WR 1	/* recalculate checksum and update it */
@@ -114,5 +133,4 @@ struct fwerr_nvr {
 
 #define FWERR_OFSET ((NVRSIZ / 2) - sizeof(struct fwerr_nvr))
 #define FWERR_NVR ((struct fwerr_nvr *)(ONVRAM + FWERR_OFSET))
-
 

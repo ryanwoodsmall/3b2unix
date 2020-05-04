@@ -1,4 +1,4 @@
-#ident	"@(#)terminfo:misc.ti	1.16"
+#ident	"@(#)terminfo:misc.ti	1.18"
 # # --------------------------------
 #
 # misc: MISCELLANEOUS TERMINALS
@@ -340,21 +340,21 @@ superbrain|intertec superbrain,
 	cuf1=^F, ht=^I, rmcup=\f, smcup=\f, cuu1=^k,
 # FREEDOM 100 by Liberty Electronics USA, SF.
 f100|freedom|freedom100|freedom model 100,
-	am, bw, mir, msgr, xon, cols#80, lines#24,
-	cr=^M, ind=^J, bel=^G, clear=^Z, home=^^,
-	cud1=^J, cuf1=^L, cuu1=^K, cub1=^H,
-	tbc=\E3, hts=\E1, ht=^I, is2=\Eg\Ef\r\Ed,
-	cup=\E=%p1%' '%+%c%p2%' '%+%c,
-	hpa=\E]%p1%' '%+%c, vpa=\E[%p1%' '%+%c,
-	ri=\Ej, ip=$<6>,
-	il1=\EE$<8.5*>, cbt=\EI, ed=\EY, el=\ET, dch1=\EW,
-	dl1=\ER$<11.5*>, rmir=\Er, smir=\Eq,
-	rmso=\EG0, smso=\EG4, rmul=\EG0, smul=\EG8,
-	rmacs=\E$, smacs=\E%, flash=\Eb$<50>\Ed,
-	kbs=^H, kcub1=^H, kcud1=^V, kcuu1=^K, kcuf1=^L, khome=^^,
-	kf1=^A@\r, kf2=^AA\r, kf3=^AB\r, kf4=^AC\r, kf5=^AD\r,
-	kf6=^AE\r, kf7=^AF\r, kf8=^AG\r, kf9=^AH\r, kf0=^AI\r,
-	hs, tsl=\Eg\Ef, fsl=\r, dsl=\Eg\Ef\r,
+	am, bw, hs, mir, msgr, xon,
+	cols#80, lines#24,
+	acsc=+.'\,.-jHkGlFmEqKxJ, bel=^G, cbt=\EI, clear=^Z,
+	cr=\r, cub1=\b, cud1=\n, cuf1=\f,
+	cup=\E=%p1%'\s'%+%c%p2%'\s'%+%c, cuu1=^K, dch1=\EW,
+	dl1=\ER$<11.5*>, dsl=\Eg\Ef\r, ed=\EY, el=\ET,
+	flash=\Eb$<50>\Ed, fsl=\r, home=^^,
+	hpa=\E]%p1%'\s'%+%c, ht=\t, hts=\E1, il1=\EE$<8.5*>,
+	ind=\n, ip=$<6>, is2=\Eg\Ef\r\Ed, kbs=\b, kcub1=\b,
+	kcud1=^V, kcuf1=\f, kcuu1=^K, kf0=^AI\r, kf1=^A@\r,
+	kf2=^AA\r, kf3=^AB\r, kf4=^AC\r, kf5=^AD\r, kf6=^AE\r,
+	kf7=^AF\r, kf8=^AG\r, kf9=^AH\r, khome=^^, ri=\Ej,
+	rmacs=\E%, rmir=\Er, rmso=\EG0, rmul=\EG0, smacs=\E$,
+	smir=\Eq, smso=\EG4, smul=\EG8, tbc=\E3, tsl=\Eg\Ef,
+	vpa=\E[%p1%'\s'%+%c,
 f100-rv|freedom-rv|freedom 100 in reverse video,
 	is2=\Eg\Ef\r\Eb, flash=\Ed$<50>\Eb, use=f100,
 #	
@@ -663,6 +663,10 @@ wyse50|wy50|wyse-50|wy-50|Wyse WY-50,
 	lines#24,	mc0=\EP,		mc4=^T,
 	mc5=^R,		nel=^M^J,		rmso=\E(,
 	smso=\E`6\E),	tbc=\E0,		xon,
+# ncr: NCR
+#
+# The 7900 model 1 is the default 7900 type terminal, so ``7900'' refers to it.
+# 7900 is not used by other terminals, so there is no name clash.
 ncr7900i|7900i|ncr7900|7900|ncr 7900 model 1,
 	am, bel=^G, bw, clear=^L, cols#80, cr=^M,
 	cub1=^H, cud1=^J, cuf1=^F, cuu1=^Z,
@@ -670,14 +674,33 @@ ncr7900i|7900i|ncr7900|7900|ncr 7900 model 1,
 	cup=\E1%p2%c%p1%c,
 	ed=\Ek, el=\EK,
 	kcud1=^J, kcub1=^U, kcuf1=^F, kcuu1=^Z, khome=^A,
-	is2=\E0@\b\E3\E4\E7, lines#24,
+	is2=\E0@\E3\E4, lines#24,
 	rmso=\E0@, xmc#1, smso=\E0Q,
 	blink=\E0B, dim=\E0A, rev=\E0P,
 	smul=\E0`, rmul=\E0@, ul, sgr0=\E0@,
+# Since each attribute paramter is 0 or 1, we shift each attribute (standout,
+# reverse, blink, dim, and underline) the appropriate number of bits (by
+# multiplying the 0 or 1 by a coorect factor to shift) so the bias character,
+# '@' is (effectively) "or"ed with each attribute to generate the proper third
+# character in the <ESC>0 sequence.  The "sgr" string implements the following
+# equation:
+#
+# ((((('@' + P5) | (P4 << 1)) | (P3 << 3)) | (P2 << 4)) | (p1 * 17))    =>
+# ((((('@' + P5) + (P4 << 1)) + (P3 << 3)) + (P2 << 4)) + (p1 * 17))
+#
+#	Where:  P1 <==> Standout attribute parameter
+#		P2 <==> Underline attribute parameter
+#		P3 <==> Reverse attribute parameter
+#		P4 <==> Blink attribute parameter
+#		P5 <==> Dim attribute parameter
 	sgr=\E0%p5%'@'%+%p4%{2}%*%+%p3%{16}%*%+%p2%{32}%*%+%p1%{17}%*%+%c,
 	mc4=^T, mc5=^R,
+# It seem users have a couple odd problems with ``vi'' when we define arrows,
+# since the arrow character has an otherwise special meaning to ``vi''.
 7900i-na|ncr7900i-na|ncr7900-na|7900-na|ncr 7900 model 1 with no arrows,
 	kcud1@,   kcub1@,   kcuf1@,   kcuu1@,   use=ncr7900i,
+# The entry for the model 4 is mostly untested.  People seem to prefer
+# other models.  This is a pretty outdated model.
 7900iv|ncr7900iv|ncr 7900 model 4,
 	am,	bw,	hs,	eslok,
 	cols#80,	lines#24,
@@ -693,6 +716,8 @@ ncr7900i|7900i|ncr7900|7900|ncr 7900 model 1,
 	lf8=white,	nel=\r\n,	ind=\n,
 	tsl=\Ej\Ex5\Ex1\EY8%p1%' '%+%c\Eo,
 	ind=^J,
+# Warning: This terminal will lock out the keyboard when it receives a CTRL-D.
+#	   The user can enter a CTRL-B to get out of this locked state.
 ncr7901|7901|ncr 7901 model,
 	cols#80, lines#24,
 	am, bel=^G, bw, clear=^L, cr=^M,
@@ -701,13 +726,15 @@ ncr7901|7901|ncr 7901 model,
 	ed=\Ek, el=\EK,
 	civis=^W, cnorm=^X,
 	mc4=^T, mc5=^R,
-	kcud1=^J, kcub1=^U, kcuf1=^F, kcuu1=^Z, khome=^H, kclr=^L,
+	kcud1=^J, kcub1=^U, kcuf1=^F, kcuu1=^Z, kclr=^L, khome=^A,
 	is2=^X,
+	.is2=\E4^O^X,
 	cup=\EY%p1%' '%+%c%p2%' '%+%c,
 	vpa=^K%p1%'@'%+%c,
+# We want to output the character given by the formula:
+#		((col / 10) * 16) + (col % 10)		where "col" is "p1"
 	hpa=^P%p1%{10}%/%{16}%*%p1%{10}%m%+%c,
 	sgr=\E0%p5%'@'%+%p4%{2}%*%+%p3%{16}%*%+%p2%{32}%*%+%p1%{17}%*%+%c^N,
-	is2=\E4^O,
 	blink=\E0B, dim=\E0A, rev=\E0P,
-	smso=\E0Q^N, rmso=^O,
+	smso=\E0Q^N, rmso=^O, .msgr,
 	smul=\E0`^N, rmul=^O, sgr0=^O, ul,

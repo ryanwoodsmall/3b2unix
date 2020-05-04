@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)ff:ff.c	1.13"
+#ident	"@(#)ff:ff.c	1.15"
 /*
 
 	ff - fast(er) find
@@ -46,11 +46,11 @@
 #include <sys/param.h>
 #include <sys/types.h>
 #include <fcntl.h>
-#include <sys/filsys.h>
+#include <sys/fs/s5filsys.h>
 #include <sys/fs/s5inode.h>
 #include <sys/inode.h>
 #include <sys/ino.h>
-#include <sys/dir.h>
+#include <sys/fs/s5dir.h>
 #include <sys/stat.h>
 #include <stdio.h>
 #include <pwd.h>
@@ -74,7 +74,7 @@ maxDb = (lstblk-fstblk)/10;	/* number of blocks owned by dirs */\
 maxIb = 20;			/* number of indirect dir blocks  */\
 		}
 
-
+#define PHYSBLKSZ 512
 #define	MAXNLIST 64	/* max specific inumbers after -i option */
 #define	A_DAY	86400l	/* seconds in a 24 hour period */
 #define	DIRENT	(sizeof(struct direct))
@@ -175,6 +175,9 @@ off_t	g_size;
 int	criteria;	/* count of user selection criteria */
 
 int	badnames;	/* incremented for unresolved path names */
+#if u3b2  || u3b15
+int	result;		/*  result returned  from  block size  heuristic */
+#endif
 
 char	prtopt,		/* flags - print options */
 	runopt,		/* flags - run time options */
@@ -347,17 +350,32 @@ int super()
 	lstblk = fs->s_fsize;
 	g_ilb = fstblk - 2;
 #ifdef FsMAGIC
-	g_bsize = (fs->s_magic!=FsMAGIC ? BSIZE :
-			(fs->s_type==1 ? 512 :
-#ifdef u3b15
-			(fs->s_type==2 ? 2048 :
+	if (fs->s_magic != FsMAGIC)
+		g_bsize = BSIZE;
+	else {
+		if (fs->s_type == Fs1b)
+			g_bsize = 512;
+#if u3b2 || u3b15
+		else if (fs->s_type == Fs2b) {
+			result = s5bsize(g_fpi);
+				if (result == Fs2b)
+					g_bsize = 1024;
+				else if (result == Fs4b)
+					g_bsize  = 2048;
+				else 
+					errorx("ff: can't verify logical block  size of file system\n    root inode or root directory may be  corrupted\n");
+		} else if  (fs->s_type == Fs4b)
+			g_bsize = 2048;
 #else
-			(fs->s_type==2 ? 1024 :
-#endif /* u3b15 */
-			errorx("ff: unknown filesystem BSIZE\n"))));
+		else if (fs->s_type ==  Fs2b)
+			g_bsize = 1024;
+#endif /* u3b2 || u3b15 */
+		else
+			errorx("ff: unknown filesystem BSIZE\n");
+	}
 #else
 	g_bsize = BSIZE;
-#endif
+#endif /* FsMAGIC */
 	g_inopb = g_bsize/sizeof(struct dinode);
 	g_inodes = g_ilb*g_inopb;
 
@@ -970,3 +988,68 @@ struct	Db	*a, *b;
 	return( (*a).blkno - (*b).blkno);
 
 }
+#if u3b2 || u3b15
+/* heuristic function to determine logical block size of System V file system */
+
+s5bsize(fd)
+int fd;
+{
+
+	int results[3];
+	int count;
+	long address;
+	long offset;
+	char *buf;
+	struct dinode *inodes;
+	struct direct *dirs;
+	char * p1;
+	char * p2;
+	
+	results[1] = 0;
+	results[2] = 0;
+
+	buf = (char *)malloc(PHYSBLKSZ);
+
+	for (count = 1; count < 3; count++) {
+
+		address = 2048 * count;
+		if (lseek(fd, address, 0) != address)
+			continue;
+		if (read(fd, buf, PHYSBLKSZ) != PHYSBLKSZ)
+			continue;
+		inodes = (struct dinode *)buf;
+		if ((inodes[1].di_mode & IFMT) != IFDIR)
+			continue;
+		if (inodes[1].di_nlink < 2)
+			continue;
+		if ((inodes[1].di_size % sizeof(struct direct)) != 0)
+			continue;
+	
+		p1 = (char *) &address;
+		p2 = inodes[1].di_addr;
+		*p1++ = 0;
+		*p1++ = *p2++;
+		*p1++ = *p2++;
+		*p1   = *p2;
+	
+		offset = address << (count + 9);
+		if (lseek(fd, offset, 0) != offset)
+			continue;
+		if (read(fd, buf, PHYSBLKSZ) != PHYSBLKSZ)
+			continue;
+		dirs = (struct direct *)buf;
+		if (dirs[0].d_ino != 2 || dirs[1].d_ino != 2 )
+			continue;
+		if (strcmp(dirs[0].d_name,".") || strcmp(dirs[1].d_name,".."))
+			continue;
+		results[count] = 1;
+		}
+	free(buf);
+	
+	if(results[1])
+		return(Fs2b);
+	if(results[2])
+		return(Fs4b);
+	return(-1);
+}
+#endif

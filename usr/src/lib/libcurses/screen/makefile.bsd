@@ -1,4 +1,4 @@
-#ident	"@(#)curses:screen/makefile.bsd	1.9.1.4"
+#ident	"@(#)curses:screen/makefile.bsd	1.11"
 #
 # cursor package maker
 # V7 and Berkeley UNIX makefile

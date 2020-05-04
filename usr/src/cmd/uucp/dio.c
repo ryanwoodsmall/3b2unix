@@ -5,12 +5,12 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)uucp:dio.c	2.5"
+#ident	"@(#)uucp:dio.c	2.6"
 
 #include "uucp.h"
 
 #ifdef DATAKIT
-#include <dk.h>
+#include "dk.h"
 
 #define XBUFSIZ 1024
 time_t time();
@@ -20,7 +20,7 @@ static jmp_buf Dfailbuf;
  * Datakit protocol
  */
 static dalarm() {longjmp(Dfailbuf);}
-static int (*dsig)();
+static void (*dsig)();
 #ifndef V8
 static short dkrmode[3] = { DKR_BLOCK, 0, 0 };
 static short dkeof[3] = { 106, 0, 0 };	/* End of File signal */
@@ -210,6 +210,7 @@ drdblk(blk, len,  fn)
 register char *blk;
 {
 	register int i, ret;
+	struct dkqqabo	why;
 
 	if(setjmp(Dfailbuf))
 		return(FAIL);
@@ -221,10 +222,14 @@ register char *blk;
 			return(FAIL);
 		}
 		blk += ret;
-		if (ret == 0)	/* zero length block contains only EOF signal */
+		if (ret == 0) {	/* zero length block contains only EOF signal */
+			ioctl(fn, DIOCQQABO, &why);
+			if (why.rcv_ctlchar != dkeof[0])
+				i = FAIL;
 			break;
+		}
 	}
 	(void) alarm(0);
 	return(i);
 }
-#endif /* DATAKIT */
+#endif /* D_PROTOCOL */

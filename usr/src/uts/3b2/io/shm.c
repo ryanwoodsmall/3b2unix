@@ -5,10 +5,10 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/shm.c	10.11"
+#ident	"@(#)kern-port:io/shm.c	10.12"
 #include "sys/types.h"
 #include "sys/param.h"
-#include "sys/dir.h"
+#include "sys/fs/s5dir.h"
 #include "sys/errno.h"
 #include "sys/signal.h"
 #include "sys/psw.h"

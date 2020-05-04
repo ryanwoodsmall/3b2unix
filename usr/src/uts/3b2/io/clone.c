@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/clone.c	10.5"
+#ident	"@(#)kern-port:io/clone.c	10.6"
 /*
  * Clone Driver.
  */
@@ -62,6 +62,7 @@ queue_t *q;
 	/*
 	 * Get the device to open.
 	 */
+
 	i = MAJOR[minor(dev) & 0x7f];
 	if ((i >= cdevcnt) || !(st = cdevsw[i].d_str)) {
 		u.u_error = ENXIO;
@@ -71,30 +72,38 @@ queue_t *q;
 	/*
 	 * Substitute the real qinit values for the current ones
 	 */
+
 	setq(q, st->st_rdinit, st->st_wrinit);
 
 	/*
 	 * Call the device open with the stream flag  CLONEOPEN.  The device
 	 * will either fail this or return a minor device number.
 	 */
+
 	rdev = makedev((minor(dev)&0x7f), 0);
 	if ((mindev = (*q->q_qinfo->qi_qopen)(q, rdev, flag, CLONEOPEN)) == OPENFAIL)
 		return(OPENFAIL);
+
+	for (i = 0; i < v.v_nofiles; i++)
+		if ((fp = u.u_ofile[i]) && (fp->f_inode->i_sptr ==
+		    (struct stdata *)q->q_next->q_ptr))
+			break;
+	ASSERT(i < v.v_nofiles);
+	ip = fp->f_inode;
 
 	/*
 	 * Get the inode at top of this stream, allocate a new inode,
 	 * and exchange the new inode for the old one.
 	 */
-	rdev = makedev(minor(dev)&0x7f, mindev);
-	ip = ((struct stdata *)(q->q_next->q_ptr))->sd_inode;
 
-	ASSERT(ip->i_sptr);
+	rdev = makedev(minor(dev)&0x7f, mindev);
 
 	/* set up dummy inode */
 
 	/*
 	 * Allocate an inode from the pipe file system.
 	 */
+
 	ASSERT(pipefstyp > 0 && pipefstyp < nfstyp);
 	mp = fsinfo[pipefstyp].fs_pipe;
 	ASSERT(mp != NULL);
@@ -107,15 +116,20 @@ queue_t *q;
 
 	nip->i_sptr = ip->i_sptr;
 
-	for (i=0; i<v.v_nofiles; i++) 
-		if ( (fp = u.u_ofile[i]) && (fp->f_inode == ip)) break;
-	ASSERT(i < v.v_nofiles);
-
 	/* 
 	 * link dummy inode to file table and to the stream 
 	 */
+
 	ip->i_sptr = NULL;	/* no other clone open will get this stream */
-	nip->i_sptr->sd_inode = (fp->f_inode = nip);
+	fp->f_inode = nip;
+	nip->i_sptr->sd_rdev = rdev;
+
+	/*
+	 * set sd_icnt to 1 in case an open comes
+	 * in for the same dev on a different inode.
+	 */
+
+	nip->i_sptr->sd_icnt = 1;
 	nip->i_sptr->sd_strtab = st;
 	iput(ip);
 	prele(nip);

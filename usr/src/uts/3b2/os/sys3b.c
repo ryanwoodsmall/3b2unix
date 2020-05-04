@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/sys3b.c	10.19.3.1"
+#ident	"@(#)kern-port:os/sys3b.c	10.19.3.3"
 #include "sys/param.h"
 #include "sys/types.h"
 #include "sys/psw.h"
@@ -177,13 +177,20 @@ sys3b()
 		register char	*src;
 		register char	*dst;
 		register char	*dstlim;
+		extern int sdata[],edata[];
 
 		if (!suser())
 			break;
 		src = (char *) uap->arg1;
+		if (src < (char *)sdata) {
+			u.u_error = EINVAL;
+			return (-1);
+		}
 		dstlim = (dst = (char *) uap->arg2) + (unsigned int) uap->arg3;
 		do {
-			if (dst == dstlim || copyout(src, dst++, 1) < 0) {
+			if (src >= (char *)edata 
+			|| dst == dstlim 
+			|| copyout(src, dst++, 1) < 0) {
 				u.u_error = EINVAL;
 				return (-1) ;
 			}
@@ -548,6 +555,10 @@ sys3b()
 			}
 			cache_on();
 		} else {
+			if (!is32b()) {
+				u.u_error = EINVAL;
+				break;
+			}
 			cache_off();
 		}
 		break;
@@ -1054,11 +1065,23 @@ cache_off()
 	sendsig_psw |= ICACHEPSW;
 	p0init_psw |= ICACHEPSW;
 
-	winublock();
+
 	up = (user_t *)win_ublk;
 	for (pp = proc  ;  pp < (proc_t *)v.ve_proc  ;  pp++) {
 		if (pp->p_stat == 0)
 			continue;
+
+		/* Check to see if process is swapped out.
+		   If it is, swap it in before reading U block */
+
+		if (!(pp->p_flag & SLOAD))
+			if(!swapinub(pp, 1)) 
+			{
+				u.u_error = EAGAIN;
+				return(0);
+			}
+
+		winublock();
 		kvtokstbl(up)->wd2.address = kvtophys(ubptbl(pp));
 		flushmmu(up, USIZE);
 		ptr = (struct fake_kpcb *)&up->u_ipcb;
@@ -1067,8 +1090,9 @@ cache_off()
 		ptr = (struct fake_kpcb *)&up->u_kpcb;
 		ptr->psw |= ICACHEPSW;
 		ptr->psw2 |= ICACHEPSW;
+		winubunlock();
 	}
-	winubunlock();
+
 
 	u400 = 0;
 
@@ -1115,21 +1139,34 @@ cache_on()
 	sendsig_psw &= ~ICACHEPSW;
 	p0init_psw &= ~ICACHEPSW;
 
-	winublock();
+
 	up = (user_t *)win_ublk;
 	for (pp = proc  ;  pp < (proc_t *)v.ve_proc  ;  pp++) {
 		if (pp->p_stat == 0)
 			continue;
+
+		/* Check to see if process is swapped out.
+		   If it is, swap it in before reading U block */
+
+		if (!(pp->p_flag & SLOAD))
+			if(!swapinub(pp, 1)) 
+			{
+				u.u_error = EAGAIN;
+				return(0);
+			}
+
+		winublock();
 		kvtokstbl(up)->wd2.address = kvtophys(ubptbl(pp));
-		flushmmu(up, USIZE);
+ 		flushmmu(up, USIZE);
 		ptr = (struct fake_kpcb *)&up->u_ipcb;
 		ptr->psw &= ~ICACHEPSW;
 		ptr->psw2 &= ~ICACHEPSW;
 		ptr = (struct fake_kpcb *)&up->u_kpcb;
 		ptr->psw &= ~ICACHEPSW;
 		ptr->psw2 &= ~ICACHEPSW;
+		winubunlock();
 	}
-	winubunlock();
+
 
 	u400 = 1;
 

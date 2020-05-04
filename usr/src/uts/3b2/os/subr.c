@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:os/subr.c	10.10.2.3"
+#ident	"@(#)kern-port:os/subr.c	10.10.2.4"
 #include "sys/types.h"
 #include "sys/sysmacros.h"
 #include "sys/param.h"
@@ -127,4 +127,54 @@ register int pid;
 		}
 	} while (p != lastp);
 	return(NULL);
+}
+
+/*	This function is called to check that a psw is suitable for
+**	running in user mode.  If not, it is fixed to make it
+**	suitable.  This is necessary when a psw is saved on the user
+**	stack where some sneaky devil could set kernel mode or
+**	something.
+*/
+
+fixuserpsw(psp)
+register psw_t	*psp;
+{
+	extern char	u400;	/* Set non-zero if we are using	*/
+				/* the cache.			*/
+
+	/*	We never use quick interrupt so make sure that is
+	**	off.  Will crash the system otherwise since there
+	**	are no quick interrupt vectors set up.
+	*/
+
+	psp->QIE	= 0;
+
+	/*	See if we are using the cache or not and set the
+	**	cache flush disable and cache disable bits accordingly.
+	*/
+
+	if(u400){
+		psp->CSH_F_D	= 0;
+		psp->CSH_D	= 0;
+	} else {
+		psp->CSH_F_D	= 1;
+		psp->CSH_D	= 1;
+	}
+
+	/*	The interrupt priority must be zero so that no
+	**	interrupts are blocked when in user mode.  The
+	**	current and previous modes are both set to user.
+	*/
+
+	psp->IPL	= 0;
+	psp->CM		= PS_USER;
+	psp->PM		= PS_USER;
+
+	/*	Turn off the register save/restore and initial psw
+	**	bits.  Our caller can turn them back on if he
+	**	wants them.
+	*/
+
+	psp->R		= 0;
+	psp->I		= 0;
 }

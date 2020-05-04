@@ -1,5 +1,5 @@
 #
-#ident	"@(#)pkg.rfs:rfs/INSTALL	1.8.2.1"
+#ident	"@(#)pkg.rfs:rfs/INSTALL	1.8.3.1"
 #
 
 INSPATH=/install/new
@@ -269,10 +269,10 @@ do
 	find . -print | cpio -pduvm /
 
 	#
-	#	Invoke Setup Script (if this is floppy 1).
+	#	Invoke Setup Script (if this is floppy 2).
 	#
 
-	if [ $expect -eq 1 ]
+	if [ $expect -eq 2 ]
 	then
 		/install/install/setup
 	fi

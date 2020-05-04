@@ -5,14 +5,15 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)cmd-3b2:cmd-3b2.mk	1.7"
+#ident	"@(#)cmd-3b2:cmd-3b2.mk	1.9"
 #
 # cmd-3b2.mk
 #
-INCRT = $(ROOT)/usr/include
-CFLAGS = -O -I$(INCRT) -Du3b2
+INC = $(ROOT)/usr/include
+CFLAGS = -O -I$(INC) -Du3b2
 LDFLAGS = -s
 INS = install
+MAKE = make
 FRC =
 
 DFILES =\
@@ -26,7 +27,6 @@ DFILES =\
 	ttyset.o
 
 NOSHFILES =\
-	pnewboot |\
 	absunix
 
 SHFILES =\
@@ -34,6 +34,7 @@ SHFILES =\
 	dswap |\
 	fsys |\
 	pdinfo |\
+	pnewboot |\
 	scat |\
 	ttyset
 
@@ -75,7 +76,7 @@ cpio:
 		find inst -print | cpio -pdum $(ROOT)/mkfs
 
 lbin:
-		make -f lbin.mk install
+		$(MAKE) -f lbin.mk install
 
 clean:
 	-rm -f *.o
@@ -90,75 +91,75 @@ FRC:
 #
 
 absunix.o: absunix.c \
-	$(INCRT)/aouthdr.h \
-	$(INCRT)/fcntl.h \
-	$(INCRT)/filehdr.h \
-	$(INCRT)/scnhdr.h \
+	$(INC)/aouthdr.h \
+	$(INC)/fcntl.h \
+	$(INC)/filehdr.h \
+	$(INC)/scnhdr.h \
 	$(FRC)
 
 dlabelit.o: dlabelit.c \
-	$(INCRT)/sys/param.h \
-        $(INCRT)/sys/types.h \
-	$(INCRT)/signal.h \
-	$(INCRT)/sys/filsys.h \
+	$(INC)/sys/param.h \
+        $(INC)/sys/types.h \
+	$(INC)/signal.h \
+	$(INC)/sys/filsys.h \
 	$(FRC)
 
 
 
 dswap.o: dswap.c \
-	$(INCRT)/errno.h \
-	$(INCRT)/fcntl.h \
-	$(INCRT)/sys/errno.h \
-	$(INCRT)/sys/sys3b.h \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/vtoc.h \
+	$(INC)/errno.h \
+	$(INC)/fcntl.h \
+	$(INC)/sys/errno.h \
+	$(INC)/sys/sys3b.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/vtoc.h \
 	$(FRC)
 
 
 
 fsys.o: fsys.c \
-	$(INCRT)/fcntl.h \
-	$(INCRT)/sys/filsys.h \
-	$(INCRT)/sys/param.h \
-	$(INCRT)/sys/types.h \
+	$(INC)/fcntl.h \
+	$(INC)/sys/filsys.h \
+	$(INC)/sys/param.h \
+	$(INC)/sys/types.h \
 	$(FRC)
 
 
 
 pdinfo.o: pdinfo.c \
-	$(INCRT)/errno.h \
-	$(INCRT)/fcntl.h \
-	$(INCRT)/sys/errno.h \
-	$(INCRT)/sys/id.h \
-	$(INCRT)/sys/stat.h \
-	$(INCRT)/sys/sysmacros.h \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/vtoc.h \
+	$(INC)/errno.h \
+	$(INC)/fcntl.h \
+	$(INC)/sys/errno.h \
+	$(INC)/sys/id.h \
+	$(INC)/sys/stat.h \
+	$(INC)/sys/sysmacros.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/vtoc.h \
 	$(FRC)
 
 
 soat.o: scat.c \
-	$(INCRT)/fcntl.h
+	$(INC)/fcntl.h
 	$(FRC)
 
 
 ttyset.o: ttyset.c \
-	$(INCRT)/sys/termio.h \
-	$(INCRT)/termio.h \
+	$(INC)/sys/termio.h \
+	$(INC)/termio.h \
 	$(FRC)
 
 pnewboot.o: pnewboot.c \
-	$(INCRT)/a.out.h \
-	$(INCRT)/aouthdr.h \
-	$(INCRT)/fcntl.h \
-	$(INCRT)/filehdr.h \
-	$(INCRT)/linenum.h \
-	$(INCRT)/nlist.h \
-	$(INCRT)/reloc.h \
-	$(INCRT)/scnhdr.h \
-	$(INCRT)/storclass.h \
-	$(INCRT)/syms.h \
-	$(INCRT)/sys/param.h \
-	$(INCRT)/sys/types.h \
-	$(INCRT)/sys/vtoc.h \
+	$(INC)/a.out.h \
+	$(INC)/aouthdr.h \
+	$(INC)/fcntl.h \
+	$(INC)/filehdr.h \
+	$(INC)/linenum.h \
+	$(INC)/nlist.h \
+	$(INC)/reloc.h \
+	$(INC)/scnhdr.h \
+	$(INC)/storclass.h \
+	$(INC)/syms.h \
+	$(INC)/sys/param.h \
+	$(INC)/sys/types.h \
+	$(INC)/sys/vtoc.h \
 	$(FRC)

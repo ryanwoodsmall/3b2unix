@@ -6,7 +6,6 @@ install	d--775 0 3
 	UNINSTALL	---555 2 2	./install/rfs/UNINSTALL
 	INSTALL 	---555 2 2	./install/rfs/INSTALL
     	ORDER		---555 2 2 	./install/rfs/ORDER1
-	setup 		---555 2 2	./install/rfs/setup
 	unsetup 	---555 2 2	./install/rfs/unsetup
 $
 new	d--775 0 3

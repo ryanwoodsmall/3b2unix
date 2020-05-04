@@ -1,4 +1,4 @@
-#ident	"@(#)sadmin:admin/menu/usermgmt/moduser/chgshell	2.3"
+#ident	"@(#)sadmin:admin/menu/usermgmt/moduser/chgshell	2.4"
 #menu# change a user's login shell
 #help# 
 #help#	This procedure allows you to change the command run when a user
@@ -50,11 +50,12 @@ do
 		break
 	done
 
-	ed - /etc/passwd <<-!  ||  { admerr $0 'Cannot edit /etc/passwd.'; exit 1;}
-	H
-	/^${loginid}:/s;\\([^:]*:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:\\).*;\\1${newshell};
-	w
-	!
+	passmgmt -m -s ${newshell} ${loginid} 2>/dev/null
+	if [ $? -ne 0 ]
+	then
+		admerr $0 'Cannot edit /etc/passwd.'
+		exit 1
+	fi
 
 	checkyn ${flags} -f \
 		'Do you want to change the login shell of another login?'  ||

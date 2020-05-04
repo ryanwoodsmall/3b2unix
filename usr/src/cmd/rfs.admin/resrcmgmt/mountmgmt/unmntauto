@@ -1,4 +1,4 @@
-#ident	"@(#)rfs.admin:resrcmgmt/mountmgmt/unmntauto	1.7"
+#ident	"@(#)rfs.admin:resrcmgmt/mountmgmt/unmntauto	1.9"
 #menu# remove remote resources from the automatic mount list
 
 #help# 
@@ -63,7 +63,7 @@ cflags="-qq -k$$"
 # message.
 if [ -s /etc/fstab ]
 then
-        /bin/grep '[-][r]*d[r]*' /etc/fstab |
+        /bin/sed "s/^#.*$//" /etc/fstab | /bin/grep '[	 ][-][r]*d[r]*[	 ]*$' |
         /usr/bin/awk '{ printf "\t%s\n", $1 }' >/usr/tmp/mntlist$$
         if [ ! -s /usr/tmp/mntlist$$ ]
         then

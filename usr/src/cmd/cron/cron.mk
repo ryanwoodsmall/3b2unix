@@ -5,7 +5,7 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)cron:cron.mk	1.18"
+#ident	"@(#)cron:cron.mk	1.24"
 
 INS=cpset
 
@@ -27,7 +27,7 @@ XDIRS= $(ROOT) $(ETC) $(USR) $(INSDIR) $(LIB) $(SPL) $(SPOOL)\
 
 DIRS= $(SPL) $(SPOOL) $(CRONLIB) $(CRONSPOOL) $(ATSPOOL)
 
-CMDS= cron at crontab batch
+CMDS= cron at crontab batch logchecker
 
 CFLAGS= -O
 LDFLAGS= -s
@@ -38,8 +38,8 @@ DEFS=
 
 all:	$(CMDS)
 
-install:	dirs install_cron install_at install_crontab install_batch
-#	make -f cron.mk INS="install -f" $(ARGS)
+install:	dirs install_cron install_at install_crontab install_batch install_logchecker
+#	$(MAKE) -f cron.mk INS="install -f" $(ARGS)
 
 install_cron:	cron
 	$(INS) -o cron $(ETC) 700 root sys
@@ -52,6 +52,9 @@ install_crontab:	crontab
 
 install_batch:	batch
 	$(INS) batch $(INSDIR) 755 bin bin
+
+install_logchecker:	logchecker
+	$(INS) logchecker $(CRONLIB) 544 root sys
 
 libelm.a: elm.o
 	ar cr libelm.a elm.o
@@ -67,6 +70,9 @@ at:	at.o att1.o att2.o funcs.o permit.o
 
 batch:	batch.sh
 	cp batch.sh batch
+
+logchecker:	logchecker.sh
+	cp logchecker.sh logchecker
 
 att1.c att1.h:	att1.y
 	yacc -d att1.y

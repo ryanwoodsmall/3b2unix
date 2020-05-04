@@ -33,10 +33,20 @@ d--775 0 3
 		hdelogger	---555 2 2	../etc/hdelogger
 		magic		---444 2 2	../etc/magic
 		swap		---555 2 2	../etc/swap
+		format		---555 0 0	../etc/format
+		gettype		---555 0 0	../etc/gettype
 	$
 	usr	d--775 0 0
+		adm	d--775 4 4
+			passwd	d--775 4 4
+			$
+			sa	d--775 4 3
+			$
+			sh.bck		---444 2 0	../usr/adm/sh.bck
+			sh.sec		---444 2 0	../usr/adm/sh.sec
+		$
 		src	d--775 2 2
 		$
 	$
 $
-:#ident	"@(#)core:proto.core3	1.11"
+:#ident	"@(#)core:proto.core3	1.14"

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:io/if.c	10.12.4.3"
+#ident	"@(#)kern-port:io/if.c	10.12.4.4"
 /* 
  *		Copyright 1984 AT&T
  *
@@ -20,7 +20,7 @@
 #include "sys/csr.h"
 #include "sys/iu.h"
 #include "sys/immu.h"
-#include "sys/dir.h"
+#include "sys/fs/s5dir.h"
 #include "sys/sysmacros.h"
 #include "sys/conf.h"
 #include "sys/signal.h"

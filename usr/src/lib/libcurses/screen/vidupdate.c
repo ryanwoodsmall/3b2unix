@@ -5,17 +5,104 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/vidupdate.c	1.10"
-#include	"curses_inc.h"
+#ident	"@(#)curses:screen/vidupdate.c	1.13"
+#include "curses_inc.h"
+
+#ifdef PC6300PLUS
+#include <fcntl.h>
+#include <sys/console.h>
+#endif
 
 #define	NUM_OF_SPECIFIC_TURN_OFFS	3
 extern	chtype	bit_attributes[];
 
 void
 vidupdate(newmode, oldmode, outc)
-register	chtype	newmode, oldmode;
-register	int	(*outc)();
+register chtype newmode, oldmode;
+register int (*outc)();
 {
+    bool color_terminal = (SP->_pairs_tbl) ? TRUE : FALSE;
+    register chtype oldvideo = (oldmode & A_ATTRIBUTES) & ~A_COLOR;
+    register chtype newvideo = (newmode & A_ATTRIBUTES) & ~A_COLOR;
+    int  _change_video();
+    void _change_color();
+
+    /* if colors are used, extract the color related information from */
+    /* the old and new modes and then erase color-pairs fields in     */
+    /* both arguments.  					      */
+
+    if (color_terminal)
+    {
+	register short oldcolor = PAIR_NUMBER (oldmode & A_COLOR);
+	register short newcolor = PAIR_NUMBER (newmode & A_COLOR);
+	register chtype turn_off = A_COLOR;
+
+	/* erase information about video attributes that could not */
+	/* have been used with colors				   */
+
+	if (oldcolor == 0)
+	    oldvideo &= ~turn_off;
+
+	if (no_color_video != -1)
+	    turn_off |= (((chtype) no_color_video) << 16);
+
+	if (oldcolor != 0)
+	    oldvideo &= ~turn_off;
+	   
+
+	/* if the new mode contains color information, then first deal  */
+	/* with video attributes, and then with colors.  This way, color*/
+	/* information will overwrite video information.		*/
+
+	if (newcolor != 0)
+	{
+	    /* erase information about video attributes that should not */
+	    /* be used with colors				        */
+
+	    newvideo &= ~turn_off;
+
+	    /* if the new and the old video modes became the same	*/
+	    /* don't bother with them					*/ 
+
+            if (newvideo != oldvideo)
+	    {
+	        if ((_change_video (newvideo, oldvideo, outc, TRUE)) == -1)
+		{
+    		    register _Color_pair *cur_pair = &SP->_cur_pair;
+		    oldcolor = -1;
+    	    	    cur_pair->background = cur_pair->foreground = -1;
+		}
+	    }
+	    if (newcolor != oldcolor)
+	        _change_color (newcolor, oldcolor, outc);
+     	}
+
+	/* new mode doesn't contain any color information.  Deal with	*/
+	/* colors first (possibly turning of the colors that were 	*/
+	/* contained in the oldmode, and then deal with video.  This way*/
+	/* video attributes will overwrite colors.			*/
+
+	else
+	{
+	    if (newcolor != oldcolor)
+	        _change_color (newcolor, oldcolor, outc);
+            if (newvideo != oldvideo)
+	        _change_video (newvideo, oldvideo, outc, FALSE);
+	}
+    }
+    else
+	_change_video (newvideo, oldvideo, outc, FALSE);
+}
+
+
+int
+_change_video (newmode, oldmode, outc, color_terminal)
+register chtype newmode, oldmode;
+register int (*outc)();
+register bool color_terminal;
+{
+    int rc = 0;
+
     /* If you have set_attributes let the terminfo writer worry about it. */
 
     if (!set_attributes)
@@ -54,13 +141,11 @@ register	int	(*outc)();
 	 * cut out early in case two attributes were asked for.
 	 */
 
-	chtype	check_faked, modes[2];
-	int	counter = max_attributes, i, j, tempmode, k;
+	chtype	check_faked;
+	int	counter = max_attributes, i, j, tempmode;
+	int	modes[2], k = (cur_term->sgr_mode == oldmode) ? 1 : 2;
 
-	if (oldmode == cur_term->non_faked_mode)
-	    oldmode = cur_term->sgr_mode;
-	k = (cur_term->sgr_mode == oldmode) ? 1 : 2;
-	modes[0] = cur_term->non_faked_mode = newmode;
+	modes[0] = newmode;
 	modes[1] = oldmode;
 
 	while (k-- > 0)
@@ -89,18 +174,17 @@ register	int	(*outc)();
 		modes[k] = tempmode;
 	    }
 	}
-
 	newmode = modes[0];
 	oldmode = modes[1];
     }
 
     if (newmode == oldmode)
-	return;
+	return (rc);
 
-#ifdef	DEBUG
+#ifdef DEBUG
     if (outf)
 	fprintf(outf, "vidupdate oldmode=%o, newmode=%o\n", oldmode, newmode);
-#endif	/* DEBUG */
+#endif
 
     if (set_attributes)
     {
@@ -115,6 +199,7 @@ register	int	(*outc)();
 			newmode & A_PROTECT,
 			newmode & A_ALTCHARSET),
 		1, outc);
+	rc = -1;
     }
     else
     {
@@ -128,7 +213,7 @@ register	int	(*outc)();
 	 */
 
 	if ((ceol_standout_glitch || magic_cookie_glitch >= 0) &&
-	    ((turn_on = ((oldmode ^ newmode) & newmode)) != A_NORMAL))
+		((turn_on = ((oldmode ^ newmode) & newmode)) != A_NORMAL))
 	{
 	    goto turn_on_code;
 	}
@@ -139,28 +224,29 @@ register	int	(*outc)();
 	     * Check for things to turn off.
 	     * First see if we are going to turn off something
 	     * that doesn't have a specific turn off capability.
+	     * 
+	     * Then check to see if, even though there may be a specific
+	     * turn off sequence, this terminal doesn't have one or
+	     * the turn off sequence also turns off something else.
 	     */
-
 	    if ((turn_off & ~(A_ALTCHARSET | A_STANDOUT | A_UNDERLINE)) ||
 		(turn_off != (turn_off & cur_term->check_turn_off)))
 	    {
-		tputs(exit_attribute_mode, 1, outc);
+		tputs(tparm (exit_attribute_mode), 1, outc);
+		rc = -1;
 		oldmode = A_NORMAL;
 	    }
 	    else
 	    {
 		for (i = 0; i < NUM_OF_SPECIFIC_TURN_OFFS; i++)
+		{
 		    if (turn_off & bit_attributes[i])
-			tputs(cur_term->turn_off_seq[i], 1, outc);
-
-		/*
-		 * We have to assume that any exit_video_mode will
-		 * turn everything off, except for alternate char. set.
-		 * So, the only thing we leave on in our oldmode is
-		 * A_ALTCHARSET if it was and will be on.
-		 */
-
-		oldmode = (oldmode & newmode & A_ALTCHARSET);
+		    {
+			tputs(tparm(cur_term->turn_off_seq[i]), 1, outc);
+			oldmode &= ~bit_attributes[i];
+			rc = -1;
+		    }
+		}
 	    }
 	}
 
@@ -173,7 +259,8 @@ turn_on_code:
 	    for (i = 0; i < NUM_ATTRIBUTES; i++)
 		if (turn_on & bit_attributes[i])
 		{
-		    tputs(cur_term->turn_on_seq[i], 1, outc);
+		    tputs(tparm(cur_term->turn_on_seq[i]), 1, outc);
+		    rc = -1;
 		    /*
 		     * Keep turning off the bit(s) that we just sent to
 		     * the screen.  As soon as turn_on reaches A_NORMAL
@@ -189,4 +276,83 @@ turn_on_code:
 	    tputs(cursor_left, 1, outc);
     }
     cur_term->sgr_mode = newmode;
+    return (rc);
+}
+
+
+
+
+
+
+void
+_change_color (newcolor, oldcolor, outc)
+register short newcolor, oldcolor;
+register int (*outc)();
+{
+#ifndef PC6300PLUS
+  {
+    register _Color_pair *ptp = SP->_pairs_tbl; /* pairs table pointer */
+    register _Color_pair *cur_pair = &SP->_cur_pair;
+
+    /* MORE: we may have to change some stuff, depending on whether HP terminals */
+    /* will be changing the background, or not				     */
+
+    if (newcolor == 0)
+    {   
+	tputs (tparm (orig_pair), 1, outc);
+	if (set_background)
+	{
+	    cur_pair->background = -1;
+	    cur_pair->foreground = -1;
+	}
+	return;
+    }
+
+    /* if we are on HP type terminal, just send an escape sequence      */
+    /* to use desired color pair (we could have done some optimization: */
+    /* check if both the foreground and the background of newcolor match*/
+    /* the ones of SP->_cur_pair.  but that will happen only when */
+    /* two color pairs are defined exacly the same, and probably not    */
+    /* worth the effort).                                               */
+
+    if (set_color_pair)
+        tputs (tparm (set_color_pair, newcolor), 1, outc);
+
+    /* on Tek model we can do some optimization.  		   */
+
+    else
+    {
+        if (ptp[newcolor].background != cur_pair->background)
+        {
+            tputs (tparm (set_background, ptp[newcolor].background), 1, outc);
+    	    cur_pair->background = ptp[newcolor].background;
+        }
+        if (ptp[newcolor].foreground != cur_pair->foreground)
+	{
+            tputs (tparm (set_foreground, ptp[newcolor].foreground), 1, outc);
+    	    cur_pair->foreground = ptp[newcolor].foreground;
+	}
+    }
+  }
+#else
+  {
+    /* the following code is for PC6300 PLUS: it uses BOLD terminfo entry for */
+    /* turning on colors, and SGR0 for turning them off.  Every time a new    */
+    /* color-pair is used, we are forced to do an ioctl read, and the send    */
+    /* 'enter_bold_mode' escape sequence.  This could be improved  by using   */
+    /* DIM, UNDERLINE, and REVERSE in addition to BOLD			      */
+
+    struct console con;
+    register _Color_pair *ptp = SP->_pairs_tbl; /* pairs table pointer */
+    register back = ptp[newcolor].background;
+    register fore = ptp[newcolor].foreground;
+
+    (void) fflush (SP->term_file);
+    ioctl (cur_term->Filedes, CONIOGETDATA, &con);
+#define BOLD	4
+    con.l[con.page].colors[BOLD] = ((back+back+(fore>5))*8 + fore) & 0177;
+    ioctl (cur_term->Filedes, CONIOSETDATA, &con);
+    tputs (enter_bold_mode, 1, outch);
+  }
+#endif
 }

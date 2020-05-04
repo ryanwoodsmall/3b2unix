@@ -6,7 +6,7 @@
 /*	actual or intended publication of such source code.	*/
 
 /* Copyright (c) 1981 Regents of the University of California */
-#ident	"@(#)vi:port/ex_vget.c	1.16"
+#ident	"@(#)vi:port/ex_vget.c	1.17"
 
 #include "ex.h"
 #include "ex_tty.h"
@@ -323,6 +323,7 @@ setBUF(BUF)
 	c = *wp;
 	*wp = 0;
 	BUF[0] = 0;
+	BUF[128] = 0;
 	addto(BUF, cursor);
 	*wp = c;
 }

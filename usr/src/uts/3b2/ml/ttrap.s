@@ -6,7 +6,7 @@
 #	actual or intended publication of such source code.
 
 
-	.ident	"@(#)kern-port:ml/ttrap.s	10.12"
+	.ident	"@(#)kern-port:ml/ttrap.s	10.13"
 #
 #   NOTE -- CHANGES TO USER.H (AND PROC) MAY REQUIRE CORRESPONDING CHANGES TO THE
 #		FOLLOWING .SET's.
@@ -409,18 +409,28 @@ sx_user:
 #
 	.globl	nrmx_ilc
 	.globl	nrmx_ilc2
+	.globl	nrmx_r0save
+	.globl	nrmx_r1save
+	.globl	nrmx_r2save
 
 nrmx_ilc:
 	MOVW	-16(%sp),u+u_ipcb+u_pc	# PC after user RETG
 	MOVW	-12(%sp),u+u_ipcb+u_psw	# PSW after user RETG
 	MOVAW	-16(%sp),u+u_ipcb+u_sp	# sp after RETG completes
+	MOVW	%r0,nrmx_r0save		# Save r0.
+	MOVW	%r1,nrmx_r1save		# Save r1.
+	MOVW	%r2,nrmx_r2save		# Save r2.
+ 	PUSHAW	u+u_ipcb+u_psw		# Push address of psw.
+ 	CALL	-4(%sp),fixuserpsw	# Make sure the psw is O.K.
+	MOVW	nrmx_r0save,%r0		# Restore r0.
+	MOVW	nrmx_r1save,%r1		# Restore r1.
+	MOVW	nrmx_r2save,%r2		# Restore r2.
+	ORW2	&0x00000080,u+u_ipcb+u_psw	# I=1
 	TSTW	u+u_fpovr		# user trapping on ovrflow ?
 	BEB	ovr_done			# branch if not.
 	ORW2	&0x00400000,u+u_ipcb+u_psw	# restore OE bit
 	ANDW2	&0xfff7ffff,u+u_ipcb+u_psw	# Turn off V bit.
 ovr_done:
-	ANDW2	&0xfffffeff,u+u_ipcb+u_psw	# Turn off R bit.
-	ORW2	&0x00001e80,u+u_ipcb+u_psw	# I=1, PM & CM = user.
 	MOVW	%r0,u+u_priptrsv	# save %r0
 	MOVW	u+u_procp,%r0		# save u_procp in reg
 	MOVB	p_pri(%r0),u+u_prisv	# save p_pri in u-block
@@ -448,6 +458,18 @@ nrmx_ilc3:
 	RETPS
 
 
+
+	.data
+	.align	4
+
+nrmx_r0save:
+	.word	0
+nrmx_r1save:
+	.word	0
+nrmx_r2save:
+	.word	0
+
+	.text
 #
 # Fast illegal op-code interface to handler for floating point emulation
 #

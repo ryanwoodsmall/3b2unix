@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/memSset.c	1.7.1.5"
+#ident	"@(#)curses:screen/memSset.c	1.9"
 #include "curses.h"
 /*
  * additional memory routine to deal with memory areas in units of chtypes.

@@ -1,6 +1,16 @@
 /dev/null
 1422 100
 d--775 0 3
+new	d--775 0 3
+	etc	d--775 0 3
+		termcap			---444 2 2	../etc/termcap
+	$
+	usr	d--775 0 3
+		options	d--775 0 3
+			terminf.name	---444 2 2	./install/terminf/terminf.name
+		$
+	$
+$
 install d--775 0 3
 	INSTALL		---555 2 2	./install/terminf/INSTALL
 	UNINSTALL	---555 2 2	./install/terminf/UNINSTALL
@@ -39,13 +49,6 @@ install d--775 0 3
 	ti.ti		---444 2 2	../usr/src/lib/terminfo/ti.ti
 	tymshare.ti	---444 2 2	../usr/src/lib/terminfo/tymshare.ti
 	visual.ti	---444 2 2	../usr/src/lib/terminfo/visual.ti
-$
-new	d--775 0 3
-	usr	d--775 0 3
-		options	d--775 0 3
-			terminf.name	---444 2 2	./install/terminf/terminf.name
-		$
-	$
 $
 $
 @(#)pkg.terminf:terminf/proto.2	1.5

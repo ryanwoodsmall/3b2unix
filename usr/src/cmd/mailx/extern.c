@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)mailx:extern.c	1.3"
+#ident	"@(#)mailx:extern.c	1.3.1.1"
 
 /*
  * mailx -- a modified version of a University of California at Berkeley
@@ -53,6 +53,7 @@ int	intty;				/* True if standard input a tty */
 int	baud;				/* Output baud rate */
 char	homedir[PATHSIZE];		/* Name of home directory */
 char	mailname[PATHSIZE];		/* Name of system mailbox */
+char	origname[PATHSIZE];		/* Name of mailfile before expansion */
 int	uid;				/* The invoker's user id */
 char	myname[PATHSIZE];		/* My login id */
 off_t	mailsize;			/* Size of system mailbox */

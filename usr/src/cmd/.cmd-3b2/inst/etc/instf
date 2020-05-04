@@ -1,4 +1,4 @@
-#ident	"@(#)cmd-3b2:inst/etc/instf	1.22.1.10"
+#ident	"@(#)cmd-3b2:inst/etc/instf	1.22.1.14"
 #
 # instf  
 #
@@ -396,9 +396,6 @@ A \"Release Upgrade\" is not possible." >&2
 			labelit() {
 				dlabelit $*
 			}
-			newboot() {
-				pnewboot $*
-			}
 			ck() {
 				fsck $ROOT_0
 			}
@@ -437,7 +434,7 @@ then
 	ckdf ${HARD}
 fi
 
-pnewboot /lib/olboot /lib/mboot ${BOOT_0} > /dev/null 
+pnewboot /dev/dsk/c0d0s7 ${BOOT_0} > /dev/null 
 ignore rm -f ${HARD}/lib/lboot < /dev/null
 
 # Use $HARD/inst as a lock file;  if you are doing an upgrade or partial
@@ -447,6 +444,7 @@ ignore rm -f ${HARD}/lib/lboot < /dev/null
 if [ \( ${TYPE} = upgrade -o ${TYPE} = part \) -a ! -d ${HARD}/inst/LOCK ]
 then	
 	(
+	rm -f ${HARD}/usr/old/etc/shadow
 	umask 022
 	echo "\nSaving system configuration files in /usr/old." >&2
 	ignore mkdir ${HARD}/usr/tmp 2>/dev/null
@@ -497,8 +495,12 @@ if [ -z "${DRIVEID_1:-}" ]
 then
 	cd ${HARD}/dev
 	ignore rm -f ridsk1? idsk1? < /dev/null	### Release 1.1 leftovers
-	ignore rm rdsk/c1d1s? dsk/c1d1s? rSA/disk2 SA/disk2 < /dev/null
+	ignore rm rdsk/c1d1s? dsk/c1d1s? < /dev/null
 	cd /
+else
+	ignore rm -f ${HARD}/dev/rSA/disk2 ${HARD}/dev/SA/disk2 < /dev/null
+	ln ${HARD}/dev/dsk/c1d1s6 ${HARD}/dev/SA/disk2
+	ln ${HARD}/dev/rdsk/c1d1s6 ${HARD}/dev/rSA/disk2
 fi
 
 echo "${TYPE}" > ${HARD}/inst/etc/type

@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/delscreen.c	1.3"
+#ident	"@(#)curses:screen/delscreen.c	1.4"
 #include	"curses_inc.h"
 
 void
@@ -42,5 +42,9 @@ SCREEN	*screen;
     }
     if (screen->cur_hash)
 	free((char *) screen->cur_hash);
+    if (screen->_pairs_tbl)
+	free((char *) screen->_pairs_tbl);
+    if (screen->_color_tbl)
+	free((char *) screen->_color_tbl);
     free((char *) screen);
 }

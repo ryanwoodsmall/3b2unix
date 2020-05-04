@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)kern-port:sys/stream.h	10.10.1.1"
+#ident	"@(#)kern-port:sys/stream.h	10.10.1.8"
 
 /*
  * data queue
@@ -89,7 +89,8 @@ struct streamtab {
 struct stdata {
 	struct	queue *sd_wrq;		/* write queue */
 	struct	msgb *sd_iocblk;	/* return block for ioctl */
-	struct	inode *sd_inode;	/* backptr, for hangups */
+	dev_t	sd_rdev;		/* device number */
+	ushort	sd_icnt;		/* number of inodes pointing to stream */
 	struct 	streamtab *sd_strtab;	/* pointer to streamtab for stream */
 	long	sd_flag;		/* state/flags */
 	long	sd_iocid;		/* ioctl id */
@@ -123,7 +124,17 @@ struct stdata {
 #define STRTIME      04000		/* used with timeout strtime */
 #define STR2TIME    010000		/* used with timeout str2time */
 #define STR3TIME    020000		/* used with timeout str3time */
+#define STRCLOSE    040000		/* wait for a close to complete */
+#define SNDMREAD   0100000              /* used for read notification */
+#define OLDNDELAY  0200000		/* use old TTY semantics for NDELAY reads
+					   and writes */
+#define RDBUFWAIT  0400000              /* used with bufcall in strqbuf() */
 
+/*
+ * value in sd_wrq to reserve stream
+ */
+
+#define RESERVED	1
 
 /* 
  * structure for storing triples of mux'ed streams 
@@ -232,6 +243,7 @@ struct dbalcst {
 #define M_CTL		015		/* device-specific control message */
 #define	M_IOCTL		016		/* ioctl; set/get params */
 #define M_SETOPTS	020		/* set various stream head options */
+#define M_RSE		021		/* reserved for RSE use only */
 
 
 /*
@@ -241,11 +253,16 @@ struct dbalcst {
 #define	M_IOCNAK	0202		/* negative ioctl acknowledge */
 #define M_PCPROTO	0203		/* priority proto message */
 #define	M_PCSIG		0204		/* generate process signal */
+#define	M_READ		0205		/* generate read notification */
 #define	M_FLUSH		0206		/* flush your queues */
 #define	M_STOP		0207		/* stop transmission immediately */
 #define	M_START		0210		/* restart transmission after stop */
 #define	M_HANGUP	0211		/* line disconnect */
 #define M_ERROR		0212		/* fatal error used to set u.u_error */
+#define M_COPYIN	0213		/* request to copin data */
+#define M_COPYOUT	0214		/* request to copyout data */
+#define M_IOCDATA	0215		/* response to M_COPYIN and M_COPYOUT */
+#define M_PCRSE		0216		/* reserved for RSE use only */
 
 
 /*
@@ -269,6 +286,44 @@ struct iocblk {
 	int	ioc_rval;		/* return value  */
 };
 
+/*
+ * structure for the M_COPYIN and M_COPYOUT message types.
+ */
+
+struct copyreq {
+	int	cq_cmd;			/* ioctl command (from ioc_cmd) */
+	ushort	cq_uid;			/* effective uid of user */
+	ushort	cq_gid;			/* effective gid of user */
+	uint	cq_id;			/* ioctl id (from ioc_id) */
+	caddr_t	cq_addr;		/* address to copy data to/from */
+	uint	cq_size;		/* number of bytes to copy */
+	int	cq_flag;		/* see below */
+	mblk_t *cq_private;		/* privtate state information */
+};
+
+/* cq_flag values */
+
+#define STRCANON	0x01		/* b_cont data block contains canonical
+					   format specifier */
+#define RECOPY		0x02		/* perform I_STR copyin again, this time
+					   using canonical format specifier */
+
+
+/*
+ * structure for the M_IOCDATA message type.
+ */
+
+struct copyresp {
+	int	cp_cmd;			/* ioctl command (from ioc_cmd) */
+	ushort	cp_uid;			/* effective uid of user */
+	ushort	cp_gid;			/* effective gid of user */
+	uint	cp_id;			/* ioctl id (from ioc_id) */
+	caddr_t	cp_rval;		/* status of request: 0 -> success
+							      non-zero -> failure */
+	uint	cp_pad1;		/* reserved */
+	int	cp_pad2;		/* reserved */
+	mblk_t *cp_private;		/* private state information */
+};
 
 /*
  * Options structure for M_SETOPTS message.  This is sent upstream
@@ -286,13 +341,17 @@ struct stroptions {
 
 /* flags for stream options set message */
 
-#define SO_ALL		077	/* set all options */
-#define SO_READOPT	 01	/* set read opttion */
-#define SO_WROFF	 02	/* set write offset */
-#define SO_MINPSZ	 04	/* set min packet size */
-#define SO_MAXPSZ	010	/* set max packet size */
-#define SO_HIWAT	020	/* set high water mark */
-#define SO_LOWAT	040	/* set low water mark */
+#define SO_ALL		  077	/* set all options */
+#define SO_READOPT	   01	/* set read opttion */
+#define SO_WROFF	   02	/* set write offset */
+#define SO_MINPSZ	   04	/* set min packet size */
+#define SO_MAXPSZ	  010	/* set max packet size */
+#define SO_HIWAT	  020	/* set high water mark */
+#define SO_LOWAT	  040	/* set low water mark */
+#define SO_MREADON       0100	/* set read notification ON */
+#define SO_MREADOFF      0200	/* set read notification OFF */
+#define SO_NDELON	 0400	/* old TTY semantics for NDELAY reads and writes */
+#define SO_NDELOFF      01000	/* old TTY semantics for NDELAY reads and writes */
 
 
 
@@ -318,6 +377,7 @@ struct stroptions {
 #define WRITEWAIT	0x1	/* waiting for write event */
 #define READWAIT	0x2	/* waiting for read event */
 #define NOINTR		0x4	/* error is not to be set for signal */
+#define GETWAIT		0x8	/* waiting for getmsg event */
 
 /*
  * sleep priorities for stream io
@@ -365,6 +425,25 @@ struct stroptions {
 #define FLUSHALL	1	/* flush all messages */
 #define FLUSHDATA	0	/* don't flush control messages */
 
+/*
+ * flag for transparent ioctls
+ */
+#define TRANSPARENT	(unsigned int)(-1)
+
+/*
+ * canonical structure definitions
+ */
+
+#define STRLINK		"lli"
+#define STRIOCTL	"iiil"
+#define STRPEEK		"iiliill"
+#define STRFDINSERT	"iiliillii"
+#define STRRECVFD	"lssc8"
+#define STRNAME		"c0"
+#define STRINT		"i"
+#define STRTERMIO	"ssssc12"
+#define STRTERMCB	"c6"
+#define STRSGTTYB	"c4i"
 
 /************************************************************************/
 /*	Defintions of Streams macros and function interfaces.		*/
@@ -394,12 +473,8 @@ struct stroptions {
 
 
 /*
- * noenable - set queue so that putq() will not enable it.
- * enableok - set queue so that putq() can enable it.
  * canenable - check if queue can be enabled by putq().
  */
-#define noenable(q)	(q)->q_flag |= QNOENB
-#define enableok(q)	(q)->q_flag &= ~QNOENB
 #define canenable(q)	!((q)->q_flag & QNOENB)
 
 /*
@@ -484,6 +559,8 @@ extern struct linkblk *findlinks();
 extern struct file *getf();
 extern struct strevent *sealloc();
 extern int   sefree();
+extern int noenable();
+extern int enabelok();
 
 /*
  * shared or externally configured data structures
@@ -507,3 +584,4 @@ extern int nstrevent;			/* initial number of stream event cells */
 extern int maxsepgcnt;			/* page limit for event cell allocation */
 extern int pollwait;			/* poll sleeps on &pollwait */
 extern char qrunflag;			/* set if there are queues to run */
+

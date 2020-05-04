@@ -5,12 +5,13 @@
 #	The copyright notice above does not evidence any
 #	actual or intended publication of such source code.
 
-#ident	"@(#)kern-port:boot/mboot/makefile	10.2.1.1"
+#ident	"@(#)kern-port:boot/mboot/makefile	10.2.1.2"
 
 ROOT =
 INC = $(ROOT)/usr/include
 INCLOC = ..
-CFLAGS = -I$(INCLOC) -I$(INC)
+DASHO = -O
+CFLAGS = $(DASHO) -I$(INCLOC) -I$(INC)
 SIZE = size
 DIS = dis
 NM = nm

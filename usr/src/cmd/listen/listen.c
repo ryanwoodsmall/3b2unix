@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)listen:listen.c	1.19.4.4"
+#ident	"@(#)listen:listen.c	1.19.4.7"
 
 /*
  * Network Listener Process
@@ -133,6 +133,10 @@ int	Splflag;		/* logfile critical region flag		*/
 
 static char *badnspmsg = "Bad netspec on command line ( Pathname too long )\n";
 static char *badstart  = "Listener failed to start properly\n";
+static char tzenv[BUFSIZ];
+
+#define TIMEZONE	"/etc/TIMEZONE"
+#define TZSTR	"TZ="
 
 
 main(argc, argv)
@@ -142,7 +146,11 @@ char **argv;
 	register char **av;
 	struct stat buf;
 	int ret;
+	char scratch[BUFSIZ];
+	FILE *fp;
 	extern void exit(), logexit();
+	extern char *getenv();
+	char *parse();
 
 	/*
 	 * pre-initialization:
@@ -258,7 +266,31 @@ char **argv;
 		logexit(1, badstart);
 	}
 
-	logmessage("@(#)listen:listen.c	1.19.4.4");
+/*
+ * In case we started with no environment, find out what timezone we're
+ * in.  This will get passed to children, so only need to do once.
+ */
+
+	if (getenv("TZ") == NULL) {
+		fp = fopen(TIMEZONE, "r");
+		if (fp) {
+			while (fgets(tzenv, BUFSIZ, fp)) {
+				if (tzenv[strlen(tzenv) - 1] == '\n')
+					tzenv[strlen(tzenv) - 1] = '\0';
+				if (!strncmp(TZSTR, tzenv, strlen(TZSTR))) {
+					putenv(parse(tzenv));
+					break;
+				}
+			}
+			fclose(fp);
+		}
+		else {
+			sprintf(scratch, "couldn't open %s, default to GMT", TIMEZONE);
+			logmessage(scratch);
+		}
+	}
+
+	logmessage("@(#)listen:listen.c	1.19.4.7");
 
 #ifdef	DEBUGMODE
 	logmessage("Listener process with DEBUG capability");
@@ -1763,10 +1795,6 @@ struct t_call *call;
 
 static char provenv[2*PATHSIZE];
 static char homeenv[BUFSIZ];
-static char tzenv[BUFSIZ];
-
-#define TIMEZONE	"/etc/TIMEZONE"
-#define TZSTR	"TZ="
 
 int
 senviron(call, home)
@@ -1777,7 +1805,6 @@ register char *home;
 	char scratch[BUFSIZ];
 	extern void nlsaddr2c();
 	extern char *getenv();
-	char *parse();
 	FILE *fp;
 
 	sprintf(homeenv, "HOME=%s", home);
@@ -1785,30 +1812,12 @@ register char *home;
 
 /*
  * The following code handles the case where the listener was started with
- * no environment.  If so, supply a reasonable default path and find out
- * what timezone we're in so the log file is consistent.
+ * no environment.  If so, supply a reasonable default path.  Parent already
+ * set TZ on startup if it wasn't, so don't need to do it here.
  */
 
 	if (getenv("PATH") == NULL)
 		putenv("PATH=/bin:/etc:/usr/bin");
-	if (getenv("TZ") == NULL) {
-		fp = fopen(TIMEZONE, "r");
-		if (fp) {
-			while (fgets(tzenv, BUFSIZ, fp)) {
-				if (scratch[strlen(tzenv) - 1] == '\n')
-					tzenv[strlen(tzenv) - 1] = '\0';
-				if (!strncmp(TZSTR, tzenv, strlen(TZSTR))) {
-					putenv(parse(tzenv));
-					break;
-				}
-			}
-			fclose(fp);
-		}
-		else {
-			sprintf(scratch, "couldn't open %s, default to GMT", TIMEZONE);
-			logmessage(scratch);
-		}
-	}
 
 	if ((p = (char *)malloc(((call->addr.len)<<1) + 18)) == NULL)
 		return(-1);

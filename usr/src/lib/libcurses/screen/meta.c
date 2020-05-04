@@ -5,7 +5,7 @@
 /*	The copyright notice above does not evidence any   	*/
 /*	actual or intended publication of such source code.	*/
 
-#ident	"@(#)curses:screen/meta.c	1.1.1.8"
+#ident	"@(#)curses:screen/meta.c	1.3"
 
 #include	"curses_inc.h"
 

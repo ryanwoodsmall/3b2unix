@@ -1,4 +1,4 @@
-#ident	"@(#)adm::mk	1.5scp"
+#ident	"@(#)mk::mk	1.7"
 #
 #	Shell script for rebuilding the UNIX System
 #
@@ -11,14 +11,14 @@ fi
 ./:mkhead
 ./:mksyshead
 #	build and install the C library
-#!scp	./:mklib libc
+./:mklib libc
 #	build the C compilation tools
-#!scp	if vax || pdp11
-#!scp	then
-#!scp	./:mkcmd $* cc
-#!scp	else
-#!scp	./:mkcmd sgs
-#!scp	fi
+if vax || pdp11
+then
+	./:mkcmd $* cc
+else
+	./:mkcmd sgs
+fi
 #	build the other libraries
 ./:mklib \*
 #	build the system administration tools
